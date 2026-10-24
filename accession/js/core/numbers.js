@@ -11,12 +11,13 @@ const N = Object.freeze({
   COST_OPEN_CASE: 200, // open a case
   COST_BASH: 100, // one bash (Heavy: 150 for two)
   COST_TAKE: 100, // take or drop
-  COST_USE: 100, // drink, read a consumable, throw, use an instrument (reading a label costs nothing)
+  COST_USE: 100, // drink, read a consumable, throw, use an instrument or apply a Restoration kit (reading a label costs nothing)
   COST_BASH_HEAVY: 150, // one Heavy swing at glass, counting as two bashes
   COST_EQUIP: 100, // equip a weapon, curio or instrument
   COST_EQUIP_GARMENT: 300, // equip a garment
   COST_PUSH: 100, // push a jar
   COST_VIEW: 100, // one viewing turn
+  COST_SIT: 100, // sit on a bench
   SPECIAL_RECOVERY: 100, // extra cost of the action after a special
   SPEED_FAST_PCT: 50, // fast actors' cost
   SPEED_SLOW_PCT: 200, // slow actors' cost
@@ -58,6 +59,9 @@ const N = Object.freeze({
   SEARCH_TURNS: 3, // turns searching your last-known tile
   REINSTALL_TURNS: 3, // turns reinstalling before sleeping
   ALLY_HIT_RANGE: 5, // ally_hit range
+  AXIS_RANGE: 8, // the `axis` trigger's reach
+  TETHER_RANGE: 2, // the `tether` trigger's reach, and the tethered_warden's leash
+  HERALD_RANGE: 6, // a herald's call
   CLOCK_MULT_PCT: 250, // B = round10(MULT × L_tour / 100 + ADD)
   CLOCK_ADD: 100,
   STAGE_GAP_PCT: 15, // G = max(MIN, round10(PCT × B / 100))
@@ -84,13 +88,18 @@ const N = Object.freeze({
   CONSOLIDANT_NOW_PCT: 50, // Consolidant, immediate heal
   CONSOLIDANT_HOT_PCT: 25, // Consolidant, heal over time
   CONSOLIDANT_HOT_TURNS: 5,
+  CONSOLIDANT_THROW_PCT: 50, // a thrown Consolidant's heal, % of each creature's max HP
   FIXATIVE_TURNS: 4, // fixed
   FUMIGANT_TURNS: 10, // cloud duration
   FUMIGANT_SIZE: 5, // cloud side
   COUGH_TURNS: 5, // coughing
   QUIET_RANGE: 8, // "Quiet, Please" range
+  THROW_RANGE: 5, // how far you can throw
+  THROW_AREA: 3, // the side of a thrown Solution's square
   DECK: [20, 8, 10, 8, 14, 8, 8, 5], // Consolidant, Fixative, Fumigant, Solvent, Catalogue Card, Floor Plan, "Quiet, Please", Re-admission Ticket
   GLASS_BASHES: [1, 2, 3], // Plate, Laminated, Security
+  GLASS_LOCK_MIN: [1, 2, 4], // the lowest lock grade: Plate, Laminated, Security
+  GLASS_LOCK_MAX: [2, 4, 7], // the highest lock grade, likewise
   GLASS_MIX_D1: [70, 30, 0], // Plate, Laminated, Security % at depth 1; provisional
   GLASS_MIX_D2: [70, 30, 0],
   GLASS_MIX_D3: [40, 40, 20],
@@ -102,13 +111,26 @@ const N = Object.freeze({
   FORM_BALANCED: [1, 3, 3, 100, 0, 0],
   FORM_HEAVY: [2, 4, 4, 150, -1, 1],
   FORM_REACH: [0, 3, 1, 100, 0, 0],
+  REACH_RANGE: 2, // tiles away a Reach weapon hits
   GARMENT_LIGHT: [-1, 1, 0], // Padding = tier + a, Eva, grade offset
   GARMENT_STANDARD: [0, 0, 0],
   GARMENT_HEAVY: [1, -1, 1],
   TIER_LOW_BY_DEPTH: [1, 1, 2, 2, 3, 3, 4], // the lower tier on offer at depths 1–7
   TIER_LOW_PCT: 60, // share of items at the lower tier
+  BONUS_ACC: [1, 2, 3], // Acc from an S / M / L primitive; provisional
+  BONUS_EVA: [1, 2, 3], // Eva, likewise
+  BONUS_PAD: [1, 2, 3], // Padding, likewise
+  BONUS_DMG: [1, 2, 3], // min and max damage, likewise
+  BREAKER_BASHES: 1, // extra bashes per swing with `breaker`
+  QUIET_RING: 1, // your ring is this much smaller when you move with `quiet`
+  RESTORE_DMG: 1, // a weapon's min and max damage per level
+  RESTORE_ACC_EVERY: 2, // a weapon gains 1 Acc at every this many levels
+  RESTORE_PAD: 1, // a garment's Padding per level
+  RESTORE_RANK: 1, // a curio's rank per level
+  RESTORE_CHARGES: 1, // an instrument's charges per level
   TUNING_FORK: [3, 40, 8], // charges, recharge turns, range
   PIN_DRIVER: [4, 30, 5], // charges, recharge turns, range; damage [t, 2t + 2]
+  PIN_DRIVER_DMG: [0, 2, 2], // the Pin-Driver's damage at tier t: min = t + a, max = b·t + c
   WINDOW_POLE: [4, 40, 2], // charges, recharge turns, range
   LAMP_OBSERVE_RANGE: 4, // the Day Curator's Lamp, lit
   LAMP_RING: 1, // added to your ring while the Lamp is lit
@@ -168,8 +190,9 @@ const N = Object.freeze({
   ROLE_WARDEN_EVA: [2, 3, 4],
   ROLE_WARDEN_DMG: [[2, 5], [4, 10], [7, 15]],
   ROLE_WARDEN_PAD: [1, 2, 3],
-  ROLE_WARDEN_SPECIAL: [6, 12, 17], // gross special damage (§8.1), every third action
-  ROLE_ARTILLERY_SPECIAL: [5, 11, 16], // gross damage of a telegraphed artillery shot
+  ROLE_WARDEN_SPECIAL: [6, 12, 17], // gross damage of the tethered_warden's ring special (§8.1)
+  ROLE_WARDEN_SPECIAL_EVERY: 3, // the tethered_warden's ring special comes every this many actions
+  ROLE_ARTILLERY_SPECIAL: [5, 11, 16], // gross damage of the axis_sniper's beam (§8.1)
   MEDIAN_PADDING: [1, 2, 3], // the median visitor's Padding; provisional
   ROLE_SUPPORT_HP: [10, 20, 35], // new for the slice: provisional
   ROLE_SUPPORT_ACC: [2, 3, 4],
@@ -194,5 +217,16 @@ const N = Object.freeze({
   ROLE_CENTREPIECE_SPECIAL_PCT: [25, 30, 35], // gross special damage = pct(MEDIAN_MAX_HP, this) + MEDIAN_PADDING, at that depth
   ROLE_ARTILLERY_RANGE: 6,
   ROLE_CONTROLLER_SPECIAL_EVERY: 3, // a status special every third action
+  AXIS_BEAM_RANGE: 10, // the axis_sniper's beam, in tiles
+  KITER_HOLD: [3, 5], // the kiter's distance from you, nearest and farthest
+  DARTER_STEP_BACK: 1, // tiles a darter steps back after its blow
+  SPLIT_MAX: 2, // splits per lineage
+  SPLIT_HP_PCT: 50, // each half's share of the remaining health
+  SWARM_BODIES: [3, 8], // bodies in a swarm, fewest and most; provisional; the M3 stand-in places the first
+  MIMIC_GRIP_TURNS: 2, // turns a mimic's grip roots you
+  OLD_REPAIR_PCT: 200, // damage through an old repair's side
+  PLASTER_HP_PCT: 70, // a plaster cast's share of its role's health
+  PLASTER_DUST_TURNS: 3, // turns a plaster cast's dust blocks sight
+  PLASTER_DUST_SIZE: 3, // the side of the dust square
   MEDIAN_MAX_HP: [20, 25, 30, 35, 40, 45, 50], // at depths 1–7, assuming a Certificate in each earlier department; provisional
 });

@@ -74,13 +74,17 @@ accession/
     rng.js, int.js         string-keyed streams (hash → mulberry32); integer helpers with stated rounding
     state.js               canonical serialisation, hashing, cloning, the plain-data check
     numbers.js             the numbers of record (§8.10), the only home of rule constants
-    registry.js            the grammar: systems, triggers, archetypes, modifiers, modules, clauses
+    registry.js, reg/      the grammar's API and the nine systems; one fragment per owner in reg/ (system,
+                           waking, modes, combat, …) holding its entries, clause templates and event schemas (§5.1)
+    clauses.js             Behaviour lines, filled from the clause templates at the department's depth (§5.3)
     grid.js, vision.js     tiles, line of sight, walking distance; what you see, your ring
     path.js, clock.js      paths for taps; the clock's budget
     roles.js               exhibit numbers from role and depth
     layout/                build kit, programmes, curation, analysis, validation, repair, fallback
     rules/                 step.js (the only mutator) and one file per system
-    text.js, labels.js     cause sentences, death recaps; labels, odds readouts, the strip
+    text.js, text/         sentences keyed by event kind and cause, refusals, the recap; one fragment per
+                           owner in text/, as in reg/ (§4.3)
+    labels.js              labels, odds readouts, the strip
     packs.js, dept.js      the pack registry; a department visit's starting state
     run.js                 run structure: doors, sequencer, Stair Halls, the Exit (M5)
     viewmodel.js           derive(state, ui) → a plain description of what to draw (§6.1)
@@ -272,15 +276,23 @@ state = {
 Event kinds (`k`):
 - **Movement:** `moved`, `opened`, `closed`.
 - **Fighting:** `attacked`, `missed`, `damaged`, `died`, `telegraphed`, `special`.
-- **Waking:** `noise`, `pip`, `woke`, `hunting`, `lost`, `returned`.
+- **Health and statuses:** `waited`, `regenerated`, `healed`, `status`.
+- **Waking:** `noise`, `pip`, `woke`, `hunting`, `alerted`, `lost`, `returned`.
 - **Cases:** `case_opened`, `glass_cracked`, `glass_broke`.
-- **Items:** `took`, `equipped`, `used`, `identified`.
+- **Items:** `took`, `dropped`, `equipped`, `used`, `identified`.
 - **Clock and alarms:** `stage`, `alarm`.
 - **Progress:** `certificate`, `grade`, `perk`, `viewed`.
 - **Modules:** `module`.
 - **Places and system:** `entered`, `left`, `refused`.
 
-The list is closed and lives in the registry. A test checks that `text.js` has a sentence for every kind, and that every `damaged` and `woke` event has a non-empty cause.
+The list is closed and lives in the registry (`Registry.EVENT_KINDS`); `tools/lint-registry.js` fails if it and this list differ. `alerted` sends an exhibit that is not hunting to look at a noise; `healed` is any gain of health but regeneration; `status` is a status put on or ended; unequipping is `equipped` with no item. Each kind has a schema (its fields and their types: uid, uids, int, str, bool, tile, tiles, obj, with `?` for an optional field), and so does each of its causes, `Registry.defineEvent(k, …)` and `Registry.defineCause(k, causeK, …)`, in the fragment of the rule that emits it (§5.1).
+
+**Sentences** are keyed by kind and cause, because many rules emit the same kind for their own reasons:
+- `Text.define(k, fn)` gives a kind's default sentence, `Text.defineCause(k, causeK, fn)` the sentence for one of its causes, and `Text.defineRefusal(code, fn)` a refusal's, each in the owner's fragment `js/core/text/<part>.js`; `Text.provide(name, fn)` supplies the clock dial's sentence and the death recap.
+- `Text.event(e, nameOf)` uses the cause's sentence, and falls back to the kind's.
+- `Text.log(events, nameOf, visible)` chooses what reaches your log: it leaves out steps, closed doors, the announcement of a blow (its hit or miss is logged), waits and regeneration, and pips and doors of exhibits out of view; an exhibit that wakes straight into a hunt gets one sentence.
+
+lint-registry fails if a kind or a (kind, cause) pair has no sentence. A test checks that every `damaged` and `woke` event has a non-empty cause.
 
 ### 4.4 Saves
 
@@ -317,21 +329,28 @@ The design in [`DECISIONS.md`](DECISIONS.md) (Autosave) is the contract. The mec
 
 `js/core/registry.js` is the one machine-readable grammar. It holds:
 - the **nine universal systems**, each with an icon id and its one sentence (§8);
-- the **slice subsets** of triggers, archetypes, modifiers, specials, statuses, fixtures and modules;
-- the **8 consumable kinds** and the **8 perks**;
-- the **pictogram list** and the **event kinds**.
+- the **slice subsets** of triggers, archetypes, modifiers, specials, statuses, surfaces, item primitives, instruments, fixtures, glasses, wake causes, refusal codes and modules;
+- the **8 consumable kinds**, their seals, and (M4) the **8 perks**;
+- the **event kinds** and their schemas.
 
-**Every id carries:**
-- its parameters;
-- a Behaviour-line clause template (§5.3);
-- its pictogram;
-- the names of the scenario tests that prove each clause.
+**Fragments.** `registry.js` holds only the systems and the API; every entry lives in a fragment, `js/core/reg/<part>.js`, owned by the package that implements and tests it (`reg/waking.js` for the triggers it builds, `reg/arch-b.js` for the kiter, and so on), so no two packages edit one file:
+- `Registry.define(table, id, entry)` adds an entry; each id has one owner, and a second definition throws;
+- `Registry.defineEvent(k, schema)` and `Registry.defineCause(k, causeK, schema)` add event and cause schemas (§4.3);
+- `Registry.order(table)` gives a table's ids in definition order, so the core never iterates an object's keys (§3.1).
+
+**Every entry carries:**
+- `built`: `'M3'` or `'M4'`, the milestone that builds it (§11);
+- `ready`: `false`; `'unit'` once its scenarios pass with the other systems' hooks stubbed or driven directly; `true` once the joined-up scenarios pass;
+- `tests` (scenario files under `test/`) and `inv` (its invariant file, `test/behaviour/<inv>.inv.js`);
+- for an id with a clause: its parameters (`params`), its Behaviour-line clause template (§5.3), the event kinds the clause accounts for (`covers`), and its pictogram.
 
 `tools/lint-registry.js` fails the build when:
 - there are more than ten universal systems;
 - an id is unknown or duplicated, or is referenced by no pack, scenario test or arena fixture (from M3, when scenario tests exist);
-- a pack uses an id not in the registry;
-- a Behaviour-line clause has no test;
+- a pack uses an id not in the registry, or an item primitive outside §8.5's set;
+- a Behaviour-line clause has no test: an entry at `'unit'` or above names no tests, or a test or invariant file that does not exist; with `--strict` (M3's acceptance), any `built: 'M3'` entry is below `true` or lacks its tests or invariant;
+- a clause template names a parameter, special or status its entry does not define, or a pack species' line cannot be filled at some depth 1–7;
+- an event kind or a (kind, cause) pair has no schema or no sentence, or the kinds differ from §4.3;
 - a species has more than one special trigger;
 - a department owns more than two modules;
 - a pack's Intro teaches anything but its signature module;
@@ -355,17 +374,21 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
 
 ### 5.3 Behaviour lines are generated
 
-- **A label's Behaviour line is assembled from clause templates:**
-  - the archetype's clause ("Moves 2 a turn, but only while you cannot see it; strikes hard from beside you.");
-  - each modifier's clause;
-  - the wake clause ("Wakes when you stay inside your ring", plus the special trigger's clause);
-  - any module flag's clause.
+- **A label's Behaviour line is assembled from clause templates,** one part for every registry id the species uses (`Clauses.of(sp, {depth, rulesOff})`; `Clauses.line` joins them):
+  - the archetype's clause ("Walks one tile at a time and strikes from beside you for {dmg}.");
+  - its special's clause and each status it inflicts, set inside the archetype's clause where it says `{special}` and `{status:<id>}`;
+  - each modifier's clause, unless `rulesOff` switches the modifier off;
+  - the wake clause ("Wakes when you stay inside your ring or make noise near it", or, for a species that gains no pips, "Wakes only when it is opened, bashed or struck"), joined to the special trigger's clause; a trigger that stands instead of it ("It never sleeps.") replaces it;
+  - any module flag's clause (M4).
+- **Parameters are filled at the department's depth:** `N:KEY` is a number of record, and `N:KEY[i]` one of its values; `curve:KEY` is a role curve at the depth; `role:HP` and `role:DMG` are the species role's health and damage range at the depth; `mod:NAME` is a value the pack gives the modifier (`modParams`). So "strikes from beside you for 4–9" names the numbers a blow can roll.
+- **Event kinds that need no clause** are the ones any exhibit may cause or suffer (`Clauses.UNIVERSAL`: moving, doors, noise, pips, waking and mode changes, damage and death); blows, specials and statuses are covered by the clauses of the archetypes that make them.
 - **The panel shows it under the title,** above the literary paragraph, and the strip shows it in runs 1–3 (DESIGN default 24).
+- **Length.** The longest line in the packs, with depth 7's numbers, must fit the strip at 390×844 at every text size and leave the board at least 40% of the window's height (`check-screens`); a clause that would break this is reworded, never cut.
 - **Each clause is checked four ways:**
-  1. **An invariant.** Each clause template declares a predicate over the state before a step, its events, and the state after. The invariant runs after every step of every monkey, soak and bot run; a violation prints the clause, species, seed, step and replay.
+  1. **An invariant.** Each clause has a predicate over the state before a step, its events, and the state after, in the invariant file its entry names (`test/behaviour/<inv>.inv.js`). The invariant runs after every step of every monkey, soak and bot run; a violation prints the clause, species, seed, step and replay.
   2. **Scenarios** in `test/behaviour/`, written as functions of the clause's parameters and run for every species and depth that the three packs and the Exit produce, with pack overrides applied.
   3. **Sensitivity.** Each module and modifier clause's scenario is rerun with `rulesOff`, and must then fail.
-  4. **Completeness.** Every registry id a species uses (archetype, modifiers, trigger, special, module flag, inflicted status) contributes a clause, and soak runs flag any event kind an actor causes that no clause of its line covers.
+  4. **Completeness.** Every registry id a species uses (archetype, modifiers, trigger, special, module flag, inflicted status) contributes a clause part, and soak runs flag any event kind an actor causes that is neither universal nor covered by a clause of its line.
 
   Vague words are not allowed in a clause: "strikes hard" names its number class from §8.10. A Behaviour line therefore cannot say anything the code does not do.
 - **Paragraphs carry no rules** (D10: "a paragraph that is only for reading"). A paragraph may echo, in the museum's voice, something its Behaviour line already states; it never adds a rule. The samples' Essential lines that describe systems the slice cuts (light, lamp cones) are rewritten as flavour.
@@ -994,12 +1017,13 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | COST_OPEN_CASE | 200 | open a case |
 | COST_BASH | 100 | one bash (Heavy: 150 for two) |
 | COST_TAKE | 100 | take or drop |
-| COST_USE | 100 | drink, read a consumable, throw, use an instrument (reading a label costs nothing) |
+| COST_USE | 100 | drink, read a consumable, throw, use an instrument or apply a Restoration kit (reading a label costs nothing) |
 | COST_BASH_HEAVY | 150 | one Heavy swing at glass, counting as two bashes |
 | COST_EQUIP | 100 | equip a weapon, curio or instrument |
 | COST_EQUIP_GARMENT | 300 | equip a garment |
 | COST_PUSH | 100 | push a jar |
 | COST_VIEW | 100 | one viewing turn |
+| COST_SIT | 100 | sit on a bench |
 | SPECIAL_RECOVERY | 100 | extra cost of the action after a special |
 | SPEED_FAST_PCT | 50 | fast actors' cost |
 | SPEED_SLOW_PCT | 200 | slow actors' cost |
@@ -1041,6 +1065,9 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | SEARCH_TURNS | 3 | turns searching your last-known tile |
 | REINSTALL_TURNS | 3 | turns reinstalling before sleeping |
 | ALLY_HIT_RANGE | 5 | ally_hit range |
+| AXIS_RANGE | 8 | the `axis` trigger's reach |
+| TETHER_RANGE | 2 | the `tether` trigger's reach, and the tethered_warden's leash |
+| HERALD_RANGE | 6 | a herald's call |
 | CLOCK_MULT_PCT | 250 | B = round10(MULT × L_tour / 100 + ADD) |
 | CLOCK_ADD | 100 | |
 | STAGE_GAP_PCT | 15 | G = max(MIN, round10(PCT × B / 100)) |
@@ -1067,13 +1094,18 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | CONSOLIDANT_NOW_PCT | 50 | Consolidant, immediate heal |
 | CONSOLIDANT_HOT_PCT | 25 | Consolidant, heal over time |
 | CONSOLIDANT_HOT_TURNS | 5 | |
+| CONSOLIDANT_THROW_PCT | 50 | a thrown Consolidant's heal, % of each creature's max HP |
 | FIXATIVE_TURNS | 4 | fixed |
 | FUMIGANT_TURNS | 10 | cloud duration |
 | FUMIGANT_SIZE | 5 | cloud side |
 | COUGH_TURNS | 5 | coughing |
 | QUIET_RANGE | 8 | "Quiet, Please" range |
+| THROW_RANGE | 5 | how far you can throw |
+| THROW_AREA | 3 | the side of a thrown Solution's square |
 | DECK | 20 / 8 / 10 / 8 / 14 / 8 / 8 / 5 | Consolidant, Fixative, Fumigant, Solvent, Catalogue Card, Floor Plan, "Quiet, Please", Re-admission Ticket |
 | GLASS_BASHES | 1 / 2 / 3 | Plate, Laminated, Security |
+| GLASS_LOCK_MIN | 1 / 2 / 4 | the lowest lock grade: Plate, Laminated, Security |
+| GLASS_LOCK_MAX | 2 / 4 / 7 | the highest lock grade, likewise |
 | GLASS_MIX_D1 | 70 / 30 / 0 | Plate, Laminated, Security % at depth 1; provisional |
 | GLASS_MIX_D2 | 70 / 30 / 0 | |
 | GLASS_MIX_D3 | 40 / 40 / 20 | |
@@ -1085,13 +1117,26 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | FORM_BALANCED | 1 / 3 / 3 / 100 / 0 / 0 | |
 | FORM_HEAVY | 2 / 4 / 4 / 150 / -1 / 1 | |
 | FORM_REACH | 0 / 3 / 1 / 100 / 0 / 0 | |
+| REACH_RANGE | 2 | tiles away a Reach weapon hits |
 | GARMENT_LIGHT | -1 / 1 / 0 | Padding = tier + a, Eva, grade offset |
 | GARMENT_STANDARD | 0 / 0 / 0 | |
 | GARMENT_HEAVY | 1 / -1 / 1 | |
 | TIER_LOW_BY_DEPTH | 1 / 1 / 2 / 2 / 3 / 3 / 4 | the lower tier on offer at depths 1–7 |
 | TIER_LOW_PCT | 60 | share of items at the lower tier |
+| BONUS_ACC | 1 / 2 / 3 | Acc from an S / M / L primitive; provisional |
+| BONUS_EVA | 1 / 2 / 3 | Eva, likewise |
+| BONUS_PAD | 1 / 2 / 3 | Padding, likewise |
+| BONUS_DMG | 1 / 2 / 3 | min and max damage, likewise |
+| BREAKER_BASHES | 1 | extra bashes per swing with `breaker` |
+| QUIET_RING | 1 | your ring is this much smaller when you move with `quiet` |
+| RESTORE_DMG | 1 | a weapon's min and max damage per level |
+| RESTORE_ACC_EVERY | 2 | a weapon gains 1 Acc at every this many levels |
+| RESTORE_PAD | 1 | a garment's Padding per level |
+| RESTORE_RANK | 1 | a curio's rank per level |
+| RESTORE_CHARGES | 1 | an instrument's charges per level |
 | TUNING_FORK | 3 / 40 / 8 | charges, recharge turns, range |
 | PIN_DRIVER | 4 / 30 / 5 | charges, recharge turns, range; damage [t, 2t + 2] |
+| PIN_DRIVER_DMG | 0 / 2 / 2 | the Pin-Driver's damage at tier t: min = t + a, max = b·t + c |
 | WINDOW_POLE | 4 / 40 / 2 | charges, recharge turns, range |
 | LAMP_OBSERVE_RANGE | 4 | the Day Curator's Lamp, lit |
 | LAMP_RING | 1 | added to your ring while the Lamp is lit |
@@ -1151,8 +1196,9 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | ROLE_WARDEN_EVA | 2 / 3 / 4 | |
 | ROLE_WARDEN_DMG | 2-5 / 4-10 / 7-15 | |
 | ROLE_WARDEN_PAD | 1 / 2 / 3 | |
-| ROLE_WARDEN_SPECIAL | 6 / 12 / 17 | gross special damage (§8.1), every third action |
-| ROLE_ARTILLERY_SPECIAL | 5 / 11 / 16 | gross damage of a telegraphed artillery shot |
+| ROLE_WARDEN_SPECIAL | 6 / 12 / 17 | gross damage of the tethered_warden's ring special (§8.1) |
+| ROLE_WARDEN_SPECIAL_EVERY | 3 | the tethered_warden's ring special comes every this many actions |
+| ROLE_ARTILLERY_SPECIAL | 5 / 11 / 16 | gross damage of the axis_sniper's beam (§8.1) |
 | MEDIAN_PADDING | 1 / 2 / 3 | the median visitor's Padding; provisional |
 | ROLE_SUPPORT_HP | 10 / 20 / 35 | new for the slice: provisional |
 | ROLE_SUPPORT_ACC | 2 / 3 / 4 | |
@@ -1177,10 +1223,21 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | ROLE_CENTREPIECE_SPECIAL_PCT | 25 / 30 / 35 | gross special damage = pct(MEDIAN_MAX_HP, this) + MEDIAN_PADDING, at that depth |
 | ROLE_ARTILLERY_RANGE | 6 | |
 | ROLE_CONTROLLER_SPECIAL_EVERY | 3 | a status special every third action |
+| AXIS_BEAM_RANGE | 10 | the axis_sniper's beam, in tiles |
+| KITER_HOLD | 3 / 5 | the kiter's distance from you, nearest and farthest |
+| DARTER_STEP_BACK | 1 | tiles a darter steps back after its blow |
+| SPLIT_MAX | 2 | splits per lineage |
+| SPLIT_HP_PCT | 50 | each half's share of the remaining health |
+| SWARM_BODIES | 3 / 8 | bodies in a swarm, fewest and most; provisional; the M3 stand-in places the first |
+| MIMIC_GRIP_TURNS | 2 | turns a mimic's grip roots you |
+| OLD_REPAIR_PCT | 200 | damage through an old repair's side |
+| PLASTER_HP_PCT | 70 | a plaster cast's share of its role's health |
+| PLASTER_DUST_TURNS | 3 | turns a plaster cast's dust blocks sight |
+| PLASTER_DUST_SIZE | 3 | the side of the dust square |
 | MEDIAN_MAX_HP | 20 / 25 / 30 / 35 / 40 / 45 / 50 | at depths 1–7, assuming a Certificate in each earlier department; provisional |
 <!-- numbers:end -->
 
-The support, swarm and ambusher rows and the Centrepiece's Acc, Eva and damage are new; the drafts gave them only shapes (`design/vocabulary.md` §10.3). They are first guesses for M3's paired bots to move, and the validation log records every change to the table. The slice places exhibits by hand from the packs (D13), so it needs no encounter budget; the drafts' fodder-equivalent costs and LV12's budget check wait for generated departments.
+The rows for the archetypes, triggers, locks, throwing, primitives and Restoration were added when M3 began, so that every clause names its number. The support, swarm and ambusher rows and the Centrepiece's Acc, Eva and damage are new; the drafts gave them only shapes (`design/vocabulary.md` §10.3). They are first guesses for M3's paired bots to move, and the validation log records every change to the table. The slice places exhibits by hand from the packs (D13), so it needs no encounter budget; the drafts' fodder-equivalent costs and LV12's budget check wait for generated departments.
 
 ---
 

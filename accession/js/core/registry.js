@@ -1,7 +1,7 @@
-// ACCESSION — the grammar registry (BUILD.md §5.1): the nine universal systems and the
-// slice's triggers, archetypes, modifiers and modules, each with the clause its Behaviour
-// line is built from. A clause states exactly what the rule code does; the scenario tests
-// named in `tests` prove it (they arrive with the rule, in M3 and M4).
+// ACCESSION — the grammar registry (BUILD.md §5.1). This file holds the nine universal
+// systems and the API; every entry, clause template and event schema lives in a fragment,
+// js/core/reg/<part>.js, owned by the package that implements and tests it (§5.1). A clause
+// states exactly what the rule code does; the scenario tests named in `tests` prove it.
 'use strict';
 const Registry = (() => {
   // DECISIONS.md, "Nine universal systems": the sentence the player is taught.
@@ -18,65 +18,87 @@ const Registry = (() => {
   ];
   const MAX_SYSTEMS = 10;
 
-  // Special triggers: at most one per species (BUILD.md §8.2).
-  const TRIGGERS = {
-    axis: { icon: 'axis', clause: 'also wakes when you stand in its row or column within 8 tiles, in sight' },
-    period: { icon: 'period', clause: 'wakes on the chime to perform, then sleeps again' },
-    tether: { icon: 'tether', clause: 'wakes at once when you come within 2 tiles of what it guards' },
-    touch_case: { icon: 'touch_case', clause: 'wakes at once when its case is opened, bashed or touched' },
-    ally_hit: { icon: 'ally_hit', clause: 'wakes at once when one of its group within 5 tiles is struck' },
-    alarm: { icon: 'alarm', clause: 'wakes at once when the alarm is raised' },
-    awake: { icon: 'awake', clause: 'never sleeps' },
-  };
+  // The tables. Each is a plain object keyed by id, and Registry.order(name) gives its ids in
+  // definition order, so the core never iterates an object's keys (§3.1). CLAUSES holds the
+  // clauses that belong to no other id: the generic wake clause and its pipless form. KITS
+  // holds the Restoration kit.
+  const NAMES = ['TRIGGERS', 'ARCHETYPES', 'MODIFIERS', 'SPECIALS', 'STATUSES', 'SURFACES', 'ITEM_PRIMS', 'INSTRUMENTS', 'KITS',
+    'CONSUMABLES', 'SEALS', 'FIXTURES', 'GLASS', 'WAKE_CAUSES', 'REFUSALS', 'MODULES', 'CLAUSES'];
+  const tables = {}, orders = {};
+  for (const t of NAMES) { tables[t] = {}; orders[t] = []; }
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
-  // Archetypes in the slice (design/vocabulary.md §2.1, trimmed per BUILD.md §5.5).
-  const ARCHETYPES = {
-    plodder: { clause: 'Walks one tile at a time and strikes from beside you.' },
-    darter: { clause: 'Moves two tiles a turn; strikes, then steps back one.', speed: 'fast' },
-    kiter: { clause: 'Keeps 3 to 5 tiles from you and shoots; backs away when you are beside it.', ranged: true },
-    axis_sniper: { clause: 'Aims along its row or column for a turn, with the line shown, then fires a beam up to 10 tiles that passes through glass.', ranged: true },
-    splitter: { clause: 'A blow that does not destroy it splits it in two, each with half its health, at most twice.' },
-    mote_swarm: { clause: 'Comes as several bodies that each fall to one blow; they move up to two tiles a turn and surround you.' },
-    herald: { clause: 'On seeing you it calls for one turn, shown, then wakes every sleeping exhibit within 6 tiles.' },
-    tethered_warden: { clause: 'Never goes more than 2 tiles from what it guards; strikes hard; heals and settles when you leave.' },
-    reflector: { clause: 'Sends beams and shots back along their line and shields whatever stands behind it; weak in a fight.' },
-    mimic_vitrine: { clause: 'Looks like a case. Touched, it grips you (you cannot move for 2 turns) and strikes, then fights slowly.' },
-    night_watchman: { clause: 'Comes for you wherever you are; if defeated, it returns 20 turns later.' },
-    unobserved_mover: { clause: 'Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.' },
-    patrol_guard: { clause: 'Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.' },
-    demonstrator: { clause: 'Keeps to its track and never chases. On the chime it performs the demonstration on its label.' },
-    conservator_healer: { clause: 'Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.' },
-    completing_guardian: { clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.' },
-    mp_ensemble: { clause: 'Several pieces share one health pool. When a piece falls, the others take on its special.' },
-    mp_tableau: { clause: 'Stays in its frame and alternates shown lines and bursts; takes double damage while it summons.' },
-  };
+  // `ready` (§5.1): false until the owner's scenarios pass; 'unit' when they pass with the
+  // other systems' hooks stubbed or driven directly; true when the joined-up scenarios pass.
+  const READY = [false, 'unit', true];
+  const BUILT = ['M3', 'M4'];
 
-  // Modifiers, trimmed to what the slice implements (BUILD.md §5.5).
-  const MODIFIERS = {
-    glass: { clause: 'Its body does not block sight; it leaves shards when destroyed.' },
-    clockwork: { clause: 'Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.' },
-    old_repair: { clause: 'One side is a later repair and takes double damage.' },
-    marble: { clause: 'Moves at half speed.' },
-    plaster: { clause: 'A cast: when destroyed it crumbles into dust that blocks sight for 3 turns.' },
-  };
-
-  const MODULES = {
-    unobserved_motion: { sentence: 'The animals move only when you cannot see them.' },
-    alarm_network: { sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' },
-    copies_weaken: { sentence: 'When an original is broken, its spares lose heart.' },
-    hourly_demonstration: { sentence: 'On the chime, the stations exchange signals down the length of the gallery.' },
-    weather_cases: { sentence: 'Some cases hold weather. Break one, and the weather gets out.' },
-  };
-
-  // The Behaviour line for a species: archetype, modifiers, waking (BUILD.md §5.3).
-  function behaviour(sp) {
-    const parts = [ARCHETYPES[sp.archetype] ? ARCHETYPES[sp.archetype].clause : ''];
-    for (const m of sp.modifiers || []) if (MODIFIERS[m]) parts.push(MODIFIERS[m].clause);
-    const t = sp.trigger && TRIGGERS[sp.trigger];
-    if (t && sp.trigger === 'awake') parts.push('It never sleeps.');
-    else parts.push('Wakes when you stay inside your ring or make noise near it' + (t ? '; ' + t.clause : '') + '.');
-    return parts.filter(Boolean).join(' ');
+  // Registry.define(table, id, entry): one owner per id, so a second definition throws.
+  // Every entry gets the standard fields, so none is ever undefined:
+  //   built 'M3' | 'M4'; ready; tests (scenario files that prove the clause); inv (the
+  //   invariant file's id, test/behaviour/<inv>.inv.js, or null).
+  // A clause-bearing entry also has clause (a template, §5.3), params ({name: reference},
+  // read by Clauses), covers (the event kinds its clause accounts for) and icon.
+  function define(table, id, entry) {
+    if (!own(tables, table)) throw new Error(`Registry: no table ${table}`);
+    if (typeof id !== 'string' || !id) throw new Error(`Registry: ${table} needs a string id`);
+    if (own(tables[table], id)) throw new Error(`Registry: ${table}.${id} is defined twice`);
+    const e = Object.assign({ built: 'M3', ready: false, tests: [], inv: null }, entry);
+    if (!BUILT.includes(e.built)) throw new Error(`Registry: ${table}.${id} has built ${JSON.stringify(e.built)}`);
+    if (!READY.includes(e.ready)) throw new Error(`Registry: ${table}.${id} has ready ${JSON.stringify(e.ready)}`);
+    if (e.clause !== undefined) {
+      if (typeof e.clause !== 'string') throw new Error(`Registry: ${table}.${id} has a clause that is not a string`);
+      for (const [k, v] of [['params', {}], ['covers', []], ['icon', null]]) if (e[k] === undefined) e[k] = v;
+    }
+    tables[table][id] = e;
+    orders[table].push(id);
+    return e;
+  }
+  function order(table) {
+    if (!own(orders, table)) throw new Error(`Registry: no table ${table}`);
+    return orders[table].slice();
   }
 
-  return { SYSTEMS, MAX_SYSTEMS, TRIGGERS, ARCHETYPES, MODIFIERS, MODULES, behaviour };
+  // Event schemas (§3.4, §4.3). A schema's fields map each field to a type, with ? for an
+  // optional one (absent or null): uid (an actor's or item's uid), uids (a list of them),
+  // int, str, bool, tile ([x, y]), tiles (a list of them), obj (a plain object).
+  //   Registry.defineEvent(k, {fields, record?, exempt?, built?})  one owner per kind;
+  //     record: Causes.record keeps it for the recap; exempt: its cause is not checked
+  //     (moved, closed, refused, BUILD.md §3.4).
+  //   Registry.defineCause(k, causeK, {fields, built?})            one owner per pair; the
+  //     kind may be defined by a fragment that loads later, and lint-registry checks it is.
+  // Each schema keeps its fields both as written and as a list [{name, type, optional}], in
+  // the order written, for the code that checks events.
+  const TYPES = ['uid', 'uids', 'int', 'str', 'bool', 'tile', 'tiles', 'obj'];
+  const EVENT_KINDS = [], EVENTS = {}, CAUSES = {};
+  function fieldList(where, fields) {
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error(`Registry: ${where} needs a fields object`);
+    // A schema is code, never state, so its keys come in the order they are written.
+    return Object.keys(fields).map(name => {
+      const t = fields[name], optional = typeof t === 'string' && t.endsWith('?'), type = optional ? t.slice(0, -1) : t;
+      if (!TYPES.includes(type)) throw new Error(`Registry: ${where}.${name} has the type ${JSON.stringify(t)}`);
+      return { name, type, optional };
+    });
+  }
+  function defineEvent(k, schema) {
+    if (own(EVENTS, k)) throw new Error(`Registry: the event kind ${k} is defined twice`);
+    const s = schema || {};
+    const e = { k, fields: s.fields || {}, list: fieldList(k, s.fields || {}), record: !!s.record, exempt: !!s.exempt, built: s.built || 'M3' };
+    if (!BUILT.includes(e.built)) throw new Error(`Registry: the event kind ${k} has built ${JSON.stringify(e.built)}`);
+    EVENTS[k] = e;
+    EVENT_KINDS.push(k);
+    if (!own(CAUSES, k)) CAUSES[k] = {};
+    return e;
+  }
+  function defineCause(k, causeK, schema) {
+    if (!own(CAUSES, k)) CAUSES[k] = {};
+    if (own(CAUSES[k], causeK)) throw new Error(`Registry: the cause ${k}.${causeK} is defined twice`);
+    const s = schema || {};
+    const c = { k: causeK, fields: s.fields || {}, list: fieldList(k + '.' + causeK, s.fields || {}), built: s.built || 'M3' };
+    if (!BUILT.includes(c.built)) throw new Error(`Registry: the cause ${k}.${causeK} has built ${JSON.stringify(c.built)}`);
+    CAUSES[k][causeK] = c;
+    return c;
+  }
+
+  return Object.assign({ SYSTEMS, MAX_SYSTEMS, TABLES: NAMES.slice(), TYPES: TYPES.slice(), READY, define, order, defineEvent, defineCause, EVENT_KINDS, EVENTS, CAUSES }, tables);
 })();

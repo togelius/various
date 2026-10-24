@@ -268,12 +268,13 @@ const N = Object.freeze({
   COST_OPEN_CASE: 200, // open a case
   COST_BASH: 100, // one bash (Heavy: 150 for two)
   COST_TAKE: 100, // take or drop
-  COST_USE: 100, // drink, read a consumable, throw, use an instrument (reading a label costs nothing)
+  COST_USE: 100, // drink, read a consumable, throw, use an instrument or apply a Restoration kit (reading a label costs nothing)
   COST_BASH_HEAVY: 150, // one Heavy swing at glass, counting as two bashes
   COST_EQUIP: 100, // equip a weapon, curio or instrument
   COST_EQUIP_GARMENT: 300, // equip a garment
   COST_PUSH: 100, // push a jar
   COST_VIEW: 100, // one viewing turn
+  COST_SIT: 100, // sit on a bench
   SPECIAL_RECOVERY: 100, // extra cost of the action after a special
   SPEED_FAST_PCT: 50, // fast actors' cost
   SPEED_SLOW_PCT: 200, // slow actors' cost
@@ -315,6 +316,9 @@ const N = Object.freeze({
   SEARCH_TURNS: 3, // turns searching your last-known tile
   REINSTALL_TURNS: 3, // turns reinstalling before sleeping
   ALLY_HIT_RANGE: 5, // ally_hit range
+  AXIS_RANGE: 8, // the `axis` trigger's reach
+  TETHER_RANGE: 2, // the `tether` trigger's reach, and the tethered_warden's leash
+  HERALD_RANGE: 6, // a herald's call
   CLOCK_MULT_PCT: 250, // B = round10(MULT × L_tour / 100 + ADD)
   CLOCK_ADD: 100,
   STAGE_GAP_PCT: 15, // G = max(MIN, round10(PCT × B / 100))
@@ -341,13 +345,18 @@ const N = Object.freeze({
   CONSOLIDANT_NOW_PCT: 50, // Consolidant, immediate heal
   CONSOLIDANT_HOT_PCT: 25, // Consolidant, heal over time
   CONSOLIDANT_HOT_TURNS: 5,
+  CONSOLIDANT_THROW_PCT: 50, // a thrown Consolidant's heal, % of each creature's max HP
   FIXATIVE_TURNS: 4, // fixed
   FUMIGANT_TURNS: 10, // cloud duration
   FUMIGANT_SIZE: 5, // cloud side
   COUGH_TURNS: 5, // coughing
   QUIET_RANGE: 8, // "Quiet, Please" range
+  THROW_RANGE: 5, // how far you can throw
+  THROW_AREA: 3, // the side of a thrown Solution's square
   DECK: [20, 8, 10, 8, 14, 8, 8, 5], // Consolidant, Fixative, Fumigant, Solvent, Catalogue Card, Floor Plan, "Quiet, Please", Re-admission Ticket
   GLASS_BASHES: [1, 2, 3], // Plate, Laminated, Security
+  GLASS_LOCK_MIN: [1, 2, 4], // the lowest lock grade: Plate, Laminated, Security
+  GLASS_LOCK_MAX: [2, 4, 7], // the highest lock grade, likewise
   GLASS_MIX_D1: [70, 30, 0], // Plate, Laminated, Security % at depth 1; provisional
   GLASS_MIX_D2: [70, 30, 0],
   GLASS_MIX_D3: [40, 40, 20],
@@ -359,13 +368,26 @@ const N = Object.freeze({
   FORM_BALANCED: [1, 3, 3, 100, 0, 0],
   FORM_HEAVY: [2, 4, 4, 150, -1, 1],
   FORM_REACH: [0, 3, 1, 100, 0, 0],
+  REACH_RANGE: 2, // tiles away a Reach weapon hits
   GARMENT_LIGHT: [-1, 1, 0], // Padding = tier + a, Eva, grade offset
   GARMENT_STANDARD: [0, 0, 0],
   GARMENT_HEAVY: [1, -1, 1],
   TIER_LOW_BY_DEPTH: [1, 1, 2, 2, 3, 3, 4], // the lower tier on offer at depths 1–7
   TIER_LOW_PCT: 60, // share of items at the lower tier
+  BONUS_ACC: [1, 2, 3], // Acc from an S / M / L primitive; provisional
+  BONUS_EVA: [1, 2, 3], // Eva, likewise
+  BONUS_PAD: [1, 2, 3], // Padding, likewise
+  BONUS_DMG: [1, 2, 3], // min and max damage, likewise
+  BREAKER_BASHES: 1, // extra bashes per swing with `breaker`
+  QUIET_RING: 1, // your ring is this much smaller when you move with `quiet`
+  RESTORE_DMG: 1, // a weapon's min and max damage per level
+  RESTORE_ACC_EVERY: 2, // a weapon gains 1 Acc at every this many levels
+  RESTORE_PAD: 1, // a garment's Padding per level
+  RESTORE_RANK: 1, // a curio's rank per level
+  RESTORE_CHARGES: 1, // an instrument's charges per level
   TUNING_FORK: [3, 40, 8], // charges, recharge turns, range
   PIN_DRIVER: [4, 30, 5], // charges, recharge turns, range; damage [t, 2t + 2]
+  PIN_DRIVER_DMG: [0, 2, 2], // the Pin-Driver's damage at tier t: min = t + a, max = b·t + c
   WINDOW_POLE: [4, 40, 2], // charges, recharge turns, range
   LAMP_OBSERVE_RANGE: 4, // the Day Curator's Lamp, lit
   LAMP_RING: 1, // added to your ring while the Lamp is lit
@@ -425,8 +447,9 @@ const N = Object.freeze({
   ROLE_WARDEN_EVA: [2, 3, 4],
   ROLE_WARDEN_DMG: [[2, 5], [4, 10], [7, 15]],
   ROLE_WARDEN_PAD: [1, 2, 3],
-  ROLE_WARDEN_SPECIAL: [6, 12, 17], // gross special damage (§8.1), every third action
-  ROLE_ARTILLERY_SPECIAL: [5, 11, 16], // gross damage of a telegraphed artillery shot
+  ROLE_WARDEN_SPECIAL: [6, 12, 17], // gross damage of the tethered_warden's ring special (§8.1)
+  ROLE_WARDEN_SPECIAL_EVERY: 3, // the tethered_warden's ring special comes every this many actions
+  ROLE_ARTILLERY_SPECIAL: [5, 11, 16], // gross damage of the axis_sniper's beam (§8.1)
   MEDIAN_PADDING: [1, 2, 3], // the median visitor's Padding; provisional
   ROLE_SUPPORT_HP: [10, 20, 35], // new for the slice: provisional
   ROLE_SUPPORT_ACC: [2, 3, 4],
@@ -451,6 +474,17 @@ const N = Object.freeze({
   ROLE_CENTREPIECE_SPECIAL_PCT: [25, 30, 35], // gross special damage = pct(MEDIAN_MAX_HP, this) + MEDIAN_PADDING, at that depth
   ROLE_ARTILLERY_RANGE: 6,
   ROLE_CONTROLLER_SPECIAL_EVERY: 3, // a status special every third action
+  AXIS_BEAM_RANGE: 10, // the axis_sniper's beam, in tiles
+  KITER_HOLD: [3, 5], // the kiter's distance from you, nearest and farthest
+  DARTER_STEP_BACK: 1, // tiles a darter steps back after its blow
+  SPLIT_MAX: 2, // splits per lineage
+  SPLIT_HP_PCT: 50, // each half's share of the remaining health
+  SWARM_BODIES: [3, 8], // bodies in a swarm, fewest and most; provisional; the M3 stand-in places the first
+  MIMIC_GRIP_TURNS: 2, // turns a mimic's grip roots you
+  OLD_REPAIR_PCT: 200, // damage through an old repair's side
+  PLASTER_HP_PCT: 70, // a plaster cast's share of its role's health
+  PLASTER_DUST_TURNS: 3, // turns a plaster cast's dust blocks sight
+  PLASTER_DUST_SIZE: 3, // the side of the dust square
   MEDIAN_MAX_HP: [20, 25, 30, 35, 40, 45, 50], // at depths 1–7, assuming a Certificate in each earlier department; provisional
 });
 
@@ -631,6 +665,697 @@ const Vision = (() => {
   }
 
   return { within, visible, ringRadius, ring, remember };
+})();
+
+</script>
+<script>
+// ACCESSION — the grammar registry (BUILD.md §5.1). This file holds the nine universal
+// systems and the API; every entry, clause template and event schema lives in a fragment,
+// js/core/reg/<part>.js, owned by the package that implements and tests it (§5.1). A clause
+// states exactly what the rule code does; the scenario tests named in `tests` prove it.
+'use strict';
+const Registry = (() => {
+  // DECISIONS.md, "Nine universal systems": the sentence the player is taught.
+  const SYSTEMS = [
+    { id: 'moving', icon: 'damage', name: 'Moving and fighting', sentence: 'Tap to move; bump into something to attack it. Ordinary blows roll dice, and the odds are shown before you commit. Dangerous moves are marked on the floor with their exact damage, and never miss. Your health recovers slowly.' },
+    { id: 'waking', icon: 'ring', name: 'Waking', sentence: 'Every exhibit is asleep, stirring or awake. Being close or making noise fills its three pips; the ring around you shows what counts as close. A species may have one extra trigger, shown as one icon.' },
+    { id: 'cases', icon: 'touch_case', name: 'Cases', sentence: 'You can see through glass but not walk through it. Open a case if your grade allows, or break it, loudly.' },
+    { id: 'clock', icon: 'clock', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
+    { id: 'kit', icon: 'kit', name: 'Your kit', sentence: 'A weapon, a garment, two curios and an instrument. Restoration kits improve them.' },
+    { id: 'consumables', icon: 'seal', name: 'Consumables', sentence: 'A handful of kinds, unlabelled until you have used one or read about it.' },
+    { id: 'grade', icon: 'certificate', name: 'Grade', sentence: 'Each department’s Certificate, earned by defeating or viewing its Centrepiece, raises your grade by one: more health, a perk chosen from three, heavier objects, higher-grade cases.' },
+    { id: 'labels', icon: 'reads', name: 'Labels', sentence: 'Every exhibit and object has one: a plain Behaviour line that states exactly what it does, and a paragraph that is only for reading.' },
+    { id: 'doors', icon: 'highlight', name: 'Doors', sentence: 'Each department ends in doors whose placards say what kind of trouble lies behind each.' },
+  ];
+  const MAX_SYSTEMS = 10;
+
+  // The tables. Each is a plain object keyed by id, and Registry.order(name) gives its ids in
+  // definition order, so the core never iterates an object's keys (§3.1). CLAUSES holds the
+  // clauses that belong to no other id: the generic wake clause and its pipless form. KITS
+  // holds the Restoration kit.
+  const NAMES = ['TRIGGERS', 'ARCHETYPES', 'MODIFIERS', 'SPECIALS', 'STATUSES', 'SURFACES', 'ITEM_PRIMS', 'INSTRUMENTS', 'KITS',
+    'CONSUMABLES', 'SEALS', 'FIXTURES', 'GLASS', 'WAKE_CAUSES', 'REFUSALS', 'MODULES', 'CLAUSES'];
+  const tables = {}, orders = {};
+  for (const t of NAMES) { tables[t] = {}; orders[t] = []; }
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // `ready` (§5.1): false until the owner's scenarios pass; 'unit' when they pass with the
+  // other systems' hooks stubbed or driven directly; true when the joined-up scenarios pass.
+  const READY = [false, 'unit', true];
+  const BUILT = ['M3', 'M4'];
+
+  // Registry.define(table, id, entry): one owner per id, so a second definition throws.
+  // Every entry gets the standard fields, so none is ever undefined:
+  //   built 'M3' | 'M4'; ready; tests (scenario files that prove the clause); inv (the
+  //   invariant file's id, test/behaviour/<inv>.inv.js, or null).
+  // A clause-bearing entry also has clause (a template, §5.3), params ({name: reference},
+  // read by Clauses), covers (the event kinds its clause accounts for) and icon.
+  function define(table, id, entry) {
+    if (!own(tables, table)) throw new Error(`Registry: no table ${table}`);
+    if (typeof id !== 'string' || !id) throw new Error(`Registry: ${table} needs a string id`);
+    if (own(tables[table], id)) throw new Error(`Registry: ${table}.${id} is defined twice`);
+    const e = Object.assign({ built: 'M3', ready: false, tests: [], inv: null }, entry);
+    if (!BUILT.includes(e.built)) throw new Error(`Registry: ${table}.${id} has built ${JSON.stringify(e.built)}`);
+    if (!READY.includes(e.ready)) throw new Error(`Registry: ${table}.${id} has ready ${JSON.stringify(e.ready)}`);
+    if (e.clause !== undefined) {
+      if (typeof e.clause !== 'string') throw new Error(`Registry: ${table}.${id} has a clause that is not a string`);
+      for (const [k, v] of [['params', {}], ['covers', []], ['icon', null]]) if (e[k] === undefined) e[k] = v;
+    }
+    tables[table][id] = e;
+    orders[table].push(id);
+    return e;
+  }
+  function order(table) {
+    if (!own(orders, table)) throw new Error(`Registry: no table ${table}`);
+    return orders[table].slice();
+  }
+
+  // Event schemas (§3.4, §4.3). A schema's fields map each field to a type, with ? for an
+  // optional one (absent or null): uid (an actor's or item's uid), uids (a list of them),
+  // int, str, bool, tile ([x, y]), tiles (a list of them), obj (a plain object).
+  //   Registry.defineEvent(k, {fields, record?, exempt?, built?})  one owner per kind;
+  //     record: Causes.record keeps it for the recap; exempt: its cause is not checked
+  //     (moved, closed, refused, BUILD.md §3.4).
+  //   Registry.defineCause(k, causeK, {fields, built?})            one owner per pair; the
+  //     kind may be defined by a fragment that loads later, and lint-registry checks it is.
+  // Each schema keeps its fields both as written and as a list [{name, type, optional}], in
+  // the order written, for the code that checks events.
+  const TYPES = ['uid', 'uids', 'int', 'str', 'bool', 'tile', 'tiles', 'obj'];
+  const EVENT_KINDS = [], EVENTS = {}, CAUSES = {};
+  function fieldList(where, fields) {
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error(`Registry: ${where} needs a fields object`);
+    // A schema is code, never state, so its keys come in the order they are written.
+    return Object.keys(fields).map(name => {
+      const t = fields[name], optional = typeof t === 'string' && t.endsWith('?'), type = optional ? t.slice(0, -1) : t;
+      if (!TYPES.includes(type)) throw new Error(`Registry: ${where}.${name} has the type ${JSON.stringify(t)}`);
+      return { name, type, optional };
+    });
+  }
+  function defineEvent(k, schema) {
+    if (own(EVENTS, k)) throw new Error(`Registry: the event kind ${k} is defined twice`);
+    const s = schema || {};
+    const e = { k, fields: s.fields || {}, list: fieldList(k, s.fields || {}), record: !!s.record, exempt: !!s.exempt, built: s.built || 'M3' };
+    if (!BUILT.includes(e.built)) throw new Error(`Registry: the event kind ${k} has built ${JSON.stringify(e.built)}`);
+    EVENTS[k] = e;
+    EVENT_KINDS.push(k);
+    if (!own(CAUSES, k)) CAUSES[k] = {};
+    return e;
+  }
+  function defineCause(k, causeK, schema) {
+    if (!own(CAUSES, k)) CAUSES[k] = {};
+    if (own(CAUSES[k], causeK)) throw new Error(`Registry: the cause ${k}.${causeK} is defined twice`);
+    const s = schema || {};
+    const c = { k: causeK, fields: s.fields || {}, list: fieldList(k + '.' + causeK, s.fields || {}), built: s.built || 'M3' };
+    if (!BUILT.includes(c.built)) throw new Error(`Registry: the cause ${k}.${causeK} has built ${JSON.stringify(c.built)}`);
+    CAUSES[k][causeK] = c;
+    return c;
+  }
+
+  return Object.assign({ SYSTEMS, MAX_SYSTEMS, TABLES: NAMES.slice(), TYPES: TYPES.slice(), READY, define, order, defineEvent, defineCause, EVENT_KINDS, EVENTS, CAUSES }, tables);
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: the system (BUILD.md §5.1), frozen after M3's Wave 0. The
+// backbone refusal codes and the `refused` event; and every entry M4 builds (seven
+// archetypes, the clockwork modifier, the period trigger, the five modules, three wake
+// causes and six event kinds), each marked built: 'M4', which M3 departments leave out.
+'use strict';
+(() => {
+  const R = Registry;
+
+  // Refusal codes (§4.2). step() refuses an illegal action with a code, and text/system.js
+  // gives each its sentence. A rule that refuses with a code of its own defines it in its
+  // own fragment.
+  for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach']) R.define('REFUSALS', code, {});
+  R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
+
+  // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until
+  // M4 builds them (design/vocabulary.md §2.1, trimmed per BUILD.md §5.5).
+  const m4 = clause => ({ built: 'M4', ready: false, clause, params: {}, covers: [], tests: [], inv: null });
+  R.define('ARCHETYPES', 'unobserved_mover', m4('Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.'));
+  R.define('ARCHETYPES', 'patrol_guard', m4('Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.'));
+  R.define('ARCHETYPES', 'demonstrator', m4('Keeps to its track and never chases. On the chime it performs the demonstration on its label.'));
+  R.define('ARCHETYPES', 'conservator_healer', m4('Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.'));
+  R.define('ARCHETYPES', 'completing_guardian', m4('Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.'));
+  R.define('ARCHETYPES', 'mp_ensemble', m4('Several pieces share one health pool. When a piece falls, the others take on its special.'));
+  R.define('ARCHETYPES', 'mp_tableau', m4('Stays in its frame and alternates shown lines and bursts; takes double damage while it summons.'));
+  R.define('MODIFIERS', 'clockwork', m4('Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.'));
+  R.define('TRIGGERS', 'period', Object.assign(m4('wakes on the chime to perform, then sleeps again'), { icon: 'period' }));
+
+  // The five slice modules (§5.4), each with the sentence its department's panel teaches.
+  R.define('MODULES', 'unobserved_motion', { built: 'M4', sentence: 'The animals move only when you cannot see them.' });
+  R.define('MODULES', 'alarm_network', { built: 'M4', sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' });
+  R.define('MODULES', 'copies_weaken', { built: 'M4', sentence: 'When an original is broken, its spares lose heart.' });
+  R.define('MODULES', 'hourly_demonstration', { built: 'M4', sentence: 'On the chime, the stations exchange signals down the length of the gallery.' });
+  R.define('MODULES', 'weather_cases', { built: 'M4', sentence: 'Some cases hold weather. Break one, and the weather gets out.' });
+
+  // Wake causes M4 brings (§8.2): the chime makes a station perform and sleep again; the
+  // alarm wakes exhibits awake; a patrol is created awake on its round.
+  R.define('WAKE_CAUSES', 'period', { built: 'M4', mode: 'perform', creation: false });
+  R.define('WAKE_CAUSES', 'alarm', { built: 'M4', mode: 'awake', creation: false });
+  R.define('WAKE_CAUSES', 'patrol', { built: 'M4', mode: 'awake', creation: true });
+  const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
+  for (const k of ['period', 'alarm', 'patrol']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake, built: 'M4' });
+
+  // The M4 event kinds (§4.3).
+  R.defineEvent('alarm', { fields: { by: 'uid' }, built: 'M4' });
+  R.defineEvent('certificate', { fields: { acc: 'str' }, built: 'M4' });
+  R.defineEvent('grade', { fields: { grade: 'int' }, built: 'M4' });
+  R.defineEvent('perk', { fields: { id: 'str', rank: 'int' }, built: 'M4' });
+  R.defineEvent('viewed', { fields: { who: 'uid', turns: 'int' }, built: 'M4' });
+  R.defineEvent('module', { fields: { id: 'str', rule: 'str' }, built: 'M4' });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: waking (BUILD.md §8.2), owned by W1-WAKE-A. The generic wake
+// clause, the special triggers it implements, the noise, pip, woke and hunting events, and
+// the wake causes that come from the ring, noise and the triggers.
+'use strict';
+(() => {
+  const R = Registry;
+
+  // The generic wake clause ends every sleeping species' Behaviour line, joined to its
+  // special trigger's clause (§5.3).
+  R.define('CLAUSES', 'wake', { icon: 'ring', clause: 'Wakes when you stay inside your ring or make noise near it.', params: {},
+    covers: ['pip', 'woke', 'hunting', 'alerted'], ready: false, tests: [], inv: null });
+
+  // Special triggers (§8.2), at most one per species. A trigger clause continues the wake
+  // clause; `replacesWake` marks one that stands instead of it.
+  R.define('TRIGGERS', 'axis', { icon: 'axis', clause: 'also gains a pip each turn you stand in its row or column within {AXIS_RANGE} tiles, in its sight',
+    params: { AXIS_RANGE: 'N:AXIS_RANGE' }, covers: ['pip', 'woke', 'hunting'], ready: false, tests: [], inv: null });
+  R.define('TRIGGERS', 'tether', { icon: 'tether', clause: 'wakes at once when you come within {TETHER_RANGE} tiles of what it guards',
+    params: { TETHER_RANGE: 'N:TETHER_RANGE' }, covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
+  R.define('TRIGGERS', 'ally_hit', { icon: 'ally_hit', clause: 'wakes at once when one of its group within {ALLY_HIT_RANGE} tiles takes damage',
+    params: { ALLY_HIT_RANGE: 'N:ALLY_HIT_RANGE' }, covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
+  R.define('TRIGGERS', 'awake', { icon: 'awake', clause: 'It never sleeps.', replacesWake: true, params: {}, covers: ['woke'], ready: false, tests: [], inv: null });
+
+  // Events (§4.3).
+  R.defineEvent('noise', { fields: { x: 'int', y: 'int', cls: 'str', range: 'int' } });
+  R.defineEvent('pip', { fields: { who: 'uid', pips: 'int', delta: 'int' } });
+  R.defineEvent('woke', { fields: { who: 'uid', was: 'str?', mode: 'str' }, record: true });
+  R.defineEvent('hunting', { fields: { who: 'uid', was: 'str' }, record: true });
+
+  // Why a pip came or went.
+  R.defineCause('pip', 'ring', { fields: { dist: 'int', r: 'int' } });
+  R.defineCause('pip', 'noise', { fields: { by: 'uid?', dist: 'int', cls: 'str' } });
+  R.defineCause('pip', 'axis', { fields: { dist: 'int' } });
+  R.defineCause('pip', 'decay', { fields: {} });
+  R.defineCause('pip', 'quiet', { fields: { by: 'uid' } });
+  // "Quiet, Please" and the Re-admission Ticket make hunters lose you.
+  R.defineCause('lost', 'quiet', { fields: { by: 'uid' } });
+  R.defineCause('lost', 'ticket', { fields: { by: 'uid' } });
+  // Noise sends a searching, returning or awake exhibit to look (§8.2).
+  R.defineCause('alerted', 'noise', { fields: { by: 'uid?', dist: 'int', cls: 'str' } });
+
+  // Wake causes (§3.4, §8.2), each with the mode it wakes into; `creation` marks one given
+  // to an actor made awake.
+  R.define('WAKE_CAUSES', 'ring', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'noise', { mode: 'awake', creation: false });
+  R.define('WAKE_CAUSES', 'axis', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'tether', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'ally_hit', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'awake', { mode: 'awake', creation: true });
+  const wake = extra => Object.assign({ by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' }, extra);
+  const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({}), awake: wake({}) };
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: modes and movement (BUILD.md §8.2), owned by W1-WAKE-B. The
+// plodder, which is every exhibit's default behaviour; moving and doors; and the changes of
+// mode after waking: losing you, being alerted, going home.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('ARCHETYPES', 'plodder', { icon: null, clause: 'Walks one tile at a time and strikes from beside you for {dmg}.',
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+
+  // Events (§4.3). Moving and closing are exempt from the cause check (§3.4).
+  R.defineEvent('moved', { fields: { who: 'uid', from: 'tile', to: 'tile' }, exempt: true });
+  R.defineEvent('opened', { fields: { who: 'uid', x: 'int', y: 'int', staff: 'bool?', grade: 'int?' } });
+  R.defineEvent('closed', { fields: { who: 'uid', x: 'int', y: 'int' }, exempt: true });
+  R.defineEvent('lost', { fields: { who: 'uid', from: 'str', to: 'str' }, record: true });
+  R.defineEvent('alerted', { fields: { who: 'uid', from: 'str', to: 'str', x: 'int', y: 'int' } });
+  R.defineEvent('returned', { fields: { who: 'uid', phase: 'str' } });
+
+  R.defineCause('opened', 'door', { fields: { by: 'uid' } });
+  R.defineCause('lost', 'out_of_sight', { fields: { turns: 'int' } });
+  R.defineCause('lost', 'idle', { fields: { turns: 'int' } });
+  R.defineCause('lost', 'searched', { fields: {} });
+  R.defineCause('returned', 'home', { fields: { x: 'int', y: 'int' } });
+  R.defineCause('noise', 'door', { fields: { by: 'uid?', item: 'uid?' } });
+  R.defineCause('noise', 'close', { fields: { by: 'uid?', item: 'uid?' } });
+
+  // Being seen turns any waking mode into a hunt (§8.2).
+  R.define('WAKE_CAUSES', 'seen', { mode: 'hunting', creation: false });
+  R.defineCause('woke', 'seen', { fields: { dist: 'int' } });
+  R.defineCause('hunting', 'seen', { fields: { dist: 'int' } });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: combat, specials and health (BUILD.md §8.1), owned by
+// W1-COMBAT. The events of blows and specials, of waiting, recovering and healing, and the
+// wake cause `damage` (damage always wakes, straight to hunting).
+'use strict';
+(() => {
+  const R = Registry;
+
+  // Events (§4.3).
+  R.defineEvent('attacked', { fields: { by: 'uid', at: 'uid', how: 'obj' } });
+  R.defineEvent('missed', { fields: { by: 'uid', at: 'uid' } });
+  R.defineEvent('damaged', { fields: { who: 'uid', amount: 'int', hp: 'int' }, record: true });
+  R.defineEvent('died', { fields: { who: 'uid' }, record: true });
+  R.defineEvent('telegraphed', { fields: { who: 'uid', sp: 'str', tiles: 'tiles' } });
+  R.defineEvent('special', { fields: { who: 'uid', sp: 'str', hits: 'uids?', cancelled: 'bool?' }, record: true });
+  R.defineEvent('waited', { fields: { who: 'uid', how: 'str' } });
+  R.defineEvent('regenerated', { fields: { who: 'uid', hp: 'int' } });
+  R.defineEvent('healed', { fields: { who: 'uid', amount: 'int', hp: 'int' } });
+
+  // A blow (§8.1): who struck whom, how, with the chance, the roll and the damage roll.
+  const blow = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?' };
+  // A special's resolve (§8.1): no roll, its gross number, your Padding and the net.
+  const special = { by: 'uid', sp: 'str', gross: 'int', pad: 'int', net: 'int', x: 'int', y: 'int', from: 'tile' };
+  R.defineCause('attacked', 'attack', { fields: { by: 'uid', at: 'uid', dist: 'int', how: 'obj' } });
+  R.defineCause('missed', 'attack', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj' } });
+  R.defineCause('damaged', 'attack', { fields: blow });
+  R.defineCause('damaged', 'special', { fields: special });
+  // A death carries the killing cause, as the damage did.
+  R.defineCause('died', 'attack', { fields: blow });
+  R.defineCause('died', 'special', { fields: special });
+  R.defineCause('telegraphed', 'special', { fields: { by: 'uid', sp: 'str', gross: 'int', every: 'int?' } });
+  R.defineCause('special', 'special', { fields: { by: 'uid', sp: 'str' } });
+  R.defineCause('special', 'cancel', { fields: { by: 'uid', why: 'str' } });
+  R.defineCause('waited', 'action', { fields: { how: 'str' } });
+  R.defineCause('regenerated', 'regen', { fields: { units: 'int', need: 'int', bench: 'bool' } });
+  for (const k of ['attack', 'destroyed', 'special']) R.defineCause('noise', k, { fields: { by: 'uid?', item: 'uid?' } });
+
+  R.define('WAKE_CAUSES', 'damage', { mode: 'hunting', creation: false });
+  const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
+  R.defineCause('woke', 'damage', { fields: wake });
+  R.defineCause('hunting', 'damage', { fields: wake });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: cases, glass, locks and staff doors (BUILD.md §8.3), owned
+// by W1-CASES. The touch_case trigger, the case and staff-door fixtures, the three glasses,
+// the case events and the wake causes a case gives.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('TRIGGERS', 'touch_case', { icon: 'touch_case', clause: 'wakes at once when its case is opened or bashed',
+    params: {}, covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
+
+  R.define('FIXTURES', 'case', {});
+  R.define('FIXTURES', 'staff', {});
+  // The glasses, in order; n indexes the GLASS_BASHES, GLASS_MIX_D*, GLASS_LOCK_MIN and
+  // GLASS_LOCK_MAX rows (§8.10), and a case fixture's `glass` is n.
+  R.define('GLASS', 'plate', { n: 1, name: 'Plate' });
+  R.define('GLASS', 'laminated', { n: 2, name: 'Laminated' });
+  R.define('GLASS', 'security', { n: 3, name: 'Security' });
+
+  // Events (§4.3).
+  R.defineEvent('case_opened', { fields: { by: 'uid', x: 'int', y: 'int', glass: 'int', lock: 'int' } });
+  R.defineEvent('glass_cracked', { fields: { by: 'uid', x: 'int', y: 'int', glass: 'int', hits: 'int', need: 'int' } });
+  R.defineEvent('glass_broke', { fields: { by: 'uid', x: 'int', y: 'int', glass: 'int', shards: 'tiles', released: 'uid?' }, record: true });
+
+  R.defineCause('opened', 'staff', { fields: { by: 'uid', grade: 'int' } });
+  R.defineCause('case_opened', 'grade', { fields: { grade: 'int', lock: 'int' } });
+  R.defineCause('glass_cracked', 'bash', { fields: { by: 'uid', form: 'str', count: 'int' } });
+  R.defineCause('glass_broke', 'bash', { fields: { by: 'uid', form: 'str', count: 'int', hits: 'int', need: 'int' } });
+  for (const k of ['staff_door', 'case_opened', 'bash', 'glass_broke']) R.defineCause('noise', k, { fields: { by: 'uid?', item: 'uid?' } });
+
+  // A case wakes what it holds (§8.3): touched (opened or bashed), broken open, or dissolved.
+  R.define('WAKE_CAUSES', 'touch_case', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'case_broken', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'dissolved', { mode: 'hunting', creation: false });
+  const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
+  for (const k of ['touch_case', 'case_broken', 'dissolved']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: the clock and leaving (BUILD.md §8.4, §8.9), owned by
+// W1-CLOCK. The Night Watchman, the stage, entered and left events, and the wake causes
+// of the night watch.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('ARCHETYPES', 'night_watchman', { icon: null,
+    clause: 'Comes for you wherever you can be walked to and strikes from beside you for {dmg}; if defeated, another comes {WATCHMAN_RETURN} turns later.',
+    params: { dmg: 'role:DMG', WATCHMAN_RETURN: 'N:WATCHMAN_RETURN' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+
+  // Events (§4.3). A stage is 'bell', 'night_watch' or 'night_bell'.
+  R.defineEvent('stage', { fields: { stage: 'str', n: 'int?', woke: 'uids?' }, record: true });
+  R.defineEvent('entered', { fields: { who: 'uid', at: 'tile' }, record: true });
+  R.defineEvent('left', { fields: { who: 'uid', door: 'int', at: 'tile' }, record: true });
+
+  R.defineCause('stage', 'clock', { fields: { count: 'int', B: 'int', G: 'int' } });
+  R.defineCause('entered', 'night_watch', { fields: { n: 'int' } });
+  R.defineCause('entered', 'visit', { fields: {} });
+  R.defineCause('left', 'leave', { fields: { door: 'int', stage: 'int' } });
+
+  // The night-watch bell wakes the sleepers nearest you; the Watchman is made hunting.
+  R.define('WAKE_CAUSES', 'night_bell', { mode: 'hunting', creation: false });
+  R.define('WAKE_CAUSES', 'night_watch', { mode: 'hunting', creation: true });
+  const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
+  for (const k of ['night_bell', 'night_watch']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: your kit (BUILD.md §8.5), owned by W1-KIT. The closed set of
+// item primitives, the three instruments, the Restoration kit, and the item events.
+'use strict';
+(() => {
+  const R = Registry;
+
+  // Item primitives the slice implements (§8.5, closed). A pack item names them with a
+  // magnitude class S, M or L; `row` is the §8.10 row its numbers come from, if any.
+  R.define('ITEM_PRIMS', 'dmg', { row: 'BONUS_DMG' });
+  R.define('ITEM_PRIMS', 'acc', { row: 'BONUS_ACC' });
+  R.define('ITEM_PRIMS', 'eva', { row: 'BONUS_EVA' });
+  R.define('ITEM_PRIMS', 'pad', { row: 'BONUS_PAD' });
+  R.define('ITEM_PRIMS', 'reach', { row: 'REACH_RANGE' });
+  R.define('ITEM_PRIMS', 'quiet', { row: 'QUIET_RING' });
+  R.define('ITEM_PRIMS', 'breaker', { row: 'BREAKER_BASHES' });
+  R.define('ITEM_PRIMS', 'charges', { row: null });
+  R.define('ITEM_PRIMS', 'observing', { built: 'M4', row: 'LAMP_OBSERVE_RANGE' });
+
+  // The instruments (§8.5); `row` holds charges, recharge turns and range.
+  R.define('INSTRUMENTS', 'fork', { name: 'Tuning Fork', row: 'TUNING_FORK' });
+  R.define('INSTRUMENTS', 'pin_driver', { name: 'Pin-Driver', row: 'PIN_DRIVER', dmg: 'PIN_DRIVER_DMG' });
+  R.define('INSTRUMENTS', 'pole', { name: 'Window Pole', row: 'WINDOW_POLE' });
+  // The Restoration kit (§8.5): one level to one item.
+  R.define('KITS', 'restoration', { name: 'Restoration kit' });
+
+  // Events (§4.3). Unequipping is `equipped` with item null.
+  R.defineEvent('took', { fields: { who: 'uid', item: 'uid', x: 'int?', y: 'int?' } });
+  R.defineEvent('dropped', { fields: { who: 'uid', item: 'uid', x: 'int?', y: 'int?' } });
+  R.defineEvent('equipped', { fields: { who: 'uid', item: 'uid?', slot: 'str', was: 'uid?' } });
+  R.defineEvent('used', { fields: { who: 'uid', item: 'uid', how: 'str' } });
+
+  R.defineCause('took', 'take', { fields: { x: 'int', y: 'int' } });
+  R.defineCause('dropped', 'drop', { fields: {} });
+  R.defineCause('equipped', 'equip', { fields: { short: 'int' } });
+  R.defineCause('equipped', 'unequip', { fields: { short: 'int?' } });
+  R.defineCause('used', 'use', { fields: { gentle: 'bool?', x: 'int?', y: 'int?' } });
+  R.defineCause('noise', 'fork', { fields: { by: 'uid?', item: 'uid?' } });
+  // The Pin-Driver's bolt.
+  const item = { by: 'uid', item: 'uid', raw: 'int', pad: 'int', from: 'tile' };
+  R.defineCause('damaged', 'item', { fields: item });
+  R.defineCause('died', 'item', { fields: item });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: statuses and surfaces (BUILD.md §8.1, §8.6), owned by
+// W1-STATUS. Each status says whether it is harmful (Solvent removes those) and carries the
+// clause a Behaviour line embeds where a species inflicts it ({status:<id>}, §5.3).
+'use strict';
+(() => {
+  const R = Registry;
+  const status = (harmful, clause, params) => ({ icon: null, harmful, clause, params, covers: ['status'], ready: false, tests: [], inv: null });
+
+  R.define('STATUSES', 'fixed', status(true, 'cannot move or act for {FIXATIVE_TURNS} turns, and blows against it have +{HIT_FIXED_TARGET} to hit',
+    { FIXATIVE_TURNS: 'N:FIXATIVE_TURNS', HIT_FIXED_TARGET: 'N:HIT_FIXED_TARGET' }));
+  R.define('STATUSES', 'rooted', status(true, 'you cannot move for {MIMIC_GRIP_TURNS} turns', { MIMIC_GRIP_TURNS: 'N:MIMIC_GRIP_TURNS' }));
+  R.define('STATUSES', 'coughing', status(true, 'coughs, a soft noise each turn, for {COUGH_TURNS} turns', { COUGH_TURNS: 'N:COUGH_TURNS' }));
+  R.define('STATUSES', 'restoring', status(false, 'heals {CONSOLIDANT_HOT_PCT}% of its maximum health over {CONSOLIDANT_HOT_TURNS} turns',
+    { CONSOLIDANT_HOT_PCT: 'N:CONSOLIDANT_HOT_PCT', CONSOLIDANT_HOT_TURNS: 'N:CONSOLIDANT_HOT_TURNS' }));
+  R.define('STATUSES', 'slowed', status(true, 'its actions take {SPEED_SLOW_PCT}% of their usual time', { SPEED_SLOW_PCT: 'N:SPEED_SLOW_PCT' }));
+  R.define('STATUSES', 'dazed', status(true, 'its blows have {HIT_DAZED_ATTACKER} to hit', { HIT_DAZED_ATTACKER: 'N:HIT_DAZED_ATTACKER' }));
+
+  // Surfaces: a square of `size` tiles a side for `turns` turns; both block sight (§8.2).
+  R.define('SURFACES', 'fumigant', { blocksSight: true, size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS' });
+  R.define('SURFACES', 'dust', { blocksSight: true, size: 'PLASTER_DUST_SIZE', turns: 'PLASTER_DUST_TURNS' });
+
+  // Events (§4.3): a status put on (on: true) or ended (on: false).
+  R.defineEvent('status', { fields: { who: 'uid', id: 'str', on: 'bool', until: 'int?' } });
+  R.defineCause('status', 'status', { fields: { id: 'str', by: 'uid?' } });
+  R.defineCause('healed', 'status', { fields: { id: 'str' } });
+  R.defineCause('pip', 'fumigant', { fields: { by: 'uid' } });
+  R.defineCause('noise', 'cough', { fields: { by: 'uid?', item: 'uid?' } });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: consumables, seals and identification (BUILD.md §8.6),
+// owned by W1-CONSUMABLES. The eight kinds, the eight seals, the plaque fixture (an
+// identifying label on the wall), and the events of drinking, throwing and reading.
+'use strict';
+(() => {
+  const R = Registry;
+
+  // The eight kinds, in the order of the DECK row (§8.10): `deck` indexes it.
+  const kinds = [['consolidant', 'solution', 'Consolidant'], ['fixative', 'solution', 'Fixative'], ['fumigant', 'solution', 'Fumigant'],
+    ['solvent', 'solution', 'Solvent'], ['card', 'ephemera', 'Catalogue Card'], ['plan', 'ephemera', 'Floor Plan'],
+    ['quiet', 'ephemera', '“Quiet, Please”'], ['ticket', 'ephemera', 'Re-admission Ticket']];
+  kinds.forEach(([id, cls, name], deck) => R.define('CONSUMABLES', id, { cls, name, deck }));
+  // The seals: 4 wax seals shuffled over the Solutions and 4 ink stamps over the Ephemera,
+  // each run (§8.6). A seal is a position; `n` indexes run.seals.sol or run.seals.eph.
+  for (let n = 0; n < 4; n++) R.define('SEALS', 'wax' + (n + 1), { cls: 'solution', n });
+  for (let n = 0; n < 4; n++) R.define('SEALS', 'ink' + (n + 1), { cls: 'ephemera', n });
+  R.define('FIXTURES', 'plaque', {});
+
+  // Events (§4.3): a kind identified for this run.
+  R.defineEvent('identified', { fields: { seal: 'str', ck: 'str' } });
+  for (const k of ['use', 'label', 'card']) R.defineCause('identified', k, { fields: { by: 'uid?' } });
+  R.defineCause('used', 'consume', { fields: { ck: 'str?', seal: 'str', known: 'bool', gentle: 'bool?', x: 'int?', y: 'int?' } });
+  R.defineCause('glass_broke', 'solvent', { fields: { by: 'uid', item: 'uid' } });
+  R.defineCause('healed', 'item', { fields: { by: 'uid', item: 'uid' } });
+  R.defineCause('status', 'item', { fields: { by: 'uid', item: 'uid' } });
+  R.defineCause('noise', 'throw', { fields: { by: 'uid?', item: 'uid?' } });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: the darter, the splitter and the mote swarm, and the marble
+// and plaster modifiers (BUILD.md §5.5), owned by W1-ARCH-A; and the wake cause `summoned`,
+// which a splitter's halves are made with.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('ARCHETYPES', 'darter', { icon: null, speed: 'fast',
+    clause: 'Moves two tiles a turn; strikes from beside you for {dmg}, then steps back {DARTER_STEP_BACK}.',
+    params: { dmg: 'role:DMG', DARTER_STEP_BACK: 'N:DARTER_STEP_BACK' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+  R.define('ARCHETYPES', 'splitter', { icon: null,
+    clause: 'Walks one tile at a time and strikes from beside you for {dmg}. A blow that does not destroy it splits it in two, each with half its remaining health, at most {SPLIT_MAX} times.',
+    params: { dmg: 'role:DMG', SPLIT_MAX: 'N:SPLIT_MAX' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+  R.define('ARCHETYPES', 'mote_swarm', { icon: null, speed: 'fast',
+    clause: 'Comes as several bodies that each fall to one blow; they move two tiles a turn and strike from beside you for {dmg}.',
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+
+  R.define('MODIFIERS', 'marble', { icon: null, speed: 'slow', clause: 'Moves at half speed.', params: {}, covers: [], ready: false, tests: [], inv: null });
+  R.define('MODIFIERS', 'plaster', { icon: null,
+    clause: 'A cast: it has {PLASTER_HP_PCT}% of the usual health, and when destroyed it crumbles into dust that blocks sight round it for {PLASTER_DUST_TURNS} turns.',
+    params: { PLASTER_HP_PCT: 'N:PLASTER_HP_PCT', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, covers: [], ready: false, tests: [], inv: null });
+
+  // A body made from another (a splitter's half) wakes in its parent's mode; its story
+  // names how it was made, its parent, and a copy of the parent's own waking.
+  R.define('WAKE_CAUSES', 'summoned', { mode: 'parent', creation: true });
+  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid', how: 'str', from: 'uid', woke: 'obj?' } });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: the kiter, the axis_sniper and the reflector, the glass and
+// old_repair modifiers, and the `line` special (BUILD.md §5.5, §8.1), owned by W1-ARCH-B;
+// and the causes of shots and of lines a reflector sends back.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('ARCHETYPES', 'kiter', { icon: null, ranged: true,
+    clause: 'Keeps {KITER_HOLD0} to {KITER_HOLD1} tiles from you and shoots up to {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its shots stop at glass; backs away when you are beside it.',
+    params: { KITER_HOLD0: 'N:KITER_HOLD[0]', KITER_HOLD1: 'N:KITER_HOLD[1]', ROLE_ARTILLERY_RANGE: 'N:ROLE_ARTILLERY_RANGE', dmg: 'role:DMG' },
+    covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+  R.define('ARCHETYPES', 'axis_sniper', { icon: null, ranged: true, special: 'line',
+    clause: 'Moves to share your row or column, then {special}. It never strikes from beside you.',
+    params: {}, covers: ['telegraphed', 'special'], ready: false, tests: [], inv: null });
+  R.define('ARCHETYPES', 'reflector', { icon: null,
+    clause: 'Walks one tile at a time; sends beams and shots back along their line, so nothing behind it is hit; strikes from beside you for only {dmg}.',
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: false, tests: [], inv: null });
+
+  // A special: its shape, its effect, the §8.10 rows for its gross damage (a role curve),
+  // its range and its cadence (null: whenever its archetype chooses).
+  R.define('SPECIALS', 'line', { icon: 'special', shape: 'line', effect: 'damage', curve: 'ROLE_ARTILLERY_SPECIAL', range: 'AXIS_BEAM_RANGE', every: null,
+    clause: 'aims along it for a turn, with the line shown, then fires a beam up to {AXIS_BEAM_RANGE} tiles that passes through glass, for {gross} before your Padding',
+    params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: false, tests: [], inv: null });
+
+  R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed, and sends beams back along their line.',
+    params: {}, covers: [], ready: false, tests: [], inv: null });
+  // The repaired side is a compass side from the species' modParams.old_repair.side.
+  R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows from that side deal double damage.',
+    params: { side: 'mod:side' }, covers: [], ready: false, tests: [], inv: null });
+
+  // Shots are rolled like blows and carry their range; a reflected line names the reflector
+  // as `by` and who fired it as `shooter`.
+  const shot = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?', range: 'int' };
+  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', raw: 'int?', pad: 'int', from: 'tile' };
+  R.defineCause('missed', 'shot', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int' } });
+  R.defineCause('damaged', 'shot', { fields: shot });
+  R.defineCause('damaged', 'reflected', { fields: reflected });
+  R.defineCause('died', 'shot', { fields: shot });
+  R.defineCause('died', 'reflected', { fields: reflected });
+})();
+
+</script>
+<script>
+// ACCESSION — registry fragment: the herald, the tethered_warden and the mimic_vitrine, and
+// the `ring` and `call` specials (BUILD.md §5.5, §8.1), owned by W1-ARCH-C; with the wake
+// clause of a pipless species and the wake cause `herald`.
+'use strict';
+(() => {
+  const R = Registry;
+
+  R.define('ARCHETYPES', 'herald', { icon: null, special: 'call',
+    clause: 'Once awake, on seeing you it {special}; it strikes from beside you for {dmg}.',
+    params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'], ready: false, tests: [], inv: null });
+  R.define('ARCHETYPES', 'tethered_warden', { icon: null, special: 'ring',
+    clause: 'Never goes more than {TETHER_RANGE} tiles from what it guards; strikes from beside you for {dmg}, and every {ROLE_WARDEN_SPECIAL_EVERY}rd action beside you {special}. When you leave, it goes back, heals and settles.',
+    params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
+    covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'], ready: false, tests: [], inv: null });
+  // A disguised mimic gains no pips (§8.2), so its line takes the pipless wake clause.
+  R.define('ARCHETYPES', 'mimic_vitrine', { icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
+    clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}, then fights slowly.',
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'], ready: false, tests: [], inv: null });
+
+  R.define('SPECIALS', 'ring', { icon: 'special', shape: 'ring', effect: 'damage', curve: 'ROLE_WARDEN_SPECIAL', range: null, every: 'ROLE_WARDEN_SPECIAL_EVERY',
+    clause: 'marks the 8 tiles round it for a turn, then strikes them for {gross} before your Padding',
+    params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: false, tests: [], inv: null });
+  R.define('SPECIALS', 'call', { icon: 'special', shape: 'call', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null,
+    clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles, which come to look where you were',
+    params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'], ready: false, tests: [], inv: null });
+
+  R.define('CLAUSES', 'wake_pipless', { icon: null, clause: 'Wakes only when it is opened, bashed or struck.', params: {},
+    covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
+
+  R.defineCause('status', 'grip', { fields: { by: 'uid' } });
+  R.defineCause('healed', 'home', { fields: { by: 'uid' } });
+  R.defineCause('lost', 'tether', { fields: {} });
+
+  // A herald's call wakes sleepers awake, to look where you were (§8.2); `by` is the herald.
+  R.define('WAKE_CAUSES', 'herald', { mode: 'awake', creation: false });
+  const wake = { by: 'uid', dist: 'int?', x: 'int?', y: 'int?' };
+  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'herald', { fields: wake });
+})();
+
+</script>
+<script>
+// ACCESSION — Behaviour lines (BUILD.md §5.3). A label's line is assembled here from the
+// registry's clause templates, one part per registry id the species uses, with every
+// number filled in at the department's depth, so the line says what the rules do there.
+'use strict';
+const Clauses = (() => {
+  // The event kinds any exhibit may cause or suffer. They need no clause of their own;
+  // every other kind an exhibit causes must be covered by a clause of its line (§5.3).
+  const UNIVERSAL = ['moved', 'opened', 'closed', 'noise', 'pip', 'woke', 'hunting', 'alerted', 'lost', 'returned', 'damaged', 'died'];
+
+  const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+  const COMPASS = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
+  const range = (lo, hi) => lo === hi ? String(lo) : lo + '–' + hi;
+
+  // One parameter reference, read for a species at a depth. `mod` is the modifier whose
+  // clause is being filled, if any.
+  //   N:KEY       the number of record N.KEY (§8.10); N:KEY[i] the i-th of its values
+  //   curve:KEY   the role curve N.KEY at the depth (Roles.at, §8.1)
+  //   role:HP     the species role's health at the depth; role:DMG its damage, as "min–max"
+  //   mod:NAME    the species' modParams[mod].NAME; a compass side ('W') reads as its word
+  // Anything missing throws, naming what is missing, so a line never shows a gap.
+  function value(ref, sp, depth, mod) {
+    const m = /^(N|curve|role|mod):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
+    const where = `${sp && sp.id ? sp.id : 'a species'}: ${ref}`;
+    if (!m) throw new Error(`Clauses: cannot read the parameter reference ${where}`);
+    const [, kind, key, index] = m;
+    if (kind === 'N' || kind === 'curve') {
+      if (!own(N, key)) throw new Error(`Clauses: ${where} names no number of record`);
+      if (kind === 'curve') return Roles.at(N[key], depth);
+      if (index === undefined) return N[key];
+      if (!Array.isArray(N[key]) || +index >= N[key].length) throw new Error(`Clauses: ${where} has no value ${index}`);
+      return N[key][+index];
+    }
+    if (kind === 'role') {
+      if (!sp || !sp.role) throw new Error(`Clauses: ${where} needs a species with a role`);
+      const s = Roles.stats(sp.role, depth);
+      if (key === 'HP') return s.hp;
+      if (key === 'DMG') return range(s.dmin, s.dmax);
+      throw new Error(`Clauses: ${where}: a role gives only HP or DMG`);
+    }
+    const p = sp && sp.modParams && mod && own(sp.modParams, mod) ? sp.modParams[mod] : null;
+    if (!p || p[key] === undefined || p[key] === null) throw new Error(`Clauses: ${where} needs modParams.${mod}.${key}`);
+    return own(COMPASS, p[key]) ? COMPASS[p[key]] : p[key];
+  }
+
+  // Every parameter of an entry, as {name: value}.
+  function params(refs, sp, ctx, mod) {
+    const out = {}, depth = (ctx && ctx.depth) || 1;
+    for (const name of Object.keys(refs || {})) out[name] = value(refs[name], sp, depth, mod || null);
+    return out;
+  }
+
+  // Fill a template's {name} placeholders from values. A placeholder with no value throws.
+  function fill(template, values) {
+    return template.replace(/\{([A-Za-z0-9_:]+)\}/g, (all, name) => {
+      const v = values ? values[name] : undefined;
+      if (v === undefined || v === null) throw new Error(`Clauses: ${all} has no value in "${template}"`);
+      return String(v);
+    });
+  }
+
+  function entry(table, id) {
+    if (!own(Registry[table], id)) throw new Error(`Clauses: ${table} has no ${id}`);
+    return Registry[table][id];
+  }
+  function part(kind, id, e, sp, ctx, mod, extra) {
+    const values = params(e.params, sp, ctx, mod);
+    const text = fill(e.clause, Object.assign({}, values, extra || {}));
+    return { id, kind, text, params: values, covers: e.covers.slice(), inv: e.inv, built: e.built, ready: e.ready, within: null };
+  }
+
+  // Clauses.of(sp, {depth, rulesOff}): one part per registry id the species uses (§5.3), in
+  // the order the line reads: its archetype; the archetype's special and each status it
+  // inflicts, whose texts the archetype's clause embeds at {special} and {status:<id>}
+  // (their parts say so in `within`); each modifier not switched off by rulesOff; the wake
+  // clause (the pipless one if the archetype says so), unless the trigger stands instead
+  // of it; the special trigger. Ids the registry does not know give no part (lint-registry
+  // fails on them).
+  function of(sp, ctx) {
+    const c = { depth: (ctx && ctx.depth) || 1, rulesOff: (ctx && ctx.rulesOff) || [] }, R = Registry, parts = [];
+    const arch = own(R.ARCHETYPES, sp.archetype) ? R.ARCHETYPES[sp.archetype] : null;
+    if (arch) {
+      const inner = [], extra = {};
+      if (arch.special) { const p = part('special', arch.special, entry('SPECIALS', arch.special), sp, c, null); p.within = sp.archetype; extra.special = p.text; inner.push(p); }
+      for (const id of arch.inflicts || []) { const p = part('status', id, entry('STATUSES', id), sp, c, null); p.within = sp.archetype; extra['status:' + id] = p.text; inner.push(p); }
+      parts.push(part('archetype', sp.archetype, arch, sp, c, null, extra), ...inner);
+    }
+    for (const m of sp.modifiers || []) if (own(R.MODIFIERS, m) && !c.rulesOff.includes(m)) parts.push(part('modifier', m, R.MODIFIERS[m], sp, c, m));
+    const trig = own(R.TRIGGERS, sp.trigger) ? R.TRIGGERS[sp.trigger] : null;
+    if (!(trig && trig.replacesWake)) { const w = (arch && arch.wake) || 'wake'; parts.push(part('wake', w, entry('CLAUSES', w), sp, c, null)); }
+    if (trig) parts.push(part('trigger', sp.trigger, trig, sp, c, null));
+    return parts;
+  }
+
+  // The Behaviour line: the archetype's and modifiers' sentences, then the wake clause with
+  // the special trigger's clause joined to it ("…near it; wakes at once when …").
+  function line(sp, ctx) {
+    const parts = of(sp, ctx).filter(p => !p.within);
+    const wake = parts.find(p => p.kind === 'wake'), trig = parts.find(p => p.kind === 'trigger');
+    const out = parts.filter(p => p.kind !== 'wake' && p.kind !== 'trigger').map(p => p.text);
+    if (wake && trig) out.push(wake.text.replace(/\.$/, '') + '; ' + trig.text + '.');
+    else if (wake || trig) out.push((wake || trig).text);
+    return out.join(' ');
+  }
+
+  return { UNIVERSAL, of, line, fill, params, value };
 })();
 
 </script>
@@ -2296,91 +3021,6 @@ const Setup = (() => {
 
 </script>
 <script>
-// ACCESSION — the grammar registry (BUILD.md §5.1): the nine universal systems and the
-// slice's triggers, archetypes, modifiers and modules, each with the clause its Behaviour
-// line is built from. A clause states exactly what the rule code does; the scenario tests
-// named in `tests` prove it (they arrive with the rule, in M3 and M4).
-'use strict';
-const Registry = (() => {
-  // DECISIONS.md, "Nine universal systems": the sentence the player is taught.
-  const SYSTEMS = [
-    { id: 'moving', icon: 'damage', name: 'Moving and fighting', sentence: 'Tap to move; bump into something to attack it. Ordinary blows roll dice, and the odds are shown before you commit. Dangerous moves are marked on the floor with their exact damage, and never miss. Your health recovers slowly.' },
-    { id: 'waking', icon: 'ring', name: 'Waking', sentence: 'Every exhibit is asleep, stirring or awake. Being close or making noise fills its three pips; the ring around you shows what counts as close. A species may have one extra trigger, shown as one icon.' },
-    { id: 'cases', icon: 'touch_case', name: 'Cases', sentence: 'You can see through glass but not walk through it. Open a case if your grade allows, or break it, loudly.' },
-    { id: 'clock', icon: 'clock', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
-    { id: 'kit', icon: 'kit', name: 'Your kit', sentence: 'A weapon, a garment, two curios and an instrument. Restoration kits improve them.' },
-    { id: 'consumables', icon: 'seal', name: 'Consumables', sentence: 'A handful of kinds, unlabelled until you have used one or read about it.' },
-    { id: 'grade', icon: 'certificate', name: 'Grade', sentence: 'Each department’s Certificate, earned by defeating or viewing its Centrepiece, raises your grade by one: more health, a perk chosen from three, heavier objects, higher-grade cases.' },
-    { id: 'labels', icon: 'reads', name: 'Labels', sentence: 'Every exhibit and object has one: a plain Behaviour line that states exactly what it does, and a paragraph that is only for reading.' },
-    { id: 'doors', icon: 'highlight', name: 'Doors', sentence: 'Each department ends in doors whose placards say what kind of trouble lies behind each.' },
-  ];
-  const MAX_SYSTEMS = 10;
-
-  // Special triggers: at most one per species (BUILD.md §8.2).
-  const TRIGGERS = {
-    axis: { icon: 'axis', clause: 'also wakes when you stand in its row or column within 8 tiles, in sight' },
-    period: { icon: 'period', clause: 'wakes on the chime to perform, then sleeps again' },
-    tether: { icon: 'tether', clause: 'wakes at once when you come within 2 tiles of what it guards' },
-    touch_case: { icon: 'touch_case', clause: 'wakes at once when its case is opened, bashed or touched' },
-    ally_hit: { icon: 'ally_hit', clause: 'wakes at once when one of its group within 5 tiles is struck' },
-    alarm: { icon: 'alarm', clause: 'wakes at once when the alarm is raised' },
-    awake: { icon: 'awake', clause: 'never sleeps' },
-  };
-
-  // Archetypes in the slice (design/vocabulary.md §2.1, trimmed per BUILD.md §5.5).
-  const ARCHETYPES = {
-    plodder: { clause: 'Walks one tile at a time and strikes from beside you.' },
-    darter: { clause: 'Moves two tiles a turn; strikes, then steps back one.', speed: 'fast' },
-    kiter: { clause: 'Keeps 3 to 5 tiles from you and shoots; backs away when you are beside it.', ranged: true },
-    axis_sniper: { clause: 'Aims along its row or column for a turn, with the line shown, then fires a beam up to 10 tiles that passes through glass.', ranged: true },
-    splitter: { clause: 'A blow that does not destroy it splits it in two, each with half its health, at most twice.' },
-    mote_swarm: { clause: 'Comes as several bodies that each fall to one blow; they move up to two tiles a turn and surround you.' },
-    herald: { clause: 'On seeing you it calls for one turn, shown, then wakes every sleeping exhibit within 6 tiles.' },
-    tethered_warden: { clause: 'Never goes more than 2 tiles from what it guards; strikes hard; heals and settles when you leave.' },
-    reflector: { clause: 'Sends beams and shots back along their line and shields whatever stands behind it; weak in a fight.' },
-    mimic_vitrine: { clause: 'Looks like a case. Touched, it grips you (you cannot move for 2 turns) and strikes, then fights slowly.' },
-    night_watchman: { clause: 'Comes for you wherever you are; if defeated, it returns 20 turns later.' },
-    unobserved_mover: { clause: 'Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.' },
-    patrol_guard: { clause: 'Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.' },
-    demonstrator: { clause: 'Keeps to its track and never chases. On the chime it performs the demonstration on its label.' },
-    conservator_healer: { clause: 'Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.' },
-    completing_guardian: { clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.' },
-    mp_ensemble: { clause: 'Several pieces share one health pool. When a piece falls, the others take on its special.' },
-    mp_tableau: { clause: 'Stays in its frame and alternates shown lines and bursts; takes double damage while it summons.' },
-  };
-
-  // Modifiers, trimmed to what the slice implements (BUILD.md §5.5).
-  const MODIFIERS = {
-    glass: { clause: 'Its body does not block sight; it leaves shards when destroyed.' },
-    clockwork: { clause: 'Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.' },
-    old_repair: { clause: 'One side is a later repair and takes double damage.' },
-    marble: { clause: 'Moves at half speed.' },
-    plaster: { clause: 'A cast: when destroyed it crumbles into dust that blocks sight for 3 turns.' },
-  };
-
-  const MODULES = {
-    unobserved_motion: { sentence: 'The animals move only when you cannot see them.' },
-    alarm_network: { sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' },
-    copies_weaken: { sentence: 'When an original is broken, its spares lose heart.' },
-    hourly_demonstration: { sentence: 'On the chime, the stations exchange signals down the length of the gallery.' },
-    weather_cases: { sentence: 'Some cases hold weather. Break one, and the weather gets out.' },
-  };
-
-  // The Behaviour line for a species: archetype, modifiers, waking (BUILD.md §5.3).
-  function behaviour(sp) {
-    const parts = [ARCHETYPES[sp.archetype] ? ARCHETYPES[sp.archetype].clause : ''];
-    for (const m of sp.modifiers || []) if (MODIFIERS[m]) parts.push(MODIFIERS[m].clause);
-    const t = sp.trigger && TRIGGERS[sp.trigger];
-    if (t && sp.trigger === 'awake') parts.push('It never sleeps.');
-    else parts.push('Wakes when you stay inside your ring or make noise near it' + (t ? '; ' + t.clause : '') + '.');
-    return parts.filter(Boolean).join(' ');
-  }
-
-  return { SYSTEMS, MAX_SYSTEMS, TRIGGERS, ARCHETYPES, MODIFIERS, MODULES, behaviour };
-})();
-
-</script>
-<script>
 // ACCESSION — the department packs: content files register themselves here (BUILD.md §5.2).
 'use strict';
 const Packs = (() => {
@@ -2394,32 +3034,408 @@ const Packs = (() => {
 
 </script>
 <script>
-// ACCESSION — every sentence about the rules is made here, from events and data
-// (BUILD.md §3.4). M0 covers moving, fighting and doors.
+// ACCESSION — every sentence about the rules is made here, from events and data (BUILD.md
+// §3.4). This file holds the API; the sentences live in fragments, js/core/text/<part>.js,
+// one per owner, as the registry's entries do (§5.1). A sentence is keyed by the event's
+// kind and its cause, because many rules emit the same kind for their own reasons.
 'use strict';
 const Text = (() => {
-  // event(e, nameOf): nameOf(uid) gives an actor's name in mid-sentence ('the Lantern-Crop
-  // Wader'; Labels.nameOf(state) makes one). Without it, or where it gives null, an exhibit
-  // is the test room's 'the training dummy'. Called as a map callback, the index is ignored.
-  function event(e, nameOf) {
-    const lower = uid => uid === 'you' ? 'you' : (typeof nameOf === 'function' && nameOf(uid)) || 'the training dummy';
-    const name = uid => { const s = lower(uid); return s.charAt(0).toUpperCase() + s.slice(1); };
-    switch (e.k) {
-      case 'damaged': {
-        const c = e.cause;
-        const sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
-        if (c.surprise) return `${name(c.by)} caught ${lower(e.who)} unawares: ${e.amount} damage (${sum}).`;
-        return `${name(c.by)} hit ${lower(e.who)} for ${e.amount} (rolled ${c.roll} against ${c.chance}%; ${sum}).`;
-      }
-      case 'missed': return `${name(e.by)} missed ${lower(e.at)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`;
-      case 'died': return e.who === 'you' ? 'You fell.' : `${name(e.who)} broke apart.`;
-      case 'hunting': return e.cause.k === 'damage' ? `${name(e.who)} woke: it was struck.` : `${name(e.who)} is hunting you.`;
-      case 'opened': return e.who === 'you' ? 'You opened the door.' : null;
-      case 'refused': return e.reason;
-      default: return null;
-    }
+  const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null);
+  const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+  const once = (o, k, what) => { if (has(o, k)) throw new Error(`Text: ${what} is defined twice`); };
+  const isFn = (f, what) => { if (typeof f !== 'function') throw new Error(`Text: ${what} needs a function`); };
+
+  // Text.define(k, fn, {log}?): the kind's default sentence, by its base owner. `log` says
+  // whether Text.log shows the kind: true (the default), false (never), or 'seen' (only when
+  // the actor it is about, `who`, is you or in view).
+  function define(k, fn, opts) {
+    once(KINDS, k, `the sentence for ${k}`); isFn(fn, k);
+    const log = opts && opts.log !== undefined ? opts.log : true;
+    if (log !== true && log !== false && log !== 'seen') throw new Error(`Text: ${k} has log ${JSON.stringify(log)}`);
+    KINDS[k] = fn; LOG[k] = log;
   }
-  return { event };
+  // Text.defineCause(k, causeK, fn): the sentence for one cause of a kind, by that cause's owner.
+  function defineCause(k, causeK, fn) {
+    if (!has(CAUSES, k)) CAUSES[k] = Object.create(null);
+    once(CAUSES[k], causeK, `the sentence for ${k}.${causeK}`); isFn(fn, k + '.' + causeK);
+    CAUSES[k][causeK] = fn;
+  }
+  // Text.defineRefusal(code, fn): the sentence for a refusal code, fn(data) → sentence.
+  function defineRefusal(code, fn) { once(REFUSALS, code, `the refusal ${code}`); isFn(fn, code); REFUSALS[code] = fn; }
+  // Text.provide(name, fn): a named sentence maker ('clock', 'recap'), by its one owner.
+  function provide(name, fn) { once(MAKERS, name, `the sentence maker ${name}`); isFn(fn, name); MAKERS[name] = fn; }
+
+  // The words a sentence uses for an actor. nameOf(uid) gives an actor's name in
+  // mid-sentence ('the Lantern-Crop Wader'; Labels.nameOf(state) makes one). Without it, or
+  // where it gives null, an exhibit is the test room's 'the training dummy'. Called as a map
+  // callback, the index is ignored. A sentence fn(e, w) gets these words as w:
+  //   w.name(uid) mid-sentence, w.Name(uid) to start one, w.is(uid) 'are' for you, else 'is'.
+  function words(nameOf) {
+    const name = uid => uid === 'you' ? 'you' : (typeof nameOf === 'function' && nameOf(uid)) || 'the training dummy';
+    const Name = uid => { const s = name(uid); return s.charAt(0).toUpperCase() + s.slice(1); };
+    const is = uid => uid === 'you' ? 'are' : 'is';
+    return { name, Name, is };
+  }
+
+  // Text.event(e, nameOf): the sentence for its kind and cause, falling back to the kind's
+  // default; null for a kind with no sentence (lint-registry fails on one).
+  function event(e, nameOf) {
+    const c = e.cause && typeof e.cause.k === 'string' ? e.cause.k : null;
+    const fn = (c !== null && has(CAUSES, e.k) && has(CAUSES[e.k], c)) ? CAUSES[e.k][c] : has(KINDS, e.k) ? KINDS[e.k] : null;
+    return fn ? fn(e, words(nameOf)) : null;
+  }
+  // A refusal code's sentence; a reason with no sentence defined is shown as it is.
+  const refusal = (code, data) => has(REFUSALS, code) ? REFUSALS[code](data === undefined ? null : data) : String(code);
+  const clock = view => has(MAKERS, 'clock') ? MAKERS.clock(view) : null;
+  const recap = (state, nameOf) => has(MAKERS, 'recap') ? MAKERS.recap(state, nameOf) : null;
+
+  // Text.log(events, nameOf, visible): the sentences of one step for the player's log.
+  // It leaves out the kinds defined with log: false, and those with log: 'seen' about an
+  // actor that visible(uid) says is out of view (everything is in view without visible).
+  // An exhibit that wakes straight into a hunt emits woke, then hunting; the log shows the
+  // hunting sentence alone, which says that it woke.
+  function log(events, nameOf, visible) {
+    const seen = uid => uid === 'you' || typeof visible !== 'function' || !!visible(uid);
+    const out = [];
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i], how = has(LOG, e.k) ? LOG[e.k] : true;
+      if (how === false || (how === 'seen' && !seen(e.who))) continue;
+      if (e.k === 'woke' && e.mode === 'hunting' && events.slice(i + 1).some(f => f.k === 'hunting' && f.who === e.who)) continue;
+      const s = event(e, nameOf);
+      if (s) out.push(s);
+    }
+    return out;
+  }
+
+  // What is defined, for lint-registry and the tests.
+  const defined = (k, causeK) => causeK === undefined ? has(KINDS, k) : has(CAUSES, k) && has(CAUSES[k], causeK);
+  const refusalDefined = code => has(REFUSALS, code);
+  const provided = name => has(MAKERS, name);
+  function list() {
+    const causes = [];
+    for (const k of Object.keys(CAUSES)) for (const c of Object.keys(CAUSES[k])) causes.push([k, c]);
+    return { kinds: Object.keys(KINDS), causes, refusals: Object.keys(REFUSALS), makers: Object.keys(MAKERS) };
+  }
+  const logs = k => has(LOG, k) ? LOG[k] : true;
+
+  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, log, defined, refusalDefined, provided, list, logs };
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the system (BUILD.md §3.4), frozen after M3's Wave 0. Refusals, and
+// plain sentences for the event kinds and wake causes M4 builds.
+'use strict';
+(() => {
+  // A refused action says why, in the sentence its code names (§4.2).
+  Text.define('refused', e => Text.refusal(e.reason, e.data));
+  const REFUSALS = {
+    visit_over: 'The visit is over.',
+    choice_pending: 'Answer the choice first.',
+    unknown_action: 'Unknown action.',
+    bad_direction: 'No such direction.',
+    corner: 'You cannot reach it past the corner.',
+    blocked: 'Something is in the way.',
+    no_target: 'There is nothing there to attack.',
+    out_of_reach: 'It is out of reach.',
+  };
+  for (const code of Registry.order('REFUSALS')) if (REFUSALS[code]) Text.defineRefusal(code, () => REFUSALS[code]);
+
+  // M4's kinds.
+  Text.define('alarm', (e, w) => `${w.Name(e.by)} raised the alarm.`);
+  Text.define('certificate', () => 'You earned this department’s Certificate.');
+  Text.define('grade', e => `Your grade is now ${e.grade}.`);
+  Text.define('perk', e => `You took the perk ${e.id}, rank ${e.rank}.`);
+  Text.define('viewed', (e, w) => `${w.Name(e.who)} viewed the Centrepiece for ${e.turns} turns.`);
+  Text.define('module', e => `The department’s rule ${e.id} acted.`);
+  const why = { period: 'the chime sounded', alarm: 'the alarm was raised', patrol: 'it walks its round' };
+  for (const k of ['period', 'alarm', 'patrol']) {
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+  }
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: waking (BUILD.md §8.2), owned by W1-WAKE-A. Noise, pips, waking and
+// hunting, and why: the ring, noise and the special triggers.
+'use strict';
+(() => {
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  Text.define('noise', e => `${CLS[e.cls] || 'A'} noise, heard ${e.range} tiles away.`);
+  // A pip is shown only for an exhibit in view, so the log never tells you about one you
+  // cannot see (§8.2's pips are shown on the exhibit).
+  const pips = e => `${e.pips} of ${N.PIPS_TO_WAKE} pips`;
+  const stir = (e, w, why) => `${w.Name(e.who)} ${e.delta < 0 ? 'settles' : 'stirs'} (${pips(e)})${why ? ': ' + why : ''}.`;
+  Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen' });
+  Text.defineCause('pip', 'ring', (e, w) => stir(e, w, 'you are inside your ring'));
+  Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${e.cause.dist} tiles away`));
+  Text.defineCause('pip', 'axis', (e, w) => stir(e, w, 'you are in its row or column'));
+  Text.defineCause('pip', 'decay', (e, w) => stir(e, w, 'nothing has disturbed it'));
+  Text.defineCause('pip', 'quiet', (e, w) => stir(e, w, '“Quiet, Please” was read'));
+
+  // Waking. `was` is null for an actor made awake.
+  Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} is awake.` : `${w.Name(e.who)} woke.`);
+  Text.define('hunting', (e, w) => `${w.Name(e.who)} is hunting you.`);
+  const why = { ring: 'you stayed inside your ring', noise: 'it heard a noise', axis: 'you stood in its row or column',
+    tether: 'you came near what it guards', ally_hit: 'one of its group took damage', awake: 'it never sleeps' };
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) {
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+  }
+
+  // Losing you, and being sent to look, for waking's reasons.
+  Text.defineCause('lost', 'quiet', (e, w) => `${w.Name(e.who)} lost you: “Quiet, Please” was read.`);
+  Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you: you went back to the entrance.`);
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise and goes to look.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: modes and movement (BUILD.md §8.2), owned by W1-WAKE-B. Moving and
+// doors, and the changes of mode after waking.
+'use strict';
+(() => {
+  // Steps and closed doors are left out of the log; an exhibit's door only when it is in view.
+  Text.define('moved', (e, w) => `${w.Name(e.who)} moved.`, { log: false });
+  Text.define('opened', (e, w) => `${w.Name(e.who)} opened the door.`, { log: 'seen' });
+  Text.defineCause('opened', 'door', (e, w) => `${w.Name(e.who)} opened the door.`);
+  Text.define('closed', (e, w) => `${w.Name(e.who)} closed the door.`, { log: false });
+
+  const MODES = { dormant: 'asleep', awake: 'awake', hunting: 'hunting', searching: 'searching', returning: 'going back', reinstalling: 'settling back in' };
+  const mode = m => MODES[m] || m;
+  Text.define('lost', (e, w) => `${w.Name(e.who)} lost you, and is now ${mode(e.to)}.`);
+  Text.defineCause('lost', 'out_of_sight', (e, w) => `${w.Name(e.who)} lost you: it has not seen you for ${e.cause.turns} turns.`);
+  Text.defineCause('lost', 'idle', (e, w) => `${w.Name(e.who)} is going back: nothing has disturbed it for ${e.cause.turns} turns.`);
+  Text.defineCause('lost', 'searched', (e, w) => `${w.Name(e.who)} searched where it last saw you, and is going back.`);
+  Text.define('alerted', (e, w) => `${w.Name(e.who)} goes to look.`);
+  Text.define('returned', (e, w) => e.phase === 'reinstalled' ? `${w.Name(e.who)} settled back to sleep.` : `${w.Name(e.who)} is back in its place.`);
+  Text.defineCause('returned', 'home', (e, w) => e.phase === 'reinstalled' ? `${w.Name(e.who)} settled back to sleep.` : `${w.Name(e.who)} is back in its place.`);
+
+  Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${e.cause.dist} tiles away.`);
+  Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it saw you.` : `${w.Name(e.who)} saw you and is hunting you.`);
+
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  Text.defineCause('noise', 'door', noise('a door opening'));
+  Text.defineCause('noise', 'close', noise('a door closing'));
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: combat, specials and health (BUILD.md §8.1), owned by W1-COMBAT.
+// Blows and specials, waiting, recovering and healing, and waking by damage.
+'use strict';
+(() => {
+  // A blow: who struck whom, the roll against the chance, and the damage less Padding.
+  const blow = (e, w) => {
+    const c = e.cause;
+    const sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
+    if (c.surprise) return `${w.Name(c.by)} caught ${w.name(e.who)} unawares: ${e.amount} damage (${sum}).`;
+    if (c.roll == null) return `${w.Name(c.by)} hit ${w.name(e.who)} for ${e.amount} (a certain hit; ${sum}).`;
+    return `${w.Name(c.by)} hit ${w.name(e.who)} for ${e.amount} (rolled ${c.roll} against ${c.chance}%; ${sum}).`;
+  };
+  // Every blow is announced as `attacked` before it lands or misses; the log shows the result.
+  Text.define('attacked', (e, w) => `${w.Name(e.by)} attacked ${w.name(e.at)}.`, { log: false });
+  Text.defineCause('attacked', 'attack', (e, w) => `${w.Name(e.by)} attacked ${w.name(e.at)}.`);
+  Text.define('missed', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}.`);
+  Text.defineCause('missed', 'attack', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
+  Text.define('damaged', (e, w) => `${w.Name(e.who)} took ${e.amount} damage.`);
+  Text.defineCause('damaged', 'attack', blow);
+  const special = (e, w) => `${w.Name(e.cause.by)} struck ${w.name(e.who)} with its special for ${e.amount} (${e.cause.gross} − ${e.cause.pad} Padding).`;
+  Text.defineCause('damaged', 'special', special);
+  const died = (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`;
+  Text.define('died', died);
+  Text.defineCause('died', 'attack', died);
+  Text.defineCause('died', 'special', died);
+
+  Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${e.tiles.length} tiles for its special.`);
+  Text.defineCause('telegraphed', 'special', (e, w) => `${w.Name(e.who)} marks ${e.tiles.length} tiles for its special: ${e.cause.gross} before your Padding.`);
+  const used = (e, w) => e.cancelled ? `${w.Name(e.who)}’s special was called off.` : `${w.Name(e.who)} used its special.`;
+  Text.define('special', used);
+  Text.defineCause('special', 'special', used);
+  Text.defineCause('special', 'cancel', (e, w) => `${w.Name(e.who)}’s special was called off (${e.cause.why}).`);
+
+  // Waiting and recovering are left out of the log, as they were before M3.
+  const HOW = { wait: 'waited', rest: 'rested', sit: 'sat down' };
+  Text.define('waited', (e, w) => `${w.Name(e.who)} ${HOW[e.how] || 'waited'}.`, { log: false });
+  Text.defineCause('waited', 'action', (e, w) => `${w.Name(e.who)} ${HOW[e.cause.how] || 'waited'}.`);
+  Text.define('regenerated', (e, w) => `${w.Name(e.who)} recovered: health ${e.hp}.`, { log: false });
+  Text.defineCause('regenerated', 'regen', (e, w) => `${w.Name(e.who)} recovered${e.cause.bench ? ' on the bench' : ''}: health ${e.hp}.`);
+  Text.define('healed', (e, w) => `${w.Name(e.who)} healed ${e.amount}: health ${e.hp}.`);
+
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  Text.defineCause('noise', 'attack', noise('a blow'));
+  Text.defineCause('noise', 'destroyed', noise('an exhibit destroyed'));
+  Text.defineCause('noise', 'special', noise('a special'));
+
+  // Damage always wakes, straight to hunting.
+  Text.defineCause('woke', 'damage', (e, w) => `${w.Name(e.who)} woke: it was struck.`);
+  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke: it was struck.` : `${w.Name(e.who)} is hunting you: it was struck.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: cases, glass, locks and staff doors (BUILD.md §8.3), owned by W1-CASES.
+'use strict';
+(() => {
+  const glass = n => { const id = Registry.order('GLASS').find(g => Registry.GLASS[g].n === n); return id ? Registry.GLASS[id].name : 'Glass'; };
+  Text.defineCause('opened', 'staff', (e, w) => `${w.Name(e.who)} opened the staff door (grade ${e.cause.grade}).`);
+  Text.define('case_opened', (e, w) => `${w.Name(e.by)} opened the case (${glass(e.glass)}, lock ${e.lock}).`);
+  Text.defineCause('case_opened', 'grade', (e, w) => `${w.Name(e.by)} opened the case: lock ${e.cause.lock}, within grade ${e.cause.grade}.`);
+  Text.define('glass_cracked', (e, w) => `${w.Name(e.by)} cracked the ${glass(e.glass)} glass (${e.hits} of ${e.need}).`);
+  Text.defineCause('glass_cracked', 'bash', (e, w) => `${w.Name(e.by)} cracked the ${glass(e.glass)} glass (${e.hits} of ${e.need}).`);
+  Text.define('glass_broke', (e, w) => `${w.Name(e.by)} broke the ${glass(e.glass)} glass.`);
+  Text.defineCause('glass_broke', 'bash', (e, w) => `${w.Name(e.by)} broke the ${glass(e.glass)} glass (${e.cause.hits} of ${e.cause.need}).`);
+
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  Text.defineCause('noise', 'staff_door', noise('a staff door opening'));
+  Text.defineCause('noise', 'case_opened', noise('a case opening'));
+  Text.defineCause('noise', 'bash', noise('glass bashed'));
+  Text.defineCause('noise', 'glass_broke', noise('glass breaking'));
+
+  const why = { touch_case: 'its case was touched', case_broken: 'its case was broken', dissolved: 'its case was dissolved' };
+  for (const k of ['touch_case', 'case_broken', 'dissolved']) {
+    Text.defineCause('woke', k, (e, w) => `${w.Name(e.who)} woke: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+  }
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the clock and leaving (BUILD.md §8.4, §8.9), owned by W1-CLOCK. Also
+// the dial's sentence, Text.clock(view), provided here (a stub until W1-CLOCK builds it).
+'use strict';
+(() => {
+  const STAGES = { bell: 'The bell rings: your recovery slows.', night_watch: 'The night watch begins.', night_bell: 'A night-watch bell rings.' };
+  const stage = e => STAGES[e.stage] || 'The clock moves on.';
+  Text.define('stage', stage);
+  Text.defineCause('stage', 'clock', stage);
+  Text.define('entered', (e, w) => `${w.Name(e.who)} came in.`);
+  Text.defineCause('entered', 'night_watch', () => 'The Night Watchman comes.');
+  Text.defineCause('entered', 'visit', () => 'You enter the department.');
+  Text.define('left', (e, w) => `${w.Name(e.who)} left.`);
+  Text.defineCause('left', 'leave', () => 'You left the department.');
+
+  const why = { night_bell: 'the night-watch bell rang', night_watch: 'the night watch began' };
+  for (const k of ['night_bell', 'night_watch']) {
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+  }
+
+  // [stub → W1-CLOCK] the dial's sentence from Clock.view(state); null until built.
+  Text.provide('clock', () => null);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: your kit (BUILD.md §8.5), owned by W1-KIT. Taking, dropping,
+// equipping and using items, and the Pin-Driver's bolt.
+'use strict';
+(() => {
+  Text.define('took', (e, w) => `${w.Name(e.who)} took an item.`);
+  Text.defineCause('took', 'take', (e, w) => `${w.Name(e.who)} took an item.`);
+  Text.define('dropped', (e, w) => `${w.Name(e.who)} dropped an item.`);
+  Text.defineCause('dropped', 'drop', (e, w) => `${w.Name(e.who)} dropped an item.`);
+  const equipped = (e, w) => e.item == null ? `${w.Name(e.who)} took off the ${e.slot}.` : `${w.Name(e.who)} equipped the ${e.slot}.`;
+  Text.define('equipped', equipped);
+  Text.defineCause('equipped', 'equip', (e, w) => `${equipped(e, w)}${e.cause.short > 0 ? ` It needs ${e.cause.short} more grade${e.cause.short === 1 ? '' : 's'} than yours.` : ''}`);
+  Text.defineCause('equipped', 'unequip', equipped);
+  Text.define('used', (e, w) => `${w.Name(e.who)} used an item.`);
+  Text.defineCause('used', 'use', (e, w) => `${w.Name(e.who)} used an item.`);
+
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${e.range} tiles away.`);
+  const bolt = (e, w) => `${w.Name(e.cause.by)} hit ${w.name(e.who)} with an instrument for ${e.amount} (${e.cause.raw} − ${e.cause.pad} Padding).`;
+  Text.defineCause('damaged', 'item', bolt);
+  Text.defineCause('died', 'item', (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: statuses and surfaces (BUILD.md §8.1, §8.6), owned by W1-STATUS.
+'use strict';
+(() => {
+  const on = (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${e.id}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${e.id}.`;
+  Text.define('status', on);
+  Text.defineCause('status', 'status', on);
+  Text.defineCause('healed', 'status', (e, w) => `${w.Name(e.who)} healed ${e.amount} while ${e.cause.id}: health ${e.hp}.`);
+  Text.defineCause('pip', 'fumigant', (e, w) => `${w.Name(e.who)} settles in the fumigant (${e.pips} of ${N.PIPS_TO_WAKE} pips).`);
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  Text.defineCause('noise', 'cough', e => `${CLS[e.cls] || 'A noise'}: coughing, heard ${e.range} tiles away.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: consumables, seals and identification (BUILD.md §8.6), owned by
+// W1-CONSUMABLES.
+'use strict';
+(() => {
+  const kind = ck => Registry.CONSUMABLES[ck] ? Registry.CONSUMABLES[ck].name : 'a consumable';
+  Text.define('identified', e => `The ${e.seal} seal is ${kind(e.ck)}.`);
+  Text.defineCause('identified', 'use', e => `Used once, the ${e.seal} seal is known: ${kind(e.ck)}.`);
+  Text.defineCause('identified', 'label', e => `From its label, the ${e.seal} seal is known: ${kind(e.ck)}.`);
+  Text.defineCause('identified', 'card', e => `From a Catalogue Card, the ${e.seal} seal is known: ${kind(e.ck)}.`);
+  Text.defineCause('used', 'consume', (e, w) => e.cause.known ? `${w.Name(e.who)} used ${kind(e.cause.ck)}.` : `${w.Name(e.who)} used a consumable with the ${e.cause.seal} seal.`);
+  Text.defineCause('glass_broke', 'solvent', (e, w) => `${w.Name(e.by)} dissolved the glass, silently.`);
+  Text.defineCause('healed', 'item', (e, w) => `${w.Name(e.who)} healed ${e.amount}: health ${e.hp}.`);
+  Text.defineCause('status', 'item', (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${e.id}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${e.id}.`);
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  Text.defineCause('noise', 'throw', e => `${CLS[e.cls] || 'A noise'}: a thrown item landing, heard ${e.range} tiles away.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the darter, the splitter and the mote swarm, and the marble and
+// plaster modifiers (BUILD.md §5.5), owned by W1-ARCH-A.
+'use strict';
+(() => {
+  // A body made from another, such as a splitter's half.
+  Text.defineCause('woke', 'summoned', (e, w) => `${w.Name(e.who)} came from ${w.name(e.cause.from)}.`);
+  Text.defineCause('hunting', 'summoned', (e, w) => `${w.Name(e.who)} came from ${w.name(e.cause.from)} and is hunting you.`);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the kiter, the axis_sniper and the reflector, and the glass and
+// old_repair modifiers (BUILD.md §5.5), owned by W1-ARCH-B. Shots, and lines sent back.
+'use strict';
+(() => {
+  Text.defineCause('missed', 'shot', (e, w) => `${w.Name(e.by)} shot at ${w.name(e.at)} and missed (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
+  Text.defineCause('damaged', 'shot', (e, w) => {
+    const c = e.cause, sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
+    return `${w.Name(c.by)} shot ${w.name(e.who)} for ${e.amount} (${c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`}; ${sum}).`;
+  });
+  Text.defineCause('damaged', 'reflected', (e, w) => `${w.Name(e.cause.by)} sent ${w.name(e.cause.shooter)}’s line back into ${w.name(e.who)}: ${e.amount} damage.`);
+  const died = (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`;
+  Text.defineCause('died', 'shot', died);
+  Text.defineCause('died', 'reflected', died);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the herald, the tethered_warden and the mimic_vitrine (BUILD.md
+// §5.5), owned by W1-ARCH-C.
+'use strict';
+(() => {
+  Text.defineCause('status', 'grip', (e, w) => e.on ? `${w.Name(e.cause.by)} grips ${w.name(e.who)}: ${w.name(e.who)} cannot move.` : `${w.Name(e.who)} ${w.is(e.who)} free of the grip.`);
+  Text.defineCause('healed', 'home', (e, w) => `${w.Name(e.who)} is home and heals ${e.amount}: health ${e.hp}.`);
+  Text.defineCause('lost', 'tether', (e, w) => `${w.Name(e.who)} will not go farther from what it guards, and goes back.`);
+  Text.defineCause('woke', 'herald', (e, w) => `${w.Name(e.who)} woke: ${w.name(e.cause.by)} called.`);
+  Text.defineCause('hunting', 'herald', (e, w) => `${w.Name(e.who)} is hunting you: ${w.name(e.cause.by)} called.`);
+})();
+
+</script>
+<script>
+// ACCESSION — the death recap (BUILD.md §3.4, §8.1), owned by W2a-LABELS: what killed you,
+// why it was awake, and when and how it woke, read from the killer's own story.
+'use strict';
+(() => {
+  // [stub → W2a-LABELS] Text.recap(state, nameOf) → {killer, wakeTurn, wakeTrigger, huntTurn,
+  // lines}; null until built.
+  Text.provide('recap', () => null);
 })();
 
 </script>
@@ -2457,6 +3473,10 @@ const Labels = (() => {
     return lines;
   }
 
+  // The Behaviour line (§5.3), with its numbers at the department's depth, leaving out the
+  // clauses of rules switched off for this visit.
+  const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [] });
+
   // The Attack button says what a blow would do now (§7.1): a surprise blow hits for
   // certain (§8.1), so it shows no chance.
   const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
@@ -2479,7 +3499,7 @@ const Labels = (() => {
     const adjacent = Step.adjacent(state, you, a);
     return {
       uid, title: sp ? sp.name : a.sp, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
-      pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
+      pictos, behaviour: sp ? behaviour(state, sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
       actions: adjacent ? [{ id: 'attack', text: attackText(you, a) }] : [],
@@ -2751,7 +3771,7 @@ Packs.add({
       name: 'Semaphore Station, Two-Armed',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
       paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
-    { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], trigger: null,
+    { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], modParams: { old_repair: { side: 'W' } }, trigger: null,
       name: 'Signal Lamp on a Walking Tripod',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; right rear leg a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },
       paragraph: 'Where a heliograph could not reach, a lamp was walked out to a better position. The Line’s records say this one was built to keep a fixed distance from whatever it was signalling to, backing away if anyone came too close, so that its beam would never need re-aiming. The linesmen called it the Courtier, and did not explain why.' },
@@ -7899,8 +8919,10 @@ const Main = (() => {
     fresh = false;
     const ev = Step.step(state, action);
     ui.events = ev;
-    const nameOf = Labels.nameOf(state);
-    const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
+    // The log's sentences (Text.log): an event about an exhibit out of view is left out
+    // where its kind says so.
+    const nameOf = Labels.nameOf(state), inView = new Set(ViewModel.derive(state, ui).actors.map(a => a.uid));
+    const lines = Text.log(ev, nameOf, uid => inView.has(uid));
     if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {

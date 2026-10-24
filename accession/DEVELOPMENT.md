@@ -25,7 +25,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | M1 Layout | accepted, 23 October 2026 |
 | M2 Look and read | accepted, 23 October 2026 |
 | M2b The 3D board | the 3D checks and every M2 screen check pass in both views; waiting on Julian's side-by-side look and device numbers |
-| M3 Exhibits wake | not started |
+| M3 Exhibits wake | underway: Wave 0 (the backbone), part W0a landed |
 | M4 Three departments | not started |
 | M5 A run | not started |
 | M6 Sound | not started |
@@ -173,3 +173,21 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
   - Every exhibit starts asleep. M2's placement is a stand-in; population and modes are M3 and M4. So the Wader's label says "It never sleeps" beside a sleeping icon.
   - The odds readout is tested over varied states now, but M3 owns it.
 - **Pending for Julian:** see "Checks Julian runs" above.
+
+### 24 October 2026: M3 underway; Wave 0, part W0a (grammar and words)
+
+- **How M3 is built.** In four waves, each landing on `main`:
+  - **Wave 0, the backbone,** in five serial parts: W0a (the grammar and its words), W0b (test and determinism infrastructure), W0c (the action core), W0d (the exhibit core), W0e (the department core). Each part writes its own BUILD.md sections, `index.html` entries and legacy-test rewrites in its own commit.
+  - **Wave 1:** fourteen packages in parallel (waking, modes, combat, cases, clock, kit, statuses, consumables, content, three archetype groups, sims, golden runs), each calling only Wave 0's interfaces.
+  - **Wave 2a and 2b:** the view model, labels and joined-up behaviour scenarios; then the arenas, the sim battery and the play and Bag screens.
+  - **Wave 3:** the M3 acceptance run (BUILD.md §11).
+- **The landing rule.** All work lands on `main` and is pushed; no other branch is created. From Wave 1 on, a package works in a scratch copy of the tree and hands back a patch and a report, and one landing at a time applies it to the current `main`, with the package's listed amendments, runs `./check-all.sh` with no skips, then commits and pushes. After Wave 0, BUILD.md, this file, `index.html`, `js/core/numbers.js` and the golden pins are written only at landing, from the packages' reports, in the commit of the code they describe (BUILD.md §12).
+- **The golden hash goes pending within each wave.** W0b adds a pending mode, set before W0c changes the state. While a run is pending, the tests assert that two runs are equal and that a cloned state behaves the same, but not the pin, and the hash page prints PENDING with its hash, which `check-hash` compares with a Node run of the same tree, so the cross-engine check never lapses. The pin is re-pinned at the end of Wave 0, Wave 1, Wave 2a and Wave 2b, each with a line here (old → new, commit, reason, first diverging step), and set pending again at the next wave's start. Julian's Safari and Firefox rows stay "pending" until the Wave 3 build.
+- **W0a, what changed** (no change to the state; the golden hash is unchanged at 1695131025):
+  - **The registry is split into fragments,** `js/core/reg/<part>.js`, one per owner, through `Registry.define`, `defineEvent` and `defineCause`; `Registry.order(table)` gives definition order. Every entry carries `built`, `ready`, `tests` and `inv`, and a clause-bearing one its `params`, template and `covers` (§5.1). The `alarm` trigger is gone: the alarm is a module (§8.2).
+  - **38 event kinds** (§4.3's 32 and `waited`, `regenerated`, `healed`, `status`, `dropped`, `alerted`) with schemas, and 105 (kind, cause) pairs.
+  - **Sentences** are keyed by kind and cause, in `js/core/text/<part>.js`; every kind and pair has one. M2's six sentences are unchanged on the events M2 emits. The log (`Text.log`) shows what M2's showed, which a test checks on the test room over three seeds, with one addition: an exhibit in view that opens a door now gets a line.
+  - **Behaviour lines** are built by `js/core/clauses.js`, one part per registry id a species uses, the special and inflicted statuses included, with every number filled at the department's depth: "strikes from beside you for 4–9", "for 11 before your Padding". The longest is the Heliograph's, 454 characters at depth 7 (M2's longest was 318). In the strip at 390×844 it leaves the board 523 px at text size 1 and 404 px at 1.3; `check-screens` now puts the longest line in the strip and fails if the board keeps less than 40% of the window's height, which it did on a planted 726-character line.
+  - **34 new numbers of record** (§8.10, AXIS_RANGE to RESTORE_CHARGES) so that every clause names its number; `ROLE_WARDEN_SPECIAL_EVERY` moved out of a Meaning; the Meanings of `ROLE_WARDEN_SPECIAL` and `ROLE_ARTILLERY_SPECIAL` now name the archetypes that use them (specials belong to archetypes, not roles), and `COST_USE` covers applying a Restoration kit.
+  - **The Signal Lamp** (M11.3) names its repaired side, `modParams: { old_repair: { side: 'W' } }`, which its line now states.
+  - **lint-registry** checks the kinds against §4.3, a schema and a sentence for every pair, clause templates and their parameters, every pack species' line at depths 1–7, ready entries' tests and invariants, and pack items' primitives; `--strict` is M3's acceptance and fails until every M3 entry is ready.

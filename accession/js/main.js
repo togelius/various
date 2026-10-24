@@ -89,8 +89,10 @@ const Main = (() => {
     fresh = false;
     const ev = Step.step(state, action);
     ui.events = ev;
-    const nameOf = Labels.nameOf(state);
-    const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
+    // The log's sentences (Text.log): an event about an exhibit out of view is left out
+    // where its kind says so.
+    const nameOf = Labels.nameOf(state), inView = new Set(ViewModel.derive(state, ui).actors.map(a => a.uid));
+    const lines = Text.log(ev, nameOf, uid => inView.has(uid));
     if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {

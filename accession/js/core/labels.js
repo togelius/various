@@ -31,6 +31,10 @@ const Labels = (() => {
     return lines;
   }
 
+  // The Behaviour line (§5.3), with its numbers at the department's depth, leaving out the
+  // clauses of rules switched off for this visit.
+  const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [] });
+
   // The Attack button says what a blow would do now (§7.1): a surprise blow hits for
   // certain (§8.1), so it shows no chance.
   const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
@@ -53,7 +57,7 @@ const Labels = (() => {
     const adjacent = Step.adjacent(state, you, a);
     return {
       uid, title: sp ? sp.name : a.sp, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
-      pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
+      pictos, behaviour: sp ? behaviour(state, sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
       actions: adjacent ? [{ id: 'attack', text: attackText(you, a) }] : [],

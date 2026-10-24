@@ -16,7 +16,7 @@ Packs.add({
       name: 'Semaphore Station, Two-Armed',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
       paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
-    { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], trigger: null,
+    { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], modParams: { old_repair: { side: 'W' } }, trigger: null,
       name: 'Signal Lamp on a Walking Tripod',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; right rear leg a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },
       paragraph: 'Where a heliograph could not reach, a lamp was walked out to a better position. The Line’s records say this one was built to keep a fixed distance from whatever it was signalling to, backing away if anyone came too close, so that its beam would never need re-aiming. The linesmen called it the Courtier, and did not explain why.' },

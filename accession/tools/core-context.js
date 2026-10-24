@@ -23,13 +23,14 @@ function coreFiles() {
   return [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]).filter(f => f.startsWith('js/core/') || f.startsWith('content/'));
 }
 
-// A fresh hardened context with the core loaded; returns every top-level namespace by name.
+// A fresh hardened context with the core loaded, then any extra files (paths relative to
+// accession/, or absolute); returns every top-level namespace by name.
 function loadCore(extraFiles) {
   const ctx = vm.createContext({});
   vm.runInContext(PRELUDE, ctx, { filename: 'prelude.js' });
   const names = [];
   for (const f of [...coreFiles(), ...(extraFiles || [])]) {
-    const src = fs.readFileSync(path.join(root, f), 'utf8');
+    const src = fs.readFileSync(path.resolve(root, f), 'utf8');
     for (const m of src.matchAll(/^const ([A-Z][A-Za-z0-9]*) =/gm)) names.push(m[1]);
     vm.runInContext(src, ctx, { filename: f });
   }

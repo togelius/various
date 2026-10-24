@@ -2,9 +2,10 @@
 // view at 390×844 and 1280×800: no horizontal scroll and nothing past the window's edge;
 // no interactive target under 44 px, with the board, settings, "How the museum works" and
 // the label panel each open; a zoom step whose tiles hold a 44-px disc; the tap-tolerance
-// check at every zoom step; every hostile on screen carries the hostile mark; every actor
-// in the view model is on the board or marked at its edge. Each view first asserts that it
-// is the active one, so a silent fallback cannot pass.
+// check at every zoom step; the longest Behaviour line fits the strip; every hostile on
+// screen carries the hostile mark; every actor in the view model is on the board or marked
+// at its edge. Each view first asserts that it is the active one, so a silent fallback
+// cannot pass.
 import { open, root } from './lib.mjs';
 import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton } from './measure.mjs';
 import path from 'node:path';
@@ -39,6 +40,24 @@ for (const [w, h] of SIZES) {
       const hp = await page.evaluate(() => { const e = document.getElementById('hpnum'); return { cut: e.scrollWidth > e.clientWidth + 1, text: e.textContent }; });
       if (hp.cut) bad(`${w}×${h} ${sc.dept} text ${size}: the health number "${hp.text}" is cut short`);
       for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w}×${h} ${sc.dept} text ${size}: ${p}`);
+    }
+    // The longest Behaviour line in the packs, with the deepest depth's numbers, in the strip
+    // at the smallest and largest text: nothing overflows, and on a phone the board keeps at
+    // least 40% of the window's height (the lines' length budget, BUILD.md §5.3).
+    if (sc === SCENES[0]) for (const size of ['1', '1.3']) {
+      await page.evaluate(v => window.ACCESSION.setting('text', v), size);
+      const m = await page.evaluate(() => {
+        let best = null;
+        for (const p of Packs.list()) for (const sp of [...p.species, p.centrepiece]) { const l = Clauses.line(sp, { depth: 7 }); if (!best || l.length > best.line.length) best = { sp, line: l }; }
+        UI.strip({ uid: best.sp.id, title: best.sp.name, stateIcons: ['asleep'], pictos: ['ring', 'axis'], behaviour: best.line }, [], false);
+        const shown = [...document.querySelectorAll('#strip .behaviour')].some(e => e.textContent === best.line && e.getBoundingClientRect().height > 0);
+        return { id: best.sp.id, len: best.line.length, shown, board: Math.round(document.getElementById('board').getBoundingClientRect().height) };
+      });
+      const tag = `${w}×${h} text ${size} with ${m.id}'s Behaviour line (${m.len} characters) in the strip`;
+      if (!m.shown) bad(`${tag}: the line is not shown`);
+      for (const p of await page.evaluate(layout)) bad(`${tag}: ${p}`);
+      if (w < 900 && m.board < 0.4 * h) bad(`${tag}: the board is left ${m.board} px of ${h}`);
+      say(`${tag}: board ${m.board} px`);
     }
     await page.evaluate(() => window.ACCESSION.setting('text', '1'));
     const views = await page.evaluate(() => window.ACCESSION.views.list());
