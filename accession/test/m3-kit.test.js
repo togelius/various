@@ -149,6 +149,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([Kit.slots(s), item(s, 'x').where, item(s, 'x').from]), json([16, { at: 'tote' }, 'T0']), 'taken in T0, its first department');
   });
 
+  test('a consumable given with no count is one when it joins a stack or is joined (as Consumables counts it)', () => {
+    for (const [a, b, sum] of [[null, null, 2], [2, null, 3], [null, 2, 3]]) {
+      const s = room({ items: [{ uid: 'b1', kind: 'consumable', ck: 'card', seal: 'ink1', n: a, where: { at: 'tote' } },
+        { uid: 'b2', kind: 'consumable', ck: 'card', seal: 'ink1', n: b, where: { at: 'floor', x: 3, y: 3 } }] });
+      const ev = checked(step(s, { a: 'take', uid: 'b2' }));
+      assert.equal(ev[0].cause.stack, 'b1');
+      assert.equal(json([item(s, 'b1').n, item(s, 'b2').where]), json([sum, { at: 'gone' }]), `a stack of ${a} taking ${b}`);
+    }
+  });
+
   test('take, drop, equip and unequip cost what §8.1 says, double while slowed, and work only where §8.5 says', () => {
     const map = ['#########', '#.....v.#', '#...#...#', '#.......#', '#########'];
     const s = room({ map, you: [3, 1], fixtures: [Cases.make({ x: 6, y: 1, room: 'room', num: '1.1.1', st: 'shut', holds: 'shut' })],

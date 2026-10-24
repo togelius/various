@@ -185,6 +185,9 @@ const Kit = (() => {
     return null;
   }
   const roomFor = (state, it) => stackFor(state, it) || slots(state) < N.TOTE_SLOTS ? null : 'tote_full';
+  // How many a consumable stack holds: its count, or one for a consumable given with no count,
+  // as a room for tests may give one (Consumables counts it the same way).
+  const count = it => it.n === null || it.n === undefined ? 1 : it.n;
   // Kit.addToTote(state, item) → null once it is carried, or the refusal code: a consumable
   // joins its stack (the stack keeps its uid and the department it came from; the item goes
   // {at: 'gone'}), anything else takes a slot; a full tote refuses, changing nothing. The
@@ -195,7 +198,7 @@ const Kit = (() => {
     if (code) return code;
     if (it.from === null && state.dept) it.from = state.dept.acc || null;
     const stack = stackFor(state, it);
-    if (stack) { stack.n += it.n || 0; it.where = { at: 'gone' }; return null; }
+    if (stack) { stack.n = count(stack) + count(it); it.where = { at: 'gone' }; return null; }
     state.you.tote.push(it.uid);
     it.where = { at: 'tote' };
     return null;
