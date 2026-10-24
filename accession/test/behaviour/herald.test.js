@@ -200,19 +200,52 @@ module.exports = ({ test, assert, loadCore }) => {
     ok(H.sweep(C, overMark, list('call')), overMark.name);
   });
 
-  // Out of its sight, it never calls.
+  // Out of its sight, it never calls: awake or hunting, in a room you cannot be seen from.
   const CLOSED = ['#######################', '#.....#...............#', '#.....#...............#', '#.....#...............#', '#######...............#', '#######################'];
-  const unseen = H.scenario({
-    name: 'awake but never seeing you, it never calls',
+  const unseen = mode => H.scenario({
+    name: `${mode} but never seeing you, it never calls`,
     id: 'herald', clone: true,
     build: (params, sp, depth, opts) => strong(Setup.room(opts.seed, { acc: 'T0', depth, map: CLOSED, you: [12, 2],
-      exhibits: [{ sp: sp.id, at: [3, 2], mode: 'awake', stats: Roles.stats(sp.role, depth) }, { sp: 'dummy', at: [5, 1], mode: 'dormant', stats: tough }] }, { rulesOff: opts.rulesOff })),
+      exhibits: [{ sp: sp.id, at: [3, 2], mode, stats: Roles.stats(sp.role, depth) }, { sp: 'dummy', at: [5, 1], mode: 'dormant', stats: tough }] }, { rulesOff: opts.rulesOff })),
     actions: waits(12),
     expect: r => r.events.some(e => e.k === 'telegraphed' || (e.k === 'woke' && e.cause.k === 'herald')) ? 'it called without seeing you' : null,
   });
+  const unseenAwake = unseen('awake'), unseenHunting = unseen('hunting');
 
-  test('a herald that never sees you never calls', () => {
-    ok(H.sweep(C, unseen, list('herald')), unseen.name);
+  test('a herald that never sees you never calls, awake or hunting', () => {
+    ok(H.sweep(C, unseenAwake, list('herald')), unseenAwake.name);
+    ok(H.sweep(C, unseenHunting, list('herald')), unseenHunting.name);
+  });
+
+  // Hunting you from behind a wall, it walks round; it calls only once it can see you.
+  const ROUND = ['#############', '#.....#.....#', '#.....#.....#', '#.....#.....#', '#...........#', '#############'];
+  const sees = (w, you) => within(you[0] - w[0], you[1] - w[1], N.SIGHT_EXHIBIT) && C.Grid.los(C.Setup.room(1, { acc: 'T0', depth: 1, map: ROUND, you: [1, 1], exhibits: [] }).dept, w[0], w[1], you[0], you[1]);
+  const round = H.scenario({
+    name: 'hunting you out of its sight, it calls only once it sees you',
+    id: 'herald', clone: true,
+    build: (params, sp, depth, opts) => strong(Setup.room(opts.seed, { acc: 'T0', depth, map: ROUND, you: [10, 1],
+      exhibits: [{ sp: sp.id, at: [2, 1], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] }, { rulesOff: opts.rulesOff })),
+    actions: waits(12),
+    expect(r) {
+      const h = herald(r.start), you = [10, 1];
+      if (sees([2, 1], you)) return 'this scenario needs it out of your sight at first';
+      let at = [2, 1], called = -1;
+      for (let i = 0; i < r.steps.length; i++) {
+        for (const e of r.steps[i].events) {
+          if (e.k === 'telegraphed' && e.who === h.uid) {
+            if (!sees(at, you)) return `it called at step ${i} from ${at}, where it cannot see you at ${you}`;
+            if (called < 0) called = i;
+          }
+          if (e.k === 'moved' && e.who === h.uid) at = e.to;
+        }
+      }
+      if (called < 1) return `it called at step ${called}; it should call once it had come round into sight of you`;
+      return null;
+    },
+  });
+
+  test('hunting you out of its sight, it calls only once it sees you', () => {
+    ok(H.sweep(C, round, list('herald')), round.name);
   });
 
   test('made with the department, a herald has not called; its line names its range and its damage at each depth', () => {
@@ -226,7 +259,7 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('its invariants catch a planted call that wakes beyond its tiles, or a pipless sleeper, or a second call', () => {
+  test('its invariants catch a planted call that wakes beyond its tiles, or a pipless sleeper, or a second call, or a call made unseen', () => {
     const [{ sp, depth }] = list('call');
     const X = loadCore();
     X.Archetypes.onResolve = (state, a, tel, ev) => {
@@ -244,5 +277,45 @@ module.exports = ({ test, assert, loadCore }) => {
     };
     const w = H.play(Y, calls.build({}, sp, depth, { seed: 1, rulesOff: [] }), waits(4), { inv: ['arch-c'] }).violations.map(x => x.inv);
     assert.ok(w.includes('herald_call'), json(w));
+    // A planted herald that calls once a waking, but whether or not it sees you.
+    const Z = loadCore();
+    Z.Archetypes.act = (state, a, ev) => {
+      if (a.arch !== 'herald' || a.ax.called || a.mode !== 'hunting') return null;
+      a.ax.called = 1;
+      return Z.Specials.mark(state, a, 'call', Z.Specials.tiles(state, a, 'call'), ev);
+    };
+    const z = H.play(Z, unseenHunting.build({}, sp, depth, { seed: 1, rulesOff: [] }), waits(2), { inv: ['arch-c'] }).violations;
+    assert.ok(z.some(x => x.inv === 'herald_call' && /could not see you/.test(x.message)), json(z.map(x => x.message)));
+  });
+
+  // The call is judged at the moment it goes off: a step is several actions, and an exhibit's
+  // mode can change in it after the call (or before it). Checked here on the step's events.
+  test('its invariant judges each sleeper as it was when the call went off, not as the step ended', () => {
+    const [{ sp, depth }] = list('call');
+    const inv = require('./arch-c.inv.js')(C).find(i => i.id === 'herald_call');
+    const s = calls.build({}, sp, depth, { seed: 1, rulesOff: [] }), h = herald(s);
+    Step.step(s, { a: 'wait' });
+    assert.ok(h.telegraph && h.telegraph.sp === 'call');
+    const d = s.actors.find(b => b.sp === 'dummy' && b.mode === 'dormant' && h.telegraph.tiles.some(t => t[0] === b.x && t[1] === b.y));
+    const ev = (k, f) => Object.assign({ k, turn: s.turn, tick: s.tick }, f);
+    const judge = (preMode, postMode, events) => {
+      const pre = C.State.clone(s), post = C.State.clone(s);
+      // Only d is in question: every other exhibit is awake throughout.
+      for (const q of [pre, post]) for (const b of q.actors) if (b.uid !== d.uid && b.uid !== h.uid && b.uid !== 'you') b.mode = 'awake';
+      pre.actors.find(b => b.uid === d.uid).mode = preMode;
+      const ph = post.actors.find(b => b.uid === h.uid), pd = post.actors.find(b => b.uid === d.uid);
+      ph.telegraph = null; pd.mode = postMode;
+      return inv.check(pre, events, post, { uid: h.uid, actor: ph, before: pre.actors.find(b => b.uid === h.uid), action: { a: 'wait' }, step: 1 });
+    };
+    const call = ev('special', { who: h.uid, sp: 'call' });
+    // Settling back in when the call went off (so not asleep, and rightly not woken), then
+    // asleep later in the step: it did not sleep through the call.
+    assert.equal(judge('reinstalling', 'dormant', [call, ev('returned', { who: d.uid, phase: 'reinstalled' })]), null);
+    // Asleep when the call went off, and not woken by it: it slept through the call.
+    assert.ok(/slept through the call/.test(judge('dormant', 'dormant', [call])));
+    // Asleep by the time the call went off, and woken by it: rightly woken.
+    assert.equal(judge('reinstalling', 'awake', [ev('returned', { who: d.uid, phase: 'reinstalled' }), ev('woke', { who: d.uid, was: 'dormant', mode: 'awake', cause: { k: 'herald', by: h.uid } }), call]), null);
+    // Not asleep when woken by the call: wrongly woken.
+    assert.ok(/which was not asleep/.test(judge('reinstalling', 'awake', [ev('woke', { who: d.uid, was: 'dormant', mode: 'awake', cause: { k: 'herald', by: h.uid } }), call])));
   });
 };

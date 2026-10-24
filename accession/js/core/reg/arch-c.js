@@ -14,14 +14,17 @@
   R.define('ARCHETYPES', 'herald', Object.assign({ icon: null, special: 'call',
     clause: 'Each time it wakes, the first time it sees you it {special}; it strikes from beside you for {dmg}.',
     params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'] }, unit(HERALD)));
-  // The tethered_warden keeps within TETHER_RANGE of what it guards, rings you at most one
-  // action in ROLE_WARDEN_SPECIAL_EVERY from its waking, and goes back to heal when you leave.
+  // The tethered_warden keeps within TETHER_RANGE of what it guards; hunting you (searching
+  // for you included: §8.2's hunting row) while you are outside its tether, it goes back: it
+  // waits at its place while it sees you, and heals and settles once it does not (an exhibit
+  // with no home never settles, §8.2). It rings you at most one action in
+  // ROLE_WARDEN_SPECIAL_EVERY from its waking.
   R.define('ARCHETYPES', 'tethered_warden', Object.assign({ icon: null, special: 'ring',
-    clause: 'Stays within {TETHER_RANGE} tiles of what it guards. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}. If you are not within {TETHER_RANGE} tiles of what it guards, it goes back, heals fully and settles.',
+    clause: 'Stays within {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead of fighting, waits there while it sees you, then heals fully and settles, unless it has no home. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}.',
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
     covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, unit(WARDEN)));
-  // A mimic is a case until it is touched (§8.3), and gains no pips (§8.2), so its line takes
-  // the pipless wake clause; it is slow at everything (§8.1).
+  // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
+  // its line takes the pipless wake clause; it is slow at everything (§8.1).
   R.define('ARCHETYPES', 'mimic_vitrine', Object.assign({ icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
     clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, unit(MIMIC)));

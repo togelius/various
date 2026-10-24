@@ -1,10 +1,13 @@
 // ACCESSION — the mimic_vitrine's Behaviour line (BUILD.md §5.3; W1-ARCH-C): "Looks like a
 // case, but its label has no accession number. Opened or bashed, it grips you (you cannot move
-// for {MIMIC_GRIP_TURNS} turns) and strikes for {dmg}; it does everything at half speed. Wakes only when it is opened, bashed, dissolved or struck; wakes at once when its case
-// is opened or bashed." Each scenario runs for every pack mimic (S9.5) at depths 1–7, as a
-// function of the clause's parameters, with the invariants and a clone checked after every step.
-// Opening and bashing are W1-CASES's: here they are stood in for as the plan gives them (the
-// touch, Cases.touch calling the mimic's onTouched, then the soft or loud noise).
+// for {MIMIC_GRIP_TURNS} turns) and strikes for {dmg}; it does everything at half speed. Wakes
+// only when it is opened, bashed, dissolved or struck; wakes at once when its case is opened or
+// bashed." Each scenario runs for every pack mimic (S9.5) at depths 1–7, as a function of the
+// clause's parameters, with the invariants and a clone checked after every step. Opening,
+// bashing and Solvent are W1-CASES's: here they are stood in for as W1-CASES builds them (the
+// touch: Cases.touch calls the mimic's onTouched, shows the mimic if it has not shown itself,
+// and wakes it, hunting; then the soft or loud noise; Solvent shows the mimic, then releases
+// it, hunting).
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {
@@ -25,16 +28,22 @@ module.exports = ({ test, assert, loadCore }) => {
   const make = (X, sp, depth, opts, extra) => strong(X.Setup.room(opts.seed, { acc: 'T0', depth, map: ROOM, you: YOU.slice(),
     exhibits: [{ sp: sp.id, at: AT.slice(), stats: Roles.stats(sp.role, depth) }].concat(extra || []) }, { rulesOff: opts.rulesOff }));
 
-  // A core with W1-CASES's open and bash stood in for a mimic's case, as the plan gives them.
+  // A core with W1-CASES's open and bash stood in for a mimic's case, as W1-CASES builds them.
   function standIn() {
     const X = loadCore(), get = X.Actions.get;
-    X.Cases.touch = (state, f, how, by, ev) => { const m = f.mimic && X.Actors.byUid(state, f.mimic); if (m) X.Archetypes.onTouched(state, m, how, by, ev); };
+    X.Cases.touch = (state, f, how, by, ev) => {
+      const m = f.mimic && X.Actors.byUid(state, f.mimic);
+      if (!m || m.gone) return;
+      X.Archetypes.onTouched(state, m, how, by, ev);
+      if (f.st !== 'revealed') X.Cases.reveal(state, m);
+      X.Wake.wake(state, m, 'hunting', { k: 'touch_case', by, x: f.x, y: f.y, how }, ev);
+    };
     const handler = (id, cost, cls, noise) => ({
       legal: () => [], candidates: () => [],
       apply(state, action, ev) {
         const you = state.actors[0], f = X.Cases.at(state, action.x, action.y);
         if (!f || f.k !== 'case' || f.st !== 'shut' || X.Actors.dist(you, f.x, f.y) !== 1) return 'no_target';
-        X.Cases.touch(state, f, id, 'you', ev);
+        X.Cases.touch(state, f, id === 'open' ? 'opened' : 'bashed', 'you', ev);
         X.Noise.emit(state, f.x, f.y, cls, { k: noise, by: 'you' }, ev);
         return cost;
       },
@@ -136,25 +145,53 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const { sp, depth } of list('mimic_vitrine')) {
       const s = make(C, sp, depth, { seed: 1, rulesOff: [] }), m = mimic(s), ev = [];
       Combat.hurt(s, m, 1, { k: 'special', by: 'you', sp: 'line', gross: 1, pad: 0, net: 1, x: m.x, y: m.y, from: [m.x, m.y + 1] }, ev);
-      assert.equal(json([m.mode, caseOf(s, m).st, s.dept.tiles[m.y][m.x], Archetypes.present(s, m)]), json(['hunting', 'revealed', '.', null]));
+      assert.equal(json([m.mode, caseOf(s, m).st, s.dept.tiles[m.y][m.x], Archetypes.present(s, m), Archetypes.pipless(s, m)]), json(['hunting', 'revealed', '.', null, false]));
       assert.ok(ev.some(e => e.k === 'woke' && e.who === m.uid && e.cause.k === 'damage'));
       assert.ok(!s.actors[0].statuses.some(q => q.id === 'rooted') && !ev.some(e => e.k === 'status'), 'no grip');
       for (const e of ev) assert.equal(C.Causes.check(e), null);
     }
   });
 
-  test('dissolved, its case is gone and it hunts without the grip; nothing else wakes it, a herald\'s call or a noise included', () => {
+  test('dissolved, it shows itself and hunts without the grip; asleep, nothing else wakes it, a herald\'s call or a noise included', () => {
     for (const { sp, depth } of list('mimic_vitrine')) {
       const s = make(C, sp, depth, { seed: 1, rulesOff: [] }), m = mimic(s), f = caseOf(s, m), ev = [];
       for (const k of ['ring', 'noise', 'herald', 'seen', 'night_bell', 'ally_hit', 'tether', 'axis']) assert.equal(Wake.wake(s, m, k === 'noise' || k === 'herald' ? 'awake' : 'hunting', { k, by: 'you' }, ev), false, k);
       assert.equal(Wake.addPips(s, m, 1, { k: 'ring', dist: 1, r: 3 }, ev), false);
       Noise.emit(s, m.x, m.y - 1, 'crash', { k: 'glass_broke', by: 'you' }, ev);
       assert.equal(json([m.mode, m.pips]), json(['dormant', 0]));
-      // Solvent, as W1-CASES will apply it: the case dissolved (u), then the sleeper released.
-      s.dept.tiles[f.y] = s.dept.tiles[f.y].slice(0, f.x) + 'u' + s.dept.tiles[f.y].slice(f.x + 1); f.st = 'dissolved';
-      assert.equal(Wake.wake(s, m, 'hunting', { k: 'dissolved', by: 'you' }, ev), true);
-      assert.equal(json([m.mode, f.st, s.dept.tiles[f.y][f.x], Archetypes.present(s, m), Archetypes.pipless(s, m)]), json(['hunting', 'dissolved', 'u', null, true]));
+      // Solvent, as W1-CASES applies it to a mimic's case: the case shows the mimic, then it
+      // is released, hunting (dissolved).
+      Cases.reveal(s, m);
+      assert.equal(Wake.wake(s, m, 'hunting', { k: 'dissolved', by: 'you', x: f.x, y: f.y }, ev), true);
+      assert.equal(json([m.mode, f.st, s.dept.tiles[f.y][f.x], Archetypes.present(s, m), Archetypes.pipless(s, m)]), json(['hunting', 'revealed', '.', null, false]));
       assert.ok(!s.actors[0].statuses.length, 'no grip');
+      for (const e of ev) assert.equal(C.Causes.check(e), null);
+    }
+  });
+
+  test('awake, it hears noise as every exhibit does; asleep again after showing itself, it is pipless again and wakes only when struck', () => {
+    for (const { sp, depth } of list('mimic_vitrine')) {
+      const X = loadCore(), heard = [];
+      X.Wake.hear = (state, a, noise, dist, ev) => { heard.push([a.uid, a.mode, noise.cls]); };
+      const s = make(X, sp, depth, { seed: depth, rulesOff: [] }), m = mimic(s), ev = [];
+      X.Noise.emit(s, 2, 2, 'loud', { k: 'bash', by: 'you' }, ev);
+      assert.equal(json(heard), '[]', 'in its disguise it hears nothing');
+      X.Combat.hurt(s, m, 1, { k: 'special', by: 'you', sp: 'line', gross: 1, pad: 0, net: 1, x: m.x, y: m.y, from: [m.x, m.y + 1] }, ev);
+      for (const mode of ['hunting', 'searching', 'returning', 'awake']) {
+        if (m.mode !== mode) X.Wake.setMode(s, m, mode, { k: 'searched' }, ev, mode === 'awake' ? { target: [2, 2] } : undefined);
+        heard.length = 0;
+        X.Noise.emit(s, 2, 2, 'loud', { k: 'bash', by: 'you' }, ev);
+        assert.equal(json([X.Archetypes.pipless(s, m), heard]), json([false, [[m.uid, mode, 'loud']]]), `${sp.id} d${depth}: ${mode}, it hears`);
+      }
+      // Asleep again where it stands (on the floor, its case long shown): pipless, it hears
+      // nothing and gains nothing, and only a blow wakes it.
+      X.Wake.setMode(s, m, 'dormant', { k: 'quiet', by: 'you' }, ev);
+      heard.length = 0;
+      X.Noise.emit(s, 2, 2, 'loud', { k: 'bash', by: 'you' }, ev);
+      assert.equal(json([m.mode, X.Archetypes.pipless(s, m), X.Archetypes.present(s, m), heard]), json(['dormant', true, null, []]));
+      for (const k of ['ring', 'noise', 'herald', 'night_bell', 'tether']) assert.equal(X.Wake.wake(s, m, k === 'noise' || k === 'herald' ? 'awake' : 'hunting', { k, by: 'you' }, ev), false, k);
+      assert.equal(X.Wake.addPips(s, m, 1, { k: 'ring', dist: 1, r: 3 }, ev), false);
+      assert.equal(X.Wake.wake(s, m, 'hunting', { k: 'damage', by: 'you', dist: 1 }, ev), true);
     }
   });
 
@@ -173,22 +210,41 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.ok(line.includes(`cannot move for ${N.MIMIC_GRIP_TURNS} turns`) && line.startsWith('Looks like a case') && line.includes('Wakes only when'), line);
     }
     assert.ok(n >= 18, `${n} departments placed the mimic`);
-    // Made awake, or on a tile that is not floor, it is a slow ambusher in plain view.
+    // Made awake, it is a slow ambusher in plain view, wherever it stands.
     const [{ sp }] = list('mimic_vitrine');
-    const awake = Setup.room(1, { acc: 'T0', depth: 1, map: ROOM, you: YOU.slice(), exhibits: [{ sp: sp.id, at: AT.slice(), mode: 'hunting', stats: Roles.stats(sp.role, 1) }] });
-    assert.equal(json([awake.dept.fixtures.length, Archetypes.present(awake, mimic(awake))]), json([0, null]));
+    const ARCH = ['#######', '#..,..#', '#######'];
+    for (const [map, at] of [[ROOM, AT], [ARCH, [3, 1]]]) {
+      const awake = Setup.room(1, { acc: 'T0', depth: 1, map, you: [1, 1], exhibits: [{ sp: sp.id, at: at.slice(), mode: 'hunting', stats: Roles.stats(sp.role, 1) }] });
+      assert.equal(json([awake.dept.fixtures.length, Archetypes.present(awake, mimic(awake)), Archetypes.pipless(awake, mimic(awake))]), json([0, null, false]));
+    }
+    // Made asleep where it cannot be a case (not on a floor tile, or on a fixture), it is a
+    // content error, and building the room says so.
+    assert.throws(() => Setup.room(1, { acc: 'T0', depth: 1, map: ARCH, you: [1, 1], exhibits: [{ sp: sp.id, at: [3, 1], stats: Roles.stats(sp.role, 1) }] }), /not on a floor tile/);
+    assert.throws(() => Setup.room(1, { acc: 'T0', depth: 1, map: ROOM, you: YOU.slice(), fixtures: [{ k: 'plaque', x: AT[0], y: AT[1], ck: 0 }],
+      exhibits: [{ sp: sp.id, at: AT.slice(), stats: Roles.stats(sp.role, 1) }] }), /already a fixture/);
   });
 
-  test('the grip roots whoever touched it, once; a second touch does nothing', () => {
+  test('the grip roots whoever touched it, once; the touch, not the grip, wakes it; a second touch does nothing', () => {
     const [{ sp, depth }] = list('mimic_vitrine');
+    // Its own hook: it shows itself and grips; it leaves the waking to the touch.
     const s = make(C, sp, depth, { seed: 1, rulesOff: [] }), m = mimic(s), ev = [];
-    Archetypes.onTouched(s, m, 'open', 'you', ev);
-    assert.equal(json(ev.map(e => [e.k, e.who, e.cause.k])), json([['woke', m.uid, 'touch_case'], ['hunting', m.uid, 'touch_case'], ['status', 'you', 'grip']]));
-    assert.equal(json([m.ax.gripped, caseOf(s, m).st]), json([1, 'revealed']));
+    Archetypes.onTouched(s, m, 'opened', 'you', ev);
+    assert.equal(json(ev.map(e => [e.k, e.who, e.cause.k])), json([['status', 'you', 'grip']]));
+    assert.equal(json([m.ax.gripped, caseOf(s, m).st, s.dept.tiles[AT[1]][AT[0]], m.mode]), json([1, 'revealed', '.', 'dormant']));
+    // Through the touch (as W1-CASES's Cases.touch makes it): the grip, then the waking, with
+    // the touch's own cause.
+    const t = make(X, sp, depth, { seed: 1, rulesOff: [] }), n = mimic(t), tv = [];
+    X.Cases.touch(t, caseOf(t, n), 'opened', 'you', tv);
+    assert.equal(json(tv.map(e => [e.k, e.who, e.cause.k])), json([['status', 'you', 'grip'], ['woke', n.uid, 'touch_case'], ['hunting', n.uid, 'touch_case']]));
+    assert.equal(json(tv[1].cause), json({ k: 'touch_case', by: 'you', x: AT[0], y: AT[1], how: 'opened' }));
     const more = [];
-    Archetypes.onTouched(s, m, 'bash', 'you', more);
+    X.Cases.touch(t, caseOf(t, n), 'bashed', 'you', more);
     assert.equal(more.length, 0);
-    assert.ok(/^You are held in the grip of .+: you cannot move for \d+ turns\.$/.test(C.Text.event(ev[2], () => 'the Tortoise')), C.Text.event(ev[2]));
+    // Whoever touched it is gripped: here an exhibit beside it, not you.
+    const u = make(C, sp, depth, { seed: 1, rulesOff: [] }, [{ sp: 'dummy', at: [4, 4], mode: 'hunting', stats: { hp: 99, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 } }]), o = mimic(u), d = u.actors[2], uv = [];
+    Archetypes.onTouched(u, o, 'bashed', d.uid, uv);
+    assert.equal(json([uv.map(e => [e.k, e.who, e.cause.k]), d.statuses.map(q => q.id), u.actors[0].statuses.length]), json([[['status', d.uid, 'grip']], ['rooted'], 0]));
+    assert.ok(/^You are held in the grip of .+: you cannot move for \d+ turns\.$/.test(C.Text.event(ev[0], () => 'the Tortoise')), C.Text.event(ev[0]));
   });
 
   test('its invariants catch a planted mimic that takes pips while a case, grips short, or acts at full speed', () => {
