@@ -4,14 +4,20 @@
 //   consumable_first_use: a first use (a used event whose cause says known: false) never
 //     lowers your health or puts a harmful status on you; a gentle drink does nothing at
 //     all; a first throw lands more than Consumables.GENTLE tiles from you; known says
-//     truly whether the seal was known before the step.
+//     truly whether the seal was known before the step. Within a step that holds a first
+//     use, only an exhibit may harm you (an exhibit acting after you, or a special it
+//     marked): every damaged, died or harmful status event on you names an exhibit as its
+//     cause's `by`; your health falls by no more than the damage those events deal; and
+//     every harmful status you hold after the step you held before, for no longer, unless
+//     an exhibit's status event gave it you. So a harm with any other cause, or none, is
+//     caught, whatever event it does or does not emit.
 //   consumable_deck: the deck has one count per kind, each between 0 and its DECK count.
 //   consumable_seals: the seals are unshuffled or a bijection in each family; the known
 //     seals are real seals, each once, never forgotten, and a seal becomes known exactly
 //     when an identified event names it, with the kind under it.
-//   consumable_stacks: a consumable not gone has at least one in its stack (or no count at
-//     all, as a room for tests may give one), and each use or throw takes exactly one from
-//     its stack.
+//   consumable_stacks: a consumable not gone has at least one in its stack (one given with
+//     no count, as a room for tests may give one, is a stack of one), and each use or throw
+//     takes exactly one from its stack.
 module.exports = (C) => {
   const R = C.Registry, N = C.N;
   const KINDS = R.order('CONSUMABLES'), SEALS = R.order('SEALS');
@@ -20,25 +26,47 @@ module.exports = (C) => {
   const used = events => events.filter(e => e.k === 'used' && e.cause && e.cause.k === 'consume');
   const item = (state, uid) => (state.items || []).find(i => i.uid === uid) || null;
   const sorted = a => a.slice().sort((x, y) => x - y);
+  const count = it => it.n === null ? 1 : it.n;
 
+  // An event whose cause names an exhibit (an actor other than you) as who did it.
+  const byExhibit = (state, f) => !!f.cause && typeof f.cause.by === 'string' && f.cause.by !== 'you' && state.actors.some(a => a.uid === f.cause.by);
+  const harmfulOf = a => (a.statuses || []).filter(t => C.Status.harmful(t.id));
   const firstUse = {
     id: 'consumable_first_use',
     check(pre, events, post) {
+      const firsts = [];
       for (const e of used(events)) {
         const c = e.cause, by = f => f.cause && f.cause.k === 'item' && f.cause.item === e.item;
         const wasKnown = pre.run.knownSeals.includes(c.seal);
         if (c.known !== wasKnown) return `${e.item}'s use says known: ${c.known}, but its seal ${c.seal} was ${wasKnown ? '' : 'not '}known before the step`;
         if (c.known) continue;
-        for (const f of events) {
-          if (f.who !== 'you' || !by(f)) continue;
-          if (f.k === 'damaged' || f.k === 'died') return `a first use of ${e.item} (${c.ck}) hurt you`;
-          if (f.k === 'status' && f.on && C.Status.harmful(f.id)) return `a first use of ${e.item} (${c.ck}) made you ${f.id}`;
-        }
+        firsts.push(e);
         if (c.gentle && events.some(f => by(f) && f !== e)) return `a gentle first drink of ${e.item} (${c.ck}) did something: ${json(events.filter(f => by(f)).map(f => f.k))}`;
         if (e.how === 'throw') {
           const you = pre.actors[0], d = Math.max(Math.abs(c.x - you.x), Math.abs(c.y - you.y));
           if (d <= C.Consumables.GENTLE) return `a first throw of ${e.item} landed ${d} tiles from you, within ${C.Consumables.GENTLE}`;
         }
+      }
+      if (!firsts.length) return null;
+      const what = firsts.map(e => `${e.item} (${e.cause.ck})`).join(', ');
+      let dealt = 0;
+      const given = [];
+      for (const f of events) {
+        if (f.who !== 'you') continue;
+        const exhibit = byExhibit(post, f) || byExhibit(pre, f);
+        if ((f.k === 'damaged' || f.k === 'died') && !exhibit) return `a first use of ${what} hurt you (${f.k}, cause ${json(f.cause)})`;
+        if (f.k === 'damaged') dealt += f.amount;
+        if (f.k === 'status' && f.on && C.Status.harmful(f.id)) {
+          if (!exhibit) return `a first use of ${what} made you ${f.id} (cause ${json(f.cause)})`;
+          given.push(f.id);
+        }
+      }
+      const a = pre.actors[0], b = post.actors[0];
+      if (a.hp - b.hp > dealt) return `in the step of a first use of ${what}, your health fell from ${a.hp} to ${b.hp}, by more than the ${dealt} exhibits dealt you`;
+      for (const t of harmfulOf(b)) {
+        const was = harmfulOf(a).find(q => q.id === t.id);
+        if ((!was || (t.until !== null && was.until !== null && t.until > was.until)) && !given.includes(t.id))
+          return `in the step of a first use of ${what}, you came to be ${t.id}${was ? ' for longer' : ''}, and no exhibit made you so`;
       }
       return null;
     },
@@ -85,7 +113,7 @@ module.exports = (C) => {
       }
       for (const e of used(events)) {
         const a = item(pre, e.item), b = item(post, e.item);
-        if (!a || !b || a.n - b.n !== 1) return `using ${e.item} took ${a && b ? a.n - b.n : 'an unknown number'} from its stack, not 1`;
+        if (!a || !b || count(a) - count(b) !== 1) return `using ${e.item} took ${a && b ? count(a) - count(b) : 'an unknown number'} from its stack, not 1`;
       }
       return null;
     },

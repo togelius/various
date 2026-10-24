@@ -14,14 +14,14 @@
   // are drunk or thrown, Ephemera are read. `area` names the side of a thrown Solution's
   // square (its N key); `harmfulDrink` marks a drink that harms you, which a first use makes
   // harmless (§8.6, identification by use).
-  const sq = '{area}×{area} square';
+  const sq = '{area}×{area} square', glass = 'except one inside an intact case, which is behind glass';
   const kinds = [
     ['consolidant', 'solution', 'Consolidant', 'THROW_AREA', false,
-      `Drunk, heals {now}% of your maximum health at once and {hot}% more over {turns} turns. Thrown, heals every creature in a ${sq} by {thrown}% of its maximum health.`,
+      `Drunk, heals {now}% of your maximum health at once and {hot}% more over {turns} turns. Thrown, heals every creature in a ${sq} by {thrown}% of its maximum health, ${glass}.`,
       { now: 'N:CONSOLIDANT_NOW_PCT', hot: 'N:CONSOLIDANT_HOT_PCT', turns: 'N:CONSOLIDANT_HOT_TURNS', area: 'N:THROW_AREA', thrown: 'N:CONSOLIDANT_THROW_PCT' },
       ['used', 'identified', 'healed', 'status', 'noise']],
     ['fixative', 'solution', 'Fixative', 'THROW_AREA', true,
-      `Drunk, fixes you: you cannot move or act for {turns} turns. Thrown, fixes every creature in a ${sq} for {turns} turns.`,
+      `Drunk, fixes you: you cannot move or act for {turns} turns. Thrown, fixes every creature in a ${sq}, you included, for {turns} turns, ${glass}.`,
       { turns: 'N:FIXATIVE_TURNS', area: 'N:THROW_AREA' }, ['used', 'identified', 'status', 'noise']],
     ['fumigant', 'solution', 'Fumigant', 'FUMIGANT_SIZE', true,
       'Drunk, makes you cough, a soft noise each turn, for {cough} turns. Thrown, leaves a {area}×{area} cloud for {turns} turns that blocks sight, and sleeping exhibits inside it lose a pip each turn.',
@@ -37,7 +37,8 @@
       'Read, takes every pip from each exhibit within {range} walking tiles of you; those awake but not hunting settle to sleep where they stand, and those hunting you drop to awake; exhibits that never sleep, such as the Night Watchman, are untouched.',
       { range: 'N:QUIET_RANGE' }, ['used', 'identified', 'pip', 'lost']],
     ['ticket', 'ephemera', 'Re-admission Ticket', null, false,
-      'Read, returns you to this department’s entrance (or the nearest free tile to it), and every exhibit hunting you loses you.', {}, ['used', 'identified', 'lost']],
+      'Read, returns you to this department’s entrance (or the nearest free tile to it), even while you are rooted, and every exhibit hunting you but the Night Watchman loses you: it searches where it last knew you were, and its pending special is called off. With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read.',
+      {}, ['used', 'identified', 'lost', 'special']],
   ];
   kinds.forEach(([id, cls, name, area, harmfulDrink, clause, params, covers], deck) =>
     R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, unit)));
@@ -53,14 +54,16 @@
 
   // An identifying label on a wall (§8.6, §8.8): reading it, close and in sight, identifies
   // the kind it describes.
-  R.define('FIXTURES', 'plaque', Object.assign({ icon: 'reads', clause: 'An identifying label: read within {range} tiles, in sight, it identifies the kind it describes, for the rest of the run, at no cost in time.',
-    params: { range: 'N:READ_RANGE' }, covers: ['identified'] }, unit));
+  R.define('FIXTURES', 'plaque', Object.assign({ icon: 'reads', clause: 'An identifying label: read within {range} tiles, in sight, it identifies the kind it describes, for the rest of the run, at no cost in time. A department hangs {labels} on its walls, each for a different kind you do not know, one by the Intro or the first section, and each beside a floor tile you can walk to from the entrance.',
+    params: { range: 'N:READ_RANGE', labels: 'N:ID_LABELS_PER_DEPT' }, covers: ['identified'] }, unit));
 
   // The rules every kind shares (§8.6), each a sentence of its own.
   R.define('CLAUSES', 'consumable_seals', Object.assign({ icon: 'seal', clause: 'Each run shuffles four wax seals over the four Solutions and four ink stamps over the four Ephemera; a seal identified once is known for the rest of the run.',
     covers: ['identified'] }, unit));
-  R.define('CLAUSES', 'consumable_deck', Object.assign({ icon: 'seal', clause: 'A department’s consumables are drawn from the run’s one deck of cards, without replacement, and the deck is refilled when it is empty.',
-    covers: [] }, unit));
+  R.define('CLAUSES', 'consumable_deck', Object.assign({ icon: 'seal', clause: 'A department’s consumables are drawn from the run’s one deck of cards, without replacement, and the deck is refilled when it is empty. A department lays {n} of them on free floor tiles of its sections and studies, each one you can walk to from the entrance without passing a staff door.',
+    params: { n: 'N:CONSUMABLES_PER_DEPT' }, covers: [] }, unit));
+  R.define('CLAUSES', 'consumable_throw', Object.assign({ icon: 'seal', clause: 'A Solution is thrown, for the time of a use, onto a tile within {range} tiles that you can see and that does not block sight. It reaches every creature with a tile in its square, you included, except one inside an intact case, which is behind glass. Every thrown Solution but Solvent lands with a soft noise, after what it does.',
+    params: { range: 'N:THROW_RANGE' }, covers: ['used', 'noise', 'refused'] }, unit));
   R.define('CLAUSES', 'consumable_unknown', Object.assign({ icon: 'seal', clause: 'Unidentified, a first use never harms you: a harmful drink is identified and does nothing, and a throw is refused if the {area}×{area} square centred where it lands would include you; any other first use does what its kind does, and identifies it.',
     params: { area: 'N:FUMIGANT_SIZE' }, covers: ['used', 'identified', 'refused'] }, unit));
 
@@ -71,7 +74,8 @@
   // Events (§4.3): a kind identified for this run.
   R.defineEvent('identified', { fields: { seal: 'str', ck: 'str' } });
   for (const k of ['use', 'label', 'card']) R.defineCause('identified', k, { fields: { by: 'uid?' } });
-  R.defineCause('used', 'consume', { fields: { ck: 'str?', seal: 'str', known: 'bool', gentle: 'bool?', x: 'int?', y: 'int?' } });
+  // nowhere: a Ticket read with no entrance to return to (identified, and nothing more).
+  R.defineCause('used', 'consume', { fields: { ck: 'str?', seal: 'str', known: 'bool', gentle: 'bool?', nowhere: 'bool?', x: 'int?', y: 'int?' } });
   R.defineCause('glass_broke', 'solvent', { fields: { by: 'uid', item: 'uid' } });
   R.defineCause('healed', 'item', { fields: { by: 'uid', item: 'uid' } });
   R.defineCause('status', 'item', { fields: { by: 'uid', item: 'uid' } });

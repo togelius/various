@@ -34,6 +34,7 @@
     const at = e.how === 'read' && Number.isInteger(c.x) && Number.isInteger(c.y) ? ` and ${w.is(e.who)} back at the entrance` : '';
     let s = `${w.Name(e.who)} ${verb} ${what}${at}.`;
     if (c.gentle) s += ` It is ${kind(c.ck)}: ${own(WOULD, c.ck) ? WOULD[c.ck]() : 'it would have harmed you'}, but a first taste does no harm, and nothing happened.`;
+    else if (c.nowhere) s += ` It is ${kind(c.ck)}, but there is no entrance here to go back to, so nothing happened.`;
     return s;
   });
 

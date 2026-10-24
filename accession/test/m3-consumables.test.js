@@ -19,25 +19,27 @@ function contracts(X) {
     if (got > 0) { who.hp += got; X.Causes.emit(state, ev, 'healed', { who: who.uid, amount: got, hp: who.hp }, cause); }
     return got;
   };
-  // W1-WAKE-A: "Quiet, Please" (§8.6, D5.19): within range walking tiles, sleepers lose
-  // every pip, the awake (not hunting) settle where they stand, hunters drop to awake;
-  // exhibits that never sleep are left alone.
+  // W1-WAKE-A: "Quiet, Please" (§8.6, D5.19), as WAKE-A builds it: within range walking
+  // tiles, sleepers lose every pip, the awake but not hunting (awake, searching, returning,
+  // reinstalling) settle where they stand, hunters drop to awake; the Night Watchman, a
+  // species that never sleeps and a mimic in its disguise are left alone.
   X.Wake.quiet = (state, x, y, range, cause, ev) => {
     calls.push({ fn: 'quiet', x, y, range, cause: copy(cause) });
     const m = state.dept, d = X.Grid.distances(m, [[x, y]], range);
     for (const a of state.actors.slice(1)) {
-      if (a.gone || a.trigger === 'awake' || a.arch === 'night_watchman') continue;
+      if (a.gone || a.trigger === 'awake' || a.arch === 'night_watchman' || X.Archetypes.pipless(state, a)) continue;
       if (!X.Actors.footprint(a).some(([fx, fy]) => { const v = X.Grid.reachDist(d, m, fx, fy); return v >= 0 && v <= range; })) continue;
       if (a.mode === 'dormant') { if (a.pips) X.Wake.addPips(state, a, -a.pips, cause, ev); }
       else if (a.mode === 'hunting') X.Wake.setMode(state, a, 'awake', cause, ev);
-      else if (a.mode !== 'reinstalling') X.Wake.setMode(state, a, 'dormant', cause, ev);
+      else X.Wake.setMode(state, a, 'dormant', cause, ev);
     }
   };
-  // W1-WAKE-A: the Ticket (D5.8): every hunter goes searching where it last knew you, which
-  // calls off its pending special (Wake.setMode).
+  // W1-WAKE-A: the Ticket (D5.8), as WAKE-A builds it: every hunter but the Night Watchman
+  // goes searching where it last knew you, which calls off its pending special
+  // (Wake.setMode).
   X.Wake.lose = (state, cause, ev) => {
     calls.push({ fn: 'lose', cause: copy(cause) });
-    for (const a of state.actors.slice(1)) if (!a.gone && a.mode === 'hunting') X.Wake.setMode(state, a, 'searching', cause, ev);
+    for (const a of state.actors.slice(1)) if (!a.gone && a.mode === 'hunting' && a.arch !== 'night_watchman') X.Wake.setMode(state, a, 'searching', cause, ev);
   };
   // W1-CASES: Solvent's dissolve (§8.3): the case opens silently, a sleeper inside is
   // released hunting with no home, and glass_broke, with the cause given, comes last.
@@ -229,14 +231,17 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(own(X, ev, 'status').some(e => e.id === 'dazed' && !e.on) && !s.actors[0].statuses.some(t => t.id === 'dazed'));
   });
 
-  test('throwing each Solution, known: Consolidant heals and Fixative fixes every creature in the 3×3, glass shields; Fumigant leaves a 5×5 cloud; each lands with a soft noise, last', () => {
+  test('throwing each Solution, known: Consolidant heals and Fixative fixes every creature in the 3×3, glass shields, the gone are not there; Fumigant leaves a 5×5 cloud; each lands with a soft noise, last', () => {
     const { X, calls } = core(), N = X.N;
     const map = ['###########', '#.........#', '#.........#', '#.....v...#', '#.........#', '#.........#', '###########'];
-    const mk = (ck, you) => room(X, { map, you, tote: [[ck, 1]], known: [ck], exhibits: [[5, 2], [6, 3], [8, 3], [4, 4]].map(at => ex(at, { hp: 10, maxHp: 40 })) });
-    // Consolidant at (5,3): the square x 4–6, y 2–4 holds 5,2, 6,3 (in a case) and 4,4; 8,3 is outside.
+    // The fifth exhibit, at 5,4 inside the square, has been removed for the visit (gone).
+    const mk = (ck, you) => { const s = room(X, { map, you, tote: [[ck, 1]], known: [ck], exhibits: [[5, 2], [6, 3], [8, 3], [4, 4], [5, 4]].map(at => ex(at, { hp: 10, maxHp: 40 })) }); s.actors[5].gone = 1; return s; };
+    // Consolidant at (5,3): the square x 4–6, y 2–4 holds 5,2, 6,3 (in a case), 4,4 and the
+    // gone 5,4; 8,3 is outside.
     let s = mk('consolidant', [1, 3]), ev = checked(X, X.Step.step(s, { a: 'throw', uid: uidOf(s, 'consolidant'), x: 5, y: 3 }));
     const pct = Math.floor(40 * N.CONSOLIDANT_THROW_PCT / 100);
-    assert.equal(json(own(X, ev, 'healed').map(e => [e.who, e.amount])), json([['T0.1.room.1', pct], ['T0.1.room.4', pct]]), 'the encased exhibit is behind glass');
+    assert.equal(json(own(X, ev, 'healed').map(e => [e.who, e.amount])), json([['T0.1.room.1', pct], ['T0.1.room.4', pct]]), 'the encased exhibit is behind glass, and the gone one is not there');
+    assert.equal(s.actors[5].hp, 10, 'the gone exhibit is untouched');
     const noise = ev.findIndex(e => e.k === 'noise');
     assert.ok(noise > ev.findIndex(e => e.k === 'healed') && ev[noise].cause.k === 'throw' && ev[noise].cls === 'soft' && ev[noise].x === 5 && ev[noise].y === 3, json(ev[noise]));
     assert.equal(s.actors[0].next, 100);
@@ -245,6 +250,7 @@ module.exports = ({ test, assert, loadCore }) => {
     s = mk('fixative', [4, 2]); ev = checked(X, X.Step.step(s, { a: 'throw', uid: uidOf(s, 'fixative'), x: 5, y: 3 }));
     assert.equal(json(own(X, ev, 'status').filter(e => e.on).map(e => [e.who, e.id])), json([['you', 'fixed'], ['T0.1.room.1', 'fixed'], ['T0.1.room.4', 'fixed']]));
     assert.ok(ev.findIndex(e => e.k === 'noise') > ev.findIndex(e => e.k === 'status'));
+    assert.ok(!s.actors[5].statuses.some(t => t.id === 'fixed'), 'the gone exhibit is not fixed');
     // Fumigant: a cloud of side 5 for 10 turns, centred where it lands.
     s = mk('fumigant', [1, 3]); ev = checked(X, X.Step.step(s, { a: 'throw', uid: uidOf(s, 'fumigant'), x: 5, y: 3 }));
     assert.equal(json(s.dept.surfaces.map(f => [f.kind, f.x, f.y, f.size, f.by])), json([['fumigant', 5, 3, N.FUMIGANT_SIZE, 'you']]));
@@ -398,6 +404,53 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(!X.Step.legal(s).some(a => a.a === 'use'));
   });
 
+  test('the Ticket: every hunter but the Night Watchman loses you; it takes you even while you are rooted; unknown with no entrance it is identified and does nothing, known it is refused; its clause says so', () => {
+    const { X, calls } = core();
+    const map = ['###########', 'E.........#', '#.........#', '#.........#', '###########'];
+    let s = room(X, { map, entrance: [0, 1], you: [8, 2], tote: [['ticket', 1]], known: ['ticket'], youStatuses: [{ id: 'rooted', turns: 3 }],
+      exhibits: [ex([6, 2], { sp: 'night_watchman', mode: 'hunting' }), ex([6, 3], { mode: 'hunting' })] });
+    const [, w, d] = s.actors, it = s.items.find(i => i.ck === 'ticket');
+    assert.equal(json([w.arch, w.mode, d.mode]), json(['night_watchman', 'hunting', 'hunting']));
+    let ev = checked(X, X.Step.step(s, { a: 'use', uid: it.uid }));
+    assert.equal(json([s.actors[0].x, s.actors[0].y]), json([0, 1]), 'rooted, you are still put at the entrance: a Ticket is not a step');
+    assert.ok(s.actors[0].statuses.some(t => t.id === 'rooted'), 'and you are still rooted there');
+    assert.equal(json(ev.filter(e => e.k === 'lost' && e.cause.k === 'ticket').map(e => [e.who, e.to])), json([[d.uid, 'searching']]), 'the dummy loses you, the Watchman does not');
+    assert.equal(w.mode, 'hunting');
+    const clause = X.Consumables.line(s, it);
+    for (const part of ['even while you are rooted', 'every exhibit hunting you but the Night Watchman loses you', 'its pending special is called off', 'With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read'])
+      assert.ok(clause.includes(part), `the Ticket's clause says "${part}": ${clause}`);
+    // No entrance, unknown: it can be read, is identified, and nothing else happens; known, it
+    // is refused. The refusal never names an unknown leaflet a Ticket.
+    s = room(X, { tote: [['ticket', 2]] });
+    const uid = uidOf(s, 'ticket'), at = json([s.actors[0].x, s.actors[0].y]), loses = calls.filter(c => c.fn === 'lose').length;
+    assert.ok(X.Step.legal(s).some(a => a.a === 'use' && a.uid === uid), 'an unknown Ticket can be read with no entrance');
+    ev = checked(X, X.Step.step(s, { a: 'use', uid }));
+    assert.equal(json(ev.map(e => [e.k, e.cause.k])), json([['used', 'consume'], ['identified', 'use']]));
+    assert.equal(json([ev[0].cause.known, ev[0].cause.nowhere, ev[0].cause.x]), json([false, true, undefined]));
+    assert.equal(json([s.actors[0].x, s.actors[0].y]), at, 'you stay where you are');
+    assert.equal(calls.filter(c => c.fn === 'lose').length, loses, 'no one loses you');
+    assert.match(X.Text.event(ev[0], null), /It is a Re-admission Ticket, but there is no entrance here to go back to, so nothing happened\./);
+    said(X, ev);
+    assert.equal(json(X.Step.step(s, { a: 'use', uid }).map(e => e.reason)), json(['ticket_no_entrance']), 'known now, it is refused');
+    assert.ok(!X.Step.legal(s).some(a => a.a === 'use' && a.uid === uid));
+  });
+
+  test('a consumable given with no count (as a room for tests may give one) is a stack of one: carried, usable, and gone once used', () => {
+    const { X } = core();
+    const s = X.Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 4], exhibits: [], items: [{ uid: 'c1', kind: 'consumable', ck: 'consolidant', where: { at: 'tote' } }, { uid: 'c2', kind: 'consumable', ck: 'fixative', where: { at: 'tote' } }] });
+    X.Consumables.startRun(s);
+    assert.equal(json(s.items.filter(i => i.kind === 'consumable').map(i => i.n)), json([null, null]));
+    const legal = X.Step.legal(s);
+    assert.ok(legal.some(a => a.a === 'use' && a.uid === 'c1') && legal.some(a => a.a === 'throw' && a.uid === 'c2'));
+    assert.equal(json(X.Consumables.view(s).tote.map(t => [t.uid, t.n])), json([['c1', 1], ['c2', 1]]));
+    const inv = require('./behaviour/consumables.inv.js')(X), pre = X.State.clone(s);
+    const ev = checked(X, X.Step.step(s, { a: 'use', uid: 'c1' }));
+    assert.equal(ev[0].k, 'used');
+    for (const i of inv) assert.equal(i.check(pre, ev, s), null, i.id);
+    const c1 = s.items.find(i => i.uid === 'c1');
+    assert.equal(json([c1.n, c1.where, s.you.tote]), json([0, { at: 'gone' }, ['c2']]));
+  });
+
   test('a label identifies its kind when read within READ_RANGE tiles in sight, at no cost in time; farther, out of sight, known or absent, it is refused', () => {
     const { X } = core();
     const map = ['###########', '#.........#', '#.........#', '#....#....#', '#.........#', '###########'];
@@ -448,12 +501,33 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(n > 3000, `${n} candidates stepped`);
   });
 
-  test('the stand-in placement: CONSUMABLES_PER_DEPT consumables from the deck on free floor, and ID_LABELS_PER_DEPT labels for unknown kinds on walls, the first by the Intro or the first section', () => {
+  // The tiles you can walk to from the entrance without passing a staff door (an exhibit's
+  // step rule: 8 directions, a diagonal only if both tiles beside it can be walked), on the
+  // map with a mimic's disguise counted as the floor it stands on; written out here.
+  function walkable(X, s) {
+    const m = s.dept, tiles = m.tiles.map(r => r.split(''));
+    for (const f of m.fixtures) if (f.k === 'case' && f.mimic) tiles[f.y][f.x] = '.';
+    const map = { w: m.w, h: m.h, tiles: tiles.map(r => r.join('')), surfaces: [] };
+    const ok = (x, y) => X.Grid.inside(map, x, y) && X.Grid.walkable(map, x, y, 'exhibit');
+    const seen = new Set([m.entrance.join(',')]), q = [m.entrance];
+    while (q.length) {
+      const [x, y] = q.shift();
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if ((!dx && !dy) || seen.has(nx + ',' + ny) || !ok(nx, ny) || (dx && dy && !(ok(nx, y) && ok(x, ny)))) continue;
+        seen.add(nx + ',' + ny); q.push([nx, ny]);
+      }
+    }
+    return (x, y) => seen.has(x + ',' + y);
+  }
+  const beforeRM = (a, b) => a.y < b.y || (a.y === b.y && a.x < b.x);
+
+  test('the stand-in placement: CONSUMABLES_PER_DEPT consumables from the deck on free floor of the sections and studies that you can walk to, and ID_LABELS_PER_DEPT labels for unknown kinds on walls beside such a tile, the first by the Intro or the first section, after the cases and staff doors', () => {
     const { X } = core(), N = X.N;
     const ROLES = ['intro', 'section', 'study'];
     let depts = 0;
-    for (const acc of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth++) for (const seed of [1, 2]) {
-      const s = X.Dept.create(seed * 10 + depth, acc, depth), m = s.dept;
+    for (const acc of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth++) for (const seed of [1, 2, 3, 4]) {
+      const s = X.Dept.create(seed * 10 + depth, acc, depth), m = s.dept, walk = walkable(X, s);
       const roomAt = (x, y) => m.rooms.find(r => r.id === m.roomOf[y][x]);
       const cons = s.items.filter(i => i.kind === 'consumable');
       assert.equal(cons.length, N.CONSUMABLES_PER_DEPT, `${acc} d${depth}`);
@@ -461,32 +535,39 @@ module.exports = ({ test, assert, loadCore }) => {
       for (const it of cons) {
         const { x, y } = it.where, rm = roomAt(x, y);
         assert.equal(it.where.at, 'floor'); assert.equal(m.tiles[y][x], '.', `${it.uid} on floor`);
-        assert.ok(rm && ROLES.includes(rm.role), `${it.uid} in an ${rm && rm.role}`);
+        assert.ok(rm && (rm.role === 'section' || rm.role === 'study'), `${it.uid} in a section or study, not a ${rm && rm.role}`);
+        assert.ok(walk(x, y), `${it.uid} at ${x},${y} can be walked to from the entrance`);
         assert.match(it.uid, new RegExp(`^${acc}\\.${depth}\\.${rm.key}\\.i\\d+$`));
         assert.ok(!s.actors.some(a => X.Actors.covers(a, x, y)) && !X.Cases.at(s, x, y) && !(m.entrance[0] === x && m.entrance[1] === y), `${it.uid}'s tile is free`);
+        assert.ok(!s.items.some(i => i !== it && (i.where.at === 'floor' || i.where.at === 'case') && i.where.x === x && i.where.y === y), `${it.uid}: no other item on its tile`);
         assert.ok(!tiles.has(x + ',' + y), 'one to a tile'); tiles.add(x + ',' + y);
         assert.equal(json([it.n, it.seal, it.from]), json([1, X.Consumables.sealFor(s, it.ck), null]));
       }
       // The deck: those five cards are gone from it.
       const left = DECK.slice(); for (const it of cons) left[KINDS.indexOf(it.ck)]--;
       assert.equal(json(s.run.deck), json(left));
-      // Labels: two, of different unknown kinds, each on a wall beside a tile of a gallery an
-      // exhibit could stand on; the first beside the Intro or the first section.
+      // Labels: two, of different unknown kinds, each on a wall beside a floor tile of a
+      // gallery that you can walk to; the first placed beside the Intro or the first section;
+      // they follow every case and staff door (§4.1: those in row-major order, then what is
+      // placed after them, in order).
       const plaques = m.fixtures.filter(f => f.k === 'plaque');
       assert.equal(plaques.length, N.ID_LABELS_PER_DEPT, `${acc} d${depth} labels`);
       assert.equal(new Set(plaques.map(p => p.ck)).size, plaques.length);
-      plaques.forEach((p, k) => {
+      const by = p => [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [p.x + dx, p.y + dy]).filter(([x, y]) => X.Grid.inside(m, x, y) && walk(x, y)).map(([x, y]) => roomAt(x, y)).filter(r => r && ROLES.includes(r.role));
+      for (const p of plaques) {
         assert.equal(m.tiles[p.y][p.x], '#', `${json(p)} on a wall`);
-        const beside = [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [p.x + dx, p.y + dy]).filter(([x, y]) => X.Grid.inside(m, x, y) && X.Grid.hold(m, x, y)).map(([x, y]) => roomAt(x, y)).filter(r => r && ROLES.includes(r.role));
-        assert.ok(beside.length, `${json(p)} beside a gallery`);
-        if (k === 0) assert.ok(beside.some(r => r.role === 'intro' || r.key === 's1'), `${json(p)} by the Intro or s1`);
+        assert.ok(by(p).length, `${json(p)} beside a gallery tile you can walk to`);
         assert.equal(m.fixtures.filter(f => f.x === p.x && f.y === p.y).length, 1);
-      });
+      }
+      assert.equal(json(m.fixtures.slice(m.fixtures.length - plaques.length)), json(plaques), `${acc} d${depth}: the labels come after the cases and staff doors`);
+      const made = m.fixtures.filter(f => f.k === 'staff' || (f.k === 'case' && !f.mimic));
+      for (let i = 1; i < made.length; i++) assert.ok(beforeRM(made[i - 1], made[i]), `${acc} d${depth}: the cases and staff doors in row-major order`);
+      assert.ok(by(plaques[0]).some(r => r.role === 'intro' || r.key === 's1'), `${acc} d${depth}: ${json(plaques[0])}, the first label, by the Intro or s1`);
       // Made the same way twice, the same.
       assert.equal(X.State.hash(X.Dept.create(seed * 10 + depth, acc, depth)), X.State.hash(s));
       depts++;
     }
-    assert.equal(depts, 42);
+    assert.equal(depts, 84);
     // Removing an exhibit moves no consumable or label (R19: a removed exhibit keeps its tile).
     for (const [acc, seed, depth] of [['S9', 1, 2], ['A4', 2, 3], ['M11', 3, 6]]) {
       const base = X.Dept.create(seed, acc, depth), mine = s => json([s.items.filter(i => i.kind === 'consumable'), s.dept.fixtures.filter(f => f.k === 'plaque'), s.run.deck]);
@@ -496,6 +577,47 @@ module.exports = ({ test, assert, loadCore }) => {
     const r = room(X, {});
     X.Consumables.standIn(r, 'layout/T0@1/d1/a0', { seed: 1, rng: {} });
     assert.equal(json([r.items.filter(i => i.kind === 'consumable'), r.dept.fixtures, r.run.deck]), json([[], [], DECK]));
+  });
+
+  // A department made by hand: a section s1 whose floor is all taken by items but for a pocket
+  // at 2,1, shut in by columns and the wall; a study s2 beyond a gap that a mimic in its
+  // disguise stands in; the entrance at 0,5.
+  test('the stand-in placement, by hand: never in a pocket you cannot walk to, never on an item, through a mimic\'s disguise as through floor; labels only for kinds you do not know', () => {
+    const { X } = core(), N = X.N;
+    const map = ['#############', '#o.o..#.....#', '#ooo..#.....#', '#.....#.....#', '#.....#.....#', 'E.....v.....#', '#############'];
+    const mk = (seed, knownKinds) => {
+      const s = room(X, { seed, map, you: [1, 5], entrance: [0, 5], known: knownKinds });
+      const m = s.dept;
+      m.rooms = [{ id: 1, key: 's1', role: 'section', number: 1, x0: 1, y0: 1, x1: 5, y1: 5 }, { id: 2, key: 's2', role: 'study', number: 2, x0: 7, y0: 1, x1: 11, y1: 5 }];
+      m.roomOf = map.map((row, y) => row.split('').map((c, x) => (x >= 1 && x <= 5 && y >= 1 && y <= 5 ? 1 : x >= 7 && x <= 11 && y >= 1 && y <= 5 ? 2 : 0)));
+      m.fixtures.push(X.Cases.make({ x: 6, y: 5, mimic: 'T0.1.room.9' }));
+      let k = 0;
+      for (let y = 1; y <= 5; y++) for (let x = 1; x <= 5; x++) if (map[y][x] === '.' && !(x === 2 && y === 1) && !(x === 1 && y === 5)) s.items.push(X.Kit.item({ uid: `T0.1.s1.i${++k}`, kind: 'curio', where: { at: 'floor', x, y } }));
+      return s;
+    };
+    for (let seed = 1; seed <= 60; seed++) {
+      const s = mk(seed, []);
+      X.Consumables.standIn(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
+      const cons = s.items.filter(i => i.kind === 'consumable');
+      assert.equal(cons.length, N.CONSUMABLES_PER_DEPT, `seed ${seed}`);
+      for (const it of cons) {
+        assert.ok(!(it.where.x === 2 && it.where.y === 1), `seed ${seed}: ${it.uid} in the walled-in pocket`);
+        assert.ok(!s.items.some(i => i !== it && i.where.at === 'floor' && i.where.x === it.where.x && i.where.y === it.where.y), `seed ${seed}: ${it.uid} on another item`);
+        assert.match(it.uid, /^T0\.1\.s2\.i\d+$/, `seed ${seed}: s2, past the mimic, is the only room with free floor you can walk to`);
+      }
+      const plaques = s.dept.fixtures.filter(f => f.k === 'plaque');
+      assert.equal(plaques.length, N.ID_LABELS_PER_DEPT);
+      const walk = walkable(X, s);
+      for (const p of plaques) assert.ok([[0, -1], [1, 0], [0, 1], [-1, 0]].some(([dx, dy]) => walk(p.x + dx, p.y + dy) && s.dept.roomOf[p.y + dy][p.x + dx] > 0), `seed ${seed}: ${json(p)} beside a gallery tile you can walk to (2,0 is beside only the pocket)`);
+    }
+    // Labels are only for kinds you do not know: with six known, the two others; with seven,
+    // the one left; with all eight, none.
+    for (const n of [6, 7, 8]) for (let seed = 1; seed <= 10; seed++) {
+      const knownKinds = KINDS.slice(0, n), s = mk(seed, knownKinds);
+      X.Consumables.standIn(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
+      const cks = s.dept.fixtures.filter(f => f.k === 'plaque').map(p => p.ck).sort();
+      assert.equal(json(cks), json(KINDS.slice(n).sort()), `${n} known, seed ${seed}`);
+    }
   });
 
   test('a consumable\'s name: its department\'s local name for its seal (from the department it was first taken in), its seal, and its kind once known', () => {
@@ -540,6 +662,15 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.match(line('fixative'), new RegExp(`${N.FIXATIVE_TURNS} turns`));
     assert.match(line('fumigant'), new RegExp(`${N.COUGH_TURNS} turns.*${N.FUMIGANT_SIZE}×${N.FUMIGANT_SIZE} cloud for ${N.FUMIGANT_TURNS} turns`));
     assert.match(line('quiet'), new RegExp(`within ${N.QUIET_RANGE} walking tiles`));
+    // A thrown Consolidant or Fixative does not reach through glass, and says so.
+    for (const ck of ['consolidant', 'fixative']) assert.match(line(ck), /Thrown, .* except one inside an intact case, which is behind glass\./);
+    // The rules every throw, every department and every label follow have their clauses.
+    const fill = (t, id, depth) => X.Clauses.fill(X.Registry[t][id].clause, X.Clauses.params(X.Registry[t][id].params, null, { depth: depth || 1 }));
+    const thrown = fill('CLAUSES', 'consumable_throw');
+    for (const part of [`within ${N.THROW_RANGE} tiles`, 'that you can see and that does not block sight', 'you included, except one inside an intact case, which is behind glass', 'but Solvent lands with a soft noise'])
+      assert.ok(thrown.includes(part), `the throw's clause says "${part}": ${thrown}`);
+    assert.match(fill('CLAUSES', 'consumable_deck'), new RegExp(`lays ${N.CONSUMABLES_PER_DEPT} of them on free floor tiles of its sections and studies, each one you can walk to from the entrance without passing a staff door`));
+    assert.match(fill('FIXTURES', 'plaque'), new RegExp(`hangs ${N.ID_LABELS_PER_DEPT} on its walls, each for a different kind you do not know, one by the Intro or the first section, and each beside a floor tile you can walk to`));
     // Every clause of the fragment fills, with no gap.
     for (const t of ['CONSUMABLES', 'SEALS', 'FIXTURES', 'CLAUSES', 'REFUSALS']) for (const id of X.Registry.order(t)) {
       const e = X.Registry[t][id];
@@ -563,6 +694,15 @@ module.exports = ({ test, assert, loadCore }) => {
     const d = X.Dept.create(2, 'M11', 3), x = d.items.find(i => i.kind === 'consumable');
     assert.equal(X.Consumables.make(d, 'card', { at: 'floor', x: x.where.x, y: x.where.y }).uid.split('.').slice(0, 3).join('.'), x.uid.split('.').slice(0, 3).join('.'));
     assert.throws(() => X.Consumables.make(s, 'potion', { at: 'tote' }), /no kind/);
+    // Into a case: only an empty one, which then holds it.
+    const cs = room(X, { map: ['###########', '#.........#', '#....v....#', '#.........#', '###########'], you: [2, 3], fixtures: [X.Cases.make({ x: 5, y: 2 })] });
+    const e = X.Consumables.make(cs, 'solvent', { at: 'case', x: 5, y: 2 });
+    assert.equal(json([e.where, X.Cases.at(cs, 5, 2).holds]), json([{ at: 'case', x: 5, y: 2 }, e.uid]));
+    const items = cs.items.length;
+    assert.throws(() => X.Consumables.make(cs, 'card', { at: 'case', x: 5, y: 2 }), /no empty case at 5,2/, 'a case already holding something');
+    assert.throws(() => X.Consumables.make(cs, 'card', { at: 'case', x: 2, y: 3 }), /no empty case at 2,3/, 'a floor tile');
+    assert.throws(() => X.Consumables.make(cs, 'card', { at: 'floor', x: -1, y: 3 }), /not a tile/);
+    assert.equal(cs.items.length, items, 'nothing made when refused');
   });
 
   test('what the view model is given: the known seals, the labels on shown tiles, your consumables by name, the plan and the seal choice', () => {
@@ -576,7 +716,20 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([v.plan, v.pending]), json([null, null]));
     X.Step.step(s, { a: 'use', uid: uidOf(s, 'card') });
     assert.equal(X.Consumables.view(s).pending.options.length, 6, 'every unknown seal but the Card\'s own');
-    assert.equal(X.Consumables.view(s).plaques.length, 2, 'with no vis, every label');
+    // With no vis given, what you can see (Vision.visible), as the view model keeps to; and
+    // the consumables lying on the floor or in a case there, with their seals.
+    const map = ['###########', '#....#....#', '#....#....#', '#....#....#', '#...v.....#', '###########'];
+    const t = room(X, { map, you: [2, 2], known: ['fixative'], fixtures: [{ k: 'plaque', x: 0, y: 2, ck: 'quiet' }, { k: 'plaque', x: 10, y: 1, ck: 'card' }, X.Cases.make({ x: 4, y: 4 })] });
+    const lying = [X.Consumables.make(t, 'fixative', { at: 'floor', x: 3, y: 3 }), X.Consumables.make(t, 'ticket', { at: 'floor', x: 8, y: 1 }), X.Consumables.make(t, 'solvent', { at: 'case', x: 4, y: 4 })];
+    const seen = X.Vision.visible(t), sees = (x, y) => !!seen[y * t.dept.w + x];
+    assert.equal(json([sees(0, 2), sees(10, 1), sees(3, 3), sees(8, 1), sees(4, 4)]), json([true, false, true, false, true]), 'the wall at x = 5 hides the room\'s far corner');
+    const w = X.Consumables.view(t);
+    assert.equal(json(w), json(X.Consumables.view(t, seen)));
+    assert.equal(json(w.plaques.map(p => [p.x, p.y])), json([[0, 2]]));
+    const shape = seal => X.Registry.SEALS[seal].shape;
+    assert.equal(json(w.items), json([
+      { uid: lying[0].uid, x: 3, y: 3, icon: 'seal', kind: 'consumable', inCase: false, seal: lying[0].seal, shape: shape(lying[0].seal), cls: 'solution', ck: 'fixative' },
+      { uid: lying[2].uid, x: 4, y: 4, icon: 'seal', kind: 'consumable', inCase: true, seal: lying[2].seal, shape: shape(lying[2].seal), cls: 'solution', ck: null }]));
   });
 
   test('every refusal and every sentence of consumables is a clean sentence, and the refusal of a first throw names no kind', () => {

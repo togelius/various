@@ -1,8 +1,9 @@
 // Scenarios for the consumables' clauses (BUILD.md §8.6; reg/consumables.js), run through
 // the Behaviour-line harness with every invariant checked after every step and a clone
 // after every step (§3.5): a thrown Fixative and a thrown Consolidant on every M3 pack
-// species (and the Night Watchman) at depths 1–7; a first use of every kind, every way,
-// at every depth; the Re-admission Ticket against a pending special (R30c). The other
+// species (and the Night Watchman) at depths 1–7, in the open and inside an intact case;
+// a first use of every kind, every way, at every depth; the Re-admission Ticket against a
+// pending special (R30c). The other
 // Wave 1 packages' hooks that consumables call are driven as their contracts say
 // (m3-consumables.test.js, contracts); the joined-up runs are W2a-BEHAVIOUR's.
 const H = require('./_harness.js');
@@ -40,7 +41,19 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const ck of o.known || []) s.run.knownSeals.push(C.Consumables.sealFor(s, ck));
     return s;
   }
-  const exhibit = (C, sp, depth, at, extra) => Object.assign({ sp: sp.id, at, mode: 'dormant', stats: C.Roles.stats(sp.role, depth) }, extra || {});
+  // An exhibit of species sp, in the one mode it can be in when you meet it: asleep, but for
+  // a species that never sleeps (trigger awake), which is awake, and the Night Watchman,
+  // which always comes for you (hunting; rules/clock.js).
+  const modeOf = sp => sp.archetype === 'night_watchman' ? 'hunting' : sp.trigger === 'awake' ? 'awake' : 'dormant';
+  const exhibit = (C, sp, depth, at, extra) => Object.assign({ sp: sp.id, at, mode: modeOf(sp), stats: C.Roles.stats(sp.role, depth) }, extra || {});
+  // A state a department could hold: no Night Watchman that is not hunting, and nothing that
+  // never sleeps asleep.
+  const possible = a => a.arch === 'night_watchman' && a.mode !== 'hunting' ? `${a.uid} is a Night Watchman ${a.mode}, which cannot be`
+    : a.trigger === 'awake' && a.mode === 'dormant' ? `${a.uid} never sleeps, but is asleep` : null;
+  // A room with a case at (7, 3), shut, for the species that can stand in one: not the Night
+  // Watchman, and not the mimic, which is a case itself.
+  const CASED = ['#############', '#...........#', '#...........#', '#......v....#', '#...........#', '#...........#', '#...........#', '#############'];
+  const encasable = list => list.filter(({ sp }) => sp.archetype !== 'night_watchman' && sp.archetype !== 'mimic_vitrine');
   const toteUid = (s, ck) => s.items.find(i => i.kind === 'consumable' && i.ck === ck && i.where.at === 'tote').uid;
   const sweepAll = (C, sc, list) => { const rs = H.sweep(C, sc, list); assert.deepEqual(H.failures(rs), []); return rs; };
 
@@ -53,6 +66,7 @@ module.exports = ({ test, assert, loadCore }) => {
       actions: (s, i) => i === 0 ? { a: 'throw', uid: toteUid(s, 'fixative'), x: 7, y: 3 } : null,
       expect(r) {
         const a = r.start.actors[1], glass = C.Cases.encased(r.start, a), ev = r.steps[0].events;
+        if (possible(a)) return possible(a);
         const on = ev.filter(e => e.k === 'status' && e.who === a.uid && e.id === 'fixed' && e.on && e.cause.k === 'item');
         if (glass) return on.length ? `${a.uid} is in an intact case but was fixed` : null;
         if (on.length !== 1) return `${a.uid} was not fixed: ${json(ev.map(e => e.k))}`;
@@ -65,6 +79,7 @@ module.exports = ({ test, assert, loadCore }) => {
     });
     const rs = sweepAll(C, sc, everySpecies(C));
     assert.ok(rs.length >= 7 * 12, `${rs.length} runs`);
+    assert.ok(rs.some(r => r.sp === 'night_watchman' && r.start.actors[1].mode === 'hunting'), 'the Night Watchman, hunting, among them');
   });
 
   test('a thrown Consolidant heals an exhibit of every species at every depth by CONSOLIDANT_THROW_PCT% of its own maximum health, up to it', () => {
@@ -79,6 +94,7 @@ module.exports = ({ test, assert, loadCore }) => {
       actions: (s, i) => i === 0 ? { a: 'throw', uid: toteUid(s, 'consolidant'), x: 6, y: 4 } : null,
       expect(r) {
         const a = r.start.actors[1], glass = C.Cases.encased(r.start, a), ev = r.steps[0].events;
+        if (possible(a)) return possible(a);
         const healed = ev.filter(e => e.k === 'healed' && e.who === a.uid && e.cause.k === 'item');
         const want = glass ? 0 : Math.min(Math.floor(a.maxHp * N.CONSOLIDANT_THROW_PCT / 100), a.maxHp - a.hp);
         const got = healed.reduce((n, e) => n + e.amount, 0);
@@ -86,6 +102,36 @@ module.exports = ({ test, assert, loadCore }) => {
       },
     });
     sweepAll(C, sc, everySpecies(C));
+  });
+
+  // Inside an intact case an exhibit is behind glass: a Fixative or Consolidant thrown so that
+  // its square covers the case reaches you, if you are in it, but not the exhibit inside.
+  test('a thrown Fixative or Consolidant does not reach an exhibit of any species inside an intact case, at any depth: it is behind glass', () => {
+    const C = loadCore(); contracts(C);
+    let runs = 0;
+    for (const ck of ['fixative', 'consolidant']) {
+      const sc = H.scenario({
+        name: `thrown ${ck} behind glass`, id: null, clone: true,
+        build: (p, sp, depth, opts) => {
+          const st = C.Roles.stats(sp.role, depth);
+          return build(C, opts, { depth, map: CASED, tote: [[ck, 1]], known: [ck], exhibits: [exhibit(C, sp, depth, [7, 3], { hp: 1, maxHp: st.hp })] });
+        },
+        actions: (s, i) => i === 0 ? { a: 'throw', uid: toteUid(s, ck), x: 6, y: 3 } : null,
+        expect(r) {
+          const a = r.start.actors[1], ev = r.steps[0].events;
+          if (!C.Cases.encased(r.start, a)) return `${a.uid} is not in the case at 7,3`;
+          const reached = ev.filter(e => e.who === a.uid && e.cause && e.cause.k === 'item' && (e.k === 'healed' || e.k === 'status'));
+          if (reached.length) return `${a.uid}, in an intact case, was reached through the glass: ${json(reached.map(e => e.k))}`;
+          if (!ev.some(e => e.k === 'used')) return `the throw was refused: ${json(ev)}`;
+          return null;
+        },
+      });
+      // The case at (7, 3) is a fixture of the room, built as a real one is.
+      const list = encasable(everySpecies(C));
+      const withCase = H.scenario(Object.assign({}, sc, { build: (p, sp, depth, opts) => { const s = sc.build(p, sp, depth, opts); s.dept.fixtures.push(C.Cases.make({ x: 7, y: 3, room: null, glass: 1, lock: 1 })); return s; } }));
+      runs += sweepAll(C, withCase, list).length;
+    }
+    assert.ok(runs >= 2 * 7 * 10, `${runs} runs`);
   });
 
   // Each kind, unknown, used each way it can be from where you stand: drunk or read, and, for
@@ -123,13 +169,43 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(runs, 12 * 7);
   });
 
-  test('the first-use invariant bites: a Fixative that harmed on a first drink is caught', () => {
+  test('the first-use invariant bites: a first drink that harms you is caught, whatever cause it gives and whether or not it says so', () => {
     const C = loadCore(); contracts(C);
     C.Registry.CONSUMABLES.fixative.harmfulDrink = false;
-    const s = build(C, { seed: 1 }, { depth: 1, tote: [['fixative', 1]] });
-    const r = H.play(C, s, [{ a: 'use', uid: toteUid(s, 'fixative') }], { inv: ['consumable_first_use'] });
+    let s = build(C, { seed: 1 }, { depth: 1, tote: [['fixative', 1]] });
+    let r = H.play(C, s, [{ a: 'use', uid: toteUid(s, 'fixative') }], { inv: ['consumable_first_use'] });
     assert.equal(r.violations.length, 1, json(r.violations));
     assert.match(r.violations[0].text, /consumable_first_use: a first use of .* made you fixed/);
+    // Planted harms on a gentle first drink of Fumigant, each under another cause or none.
+    const plants = {
+      'a status with the status cause': (st, ev) => C.Status.apply(st, st.actors[0], 'fixed', 4, { k: 'status', id: 'fixed' }, ev),
+      'a status put on with no event': st => st.actors[0].statuses.push({ id: 'coughing', until: st.turn + 5, turns: null, from: st.turn + 1 }),
+      'a status made longer with no event': st => { const t = st.actors[0].statuses.find(q => q.id === 'dazed'); t.until += 3; },
+      'health lost with no event': st => { st.actors[0].hp -= 3; },
+    };
+    const want = { 'a status with the status cause': /made you fixed/, 'a status put on with no event': /came to be coughing/, 'a status made longer with no event': /came to be dazed for longer/, 'health lost with no event': /your health fell from 60 to 57/ };
+    for (const name of Object.keys(plants)) {
+      const D = loadCore(); contracts(D);
+      const emit = D.Causes.emit;
+      D.Causes.emit = (st, ev, k, fields, cause) => { const e = emit(st, ev, k, fields, cause); if (k === 'used' && cause && cause.gentle) plants[name](st, ev); return e; };
+      s = build(D, { seed: 1 }, { depth: 1, tote: [['fumigant', 1]] });
+      s.actors[0].statuses.push({ id: 'dazed', until: 9, turns: null, from: 1 });
+      r = H.play(D, s, [{ a: 'use', uid: toteUid(s, 'fumigant') }], { inv: ['consumable_first_use'] });
+      assert.equal(r.steps[0].events[0].cause.gentle, true, name);
+      assert.equal(r.violations.length, 1, `${name}: ${json(r.violations)}`);
+      assert.match(r.violations[0].text, want[name], name);
+    }
+    // And a harm an exhibit does in the same step is no violation: a hunter that strikes you
+    // after your first drink.
+    const E = loadCore(); contracts(E);
+    let struck = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      s = build(E, { seed }, { depth: 1, you: [2, 3], tote: [['fumigant', 1]], exhibits: [{ sp: 'dummy', at: [3, 3], mode: 'hunting', stats: { hp: 40, acc: 99, eva: 0, pad: 0, dmin: 2, dmax: 2 } }] });
+      r = H.play(E, s, [{ a: 'use', uid: toteUid(s, 'fumigant') }], { inv: ['consumable_first_use'] });
+      if (r.events.some(e => e.k === 'damaged' && e.who === 'you')) struck++;
+      assert.deepEqual(r.violations, [], `seed ${seed}`);
+    }
+    assert.ok(struck >= 3, `the hunter struck you in ${struck} of 10 runs`);
   });
 
   // R30c. A hunter beside the entrance marks the 8 tiles round it, the entrance among them,

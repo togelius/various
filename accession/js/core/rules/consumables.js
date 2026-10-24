@@ -6,7 +6,8 @@
 // order, under each wax seal and each ink stamp), run.knownSeals (the seals identified, in
 // the order they were) and run.deck (the cards left of each kind, in DECK's order).
 // A consumable is an item {kind: 'consumable', ck (its kind), seal, n (how many in the
-// stack), from (the department it was first taken in), …}. You use one from your tote:
+// stack; one given with no count, as a room for tests may, is one), from (the department it
+// was first taken in), …}. You use one from your tote:
 // a Solution is drunk (use) or thrown (throw), an Ephemera is read (use). An identifying
 // label is a plaque fixture {k: 'plaque', x, y, ck} on a wall, read with read(x, y).
 //
@@ -25,8 +26,9 @@ const Consumables = (() => {
   // target, would include you: that is, if you are within GENTLE tiles of it (Chebyshev).
   const AREA = Math.max(...KINDS.filter(isSolution).map(ck => N[R.CONSUMABLES[ck].area]));
   const GENTLE = Int.idiv(AREA, 2);
-  // The rooms the stand-in placement uses, by role.
-  const ROOMS = ['intro', 'section', 'study'];
+  // The rooms the stand-in placement uses, by role: consumables lie in the sections and
+  // studies, as the kit's items do (Kit.standIn); labels hang by those and by the Intro.
+  const ITEM_ROOMS = ['section', 'study'], LABEL_ROOMS = ['intro', 'section', 'study'];
 
   // ---- Seals ----
 
@@ -99,34 +101,41 @@ const Consumables = (() => {
   const items = state => state.items || [];
   const byUid = (state, uid) => { for (const i of items(state)) if (i.uid === uid) return i; return null; };
   const inTote = (state, it) => !!it && it.where.at === 'tote' && state.you.tote.includes(it.uid);
+  // How many a stack holds: its count, or one for a consumable given with no count.
+  const count = it => it.n === null || it.n === undefined ? 1 : it.n;
   // The consumable you carry with that uid, or null.
-  const carried = (state, uid) => { const it = byUid(state, uid); return it && it.kind === 'consumable' && kindOk(it.ck) && inTote(state, it) && it.n >= 1 ? it : null; };
-  const tote = state => state.you.tote.map(uid => byUid(state, uid)).filter(it => it && it.kind === 'consumable' && kindOk(it.ck) && it.n >= 1);
+  const carried = (state, uid) => { const it = byUid(state, uid); return it && it.kind === 'consumable' && kindOk(it.ck) && inTote(state, it) && count(it) >= 1 ? it : null; };
+  const tote = state => state.you.tote.map(uid => byUid(state, uid)).filter(it => it && it.kind === 'consumable' && kindOk(it.ck) && count(it) >= 1);
 
   // A new consumable of kind ck (one of it), with its uid (§3.2): <acc>.<depth>.<roleKey>.i<n>,
   // n counting on from the highest of that room's items (room 'room' outside any room). where
-  // is {at: 'floor' | 'case', x, y}, or {at: 'tote'}: then it is made at your feet and put in
-  // your tote as a taken item is (Kit.addToTote, which stacks it with any of its kind), taken
-  // in this department (from), and stays at your feet if the tote refuses it. Returns the item.
+  // is {at: 'floor', x, y}; {at: 'case', x, y}, into the empty case there, which then holds
+  // it (as Kit.make does); or {at: 'tote'}: then it is made at your feet and put in your tote
+  // as a taken item is (Kit.addToTote, which stacks it with any of its kind), taken in this
+  // department (from), and stays at your feet if the tote refuses it. Returns the item.
   function make(state, ck, where) {
     if (!kindOk(ck)) throw new Error(`Consumables.make: no kind ${ck}`);
     if (!where || !['floor', 'case', 'tote'].includes(where.at)) throw new Error('Consumables.make: where must be at floor, case or tote');
-    ensureSeals(state);
     const m = state.dept, you = state.actors[0], tote = where.at === 'tote';
     const x = tote ? you.x : where.x, y = tote ? you.y : where.y;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || !Grid.inside(m, x, y)) throw new Error(`Consumables.make: ${x},${y} is not a tile of the map`);
+    const f = where.at === 'case' ? Cases.at(state, x, y) : null;
+    if (where.at === 'case' && (!f || f.k !== 'case' || f.holds !== null)) throw new Error(`Consumables.make: there is no empty case at ${x},${y}`);
+    ensureSeals(state);
     const prefix = `${m.acc}.${m.depth}.${Cases.roomKey(state, x, y) || 'room'}.i`;
     let high = 0;
     for (const i of items(state)) if (i.uid.startsWith(prefix) && /^\d+$/.test(i.uid.slice(prefix.length))) high = Math.max(high, Number(i.uid.slice(prefix.length)));
     const it = Kit.item({ uid: prefix + (high + 1), kind: 'consumable', where: tote ? { at: 'floor', x, y } : { at: where.at, x, y }, ck, seal: sealFor(state, ck), n: 1,
       from: tote ? m.acc : null });
     state.items.push(it);
+    if (f) f.holds = it.uid;
     if (tote) Kit.addToTote(state, it);
     return it;
   }
 
   // Use one of a stack: the last one leaves your tote and is gone.
   function consume(state, it) {
-    it.n--;
+    it.n = count(it) - 1;
     if (it.n <= 0) { it.n = 0; it.where = { at: 'gone' }; state.you.tote = state.you.tote.filter(u => u !== it.uid); }
   }
 
@@ -270,15 +279,18 @@ const Consumables = (() => {
   //     options}); with only one unknown it is identified at once; with none, nothing more;
   //   Floor Plan: every tile of the department counts as explored, and dept.planRead is now;
   //   "Quiet, Please": Wake.quiet from your tile out to QUIET_RANGE walking tiles;
-  //   Re-admission Ticket: you are put at the entrance (arrival), then every hunter loses
-  //     you (Wake.lose), which calls off its pending special.
+  //   Re-admission Ticket: you are put at the entrance (arrival), even while rooted, then
+  //     every hunter but the Night Watchman loses you (Wake.lose), which calls off its
+  //     pending special; an unknown one with nowhere to put you is identified and does
+  //     nothing more (used's cause says nowhere), so its refusal never gives it away.
   function readItem(state, uid, ev) {
     ensureSeals(state);
     const it = carried(state, uid), ck = it.ck, seal = sealOf(state, it), was = knownSeal(state, seal), you = state.actors[0], m = state.dept;
     if (!it.seal) it.seal = seal;
-    const to = ck === 'ticket' ? arrival(state) : null;
+    const to = ck === 'ticket' ? arrival(state) : null, c = { k: 'consume', ck, seal, known: was };
+    if (to) { c.x = to[0]; c.y = to[1]; } else if (ck === 'ticket') c.nowhere = true;
     consume(state, it);
-    Causes.emit(state, ev, 'used', { who: 'you', item: uid, how: 'read' }, to ? { k: 'consume', ck, seal, known: was, x: to[0], y: to[1] } : { k: 'consume', ck, seal, known: was });
+    Causes.emit(state, ev, 'used', { who: 'you', item: uid, how: 'read' }, c);
     if (!was) identify(state, seal, { k: 'use', by: 'you' }, ev);
     if (ck === 'card') {
       const options = unknownSeals(state);
@@ -288,7 +300,8 @@ const Consumables = (() => {
       m.seen = '1'.repeat(m.w * m.h);
       m.planRead = state.turn;
     } else if (ck === 'quiet') Wake.quiet(state, you.x, you.y, N.QUIET_RANGE, { k: 'quiet', by: 'you' }, ev);
-    else if (ck === 'ticket') {
+    else if (ck === 'ticket' && to) {
+      // A teleport, not a step: being rooted does not stop it.
       you.x = to[0]; you.y = to[1];
       Wake.lose(state, { k: 'ticket', by: 'you' }, ev);
     }
@@ -299,13 +312,14 @@ const Consumables = (() => {
 
   // Why use(uid) of a consumable is refused, as a code, or null: one you carry, used bare
   // (a consumable is drunk or read, never aimed); a Catalogue Card needs something to
-  // identify (itself, or another seal); a Ticket needs an entrance to return to.
+  // identify (itself, or another seal); a known Ticket needs an entrance to return to. Only
+  // a known kind is refused for what it would do, so no refusal identifies an unknown one.
   function useRefusal(state, action) {
     const it = carried(state, action.uid);
     if (!it) return 'consumable_not_carried';
     if (action.x !== undefined || action.y !== undefined || action.on !== undefined) return 'use_no_target';
     if (it.ck === 'card' && knownSeal(state, sealOf(state, it)) && !unknownSeals(state).length) return 'card_all_known';
-    if (it.ck === 'ticket' && !arrival(state)) return 'ticket_no_entrance';
+    if (it.ck === 'ticket' && knownSeal(state, sealOf(state, it)) && !arrival(state)) return 'ticket_no_entrance';
     return null;
   }
   const useLegal = state => tote(state).map(it => ({ a: 'use', uid: it.uid })).filter(a => useRefusal(state, a) === null);
@@ -342,16 +356,24 @@ const Consumables = (() => {
 
   // ---- What the view model shows ----
 
-  // vis: what is shown, one entry a tile (nonzero shown), or nothing for every tile.
+  // vis: what is shown, one entry a tile (nonzero shown); Vision.visible(state) if not given,
+  // since the view model keeps to what you can see (as Kit.view does).
   //   known: the seals identified, with their kinds; plaques: the labels on shown tiles;
+  //   items: the consumables lying on the floor or in a case on shown tiles, as the view
+  //     model's items are ({uid, x, y, icon, kind, inCase}), with the seal and its shape that
+  //     tell them apart (D5.11), their family, and their kind once known (ck, else null);
   //   tote: your consumables, named; plan: planRooms; pending: the seal choice waiting, if any.
+  const shapeOf = seal => own(R.SEALS, seal) ? R.SEALS[seal].shape : null;
   function view(state, vis) {
-    const m = state.dept, shown = (x, y) => !vis || !!vis[y * m.w + x];
+    const m = state.dept, v = vis || Vision.visible(state), shown = (x, y) => Grid.inside(m, x, y) && !!v[y * m.w + x];
     const pc = state.ui && state.ui.pendingChoice;
+    const lying = items(state).filter(i => i.kind === 'consumable' && kindOk(i.ck) && (i.where.at === 'floor' || i.where.at === 'case') && shown(i.where.x, i.where.y));
     return {
       known: state.run.knownSeals.map(seal => ({ seal, ck: kindOf(state, seal) })),
       plaques: plaques(state).filter(f => shown(f.x, f.y)).map(f => ({ x: f.x, y: f.y, seal: sealFor(state, f.ck), ck: known(state, f.ck) ? f.ck : null, readable: readRefusal(state, f.x, f.y) === null })),
-      tote: tote(state).map(it => Object.assign({ uid: it.uid, n: it.n, cls: R.CONSUMABLES[it.ck].cls }, name(state, it))),
+      items: lying.map(i => { const seal = sealOf(state, i); return { uid: i.uid, x: i.where.x, y: i.where.y, icon: 'seal', kind: 'consumable', inCase: i.where.at === 'case',
+        seal: seal || null, shape: shapeOf(seal), cls: R.CONSUMABLES[i.ck].cls, ck: knownSeal(state, seal) ? i.ck : null }; }),
+      tote: tote(state).map(it => Object.assign({ uid: it.uid, n: count(it), cls: R.CONSUMABLES[it.ck].cls, shape: shapeOf(sealOf(state, it)) }, name(state, it))),
       plan: planRooms(state),
       pending: pc && pc.k === 'seal' ? { k: 'seal', options: pc.options.slice() } : null,
     };
@@ -360,29 +382,38 @@ const Consumables = (() => {
   // ---- The stand-in placement (§3.2, §5.5) ----
 
   // The department's consumables and its identifying labels, until M4's population:
-  //   CONSUMABLES_PER_DEPT consumables, each a card from the deck (draw), in a room drawn on
-  //   `${base}/items` (then the next eligible room in order if it has no free tile), on a free
-  //   floor tile drawn on that room's populate stream in pop (after the cases' and the kit's
-  //   draws, §3.2); a tile is free with no actor (gone or not: a removed exhibit keeps its
-  //   tile, R19), item or fixture on it, and not the entrance;
-  //   then ID_LABELS_PER_DEPT plaques for kinds you do not know, each kind drawn on
-  //   `${base}/items`, the first in the Intro or the first section: on a wall tile beside a
-  //   tile of its room an exhibit can stand on, with no fixture yet, drawn on the room's
-  //   populate stream.
-  // The rooms are those of the intro, section and study roles, in the plan's order.
+  //   CONSUMABLES_PER_DEPT consumables, each a card from the deck (draw), in a section or
+  //   study drawn on `${base}/items` (then the next one in order if it has no free tile), on
+  //   a free floor tile drawn on that room's populate stream in pop (after the cases' and the
+  //   kit's draws, §3.2). A tile is free with no actor (gone or not: a removed exhibit keeps
+  //   its tile, R19), item or fixture on it, not the entrance, and you can walk to it from the
+  //   entrance without passing a staff door;
+  //   then ID_LABELS_PER_DEPT plaques, each for a kind you do not know, drawn on
+  //   `${base}/items`, in the Intro, a section or a study (the first in the Intro or the first
+  //   section): on a wall tile with no fixture yet, beside a tile of its room that you can walk
+  //   to as above, so it can always be read; drawn on the room's populate stream. The plaques
+  //   follow the fixtures already made (the cases and staff doors in row-major order, then
+  //   any mimic's disguise), in the order placed (§4.1).
+  // Walking is measured on the map as it was laid out, by the exhibits' step rule (staff
+  // doors are walls), with a mimic's disguise counted as the floor it stands on, so removing a
+  // mimic moves nothing (§3.2), as Kit.standIn measures it.
   function standIn(state, base, pop) {
     const m = state.dept;
-    if (!m.rooms || !m.roomOf) return;
-    const rooms = m.rooms.filter(r => ROOMS.includes(r.role));
-    if (!rooms.length) return;
+    if (!m.rooms || !m.roomOf || !m.entrance) return;
+    const itemRooms = m.rooms.filter(r => ITEM_ROOMS.includes(r.role)), labelRooms = m.rooms.filter(r => LABEL_ROOMS.includes(r.role));
+    if (!itemRooms.length && !labelRooms.length) return;
     const where = Rng.stream(pop, `${base}/items`), populate = rm => Rng.stream(pop, `${base}/room/${rm.key}/populate`);
+    const tiles = m.tiles.slice();
+    for (const f of m.fixtures) if (f.k === 'case' && f.mimic !== null && f.mimic !== undefined) tiles[f.y] = tiles[f.y].slice(0, f.x) + '.' + tiles[f.y].slice(f.x + 1);
+    const walk = Grid.distances({ w: m.w, h: m.h, tiles, surfaces: [] }, [m.entrance], m.w * m.h, null, 'exhibit');
+    const walked = (x, y) => Grid.inside(m, x, y) && walk[y * m.w + x] >= 0;
     const inRoom = (rm, x, y) => Grid.inside(m, x, y) && m.roomOf[y] && m.roomOf[y][x] === rm.id;
     const itemAt = (x, y) => items(state).some(i => (i.where.at === 'floor' || i.where.at === 'case') && i.where.x === x && i.where.y === y);
-    const entrance = (x, y) => !!m.entrance && m.entrance[0] === x && m.entrance[1] === y;
+    const entrance = (x, y) => m.entrance[0] === x && m.entrance[1] === y;
     const floor = rm => {
       const out = [];
       for (let y = rm.y0; y <= rm.y1; y++) for (let x = rm.x0; x <= rm.x1; x++)
-        if (inRoom(rm, x, y) && Grid.ch(m, x, y) === '.' && !state.actors.some(a => Actors.covers(a, x, y)) && !itemAt(x, y) && !Cases.at(state, x, y) && !entrance(x, y)) out.push([x, y]);
+        if (inRoom(rm, x, y) && Grid.ch(m, x, y) === '.' && walked(x, y) && !state.actors.some(a => Actors.covers(a, x, y)) && !itemAt(x, y) && !Cases.at(state, x, y) && !entrance(x, y)) out.push([x, y]);
       return out;
     };
     const ORTHO = [0, 2, 4, 6];
@@ -390,7 +421,7 @@ const Consumables = (() => {
       const seen = new Set(), out = [];
       for (let y = rm.y0 - 1; y <= rm.y1 + 1; y++) for (let x = rm.x0 - 1; x <= rm.x1 + 1; x++) {
         if (!Grid.inside(m, x, y) || Grid.ch(m, x, y) !== '#' || Cases.at(state, x, y) || seen.has(y * m.w + x)) continue;
-        if (ORTHO.some(d => { const nx = x + Grid.DX[d], ny = y + Grid.DY[d]; return inRoom(rm, nx, ny) && Grid.hold(m, nx, ny); })) { seen.add(y * m.w + x); out.push([x, y]); }
+        if (ORTHO.some(d => { const nx = x + Grid.DX[d], ny = y + Grid.DY[d]; return inRoom(rm, nx, ny) && walked(nx, ny); })) { seen.add(y * m.w + x); out.push([x, y]); }
       }
       return out;
     };
@@ -404,14 +435,14 @@ const Consumables = (() => {
       }
       return null;
     }
-    for (let k = 0; k < N.CONSUMABLES_PER_DEPT; k++) {
-      const ck = draw(state), at = placeIn(rooms, floor);
+    for (let k = 0; k < N.CONSUMABLES_PER_DEPT && itemRooms.length; k++) {
+      const ck = draw(state), at = placeIn(itemRooms, floor);
       if (at) make(state, ck, { at: 'floor', x: at[0], y: at[1] });
     }
-    const unknown = KINDS.filter(ck => !known(state, ck)), first = rooms.filter(r => r.role === 'intro' || r.key === 's1');
-    for (let k = 0; k < N.ID_LABELS_PER_DEPT && unknown.length; k++) {
+    const unknown = KINDS.filter(ck => !known(state, ck)), first = labelRooms.filter(r => r.role === 'intro' || r.key === 's1');
+    for (let k = 0; k < N.ID_LABELS_PER_DEPT && unknown.length && labelRooms.length; k++) {
       const ck = unknown.splice(where.int(0, unknown.length - 1), 1)[0];
-      const at = placeIn(k === 0 && first.length ? first : rooms, walls);
+      const at = placeIn(k === 0 && first.length ? first : labelRooms, walls);
       if (at) m.fixtures.push({ k: 'plaque', x: at[0], y: at[1], ck });
     }
   }
