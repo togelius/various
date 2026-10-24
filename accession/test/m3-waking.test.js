@@ -426,6 +426,37 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(n > 100 && noises > 50, `${n} waking events, ${noises} noises, ${heardAt} heard`);
   });
 
+  test('a sleeper the Window Pole moves without waking it (§8.5) is checked where the pole leaves it: pushed out of your ring it owes no ring pip; moved within your ring or onto your row, its ring and axis pips are still due', () => {
+    const pole = [{ uid: 'w', kind: 'instrument', form: 'pole', tier: 1, where: { at: 'kit', slot: 'instrument' } }];
+    const pillar = (x, y) => OPEN.map((r, j) => j === y ? r.slice(0, x) + '#' + r.slice(x + 1) : r);
+    const use = (at, how) => [{ a: 'use', uid: 'w', x: at[0], y: at[1], how }];
+    // Pushed out of your sight round a pillar at (4, 4), and to 4 walking tiles round one at
+    // (4, 3): the boundary gives it no ring pip, and every invariant holds.
+    for (const [map, at, to] of [[pillar(4, 4), [5, 4], [6, 5]], [pillar(4, 3), [5, 2], [6, 1]]]) {
+      const s = room(C, map, [3, 3], [ex(at)], {}, { items: pole });
+      const r = H.play(C, s, use(at, 'push'), { inv: 'all', clone: true }), a = r.state.actors[1];
+      assert.equal(json([a.x, a.y, a.mode]), json([to[0], to[1], 'dormant']), `pushed from ${at}`);
+      assert.equal(pipsOf(r.events, a.uid).length, 0, `pushed to ${to}, outside your ring, it gains no pip`);
+      assert.equal(json(r.violations.map(v => v.text)), '[]', `pushed from ${at}`);
+    }
+    // Pushed from (4, 3) to (5, 3), still inside your ring: with the ring planted out, the
+    // invariant asks for the ring pip on the tile it was pushed to.
+    const X = loadCore();
+    X.Vision.ringDist = () => -1;
+    let r = H.play(X, room(X, OPEN, [3, 3], [ex([4, 3])], {}, { items: pole }), use([4, 3], 'push'), { inv: ['waking'] });
+    assert.ok(r.violations.some(v => v.inv === 'waking.ring_due' && /slept on 5,3,/.test(v.text)), json(r.violations.map(v => v.text)));
+    // Pulled from (5, 4) onto your row at (4, 3): an axis sleeper gains its axis pip there, and
+    // with the axis planted out the invariant asks for it.
+    r = H.play(C, room(C, OPEN, [3, 3], [ex([5, 4], { trigger: 'axis' })], {}, { items: pole }), use([5, 4], 'pull'), { inv: 'all', clone: true });
+    assert.equal(json([r.state.actors[1].x, r.state.actors[1].y]), json([4, 3]));
+    assert.equal(json(pipsOf(r.events, r.state.actors[1].uid).map(e => e.cause.k)), json(['ring', 'axis']));
+    assert.equal(json(r.violations.map(v => v.text)), '[]');
+    const Y = loadCore();
+    Y.Wake.onAxis = () => false;
+    r = H.play(Y, room(Y, OPEN, [3, 3], [ex([5, 4], { trigger: 'axis' })], {}, { items: pole }), use([5, 4], 'pull'), { inv: ['waking'] });
+    assert.ok(r.violations.some(v => v.inv === 'waking.axis' && /its tile 4,3,/.test(v.text)), json(r.violations.map(v => v.text)));
+  });
+
   test('the waking invariants hold over department monkeys, and each fails on its planted fault, a broken trigger or wake rule among them', () => {
     // Monkeys in the three departments with the waking invariants after every step.
     for (const acc of ['S9', 'A4', 'M11']) {

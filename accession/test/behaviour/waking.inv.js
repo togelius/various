@@ -23,14 +23,14 @@
 //   shut: sight or a step passes a tile only if it passed both before and after, a door is
 //     closed if it was either, and every surface that lay before or after counts.
 // A soundness check allows what the open map allows; a completeness check asks only for what
-// the shut map already promises. A sleeping exhibit does not move, so one asleep when the
-// step began stands where it stood until it wakes.
+// the shut map already promises. A sleeping exhibit does not move by itself, but the Window
+// Pole pushes or pulls one in your action without waking it (§8.5), so a sleeper is checked
+// on the tiles it stood on at that moment of the step (where, from its moved events).
 module.exports = (C) => {
   const { N, Grid } = C;
   const exhibit = a => a.uid !== 'you';
   const pipsOf = (events, uid) => events.filter(e => e.k === 'pip' && e.who === uid);
   const square = (x, y, s) => { const out = []; for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) out.push([x + dx, y + dy]); return out; };
-  const tilesOf = a => square(a.x, a.y, a.size || 1);
 
   // The tiles where a's footprint stood when the step's i-th event happened: where it stands
   // after the step, unless it moved later in the step, when it is where its first later step
@@ -40,6 +40,13 @@ module.exports = (C) => {
     for (let j = i + 1; j < events.length && !later; j++) if (events[j].k === 'moved' && events[j].who === a.uid) later = events[j];
     const [x, y] = later ? later.from : [a.x, a.y];
     return square(x, y, a.size || 1);
+  }
+  // The index of the step's last event before the turn boundary of turn t (-1 if none): a
+  // boundary's events carry its turn, and every event before it an earlier one.
+  function before(events, t) {
+    let i = 0;
+    while (i < events.length && events[i].turn < t) i++;
+    return i - 1;
   }
 
   // ---- The two maps ----
@@ -131,13 +138,17 @@ module.exports = (C) => {
   const gained = (e, uid, k, turn) => e.k === 'pip' && e.who === uid && e.delta > 0 && e.cause && e.cause.k === k && (turn === undefined || e.turn === turn);
   // At every boundary of the step (turns pre.turn + 1 … post.turn) while it slept, it gained a
   // pip for k, unless an earlier check of that boundary (one of `first`) had already woken it.
-  // A boundary's checks come before anything else of that turn can wake or destroy it.
+  // A boundary's checks come before anything else of that turn can wake or destroy it. why is
+  // the reason the pip was due, or a function of the boundary's turn giving it (null: not due
+  // at that boundary).
   function due(pre, post, events, uid, k, first, why) {
     const end = ended(events, uid).turn;
     for (let t = pre.turn + 1; t <= post.turn && t <= end; t++) {
+      const w = typeof why === 'function' ? why(t) : why;
+      if (!w) continue;
       if (events.some(e => gained(e, uid, k, t))) continue;
       if (events.some(e => e.k === 'woke' && e.who === uid && e.turn === t && e.cause && first.includes(e.cause.k))) continue;
-      return `${why} at the boundary of turn ${t}, and it gained no ${k} pip`;
+      return `${w} at the boundary of turn ${t}, and it gained no ${k} pip`;
     }
     return null;
   }
@@ -208,10 +219,11 @@ module.exports = (C) => {
       applies: exhibit,
       check(pre, events, post, ctx) {
         if (post.turn <= pre.turn || !asleep(pre, post, ctx)) return null;
-        const b = ctx.before, S = seen(pre, post, ctx.action), r = S.radii()[0], m = S.shut(), d = S.fromShut(), you = S.you;
-        const at = tilesOf(b).find(([x, y]) => { const t = Grid.reachDist(d, m, x, y); return Grid.hold(m, x, y) && t >= 0 && t <= r && Grid.los(m, you.x, you.y, x, y); });
-        if (!at) return null;
-        return due(pre, post, events, b.uid, 'ring', [], `it slept on ${at[0]},${at[1]}, ${Grid.reachDist(d, m, at[0], at[1])} walking tiles from you and in your sight, inside your ring (radius ${r} or more),`);
+        const S = seen(pre, post, ctx.action), r = S.radii()[0], m = S.shut(), d = S.fromShut(), you = S.you;
+        return due(pre, post, events, ctx.uid, 'ring', [], t => {
+          const at = where(events, before(events, t), ctx.actor).find(([x, y]) => { const v = Grid.reachDist(d, m, x, y); return Grid.hold(m, x, y) && v >= 0 && v <= r && Grid.los(m, you.x, you.y, x, y); });
+          return at ? `it slept on ${at[0]},${at[1]}, ${Grid.reachDist(d, m, at[0], at[1])} walking tiles from you and in your sight, inside your ring (radius ${r} or more),` : null;
+        });
       },
     },
     {
@@ -224,11 +236,12 @@ module.exports = (C) => {
       applies: exhibit,
       check(pre, events, post, ctx) {
         if (!asleep(pre, post, ctx)) return null;
-        const b = ctx.before, end = ended(events, b.uid).i, tiles = tilesOf(b);
+        const b = ctx.before, end = ended(events, b.uid).i;
         let S = null;
         for (let i = 0; i < end; i++) {
           const e = events[i];
           if (e.k !== 'noise' || RANGE[e.cls] === undefined || (e.cause && e.cause.by === b.uid)) continue;
+          const tiles = where(events, i, ctx.actor);
           if ((b.pipTurns && b.pipTurns.noise === e.turn) || events.slice(0, i).some(p => gained(p, b.uid, 'noise', e.turn))) continue;
           S = S || seen(pre, post, ctx.action);
           const d = S.noise(i, e), m = S.shut();
@@ -252,10 +265,11 @@ module.exports = (C) => {
       applies: a => exhibit(a) && a.trigger === 'axis',
       check(pre, events, post, ctx) {
         if (post.turn <= pre.turn || !asleep(pre, post, ctx)) return null;
-        const b = ctx.before, S = seen(pre, post, ctx.action), you = S.you, m = S.shut();
-        const on = tilesOf(b).find(([x, y]) => (x === you.x) !== (y === you.y) && Grid.disc(you.x - x, you.y - y, N.AXIS_RANGE) && Grid.los(m, x, y, you.x, you.y));
-        if (!on) return null;
-        return due(pre, post, events, b.uid, 'axis', ['ring'], `you stood in the row or column of its tile ${on[0]},${on[1]}, within ${N.AXIS_RANGE} and in its sight,`);
+        const S = seen(pre, post, ctx.action), you = S.you, m = S.shut();
+        return due(pre, post, events, ctx.uid, 'axis', ['ring'], t => {
+          const on = where(events, before(events, t), ctx.actor).find(([x, y]) => (x === you.x) !== (y === you.y) && Grid.disc(you.x - x, you.y - y, N.AXIS_RANGE) && Grid.los(m, x, y, you.x, you.y));
+          return on ? `you stood in the row or column of its tile ${on[0]},${on[1]}, within ${N.AXIS_RANGE} and in its sight,` : null;
+        });
       },
     },
     {
@@ -282,10 +296,11 @@ module.exports = (C) => {
       applies: a => exhibit(a) && a.trigger === 'ally_hit' && !!a.group,
       check(pre, events, post, ctx) {
         if (!asleep(pre, post, ctx)) return null;
-        const b = ctx.before, end = ended(events, b.uid).i, mine = tilesOf(b);
+        const b = ctx.before, end = ended(events, b.uid).i;
         for (let i = 0; i < end; i++) {
           const e = events[i];
           if (e.k !== 'damaged' || e.who === 'you' || e.who === b.uid) continue;
+          const mine = where(events, i, ctx.actor);
           const v = post.actors.find(a => a.uid === e.who);
           if (!v || v.group !== b.group) continue;
           if ((b.pipTurns && b.pipTurns.ally_hit === e.turn) || events.slice(0, i).some(p => gained(p, b.uid, 'ally_hit', e.turn))) continue;
