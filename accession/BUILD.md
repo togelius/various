@@ -179,7 +179,7 @@ accession/
 
 - **`…/a<k>`** is the layout attempt that made the plan (k from 0; a certified fallback counts as attempt 5), and a department's placement streams are named under it.
 - **Role keys** name rooms without dots: `intro`, `s1`, `s2` … (section galleries in tour order), `study1` …, `centre`, `coda`, `staff`.
-- **Actor uids are stable names, not indices:** `<acc>.<depth>.<roleKey>.<n>`, n counted from 1 in each room in placement order, for example `M11.3.s2.4`. The player is `you`. A body created mid-run (a splitter's half, a summoned trolley) is `<parentUid>/<k>`, with k from the parent's counter; the Night Watchman is `<acc>.<depth>.watch.<k>`; the Exit's recalled exhibits are `exit.7.<k>`.
+- **Actor uids are stable names, not indices:** `<acc>.<depth>.<roleKey>.<n>`, n counted from 1 in each room in placement order, for example `M11.3.s2.4`. The player is `you`. A body created mid-run (a splitter's half, a summoned trolley) is `<parentUid>/<k>`, with k from the parent's counter (`kids`, from 1); the Night Watchman is `<acc>.<depth>.watch.<k>`; the Exit's recalled exhibits are `exit.7.<k>`.
 - **Item uids are stable names too,** since replays carry `take(uid)` and `use(uid)`: `you.w` and `you.g` for the weapon and garment you start with; `<acc>.<depth>.<roleKey>.i<n>` for an item placed in a room, n counted per room in placement order; `<parentUid>/<k>` for a stack split from another, with k from the run's counter (`run.items`).
 - **Removing an exhibit** (`without`, §3.6) marks it `gone` after every exhibit has taken its uid and its tile and before anything else is placed; a removed exhibit keeps its tile for placement, so no uid, tile, stream or item of anything else changes.
 - **`<pin>` is the layout version.** A layout code change bumps it.
@@ -292,7 +292,7 @@ plaque = { k: 'plaque', x, y, ck }
 - **From the species,** at spawn: `arch` (an exhibit with none is a plodder), `role`, `mods`, `modParams` (a modifier's own values, such as `old_repair`'s side), `trigger` and `group`. Rules read the actor, never the pack. `speed` is its archetype's or a modifier's (§8.1). An exhibit a room for tests names by a pack or shared species takes that species' archetype, role, modifiers, `modParams`, trigger and group unless it gives its own, so its label never says what it is not.
 - **Waking and modes** (§8.2): `mode`, `pips`, `stim` (the turn of its last stimulus), `pipTurns` (the turn each trigger last added a pip), `sawYou` (it has seen you since it last woke), `home`, `target`, `lastKnown`, `guards` (the tile a tethered exhibit guards).
 - **Scheduling** (§8.1): `next`, and `notBefore`, the earliest tick of its next action after it marks a special, which only the scheduler reads and clears.
-- **The story** (§3.4): `woke` and `hunted`; `kids` and `gen` count the bodies split from it and its generation; `gone` marks an actor destroyed or removed, which is never taken out of the list during a visit.
+- **The story** (§3.4): `woke` and `hunted`; `kids` and `gen` count the bodies split from it and its generation (each split moves both halves one generation on); `gone` marks an actor destroyed or removed, which is never taken out of the list during a visit.
 - **`ax`** is plain data that only its archetype's file reads or writes; `acts` counts its actions since it last woke, the one it is taking included; `telegraph` is its pending special, `{ sp, tiles, from, gross, effect, turn, tick }`: the marked tiles in row-major order, each once and fixed when shown, and for each the tile its damage comes from (§8.1).
 - **Kept for M4, always `null` in M3:** `route` (patrols), `plan` (clockwork's shown next move) and `facing` (there is no facing, §5.4).
 - **You** carry the same fields, and also `still` and `lastAct` (your last action that cost time sets your ring, §8.2), `seated` (on a bench), `regen` (the regeneration store) and your derived stats (`weaponForm`, `reach`, `quiet`, `breaker`, `acc`, `eva`, `pad`, `dmin`, `dmax`), which `Kit.settle` keeps up to date at the end of every step.
@@ -785,6 +785,12 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - a T1 Balanced weapon and a T1 Standard garment.
 
 **Exhibits' stats** come from the role curves in §8.10, by depth (1–7, the Exit is 7), interpolated linearly between the anchors and rounded down.
+
+**Bodies that dart, split, swarm or crumble** (their Behaviour lines say the same):
+- **A darter's step back** is part of its blow: hunting and beside you, it strikes, then at once steps `DARTER_STEP_BACK` tile to an empty tile beside it that is farther from you by walking distance, never into a closed door, ties broken on its own stream; the blow and the step back together cost one blow. With no such tile it is cornered and stays.
+- **A splitter splits** after any hit it survives with 2 or more health, if a tile beside it is free (the first in direction order that it could step to, not a closed door, with nobody on it): the new half takes `SPLIT_HP_PCT`% of its health, rounded down and at least 1, and it keeps the rest. Both are then one generation on, and a body of generation `SPLIT_MAX` does not split. The half copies the body's species, numbers, maximum health and speed, hunts as the body does, starts with no statuses, and has the tile it appeared on as its home; its story is `summoned`, naming how it was made (`split`), the body it came from, who hit it, and a copy of the body's own waking.
+- **A swarm's bodies** each lose all their health to any hit, of whatever kind.
+- **A plaster cast** has `PLASTER_HP_PCT`% of its role's health and maximum health (rounded down, at least 1; a half split from a cast keeps the cast's maximum). Destroyed, it leaves dust on its tile, `PLASTER_DUST_SIZE` tiles a side, for `PLASTER_DUST_TURNS` turns.
 
 **The odds readout** (on examine, live), all integer through `int.js`. Let d(r) = max(1, r − Padding) be the net damage of a roll r, and n the number of rolls in the range:
 - Its chance to hit you, in percent.
