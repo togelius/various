@@ -1,0 +1,94 @@
+{
+ "what": "The 10-point rules checklist for grading a learner's write-up (DESIGN §18.8 G4, the learner quiz; the rules of §18.2-18.6, revision 5d). One point per item: the write-up states the rule in its own words, and nothing in it contradicts the rule. Half points are not given. Pass: at least 8 of 10.",
+ "how": "For each item, read the whole write-up and mark it 1 when the 'credit' condition holds and none of the 'no credit' statements is made; quote the sentence that earns the point. A rule stated only as a guess ('maybe', 'it seems') counts when it is the write-up's own conclusion. Wrong extra rules cost nothing unless they contradict an item here.",
+ "items": [
+  {
+   "id": 1,
+   "topic": "the drop",
+   "section": "18.2",
+   "rule": "Let go, a tile falls straight down from the hand and stops at the first place where it would overlap something; it cannot get under an overhang, so tiles only go in from the top and order matters.",
+   "credit": "says the tile falls straight down from where the hand is (no sliding sideways into place), and that it lands on the first thing below it, so a space under an overhang cannot be filled",
+   "noCredit": ["the tile is placed where you tap, wherever that is", "tiles can be slid in sideways or under other tiles", "the tile snaps to the nearest free slot"]
+  },
+  {
+   "id": 2,
+   "topic": "where the hand can aim",
+   "section": "18.1, 18.3",
+   "rule": "Squares go only at whole-tile columns over the car (the car top is four tiles long); triangles move in half-tile steps and can be aimed at most half a tile past either end of the car.",
+   "credit": "says squares move or sit in whole-tile steps (they line up with the car's four panels) and triangles in half-tile steps",
+   "noCredit": ["squares can be placed half a tile off", "every tile moves freely or smoothly"]
+  },
+  {
+   "id": 3,
+   "topic": "squares and point-up triangles hold by their bottom edge",
+   "section": "18.2",
+   "rule": "A square or a ▲ stays when at least half of its bottom edge lies on a flat top (the car, a square's top or a ▼'s top); the rest may be over a lower step, a slant or the air past the car.",
+   "credit": "says a square or ▲ needs (at least half of) its bottom edge flat on a flat top, and that half an edge is enough",
+   "noCredit": ["a tile needs its whole bottom supported", "a tile must not overhang at all", "a square can stand on triangles' points"]
+  },
+  {
+   "id": 4,
+   "topic": "points and corners do not hold",
+   "section": "18.2",
+   "rule": "A tile that touches the tower only at corners or points falls off (ONLY A POINT): for example a triangle on another triangle's point, or a square bridging two points.",
+   "credit": "says a tile resting only on a point or a corner (such as a triangle's tip) falls off",
+   "noCredit": ["a tile balanced on a point stays", "anything that touches the tower stays"]
+  },
+  {
+   "id": 5,
+   "topic": "point-down triangles hang by their sides",
+   "section": "18.2",
+   "rule": "A ▼ stays when one of its lower sides lies whole against a ▲'s side (hung by one side), or both do (in a notch between two ▲); a ▼ standing on its point falls off.",
+   "credit": "says a ▼ hangs on the slanted side of a ▲ (one side is enough; two is a notch), and that a ▼ on its point falls",
+   "noCredit": ["a ▼ needs a notch, both sides", "a ▼ can stand on its point on a flat top"]
+  },
+  {
+   "id": 6,
+   "topic": "everything balances (TIPS OVER)",
+   "section": "18.2",
+   "rule": "A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip: each piece, with everything resting on it, must have its weight over what it rests on (exactly over the end is fine).",
+   "credit": "says a tile can fall off even when held by an edge because it would make part of the tower tip or hang too far out past what holds it (overhangs and stairs are limited by balance)",
+   "noCredit": ["any tile held by an edge always stays", "tiles only ever fall off because of points"]
+  },
+  {
+   "id": 7,
+   "topic": "whole edges lock",
+   "section": "18.2 (revision 5d)",
+   "rule": "Tiles that share a whole edge are locked by their magnets and act as one piece (a tile seated squarely on a top, a ▼ hung on a ▲, squares side by side); half an edge or a point holds a piece up but does not lock it; the car holds the tower up but does not lock to it.",
+   "credit": "says tiles joined along a whole edge move or balance together as one piece (so a group can be held by what it is joined to), unlike tiles joined by half an edge or a point",
+   "noCredit": ["each tile balances on its own", "half an edge locks tiles together like a whole edge"]
+  },
+  {
+   "id": 8,
+   "topic": "the hand turns triangles and swaps dead tiles",
+   "section": "18.3",
+   "rule": "There is no flip control: at each column the hand shows a triangle the way up that fits there (at most one way can); if neither way fits it shows the one that meets the tower in red (TIPS OVER) or ▲ in red (ONLY A POINT). A tile that fits nowhere goes back in the box and the other shape is dealt.",
+   "credit": "says triangles turn themselves to the way that fits as the hand moves (the player does not flip them)",
+   "noCredit": ["a key or tap flips the triangle", "triangles always come point up"]
+  },
+  {
+   "id": 9,
+   "topic": "the weight and the sway: the only way to lose",
+   "section": "18.5",
+   "rule": "The tower's centre of weight is the brass plumb weight over the car; if it goes past a wheel the tower falls over and the run ends. Tall, thin towers sway, the sway moves the weight, and a tile landing while it still sways shakes it more.",
+   "credit": "says the tower falls (and the run ends) when its weight goes past a wheel, and that tall thin towers sway (moving the weight)",
+   "noCredit": ["the tower falls when a tile falls off", "the run ends after a number of misses", "height alone makes it fall"]
+  },
+  {
+   "id": 10,
+   "topic": "the box, THE TOPPER, the fuse and the score",
+   "section": "18.5",
+   "rule": "A run has one box of 60 tiles (42 squares, 18 triangles; NEXT shows the next); a tile that falls off is lost from the box; the last tile is THE TOPPER, and landing it on the very top ends the run TOPPED OUT, an empty box ends it otherwise; the hand lets go by itself when the fuse runs out (about 3 s, shorter as the tower grows); the score is the best height in cm, with the room's marks.",
+   "credit": "states at least three of: the box is limited (the counter, about 60 tiles), a fallen-off tile is lost, THE TOPPER ends the run on top, the fuse drops the tile by itself, the score is the height",
+   "noCredit": ["tiles are endless", "the score is the number of tiles placed"]
+  }
+ ],
+ "bonus": [
+  {
+   "topic": "BIG MAGNETS (for small children), not scored",
+   "section": "18.6",
+   "rule": "A title toggle: the magnets pull a tile to the fitting column nearest the hand within one tile; no fuse, the box never empties, the sway is gentle; KNOCK IT DOWN shoves the tower over and a new car rolls in.",
+   "why": "A learner meets it only by switching it on at the title, so it is noted when seen but not counted."
+  }
+ ]
+}

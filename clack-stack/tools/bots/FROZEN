@@ -1,0 +1,11 @@
+# The strategy bots of DESIGN §18.8 G4, frozen before tuning (2026-10-24): sha256 of every file they are made of.
+# tools/strategy.cjs refuses to judge the game with bots that differ. From here on the game is tuned, never the bots.
+# SpamBot spam.cjs; RandomBot random.cjs; StackBot stack.cjs; SpireBot, Spire2Bot, PatientSpireBot spire.cjs; CarefulBot careful.cjs;
+# what they see and how they act: percept.cjs, harness.cjs.
+d2efcbb092b243d993d1eb2f3da226eccfa87aaeef7a10e002f2a50933657294  harness.cjs
+1472e178f562a239ac28ad6473a672b94e94b513dcc28f883f523807cd568314  percept.cjs
+c169f78839ef54e6572d698c616523bb79790e7e6da7ce70085985253a8e6e37  spam.cjs
+fc9415e9cefcc89e06db6c990b2a163b92813ff9c8b5944dc1d28be45bc22b44  random.cjs
+d4ca7139fa0adc9a5b19018d1d85942d87e86adbb413a45b619f1bcf0eacdc77  stack.cjs
+8346e212c3503f8c4756f9b81d6c9eb98611d24d227db68a424481fa6a9833d8  spire.cjs
+6be2df06ea300e481725bc9bc0625d0bea413f2661dd56ea86e1155e4d9266a8  careful.cjs

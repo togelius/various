@@ -1265,7 +1265,7 @@ The game layer was rebuilt from scratch on top of the kept Art and Sfx modules (
 
 **Pace and strategy.**
 - The fuse: 3 s on a bare base, 0.12 s less per L of height, 1.2 s from 15 L (112 cm, YOU) up. It starts with the run's first drop, waits while a new base rolls in, and ticks at a half, three quarters and the last 0.3 s. Nothing else is timed.
-- The sway: ΔW = 0.12·G[grade]·clamp((λ − 1.5) / 3, 0, 1)·(1 + 4·W) per landing on the part over the brace line, G = 0.7 / 1.0 / 1.4; it settles as W·e^(−t/τ), τ = 0.5 s·max(1, Hu / 8); the part turns by up to 1.0·W rad. The (1 + 4·W) term is what makes pace matter: a tile landing on a part still swaying shakes it more. With the steps alone, a spire stacked as fast as the hand allows (a tile every 0.22 s) outruns its own sway and got as high as one stacked at a steady pace; with it, the fast spire's sway compounds and the steady one settles between drops.
+- The sway: ΔW = 0.12·G[grade]·clamp((λ − 1.5) / 3, 0, 1)·(1 + 4·W) per landing on the part over the brace line, G = 0.7 / 1.0 / 1.4; it settles as W·e^(−t/τ), τ = 0.5 s·max(1, Hu / 8) (revision 5 tuned it to max(1, Hu / 30), §18.5); the part turns by up to 1.0·W rad. The (1 + 4·W) term is what makes pace matter: a tile landing on a part still swaying shakes it more. With the steps alone, a spire stacked as fast as the hand allows (a tile every 0.22 s) outruns its own sway and got as high as one stacked at a steady pace; with it, the fast spire's sway compounds and the steady one settles between drops.
 - TRUSS: only the triangle dropped point-down into the notch (the old "second up-triangle beside a hung one" is gone with the side spots). It raises the brace line to its top edge, cuts W and the swing × 0.3, and the joints under the line flash from the base up and keep a faint glint.
 - The deal: bags of 7 squares and 3 triangles, never the same colour twice in a row, NEXT shown.
 - A tile dropped where nothing is under it is lost on the rug, the fuse restarting with the next tile. A careful player can use that to wait out a sway, which is visible and costs the tile; CarefulBot does it when every drop is red.
@@ -1349,14 +1349,14 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
   - the hand can't aim a triangle more than half a tile past the car;
   - the weight: an overhang that carries the tower's weight past a wheel tips the tower.
 - **Contacts.** Every contact segment shines, and a clack counts each neighbour touched (×2, ×3). A thin gap under part of a tile (for example 0.134 L between a square top and a triangle-row top) is left open: no fill, only a fine dotted outline, so it reads as air and not as a joint or an extra piece.
-- **Falling off.** A tile that falls off never comes to rest in the wall. It tips a little about the point it touched (or, for TIPS OVER, the part under it rocks toward its corner and back), then falls out of the wall toward you and lands flat on the rug, where it stays out of play. Placed tiles never move.
+- **Falling off.** A tile that falls off never comes to rest in the wall. It tips a little about the point it touched, which keeps its red dot (or, for TIPS OVER, the part under it rocks toward its corner and back), then falls out of the wall toward you and lands flat on the rug, on the side it tipped to, where it stays out of play. Placed tiles never move.
 - **Both ways.** If a triangle could stay both ways up at a column (the enumeration reports whether this ever happens), it takes the way that lands lower, and ▼ if both land at the same height.
 
 ### 18.3 The hand
 
-- **Snapping.** The hand moves in whole-tile steps while it holds a square and in half-tile steps while it holds a triangle, so the tile always falls in the column shown.
+- **Snapping.** The hand moves in whole-tile steps while it holds a square and in half-tile steps while it holds a triangle, so the tile always falls in the column shown. Each whole-tile step with a square gives a soft click.
 - **Range.** It stays over the car: square left edges −2…1, triangle left edges −2.5…1.5. A tile can't be aimed at the bare rug.
-- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over 80 ms as the hand changes column. If neither way fits, it shows the way that meets the tower edge to edge, in red with TIPS OVER, if one does; otherwise ▲ in red with ONLY A POINT. There is no FLIP control.
+- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over as the hand changes column: a flip top to bottom in 0.16 s, with a tick. If neither way fits, it shows the way that meets the tower edge to edge, in red with TIPS OVER, if one does; otherwise ▲ in red with ONLY A POINT. There is no FLIP control.
 - **No dead tiles.** If the tile coming into the hand fits nowhere (either way up, for a triangle), the hand puts it back in the box and takes the next tile of the other shape, visibly, with NEXT and the counter updating. If the box holds none of the other shape, it is dealt anyway.
 
 ### 18.4 Making it clear
@@ -1364,6 +1364,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 - **The ghost.** The ghost is the exact result of letting go now, from the same function as the real drop.
   - When it fits, the tile is drawn where it will sit, its contact segments shine (with a ×2 / ×3 chip for several neighbours), and a column the tile's width runs from the hand down to it.
   - When it falls off, the tile is drawn red and dashed where it would stop, with its reason: ONLY A POINT with red dots at the points it touches, or TIPS OVER with the part that would tip outlined in red, its corner dotted and its plumb line drawn.
+- **What would tip.** While the ghost shows TIPS OVER, the part that would tip rocks toward its corner and back on a loop (the release's rock, 0.17 rad, then a 0.45 s rest), drawn as a red silhouette over the tower; the tiles themselves stay put. It shows that the tiles under the tile tip with it.
 - **Every fit.** While aiming, every place the tile in the hand fits is marked faintly. This is the same function at every column, not a separate rule.
   - Squares: an outline of each fit; they never overlap.
   - ▲: a bracket along each flat stretch it can sit on.
@@ -1375,12 +1376,15 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
   |---|---|
   | the first tile | "Let go: it falls straight down." |
   | after the first landing | "Keep the weight between the wheels!" |
-  | the first triangle | "Triangles sit flat, or hang on a triangle's side." |
+  | the first triangle | "Triangles turn themselves to fit: flat on a top, or hanging on a triangle's side." |
   | the first tile that falls off | "Tiles hold by their edges. A point isn't enough." |
-  | the first TIPS OVER | "Too far out: it would tip. Balance it." |
+  | the first time the aiming ghost has shown TIPS OVER for 0.5 s, or the first TIPS OVER | "Too far out: it would tip the tiles under it." |
   | the first time a ▲ or ■ falls off because something is over its spot | "Tiles only go in from the top." |
   | the first time the sway passes 0.3 | "Tall and thin sways. Let it settle." |
+
+  A hint too long for one line on a narrow screen takes two or three.
 - **No grade words.** The clacks and the ×2 / ×3 stay.
+- **Corners and near misses.** A tile's corners are rounded no more than a square's, so a triangle's point resting on something meets it. Where a slant rises to an apex just under a tile's bottom, the thin end of that gap (under 0.3 L) is drawn open too, so the apex reads as not touching.
 
 ### 18.5 The box, the sway, the weight, the pace
 
@@ -1396,18 +1400,18 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
   - a crash ends it.
 - **The sway**, kept from §17.7 and simplified:
   - the whole tower above the car sways, with no brace line and no TRUSS;
-  - each landing adds ΔW = 0.12·G·clamp((λ − 1.5)/3, 0, 1)·(1 + 4·W), where λ = the tower's height ÷ its narrowest width, G = 1.0 for a ▼ held by one side and 0.7 for every other fit;
-  - it settles as W·e^(−t/τ);
+  - each landing adds ΔW = 0.5·G·clamp((λ − 4)/12, 0, 1)·(1 + 12·W), where λ = the tower's height ÷ its narrowest width, G = 1.0 for a ▼ held by one side and 0.7 for every other fit (tuned in §18.8 G4 on the frozen strategy bots, seeds 1–10; revision 4's values were 0.12, 1.5, 3 and 4);
+  - it settles as W·e^(−t/τ), τ = 0.5 s·max(1, Hu/30), so it settles as fast at any height a box can reach;
   - the sway moves the weight. Tall and thin sways more, and a tile landing while it still sways shakes it more.
   These are starting values, tuned in §18.8 on the tuning seeds only.
 - **The weight** works as §17.2: the only way to lose. The ghost weight shows where the weight settles and its swing on the way, and turns red if this drop may tip the tower. The results card says which wheel, and "IT WAS STILL SWAYING" when the sway carried it over.
-- **The fuse** works as §17.3: from 3 s down to 1.2 s with height. Waiting longer than the fuse means losing tiles from the box.
+- **The fuse** works as §17.3: from 3 s down to 1.5 s with height (0.12 s less per L, the floor from 12.5 L; 1.2 s cost a patient player its last squares). Waiting longer than the fuse means losing tiles from the box.
 - **Score** is the best height reached, in cm, with the room's marks. A mark stays in the list only if CarefulBot's best run reaches 0.8 of its height; the next one beyond is kept as the results card's teaser.
 
 ### 18.6 BIG MAGNETS (for small children)
 
 - **Magnet pull.** If the tile fits at the hand's column, it falls there. Otherwise the magnets pull it to the fitting column nearest the hand, within one tile. Ties go to the lower landing, then the left one. The ghost shows the pulled place.
-- **No pressure.** There is no fuse, the box never empties and its counter is hidden, and the sway and the kicks are gentle (× 0.4 and × 0.5).
+- **No pressure.** There is no fuse, the box never empties and its counter is hidden, and the sway and the kicks are gentle (× 0.15 and × 0.5; the sway's × 0.15 keeps it as gentle as before the tuning of §18.5).
 - **KNOCK IT DOWN.** A big button makes the arm shove the tower as on the title. The crash plays and a new car rolls in, and a real crash does the same.
 
 ### 18.7 Architecture
@@ -1474,6 +1478,7 @@ The strategy bots test depth.
   - input, the ghost and the fit markers matching the release and the landing, the reasons and their marks;
   - the box, the topper, the dead-tile swap, the hints, BIG MAGNETS;
   - every near miss rendered at the zoom floor with its gap visibly marked;
+  - every tile that falls off lands on the rug on the side it tipped to;
   - the ghost weight's red against what really happens: no white drop tips;
   - the display-list audit: hiding each layer changes the pixels it claims.
   - Bots see only `CS.display()` and act only through real input; a lint step fails any bot that reads the game's internals. GhostReaderBot must have zero surprises in 5,000 drops. HumanishBot (0.3 s reaction, at most 4 columns looked at per tile, release jittered by 6 px) reports how often a tile left from the wrong column, and the gate is 5% for squares.
@@ -1494,19 +1499,19 @@ The strategy bots test depth.
 
     Three fresh reviewers who have seen no spec judge it; a reviewer counts only if they flag at least 3 of the 4 plants and at most 1 golden picture. A round passes when no unplanted picture is flagged by 2 or more reviewers, and there are at most three rounds before the open flags go to the designer.
   - **Learner quiz.**
-    - **Learners.** Three fresh agents learn the game only through `tools/learn/driver.cjs`: drive mode, ops start / move / lift / tap / key / wait, one PNG per op, and a filmstrip on lift. They work in an empty sandbox; any other tool call voids the run. Each gets at most 3 runs or 150 lifts.
-    - **Write-up.** Each writes the rules down, graded against a 10-point checklist.
-    - **Quiz.** Each takes a quiz rendered with the real renderer, with every answer-revealing layer hidden:
+    - **Learners.** Three fresh agents learn the game only through `tools/learn/driver.cjs`: drive mode, ops start / move / lift / tap / key / wait, one PNG per op, and a filmstrip on lift, plus zoom (a part of one of its own pictures or quiz sheets, enlarged), so that no other tool is needed. Each works in its own empty folder outside the scratch folder that holds the key and the other learners; the driver refuses a root inside it. Any other tool call voids the run. Each gets at most 3 runs or 150 lifts in all, counted over every run folder in its root.
+    - **Write-up.** Each writes the rules down, on the driver's topic list (`topics`: what to cover, no rules in it), graded against a 10-point checklist.
+    - **Quiz.** Handed out by `tools/learn/quiz.cjs --hand-out`, which closes the game for that learner (every driver op that plays is refused from then on). The ghost items come in a second part, handed out only once the answers to the first are in; those answers are kept as handed in and are the ones graded. Each takes a quiz rendered with the real renderer at twice the pixels, cut to the hand and the tower, with every answer-revealing layer hidden:
       - 96 fit items in 12 strata, built as minimal pairs so that half fit;
       - 16 "which way up" items;
       - 12 "where can it go" items;
-      - 24 clear tip items;
+      - 24 clear tip items, made so that where the weight hangs does not answer them alone (towers whose swing decides, and drops whose side decides: a counterweight beside a drop that falls);
       - perception probes on a third of the items.
     - **Baselines** scored on the same items: always FITS, always FALLS OFF, and "fits if the thing under the middle is flat".
     - **Pass:**
       - perception probes at least 90%, or that learner's run is void;
       - fit items at least 85%, at least 15 points above the best baseline, and every stratum at least 70%;
-      - which-way and clear tip items at least 85%;
+      - which-way and clear tip items at least 85%, the tip items also at least 15 points above the best baseline on them;
       - where-can-it-go F1 at least 0.85;
       - with the ghost shown, at least 95%;
       - write-ups at least 8 of 10 points.

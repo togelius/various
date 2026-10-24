@@ -6,8 +6,11 @@
 //   selftest   the in-page selftest and real mouse drops (tools/selftest.cjs)
 //   input      the hand, the ghost, the fit markers, the reasons and their marks against the rules, the release and the
 //              landing (tools/input.cjs)
-//   tips       TIPS OVER: golden cases 14–16 and the neither-fits way through real input, the part, corner and plumb line
-//              in the display list as the rules have them, the rock, the hint, BIG MAGNETS' pull (tools/tips.cjs)
+//   tips       TIPS OVER: golden cases 14–18 and the neither-fits way through real input, the part (the whole group of
+//              a locked piece), corner and plumb line in the display list as the rules have them, the rock (one rigid
+//              body; no whole-edge joint opens, a tile landing on the part meanwhile included), the hint, BIG MAGNETS'
+//              pull (tools/tips.cjs)
+//   falls      every tile that falls off lands on the rug on the side it tipped to (tools/falls.cjs)
 //   flow       the box, THE TOPPER, the dead-tile swap, each hint once, BIG MAGNETS (tools/flow.cjs)
 //   nearmiss   every near miss at the zoom floor, its gap visibly marked (tools/nearmiss.cjs)
 //   ghostweight  no white drop tips the tower (tools/ghostweight.cjs)
@@ -37,6 +40,7 @@ const TESTS = [
   ['selftest', [T('selftest.cjs')].concat(RULES ? [RULES] : [])],
   ['input', [T('input.cjs')].concat(QUICK ? ['--drops=80', '--keys=10', '--big=20'] : [])],
   ['tips', [T('tips.cjs')]],
+  ['falls', [T('falls.cjs')]],
   ['flow', [T('flow.cjs')]],
   ['nearmiss', [T('nearmiss.cjs'), path.join(OUT, 'nearmiss')]],
   ['ghostweight', [T('ghostweight.cjs')].concat(QUICK ? ['--drops=300'] : [])],

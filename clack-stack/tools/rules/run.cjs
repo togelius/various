@@ -1,16 +1,18 @@
 'use strict';
-// The rules tiers (DESIGN §18.8), revision 5c:
+// The rules tiers (DESIGN §18.8), revision 5d:
 //   node tools/rules/run.cjs --tier=1 [--workers=4] [--compare=path|none] [--out=dir] [--resume] [--depth=7] [--mutant-depth=6]
-//   node tools/rules/run.cjs --tier=2 [--workers=4] [--compare=path|none] [--out=dir] [--resume] [--depth=10]
+//                                     [--diff=path/to/other-rules.js]
+//   node tools/rules/run.cjs --tier=2 [--workers=4] [--compare=path|none] [--out=dir] [--resume] [--depth=10] [--diff=…]
 // (also through node tools/run.cjs --tier=N).
 // Tier 1, on every rules change, about 10 minutes: rules.js loads pure; the golden cases through rules.js; the
 // exhaustive enumeration to depth 7 with every invariant (I1, the game equals the oracle field by field on every drop,
-// when there is a SPEC 5c oracle); the coverage floors; the mutants (killed by golden and the enumeration to depth 6);
-// and fitsAll's speed on 40-tile builds (the game calls it every frame while aiming).
+// when there is a SPEC 5d oracle); the coverage floors; the mutants (killed by golden and the enumeration to depth 6);
+// and fitsAll's speed on 40-tile builds (the game calls it every frame while aiming). --diff=<another rules.js> (such
+// as revision 5c's) also counts, over the enumeration, the drops whose outcome those rules give otherwise.
 // Tier 2, at G2 and before release, hours: the enumeration to depth 10 with I1 on every drop. It writes a checkpoint in
 // its report directory after every finished chunk and depth, so a run the machine cut short goes on with --resume.
-// I1 runs when there is a SPEC 5c oracle: --compare=path, or by default tools/oracle/oracle.cjs if it is sealed
-// (tools/oracle/SEALED) and answers SPEC 5c (enumerate.cjs defaultOracle); --compare=none runs rules-only (tier 2
+// I1 runs when there is a SPEC 5d oracle: --compare=path, or by default tools/oracle/oracle.cjs if it is sealed
+// (tools/oracle/SEALED) and answers SPEC 5d (enumerate.cjs defaultOracle); --compare=none runs rules-only (tier 2
 // rules-only too, which proves the invariants to depth 10 but not I1). OPEN lines are disagreements triaged as
 // questions SPEC.md does not decide (enumerate.cjs OPEN): reported on every run, they do not fail it. One line per
 // check; exit code 0 when no line FAILs.
@@ -27,13 +29,13 @@ const { spawnSync } = require('child_process');
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : d; };
 const tier = +arg('tier', 1);
 const ORACLE = E.ORACLE;
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5c';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d';
 const LABEL = {
   I1: 'I1 the game equals the oracle (SPEC §8, field by field, every drop, forced way and none)', I1CACHE: 'I1 the oracle cache gives what a fresh oracle drop gives (sampled)', I2: 'I2 fitsAll equals drop', I3: 'I3 drop is pure',
   I4: 'I4 tile order makes no difference (every build rebuilds from its tiles; key() is canonical)',
-  I5: 'I5 mirror symmetry', I6: 'I6 translation on a wide base', I7: 'I7 locality (a far tile changes a drop only through a part they share)', I8: 'I8 replaying the drop log rebuilds the build',
-  I9: 'I9 re-dropping a top tile puts it back', I10: 'I10 state: no overlap, lattice, whole-tile squares, joined to the car, every tile held by at least half an edge, every part balanced within its grip',
-  I11: 'I11 at most one way up fits at a column', I12: 'I12 pull obeys §18.6', I13: 'I13 the shine explains the outcome, and a TIPS OVER names a part that really leans past its grip (SPEC\'s base, members, side, pivot)',
+  I5: 'I5 mirror symmetry (a TIPS OVER: the mirror group and side; the base may differ by the col tie rule)', I6: 'I6 translation on a wide base', I7: 'I7 locality (a far tile changes a drop only through a group the drop joins)', I8: 'I8 replaying the drop log rebuilds the build',
+  I9: 'I9 re-dropping a top tile puts it back', I10: 'I10 state: no overlap, lattice, whole-tile squares, joined to the car, every tile held by at least half an edge, every piece\'s group balanced',
+  I11: 'I11 at most one way up fits at a column', I12: 'I12 pull obeys §18.6', I13: 'I13 the shine explains the outcome, and a TIPS OVER names the group SPEC §5c reports (base, members, side, pivot), which really is unbalanced',
   FORMAT: 'comparison format (SPEC §8, tips included)', GAP: 'the gap of SPEC §5a, recomputed from the polygons',
   OUTLINE: 'meeting the tower edge to edge depends only on the top outline under the tile', AUTO: 'no way given: the way of SPEC §6 (the neither-fits rule included)', THROWS: 'the API throws where SPEC §2 says, and only there'
 };
@@ -89,7 +91,8 @@ async function rulesTier(cfg) {
   const compare = cmpArg === 'none' ? null : cmpArg ? path.resolve(cmpArg) : probe.path;
   const oracleDepth = +arg('oracle-depth', depth);
   const open = new Set(); let t;
-  console.log(`tier ${tier}: revision 5c rules, enumeration to depth ${depth}${cfg.mutants ? ', mutants' : ''}${compare ? ', I1 against ' + compare : ', rules-only'}`);
+  const diff = arg('diff', null);
+  console.log(`tier ${tier}: revision 5d rules, enumeration to depth ${depth}${cfg.mutants ? ', mutants' : ''}${compare ? ', I1 against ' + compare : ', rules-only'}${diff ? ', diff against ' + diff : ''}`);
   if (!compare) {
     if (cfg.needsOracle && cmpArg !== 'none') { line(false, 'the oracle (I1)', undefined, probe.why + '; tier 2 is the I1 run (--compare=none runs it rules-only)'); return; }
     else line(null, 'the oracle (I1)', undefined, cmpArg === 'none' ? 'rules-only run (--compare=none)' : probe.why);
@@ -114,7 +117,7 @@ async function rulesTier(cfg) {
   // golden
   t = Date.now();
   const g = runGolden(R), gbad = g.filter(r => !r.ok);
-  line(!gbad.length, 'golden cases (§18.9, SPEC §9: 1–16, and §6\'s way pairs)', Date.now() - t, `${g.length - gbad.length}/${g.length}` + (gbad.length ? ' — ' + gbad.map(r => r.n + ': ' + r.msg).join(' | ') : ''));
+  line(!gbad.length, 'golden cases (§18.9, SPEC §9: 1–18, the regression cases R1–R5, and §6\'s way pairs)', Date.now() - t, `${g.length - gbad.length}/${g.length}` + (gbad.length ? ' — ' + gbad.map(r => r.n + ': ' + r.msg).join(' | ') : ''));
   // fitsAll speed
   if (cfg.speed) {
     t = Date.now();
@@ -126,10 +129,10 @@ async function rulesTier(cfg) {
   const out = arg('out', cfg.out);
   t = Date.now();
   const fmtO = o => o ? `; oracle ${o.drops} drops, cache hits ${o.hits}, misses ${o.misses}, verified ${o.verified}` : '';
-  const res = await E.enumerate({ depth, half: 2, workers, compare, oracleDepth, fullTo: 6, sampleHeavy: 8, checkpoint: path.join(out, 'checkpoint'), resume: process.argv.includes('--resume'),
+  const res = await E.enumerate({ depth, half: 2, workers, compare, oracleDepth, fullTo: 6, sampleHeavy: 8, checkpoint: path.join(out, 'checkpoint'), resume: process.argv.includes('--resume'), diff,
     onDepth: (p, s, restored) => console.log(`     depth ${p.depth}: ${p.builds} builds (${(p.ms / 1000).toFixed(1)} s${fmtO(p.oracle)})${restored ? ' [from the checkpoint]' : p.chunksReused ? ` [${p.chunksReused} chunks from the checkpoint]` : ''}`) });
   if (res.resumed) console.log(`     resumed at depth ${res.resumed.fromDepth}, after ${(res.resumed.elapsedBefore / 1000).toFixed(1)} s of enumeration before the restart`);
-  const sum = E.writeReports(out, res, { depth, half: 2, compare, oracleDepth });
+  const sum = E.writeReports(out, res, { depth, half: 2, compare, oracleDepth, diff });
   line(true, `enumeration to depth ${depth} on the real base (mirror images merged)`, res.ms, `${sum.builds} builds, ${sum.drops} drops; per depth ${JSON.stringify(sum.buildsPerDepth)}`);
   for (const k of E.INVS) {
     if ((k === 'I1' || k === 'I1CACHE') && !compare) continue;
@@ -153,27 +156,39 @@ async function rulesTier(cfg) {
   const tt = sum.tips;
   for (const pc of ['■', '▲', '▼']) {
     const r = tt[pc];
-    line('INFO', `TIPS OVER ${pc} (forced way)`, undefined, `${r.all}; by side ${JSON.stringify(r.side)}; by tiles in the part ${JSON.stringify(Object.fromEntries(Object.entries(r.members).sort((a, b) => parseInt(a[0]) - parseInt(b[0]))))}; base ${JSON.stringify(r.base)}`);
+    line('INFO', `TIPS OVER ${pc} (forced way)`, undefined, `${r.all}; by side ${JSON.stringify(r.side)}; by tiles in the reported piece ${JSON.stringify(r.piece)}; by tiles in its group ${JSON.stringify(r.group)}; the piece is ${JSON.stringify(r.base)}`);
   }
+  line('INFO', 'which of SPEC §5c\'s rules picked the group reported (TIPS OVER, forced ways)', undefined, JSON.stringify(sum.ties));
   line('INFO', 'neither way up fits a triangle (forced ways at one column)', undefined, JSON.stringify(tt.neitherWayFits));
-  if (Object.keys(tt.locality).length) line('INFO', 'I7: a tile added away from a drop that changed its balance through a part they share', undefined, JSON.stringify(tt.locality));
+  if (Object.keys(tt.locality).length) line('INFO', 'I7: a tile added away from a drop, in a group the drop joins', undefined, JSON.stringify(tt.locality));
   const xs = sum.extremes, fx = k => xs[k] ? `${JSON.stringify(xs[k].value)} after ${xs[k].log.join(' ')}` : 'none';
-  line('INFO', 'the largest lean that stays (lean ÷ grip)', undefined, fx('largest lean that stays (lean ÷ grip)'));
-  line('INFO', 'the most tiles in a part leaning within its grip', undefined, fx('most tiles in a part leaning within its grip'));
-  line('INFO', 'parts leaning within their grip (summed over builds)', undefined, JSON.stringify(sum.leaning));
+  line('INFO', 'locks made by fitting drops, by direction', undefined, JSON.stringify(Object.fromEntries(Object.entries(sum.locks).filter(([k]) => /fits locking/.test(k)))));
+  line('INFO', 'the largest locked piece', undefined, fx('largest locked piece (tiles)'));
+  line('INFO', 'the tallest group standing on half an edge', undefined, fx('tallest group standing on half an edge (from its foot to its top, tiles)'));
+  line('INFO', 'the tallest group of a locked piece (2+ tiles) standing on half an edge', undefined, fx('tallest group of a locked piece (2+ tiles) standing on half an edge (tiles)'));
+  line('INFO', 'knife-edges: groups exactly over an end of their support (summed over builds)', undefined, `${sum.locks['groups exactly over an end of their support (knife-edge), summed over builds'] || 0}; the most tiles in one: ${fx('most tiles in a group exactly over an end of its support')}`);
   line('INFO', 'the tallest structure standing on a hung ▼', undefined, fx('tallest structure standing on a ▼ held by one side (its height above the ▼\'s top, tiles)'));
   line('INFO', 'nothing fits at all (no square, no triangle either way, anywhere)', undefined, `${sum.noFit} of ${sum.builds} builds` + (sum.nothingFits.length ? '; e.g. ' + sum.nothingFits.map(e => e.log.join(' ')).join(' | ') : ''));
   line('INFO', 'builds that do not rebuild lowest first (a counterweight must come before the tile it balances)', undefined, `${sum.reordered} of ${sum.builds}`);
   console.log(`INFO both ways fit at ${sum.bothWays.cols} of ${sum.bothWays.ofTriangleCols} triangle columns; no square fits on ${sum.noSquare} of ${sum.builds} builds, no triangle on ${sum.noTriangle}; ▼ fits: ${sum.notchDown} in a notch, ${sum.oneSideDown} by one side, ${sum.pointAir} with the point in the air`);
+  if (diff) {
+    const d = sum.diff;
+    line('INFO', `the other rules (${diff}) on the same builds`, undefined, `${d.builds || 0} of ${sum.builds} builds can be made by them too (${d['builds the other rules cannot make'] || 0} cannot)`);
+    for (const m of ['sq', 'up', 'down', 'auto']) {
+      const ks = Object.keys(d).filter(k => k.startsWith(m + ': '));
+      line('INFO', `diff, ${m === 'auto' ? 'triangles with no way given' : m === 'sq' ? 'squares' : 'triangles forced ' + m}`, undefined, `${d[m + ' drops'] || 0} drops; ` + (ks.length ? ks.map(k => `${k.slice(m.length + 2)}: ${d[k]}`).join('; ') : 'no change'));
+    }
+  }
   // mutants
   if (cfg.mutants) {
     t = Date.now();
     const md = +arg('mutant-depth', 6);
     const M = await runAll({ depth: md, jobs: workers, compare });
-    const alive = M.filter(m => !m.killed), bal = M.filter(m => /^5c:/.test(m.what));
-    line(!alive.length && M.length >= 15 && bal.length >= 10, `mutants killed by golden + enumeration to depth ${md} + invariants` + (compare ? ' (I1 among them)' : ''), Date.now() - t, `${M.length - alive.length}/${M.length} (${bal.length} of them balance mutants)` + (alive.length ? ' — survivors: ' + alive.map(m => m.name).join(', ') : '') +
+    const alive = M.filter(m => !m.killed && !m.equivalent), eq = M.filter(m => !m.killed && m.equivalent), bal = M.filter(m => /^(balance|lock):/.test(m.what)), locks = M.filter(m => /^lock:/.test(m.what));
+    line(!alive.length && M.length >= 15 && bal.length >= 10 && locks.filter(m => m.killed).length >= 10, `mutants killed by golden + enumeration to depth ${md} + invariants` + (compare ? ' (I1 among them)' : ''), Date.now() - t, `${M.length - alive.length - eq.length}/${M.length} killed (${bal.length} balance mutants, ${locks.length} of them lock mutants, ${locks.filter(m => m.killed).length} of those killed)` + (eq.length ? `; ${eq.length} equivalent` : '') + (alive.length ? ' — survivors: ' + alive.map(m => m.name).join(', ') : '') +
       (compare ? `; I1 alone kills ${M.filter(m => m.i1).length}/${M.length} (not: ${M.filter(m => !m.i1).map(m => m.name).join(', ') || 'none'})` : ''));
-    for (const m of bal) console.log(`     ${m.killed ? 'killed  ' : 'SURVIVED'} ${m.name}: ${m.by.join('; ').slice(0, 220)}`);
+    for (const m of bal) console.log(`     ${m.killed ? 'killed  ' : m.equivalent ? 'EQUIVAL.' : 'SURVIVED'} ${m.name}: ${m.by.join('; ').slice(0, 220)}`);
+    if (eq.length) { open.add('mutants'); line('OPEN', `mutants no build tells apart from the rules (marked equivalent in mutants.json): ${eq.map(m => m.name).join(', ')}`, undefined, eq[0].equivalent.slice(0, 200) + '…'); }
     fs.writeFileSync(path.join(out, 'mutants.json'), JSON.stringify(M, null, 1));
   }
   console.log(`${failed ? 'FAIL' : 'PASS'} tier ${tier}: ${failed} failing check(s), ${open.size} open question(s) for the designer${open.size ? ' (' + [...open].join(', ') + ')' : ''}, in ${((Date.now() - T0 + (res.resumed ? res.resumed.elapsedBefore : 0)) / 1000).toFixed(1)} s${res.resumed ? ' (with the enumeration before the restart)' : ''}; reports in ${out}`);

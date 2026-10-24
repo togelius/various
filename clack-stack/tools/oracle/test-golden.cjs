@@ -1,8 +1,8 @@
 'use strict';
-// Golden cases of SPEC.md §9 (revision 5c, half = 2). Exit code 0 iff every case passes.
+// Golden cases of SPEC.md §9 (revision 5d, half = 2). Exit code 0 iff every case passes.
 // -v : print every drop's result
 const { newBuild, drop, place, _details, _record } = require('./oracle.cjs');
-_record(true); // keep every group's lean for the notes of cases 6 and 9
+_record(true); // keep every piece's group for the notes of cases 6, 9, 17 and 18
 
 const VERBOSE = process.argv.includes('-v');
 const H = [0, 1]; // sqrt3/2 as [p,q]
@@ -20,11 +20,12 @@ function parse(tok) {
 const J = (v) => JSON.stringify(v);
 const seg = (a, b) => [a, b];
 const hasSeg = (r, s) => r.contacts.segments.some((t) => J(t) === J(s));
-// lean of the group of tile t (index in drop order) in the new build of result r; m and grip are x32
-function groupLean(r, t) {
-  const g = (_details(r).groups || []).find((x) => x.t === t);
-  return g ? { side: g.side, m32: g.m32, grip32: g.grip32, fails: g.fails } : null;
-}
+// the group record of the piece holding tile t (index in drop order) in the new build of result r:
+// piece and group as tile indices, W8 = 8W, M32 = 32M, xmin/xmax in X (= 2x)
+function groupOf(r, t) { return (_details(r).groups || []).find((g) => g.piece.includes(t)) || null; }
+// the piece's weight exactly over the support end X: 32M = 32 W x = W8 * 2X
+const overEnd = (g, X) => J(g.M32) === J([2 * X * g.W8[0], 2 * X * g.W8[1]]);
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 // expect: {outcome, reason, gap, tips} for the last drop (reason, gap and tips are checked always:
 // null unless given); check(results) checks the notes in the spec text
@@ -56,10 +57,12 @@ const CASES = [
   { n: 5, drops: '▼0', expect: { outcome: 'off', reason: 'ONLY A POINT' },
     check: (rs) => (J(rs[0].contacts) === J({ segments: [], points: [[1, 0, 0]] }) ? null : `contacts ${J(rs[0].contacts)}`) },
   { n: 6, drops: '■-1 ■-1 ▲-1 ▼-1.5 ▲-1.5 ▼-2', expect: { outcome: 'fit' },
-    note: '▼−1.5 on ▲−1\'s left side; ▲−1.5 on ▼−1.5\'s top; ▼−2 on ▲−1.5\'s left side; ▼−1.5\'s group leans left by √3/8 ≤ 1/4',
+    note: 'all six tiles are one piece (five whole-edge locks), one group, standing on the car from x −1 to 0',
     check: (rs) => {
-      const lean = groupLean(rs[5], 3); // tile 3 is ▼-1.5
-      if (J(lean) !== J({ side: 'left', m32: [0, 4], grip32: 8, fails: false })) return `▼-1.5 group lean ${J(lean)}`;
+      const gs = _details(rs[5]).groups;
+      if (gs.length !== 1 || J(gs[0].piece) !== J(range(0, 5)) || J(gs[0].group) !== J(range(0, 5))) return `pieces ${J(gs)}`;
+      if (gs[0].xmin !== -2 || gs[0].xmax !== 0 || gs[0].side !== null) return `support or side ${J(gs[0])}`;
+      if (J(_details(rs[5]).locksAll.map((L) => L.join('-'))) !== J(['0-1', '1-2', '2-3', '3-4', '4-5'])) return `locks ${J(_details(rs[5]).locksAll)}`;
       const yb = (r) => r.verts.reduce((m, v) => (v[1] < m[1] || (v[1] === m[1] && v[2] < m[2]) ? v : m));
       if (J(yb(rs[1]).slice(1)) !== J([2, 0])) return `second square base ${J(yb(rs[1]))}`;
       if (J(yb(rs[2]).slice(1)) !== J([4, 0])) return `▲-1 base ${J(yb(rs[2]))}`;
@@ -72,8 +75,14 @@ const CASES = [
     note: 'gap 1 − √3/2: right half over ▼−1\'s top',
     check: (rs) => (hasSeg(rs[3], seg([-3, 2, 0], [-2, 2, 0])) ? null : `no contact on the square top ${J(rs[3].contacts)}`) },
   { n: 8, drops: '■-1 ■0 ▲-0.5', expect: { outcome: 'fit', gap: null } },
-  { n: 9, drops: '▲-1 ▼-0.5 ▲0', expect: { outcome: 'fit', gap: [0, 1] }, note: 'gap √3/2: right half over the car top; ▼−0.5\'s group leans right by √3/8 ≤ 1/4',
-    check: (rs) => { const lean = groupLean(rs[2], 1); return J(lean) === J({ side: 'right', m32: [0, 4], grip32: 8, fails: false }) ? null : `▼-0.5 group lean ${J(lean)}`; } },
+  { n: 9, drops: '▲-1 ▼-0.5 ▲0', expect: { outcome: 'fit', gap: [0, 1] },
+    note: 'gap √3/2: right half over the car top; the group of the piece ▲−1 + ▼−0.5 (with ▲0, half on its top, unlocked) has its weight exactly over x = 0, the end of its support',
+    check: (rs) => {
+      const g = groupOf(rs[2], 0), g2 = groupOf(rs[2], 2);
+      if (J(g.piece) !== J([0, 1]) || J(g.group) !== J([0, 1, 2]) || g.xmin !== -2 || g.xmax !== 0 || !overEnd(g, 0) || g.fails) return `▲-1 + ▼-0.5 group ${J(g)}`;
+      if (J(g2.piece) !== J([2]) || J(g2.group) !== J([2]) || !overEnd(g2, 1)) return `▲0 group ${J(g2)}`;
+      return J(_details(rs[2]).locksNew) === '[]' ? null : `▲0 locked ${J(_details(rs[2]).locksNew)}`;
+    } },
   { n: 10, drops: '▲0 ▲0', expect: { outcome: 'off', reason: 'ONLY A POINT' } },
   { n: 11, drops: null, expect: { throws: true }, run: (b) => drop(b, 'sq', -1) },
   { n: 12, drops: '■-1 ■0 ▲-1 ▲0 ▼-0.5 ▼-1.5 ▼0.5 ▲-1.5 ▲-0.5 ▲0.5 ▼-1 ▼0 ■-1 ■0', expect: { allFit: true } },
@@ -93,8 +102,32 @@ const CASES = [
     note: 'base ▲−1.5, members 2, right, pivot (−1, 1)' },
   { n: 16, drops: '▲-1 ▼-0.5 ■0', expect: { outcome: 'off', reason: 'TIPS OVER',
     tips: { base: [[-2, 0, 0], [-1, 0, 1], [0, 0, 0]], members: 3, side: 'right', pivot: [0, 0, 0] } },
-    note: 'base ▲−1, members 3, right, pivot (0, 0); ▼−0.5 fails too and ties on the lowest point',
-    check: (rs) => (J(rs[2].contacts) === J({ segments: [[[0, 0, 1], [1, 0, 1]]], points: [] }) ? null : `contacts ${J(rs[2].contacts)}`) },
+    note: 'base ▲−1, members 3, right, pivot (0, 0): the piece ▲−1 + ▼−0.5 (tie on the lowest point inside it, smaller col); the ■ alone is over the end of its half edge',
+    check: (rs) => {
+      if (J(rs[2].contacts) !== J({ segments: [[[0, 0, 1], [1, 0, 1]]], points: [] })) return `contacts ${J(rs[2].contacts)}`;
+      const d = _details(rs[2]);
+      return d.failing.length === 1 && d.baseTileTie && d.tie === null && d.baseIdx === 0 ? null : `failing ${J(d)}`;
+    } },
+  { n: 17, drops: '▲0.5 ▼0 ▲0 ▼0.5 ■1', expect: { outcome: 'fit', gap: [0, 2] },
+    note: 'the four triangles are one piece standing on the car from x 0.5 to 1.5; the ■, half on ▼0.5\'s top and unlocked, keeps the weight over it',
+    check: (rs) => {
+      const r = rs[4], g = groupOf(r, 0), gs = groupOf(r, 4);
+      if (J(g.piece) !== J([0, 1, 2, 3]) || J(g.group) !== J([0, 1, 2, 3, 4]) || g.xmin !== 1 || g.xmax !== 3 || g.fails) return `triangle piece ${J(g)}`;
+      if (J(gs.piece) !== J([4]) || J(gs.group) !== J([4])) return `square piece ${J(gs)}`;
+      if (!hasSeg(r, seg([2, 0, 2], [3, 0, 2]))) return `■ not half on ▼0.5's top ${J(r.contacts)}`;
+      return J(_details(r).locksNew) === '[]' ? null : `■ locked ${J(_details(r).locksNew)}`;
+    } },
+  { n: 18, drops: '■-2 ▲-1.5 ▼-2 ■-2 ▲-2.5 ▼-1 ■-1 ■-1', expect: { outcome: 'off', reason: 'TIPS OVER',
+    tips: { base: [[-4, 2, 1], [-3, 2, 0], [-2, 2, 1]], members: 7, side: 'right', pivot: [-2, 2, 0] } },
+    note: 'base ▼−2, members 7, right, pivot (−1, 1): a piece of six (one lock is two squares side by side) plus ▲−2.5 on top; three tiles tie on its lowest point',
+    check: (rs) => {
+      const r = rs[7], d = _details(r);
+      if (!d.locksAll.some((L) => J(L) === J([3, 6]))) return `no side-by-side lock ■-2 / ■-1 ${J(d.locksAll)}`;
+      if (!hasSeg(rs[6], seg([-2, 2, 1], [-2, 4, 1]))) return `■-1 not beside ■-2 ${J(rs[6].contacts)}`;
+      const g = groupOf(r, 1);
+      if (J(g.piece) !== J([1, 2, 3, 5, 6, 7]) || J(g.group) !== J([1, 2, 3, 4, 5, 6, 7]) || !g.fails) return `failing group ${J(g)}`;
+      return d.failing.length === 1 && d.baseTileTie && d.baseIdx === 2 ? null : `failing ${J(d.failing)} base ${d.baseIdx}`;
+    } },
 ];
 
 let failed = 0;

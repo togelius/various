@@ -34,9 +34,19 @@ function inside(pt, poly) {
   }
   return c;
 }
+// which way up the ghost is: from its outline; but a tower swaying hard turns it, and a triangle turned by 30° has an
+// upright edge and looks the same either way up (a ▲ turned one way is a ▼ turned the other), so then from the tile in
+// the hand, which shows the way the drop takes
+function ghostShape(p) {
+  const g = p.ghost.poly;
+  if (g.length === 4) return 'sq';
+  const ys = g.map(q => q[1]).sort((a, b) => a - b), lo = ys[1] - ys[0], hi = ys[2] - ys[1];
+  if (Math.abs(lo - hi) < 0.25 * Math.max(lo, hi) && p.hand && (p.hand.way === 'up' || p.hand.way === 'down')) return p.hand.way;
+  return shapeOf(g);
+}
 // does a fit marker mark the ghost's place
 function marked(p, L) {
-  const g = p.ghost.poly, kind = shapeOf(g);
+  const g = p.ghost.poly, kind = ghostShape(p);
   for (const m of p.markers) {
     if (kind === 'sq' && m.kind === 'outline' && P.polyDist(m.pts, g) < 1.5) return true;
     if (kind === 'down' && m.kind === 'chevron' && m.pts.every(q => inside(q, g))) return true;

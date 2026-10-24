@@ -4,7 +4,9 @@
 // (a tablet-sized window, mouse): the title; the first drop with its hint; paused (RESUME, MENU); the title with BIG
 // MAGNETS turned on; aiming a square (its place shining, the ×2
 // chip, every square fit outlined, the whole-tile ticks); a triangle (▲ carets, ▼ chevrons, turned point-down to hang);
-// ONLY A POINT; TIPS OVER (with rules that have it) and its rock when let go (the marks kept through it); a drop that
+// ONLY A POINT; TIPS OVER (with rules that have it) and its rock when let go (the marks kept through it); whole edges
+// locked (golden cases 17 and 18: a locked piece carrying a square half on its top, and a locked block that tips, the
+// whole group outlined and rocking as one); a drop that
 // may take the tower over (the amber ghost, PAST THE WHEEL!); an open thin gap; a tile falling off and leaving the wall;
 // the box's counter near its end with THE TOPPER next; THE TOPPER aimed where it tops out (gold, TOPS OUT!), TOPPED OUT!
 // and its card; THE BOX IS EMPTY! and its card; the dead-tile swap; a sway; the weight amber; a tall tower (the weight
@@ -168,6 +170,35 @@ const fail = m => { bad++; console.log('  FAIL ' + m); };
           await wait(page, 0.6);
           await shot(page, 'tips-over-leaves-wall');
         });
+      }
+      // 6c. whole edges lock (revision 5d): golden case 17, four triangles locked into one piece carrying a square half on
+      // their top (it stays), and golden case 18, a block of locked tiles on half a square's top and a point (TIPS OVER:
+      // the whole group outlined, its weight 0.014 L past the square's corner), and 18's group rocking as one when let go
+      const G18 = ['■-2', '▲-1.5', '▼-2', '■-2', '▲-2.5', '▼-1', '■-1'];
+      await quiz('locked-stays', { build: ['▲0.5', '▼0', '▲0', '▼0.5'], hand: '■1' }, () => {
+        const d = CS.display(), g = d.ghost;
+        if (!g || g.style !== 'fit' || g.color !== 'white' || g.reason) return 'ghost ' + JSON.stringify(g && { style: g.style, color: g.color, reason: g.reason });
+        return d.hand.red ? 'the held tile is red' : '';
+      }, true);
+      if (want('locked-tips') || want('locked-tips-rock')) {
+        const has = await (async () => { const { context, page } = await open({ autostart: 1, nohint: 1 }); await page.waitForFunction(() => window.CS); const r = await page.evaluate(() => CS.state().reasons); await context.close(); return r.includes('TIPS OVER'); })();
+        if (has) await quiz('locked-tips', { build: G18, hand: '■-1' }, () => {
+          const g = CS.display().ghost;
+          if (!g || g.reason !== 'TIPS OVER' || !g.marks || g.marks.part.length !== 7 || JSON.stringify(g.marks.members) !== '[1,2,3,4,5,6,7]' || g.marks.side !== 'right' || !g.marks.pivot || !g.marks.plumb)
+            return 'ghost ' + JSON.stringify(g && { reason: g.reason, part: g.marks && g.marks.part.length, members: g.marks && g.marks.members, side: g.marks && g.marks.side });
+          return CS.display().hand.red ? '' : 'the held tile is not red';
+        }, true);
+        if (has) await drive('locked-tips-rock', {}, async (page, ptr) => {
+          await page.evaluate(b => { CS.build(b); CS.setPiece('sq'); CS.setBox(['sq', 'sq', 'sq', 'top']); }, G18);
+          await wait(page, 1.2);
+          await ptr.drop(-2);
+          let a = 0;
+          for (let i = 0; i < 120 && Math.abs(a) < 0.15; i++) { await page.evaluate(() => CS.step(2)); a = await page.evaluate(() => { const r = CS.display().rockMarks; return r ? r.a : 0; }); }
+          await shot(page, 'locked-tips-rock');
+          const d = await display(page), rm = d.rockMarks;
+          if (!rm || rm.part.length !== 7 || JSON.stringify(rm.rocking) !== '[1,2,3,4,5,6]' || Math.abs(a) < 0.15) fail(`${tag} locked tips rock: ${JSON.stringify({ a, rm: rm && { part: rm.part.length, members: rm.members, rocking: rm.rocking } })}`);
+        });
+        else console.log(`  (${tag} locked-tips: these rules have no TIPS OVER; skipped)`);
       }
       // 6b. a drop that may take the tower over: the ghost amber and solid, PAST THE WHEEL! by it, the held tile's rims amber
       await drive('topple-warning', {}, async (page, ptr) => {

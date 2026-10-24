@@ -1,4 +1,4 @@
-c8908d5b9d7110c37251d26eb8db375ad196e5e2ee6d737fb53257582ba0a5f3  oracle.cjs
-# Sealed 2026-10-23 (revision 5c, round 1), as delivered by the oracle's author, who had only SPEC.md (revision 5c).
+84de759ae3466883ebe967d8975b83787b79287f0d4b405491be59fa56e6529d  oracle.cjs
+# Sealed 2026-10-23 (revision 5d, round 1), as delivered by the oracle's author, who had only SPEC.md (revision 5d).
 # After sealing, oracle.cjs changes only with a failing golden case and a quoted SPEC/§18 sentence (DESIGN §18.8 G1);
 # every change is logged in CHANGES.md and this hash is updated with it. Check: sha256sum -c SEALED

@@ -172,8 +172,9 @@ async function spire(page) { await page.evaluate(() => { CS.clear(); CS.build(['
       await until(page, () => CS.events.some(e => e.type === 'fuse'), null, 8000).catch(() => {});
       const fz = await page.evaluate(() => { const f = CS.events.find(e => e.type === 'fuse'); const r = CS.events.find(e => e.type === 'release' && e.src === 'fuse'); return f && r && { fuse: f.fuse, at: r.t }; });
       check(!!fz && Math.abs(fz.at - s0.readyAt - fz.fuse) < 0.05 && fz.fuse > 2.5, 'the fuse lets go on its own after ' + (fz ? (fz.at - s0.readyAt).toFixed(2) : '?') + ' s (ring ' + (fz ? fz.fuse.toFixed(2) : '?') + ' s on a low tower)');
-      const fr = await page.evaluate(() => [fuseFor(0), fuseFor(15), fuseFor(40)]);
-      check(Math.abs(fr[0] - 3) < 1e-9 && Math.abs(fr[1] - 1.2) < 1e-9 && fr[2] === 1.2, 'the ring is 3 s on a bare base and 1.2 s from 15 L (112 cm, YOU) up');
+      // (the fuse curve as tuned in DESIGN §18.8 G4: 3 s on a bare base, 0.12 s less a tile of height, 1.5 s from 12.5 L up)
+      const fr = await page.evaluate(() => [fuseFor(0), fuseFor(12.5), fuseFor(40), fuseFor(10)]);
+      check(Math.abs(fr[0] - 3) < 1e-9 && Math.abs(fr[1] - 1.5) < 1e-9 && fr[2] === 1.5 && Math.abs(fr[3] - 1.8) < 1e-9, 'the ring is 3 s on a bare base, 1.8 s at 10 L and 1.5 s from 12.5 L (94 cm) up');
       // a swaying spire; Space drops on it; it falls; Enter is AGAIN
       await ready(page);
       await spire(page);
@@ -255,7 +256,7 @@ async function spire(page) { await page.evaluate(() => { CS.clear(); CS.build(['
       // the first triangle
       await page.evaluate(() => CS.setPiece('tri'));
       await until(page, () => CS.state().hintNow === 'tri', null, 6000).catch(() => {});
-      check((await page.evaluate(() => CS.tipBox() && CS.tipBox().text)) === "Triangles sit flat, or hang on a triangle's side.", 'the first triangle: "Triangles sit flat, or hang on a triangle\'s side."');
+      check((await page.evaluate(() => CS.tipBox() && CS.tipBox().text)) === "Triangles turn themselves to fit: flat on a top, or hanging on a triangle's side.", 'the first triangle: "Triangles turn themselves to fit: flat on a top, or hanging on a triangle\'s side."');
       await gameWait(page, 4.6);
       // a triangle turns itself to the way that fits at the hand's column, in TURN_T, no FLIP
       await page.evaluate(() => { CS.clear(); CS.build(['▲-1', '▲0.5']); CS.setPiece('tri'); });
@@ -265,9 +266,9 @@ async function spire(page) { await page.evaluate(() => { CS.clear(); CS.build(['
       const wayU = (await st(page)).way;
       await page.mouse.move(xd, Y); await raf(page); await raf(page);
       const turning = await page.evaluate(() => CS.display().hand);
-      await sleep(150);
+      await sleep(300);
       const wayD = await page.evaluate(() => CS.display().hand);
-      check(wayU === 'up' && wayD.way === 'down' && !wayD.turning && (await page.evaluate(() => CS.events.some(e => e.type === 'turn' && e.way === 'down'))), 'a triangle turns itself point-down where it can hang (' + wayU + ' -> ' + wayD.way + (turning.turning ? ', turning' : '') + '), in 80 ms');
+      check(wayU === 'up' && wayD.way === 'down' && !wayD.turning && (await page.evaluate(() => CS.events.some(e => e.type === 'turn' && e.way === 'down'))), 'a triangle turns itself point-down where it can hang (' + wayU + ' -> ' + wayD.way + (turning.turning ? ', turning' : '') + '), turning over in TURN_T (0.16 s)');
       // the first tile that falls off: a ▲ on a ▲'s point
       await page.evaluate(() => { CS.setPiece('tri'); });
       const off1 = await dropAt(page, -2, 'mouse');
@@ -300,7 +301,7 @@ async function spire(page) { await page.evaluate(() => { CS.clear(); CS.build(['
         const rk = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); (function f() { const d = CS.display(), o = d.falling.find(x => x.outcome === 'off'); if (o && o.stage === 'rock') res(true); else if (performance.now() - t0 > 3000) res(false); else requestAnimationFrame(f); })(); }));
         check(rk, 'the part rocks toward its corner and back before the tile leaves');
         await until(page, () => CS.state().hintNow === 'tips', null, 6000).catch(() => {});
-        check((await page.evaluate(() => CS.tipBox() && CS.tipBox().text)) === 'Too far out: it would tip. Balance it.', 'the first TIPS OVER: "Too far out: it would tip. Balance it."');
+        check((await page.evaluate(() => CS.tipBox() && CS.tipBox().text)) === 'Too far out: it would tip the tiles under it.', 'the first TIPS OVER: "Too far out: it would tip the tiles under it."');
       } else console.log('  (no TIPS OVER in these rules: its hint is not checked)');
       // no dead tiles: four ▲ points over the whole car leave no place for a square
       await page.evaluate(() => { CS.clear(); CS.build(['■-2', '■-1', '■0', '■1', '▲-2', '▲-1', '▲0', '▲1']); CS.setPiece('sq'); CS.setBox(['sq', 'sq', 'tri', 'sq', 'top']); });

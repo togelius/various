@@ -1,11 +1,12 @@
 'use strict';
-// The rules sandbox renderer (DESIGN §18.8 G2), revision 5c: draws a build from rules.js alone, as plain outlined
+// The rules sandbox renderer (DESIGN §18.8 G2), revision 5d: draws a build from rules.js alone, as plain outlined
 // shapes in the tiles' colours on white, with the tile in the hand, its dotted fall line and, optionally, the outcome:
 // - stays: the tile where it will sit, its contact segments shining (gold), a ×2 / ×3 chip for several neighbours;
 // - falls off, ONLY A POINT: the tile red and dashed where it stops, and red dots at the points it touches;
-// - falls off, TIPS OVER (§18.2, §18.4): the tile red and dashed where it stops, the part that would tip (the tiles of
-//   rules' tips.members, the new tile among them) outlined in red, a red dot at the pivot, and a small plumb line from
-//   the part's centre of weight down past the pivot, labelled TIPS OVER.
+// - falls off, TIPS OVER (§18.2, §18.4): the tile red and dashed where it stops, the group that would tip (the tiles of
+//   rules' tips.members, the new tile among them) drawn whole, as one piece: every tile of it tinted red, one red
+//   outline round the outside of the group (the joints inside it only faintly), a red dot at the pivot, and a small
+//   plumb line from the group's centre of weight down past the pivot, labelled TIPS OVER.
 // A thin gap (under 0.3 tile, e.g. 0.134 or 0.268) between part of a tile's bottom and the flat top below it is left
 // OPEN (§18.2): no fill, only a fine dotted outline, so it reads as air, not as a joint or an extra piece.
 //
@@ -22,8 +23,8 @@ const canon = require('../lib/canon.cjs');
 let pw;
 try { pw = require('playwright'); } catch (e) { pw = require('/opt/node-tools/node_modules/playwright'); }
 
-// the tiles' colours; red is left out (revision 5c) because red is what marks a tile that falls off and the part
-// that would tip
+// the tiles' colours; red is left out (since revision 5c) because red is what marks a tile that falls off and the
+// group that would tip
 const COLORS = ['#2F5BEA', '#FFD21F', '#2EBF4F', '#FF7A1A', '#5EC8F2', '#8A4FE0'];
 const STROKE = { '#FFD21F': '#D9A800', '#5EC8F2': '#2FA6D6' }; // pale colours get a deeper outline on white
 const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#4a5068';
@@ -95,6 +96,36 @@ function weightCentre(items) {
     W += w; x += w * c.x; y += w * c.y;
   }
   return { x: x / W, y: y / W };
+}
+// The outline of a set of polygons drawn as one shape: every edge, less the stretches it shares with an edge of another
+// polygon of the set. Returns {outer, inner}: segments [{x, y}, {x, y}] of the outside boundary, and of the joints
+// inside (each shared stretch once). Floats, for drawing only (lattice points, so a tolerance of 1e-7 is exact enough).
+function outlineOf(polys) {
+  const E = 1e-7, outer = [], inner = [];
+  polys.forEach((P, i) => P.forEach((a, k) => {
+    const b = P[(k + 1) % P.length], dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy, cover = [];
+    polys.forEach((Q, j) => {
+      if (j === i) return;
+      Q.forEach((c, m) => {
+        const d = Q[(m + 1) % Q.length];
+        const off = (p) => Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) / Math.sqrt(L2);
+        if (off(c) > E || off(d) > E) return; // not on this edge's line
+        const tc = ((c.x - a.x) * dx + (c.y - a.y) * dy) / L2, td = ((d.x - a.x) * dx + (d.y - a.y) * dy) / L2;
+        const lo = Math.max(0, Math.min(tc, td)), hi = Math.min(1, Math.max(tc, td));
+        if (hi - lo > E) cover.push([lo, hi, j]);
+      });
+    });
+    cover.sort((u, v) => u[0] - v[0]);
+    const at = t => ({ x: a.x + dx * t, y: a.y + dy * t });
+    let t = 0;
+    for (const [lo, hi, j] of cover) {
+      if (lo > t + E) outer.push([at(t), at(lo)]);
+      if (j > i) inner.push([at(Math.max(lo, t)), at(hi)]); // each shared stretch once, from the lower-numbered polygon
+      t = Math.max(t, hi);
+    }
+    if (t < 1 - E) outer.push([at(t), at(1)]);
+  }));
+  return { outer, inner };
 }
 // the thin gaps under every square and ▲ of a set of polygons ({poly, flat: true when its bottom is a flat edge})
 function sliversOf(items, half, thin) {
@@ -216,12 +247,16 @@ function svgFor(spec) {
         out.push(`<g transform="translate(${X(xL + 1.05)},${Y(top3 + 0.05)})"><rect x="0" y="-15" width="30" height="20" rx="10" fill="${GOLD}"/><text x="15" y="0" text-anchor="middle" font-size="13" font-weight="700" fill="${INK}">×${r.shine.length}</text></g>`);
       }
     } else if (r.reason === 'TIPS OVER' && r.tips) {
-      // TIPS OVER: the part that would tip outlined in red (the new tile, red and dashed where it would stop, among
-      // it), a red dot at the pivot, and a plumb line from the part's centre of weight down past the pivot
+      // TIPS OVER: the group that would tip drawn whole, as one piece (the new tile, red and dashed where it would
+      // stop, among it): its tiles tinted, one red outline round its outside, the joints inside it faint; a red dot at
+      // the pivot, and a plumb line from the group's centre of weight down past the pivot
       const t = r.tips, n = M.tiles.length, partPolys = t.members.map(i => i === n ? poly : polys[i]);
-      out.push(`<polygon points="${pts(poly)}" fill="${RED}" fill-opacity="0.07" stroke="${RED}" stroke-width="2.4" stroke-dasharray="7 5" stroke-linejoin="round"/>`);
-      for (const pp of partPolys) out.push(`<polygon points="${pts(pp)}" fill="${RED}" fill-opacity="0.10" stroke="${RED}" stroke-opacity="0.25" stroke-width="9" stroke-linejoin="round"/>`);
-      for (const pp of partPolys) out.push(`<polygon points="${pts(pp)}" fill="none" stroke="${RED}" stroke-width="3" stroke-linejoin="round"/>`);
+      const ol = outlineOf(partPolys), line = (sg, extra) => `<line x1="${X(sg[0].x)}" y1="${Y(sg[0].y)}" x2="${X(sg[1].x)}" y2="${Y(sg[1].y)}" ${extra}/>`;
+      for (const pp of partPolys) out.push(`<polygon points="${pts(pp)}" fill="${RED}" fill-opacity="0.12" stroke="none"/>`);
+      for (const sg of ol.outer) out.push(line(sg, `stroke="${RED}" stroke-opacity="0.25" stroke-width="9" stroke-linecap="round"`));
+      for (const sg of ol.inner) out.push(line(sg, `stroke="${RED}" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="2 3"`));
+      out.push(`<polygon points="${pts(poly)}" fill="none" stroke="${RED}" stroke-width="1.6" stroke-dasharray="7 5" stroke-linejoin="round"/>`);
+      for (const sg of ol.outer) out.push(line(sg, `stroke="${RED}" stroke-width="3" stroke-linecap="round"`));
       const cw = weightCentre(t.members.map(i => i === n ? { piece: hand.piece, poly } : { piece: M.tiles[i].piece, poly: polys[i] }));
       const pv = P(t.pivot), cx = typeof t.com === 'number' ? t.com : cw.x, yBob = Math.min(pv.y, cw.y) - 0.42;
       out.push(`<line x1="${X(cx)}" y1="${Y(cw.y)}" x2="${X(cx)}" y2="${Y(yBob)}" stroke="${RED}" stroke-width="1.6"/>`);
@@ -304,7 +339,7 @@ async function renderSheet(items, cols, opts) {
 }
 async function close() { if (browser) { const b = browser; browser = null; await b.close(); } }
 
-module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER, gapSVG, weightCentre };
+module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER, gapSVG, weightCentre, outlineOf };
 
 // node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]
 if (require.main === module) {

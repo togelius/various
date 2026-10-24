@@ -1,9 +1,11 @@
 'use strict';
 // Mutation testing of rules.js (DESIGN §18.8): each mutant in mutants.json is a text patch of rules.js
 // ({name, what, find, replace}; `find` must occur exactly once). A mutant is killed when the golden cases fail, or the
-// enumeration to depth 6 breaks an invariant (I1, the oracle, among them when tools/oracle/oracle.cjs answers SPEC 5c) or
+// enumeration to depth 6 breaks an invariant (I1, the oracle, among them when tools/oracle/oracle.cjs answers SPEC 5d) or
 // crashes. Both are run, so the report says what caught each one; a third run checks I1 alone, so the report also says
-// whether the oracle by itself kills each mutant (i1: true/false).
+// whether the oracle by itself kills each mutant (i1: true/false). A mutant may carry `equivalent` (why no build is known
+// to tell it apart from the rules, with the evidence): if it survives it is reported EQUIVALENT, an open question, not a
+// failure; if anything kills it, it is reported KILLED like any other.
 //   node tools/rules/mutants.cjs [--depth=6] [--jobs=4] [--one=name] [--compare=path|none]
 const fs = require('fs');
 const path = require('path');
@@ -13,7 +15,7 @@ const rulesVm = require('../lib/rules-vm.cjs');
 const { runGolden } = require('./golden.cjs');
 
 const MUTANTS = path.join(__dirname, 'mutants.json');
-// the oracle for I1 only when it answers SPEC 5c (enumerate.cjs defaultOracle); otherwise rules-only
+// the oracle for I1 only when it answers SPEC 5d (enumerate.cjs defaultOracle); otherwise rules-only
 const defaultCompare = () => require('./enumerate.cjs').defaultOracle().path;
 function list() { return JSON.parse(fs.readFileSync(MUTANTS, 'utf8')); }
 function patch(src, m) {
@@ -26,7 +28,7 @@ async function runOne(m, depth, compare) {
   if (compare === undefined) compare = defaultCompare();
   const t0 = Date.now();
   const src = patch(fs.readFileSync(rulesVm.RULES_JS, 'utf8'), m);
-  const out = { name: m.name, what: m.what, killed: false, by: [], golden: null, invariant: null, i1: null };
+  const out = { name: m.name, what: m.what, killed: false, by: [], golden: null, invariant: null, i1: null, equivalent: m.equivalent || null };
   let R;
   try { R = rulesVm.load({ from: { source: src, file: 'rules.js (' + m.name + ')' } }); }
   catch (e) { out.killed = true; out.by.push('load: ' + e.message); out.ms = Date.now() - t0; return out; }
@@ -96,9 +98,9 @@ if (require.main === module) {
   } else {
     const t0 = Date.now();
     runAll({ depth, jobs: +arg('jobs', 4), compare }).then(res => {
-      for (const r of res) console.log(`${r.killed ? 'KILLED  ' : 'SURVIVED'} ${r.name}: ${r.what}${r.killed ? ' — ' + r.by.join('; ') : ''}${r.i1 === null ? '' : r.i1 ? ' [I1 alone kills it]' : ' [I1 alone does not]'}`);
-      const alive = res.filter(r => !r.killed);
-      console.log(`${alive.length ? 'FAIL' : 'PASS'} mutants: ${res.length - alive.length}/${res.length} killed in ${((Date.now() - t0) / 1000).toFixed(1)} s${compare ? '; I1 alone kills ' + res.filter(r => r.i1).length + '/' + res.length : ''}`);
+      for (const r of res) console.log(`${r.killed ? 'KILLED  ' : r.equivalent ? 'EQUIVALENT' : 'SURVIVED'} ${r.name}: ${r.what}${r.killed ? ' — ' + r.by.join('; ') : ''}${r.i1 === null ? '' : r.i1 ? ' [I1 alone kills it]' : ' [I1 alone does not]'}`);
+      const alive = res.filter(r => !r.killed && !r.equivalent), eq = res.filter(r => !r.killed && r.equivalent);
+      console.log(`${alive.length ? 'FAIL' : 'PASS'} mutants: ${res.length - alive.length - eq.length}/${res.length} killed${eq.length ? ', ' + eq.length + ' equivalent (survived, marked in mutants.json: ' + eq.map(r => r.name).join(', ') + ')' : ''} in ${((Date.now() - t0) / 1000).toFixed(1)} s${compare ? '; I1 alone kills ' + res.filter(r => r.i1).length + '/' + res.length : ''}`);
       process.exit(alive.length ? 1 : 0);
     });
   }

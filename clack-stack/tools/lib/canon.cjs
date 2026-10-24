@@ -1,5 +1,5 @@
 'use strict';
-// The comparison format of tools/oracle/SPEC.md §8 (revision 5c: eight fields, tips among them), made canonical so two
+// The comparison format of tools/oracle/SPEC.md §8 (revisions 5c and 5d: eight fields, tips among them), made canonical so two
 // implementations can be compared by string, plus the mirror (x -> −x) and translation (x -> x + dX/2) of results,
 // columns, drop logs and builds. A point is [X, p, q]: x = X/2, y = (p + q√3)/2.
 //

@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Clack Stack placement oracle, written only from SPEC.md (revision 5c).
+ * Clack Stack placement oracle, written only from SPEC.md (revision 5d).
  *
  * Numbers. Every coordinate is used at twice its size: the point [X, p, q] of the spec is
  * x' = X, y' = p + q*sqrt3. Scaling both axes by 2 changes no decision, so every coordinate is an
@@ -24,12 +24,16 @@
  *  - balance (section 5c): "rests on" from the shared boundary of each touching pair: along a
  *    non-vertical segment, the tile whose interior lies above the segment's line rests on the
  *    other; at a single point, the two interior cones at that point are compared on vertical lines
- *    just right and just left of it (slope intervals, exact). Groups are fixpoints over the
- *    relation, support/weight/lean/grip are summed exactly.
+ *    just right and just left of it (slope intervals, exact). A shared segment of length exactly 1
+ *    (dX^2 + (dp + dq*sqrt3)^2 = 4 in the doubled frame, decided on integers) is a lock; the car
+ *    locks to nothing. Pieces are the components of the locks (union-find), a group is its piece
+ *    plus every piece reachable upward through "rests on" (a search over the piece graph), and
+ *    W, M and the support's ends are summed exactly; balanced iff W*xmin <= M <= W*xmax.
  * No lattice keys, edge hashing or precomputed column profiles: every query walks the polygons.
  *
  * API: newBuild({ half = 2 }), drop(build, piece, col, way?), place(build, result).
- * Test hooks (not part of the spec): _details(result), _stats, _resetStats(), _selfCheck(on), _record(on).
+ * Test hooks (not part of the spec): _details(result), _stats, _resetStats(), _selfCheck(on), _record(on),
+ * _variant(opts) (other readings of 5c, for the census only; never on by default).
  */
 
 // ---------------------------------------------------------------- exact numbers
@@ -238,10 +242,10 @@ function tileInfo(kind, col, poly) {
   // xc4 = 4 * middle x = Xmin + Xmax (the middle col/2 + 1/2 of section 5c)
   return { kind, col, poly, edges, w8p, w8q, xc4: poly.Xmin + poly.Xmax, lowP: poly.loP, lowQ: poly.loQ };
 }
-function makeBuild(half, tiles, rels) {
+function makeBuild(half, tiles, rels, locks, pid) {
   const car = carPoly(half);
   const st = {
-    half, tiles, rels, car,
+    half, tiles, rels, locks, pid, car, // pid: the piece of each tile (census only)
     obs: tiles.map((t) => t.poly).concat([car]),
     // the car touches tiles only along its top (nothing is below y = 0)
     nbs: tiles.map((t, i) => ({ idx: i, poly: t.poly, edges: t.edges })).concat([{ idx: -1, poly: car, edges: [[car.v[2], car.v[3]]] }]),
@@ -256,7 +260,7 @@ function newBuild(opts) {
   if (typeof o !== 'object') throw new Error('newBuild: expects an options object');
   const half = o.half === undefined ? 2 : o.half;
   if (!Number.isInteger(half) || half < 1 || half > 100000) throw new Error('newBuild: half must be a positive integer');
-  return makeBuild(half, [], []);
+  return makeBuild(half, [], [], [], new Int32Array(0));
 }
 function checkBuild(b) {
   if (!b || b[BUILD] !== true || !b[STATE]) throw new Error('not a build made by newBuild/place');
@@ -389,19 +393,23 @@ function sideOf(poly, A, B) {
   }
   throw new Error('internal: degenerate polygon');
 }
-// length of a resting contact segment in half units (horizontal: |dX|, 60 degree slant: 2|dX|)
-function restLen(A, B) {
-  const dx = Math.abs(B[0] - A[0]), dp = B[1] - A[1], dq = B[2] - A[2];
-  if (dp === 0 && dq === 0) return dx;
-  if (dp === 0 && Math.abs(dq) === dx) return 2 * dx;
-  throw new Error('internal: a resting segment that is neither horizontal nor at 60 degrees');
+// ---------------------------------------------------------------- locks (section 5c)
+// A shared segment AB is a whole edge iff its length is exactly 1. In the doubled frame that is
+// dX^2 + (dp + dq*sqrt3)^2 = 4, i.e. dp*dq = 0 (no sqrt3 part) and dX^2 + dp^2 + 3*dq^2 = 4: all on
+// integers. Returns the direction ('h' horizontal, 'v' vertical, 's' slanted) or null.
+function lockDir(A, B) {
+  const dx = B[0] - A[0], dp = B[1] - A[1], dq = B[2] - A[2];
+  if (dp * dq !== 0 || dx * dx + dp * dp + 3 * dq * dq !== 4) return null;
+  return dx === 0 ? 'v' : dp === 0 && dq === 0 ? 'h' : 's';
 }
-// rests-on relations between tile u (polygon U) and neighbour v (polygon V), from their shared boundary
-function relate(u, U, v, V, t, out) {
+// rests-on relations and the lock between tile u (polygon U) and neighbour v (polygon V, -1 = car),
+// from their shared boundary t
+function relate(u, U, v, V, t, out, locks) {
   let uv, vu;
   if (t.seg) {
     const [A, B] = t.seg;
-    if (A[0] === B[0]) return; // vertical: side by side
+    if (v >= 0) { const d = lockDir(A, B); if (d !== null) locks.push({ a: v, b: u, dir: d }); } // the car locks to nothing
+    if (A[0] === B[0]) return; // vertical: side by side, neither rests on the other
     const su = sideOf(U, A, B), sv = sideOf(V, A, B);
     if (su === sv) throw new Error('internal: both tiles on one side of their contact');
     uv = su > 0; vu = sv > 0;
@@ -409,11 +417,10 @@ function relate(u, U, v, V, t, out) {
     uv = aboveAtPoint(U, V, t.pt); vu = aboveAtPoint(V, U, t.pt);
   }
   if (uv && vu) stats.bothWays++;
-  const len = t.seg ? restLen(t.seg[0], t.seg[1]) : 0;
-  if (uv) out.push({ u, v, seg: t.seg, pt: t.pt, len });
+  if (uv) out.push({ u, v, seg: t.seg, pt: t.pt });
   if (vu) {
     if (v < 0) throw new Error('internal: the car rests on a tile');
-    out.push({ u: v, v: u, seg: t.seg, pt: t.pt, len });
+    out.push({ u: v, v: u, seg: t.seg, pt: t.pt });
   }
 }
 
@@ -421,95 +428,175 @@ function relate(u, U, v, V, t, out) {
 const stats = {};
 function resetStats() {
   Object.assign(stats, {
-    balanceRuns: 0, groups: 0, cycles: 0, emptySupport: 0, bothWays: 0, leaning: 0,
-    leanEqGrip: 0, knifeEdge: 0, failingGroups: 0, failExcludesNew: 0, tips: 0,
-    baseTie: 0, pivotChoice: 0, neitherTipsWay: 0, neitherTipsDown: 0, bothFit: 0, zeroGrip: 0, gripDecides: 0, baseIsNew: 0,
+    balanceRuns: 0, pieces: 0, groups: 0, emptySupport: 0, bothWays: 0, relAgainstOrder: 0,
+    pieceCycles: 0, pieceCycleDrops: 0, knifeEdge: 0, failingGroups: 0, failExcludesNew: 0, tips: 0,
+    multiFail: 0, lowTie: 0, sizeDecides: 0, sizeNarrows: 0, colDecides: 0, sameGroupTie: 0, baseTileTie: 0, baseIsNew: 0,
+    pivotChoice: 0, altLowestDiffers: 0, altLowestCycle: 0, newLocks: 0, lockH: 0, lockV: 0, lockS: 0, mergeDrops: 0, vMergeDrops: 0,
+    groupBelowPiece: 0, neitherTipsWay: 0, neitherTipsDown: 0, bothFit: 0,
   });
 }
 resetStats();
+// other readings, for the census only: verticalLocks false drops the locks along vertical sides;
+// lowestOf 'group' compares the lowest point of the group instead of the piece's
+const VARIANT = { verticalLocks: true, lowestOf: 'piece' };
+let firstCycle = null;
 
-function balance(tiles, rels, newIdx) {
+function balance(tiles, rels, locks, newIdx) {
   stats.balanceRuns++;
   const n = tiles.length;
-  const G = new Uint8Array(n);
+  // pieces: union-find over the locks, numbered 0.. in the order of their first tile
+  const par = new Int32Array(n);
+  for (let i = 0; i < n; i++) par[i] = i;
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  for (let k = 0; k < locks.length; k++) {
+    const L = locks[k];
+    if (L.dir === 'v' && !VARIANT.verticalLocks) continue;
+    const a = find(L.a), b = find(L.b);
+    if (a !== b) { if (a < b) par[b] = a; else par[a] = b; }
+  }
+  const pid = new Int32Array(n), num = new Int32Array(n).fill(-1);
+  let np = 0;
+  for (let i = 0; i < n; i++) { const r = find(i); if (num[r] < 0) num[r] = np++; pid[i] = num[r]; }
+  stats.pieces += np;
+  // per piece: size, weight sums, lowest point, the lowest tile with the smallest col
+  const size = new Array(np).fill(0), Wp = new Array(np).fill(0), Wq = new Array(np).fill(0), Mp = new Array(np).fill(0), Mq = new Array(np).fill(0);
+  const lowT = new Array(np).fill(-1), lowTies = new Array(np).fill(0);
+  for (let i = 0; i < n; i++) {
+    const P = pid[i], ti = tiles[i];
+    size[P]++; Wp[P] += ti.w8p; Wq[P] += ti.w8q; Mp[P] += ti.w8p * ti.xc4; Mq[P] += ti.w8q * ti.xc4;
+    const b = lowT[P];
+    if (b < 0) { lowT[P] = i; lowTies[P] = 1; continue; }
+    const tb = tiles[b], c = ycmp(ti.lowP, ti.lowQ, tb.lowP, tb.lowQ);
+    if (c < 0) { lowT[P] = i; lowTies[P] = 1; } else if (c === 0) { lowTies[P]++; if (ti.col < tb.col) lowT[P] = i; }
+  }
+  // piece graph: up[P] lists the other pieces with a tile resting on a tile of P
+  const up = [];
+  for (let P = 0; P < np; P++) up.push([]);
+  const seen = new Uint8Array(np * np);
+  for (let k = 0; k < rels.length; k++) {
+    const r = rels[k];
+    if (r.v < 0) continue;
+    if (r.u < r.v) stats.relAgainstOrder++;
+    const a = pid[r.u], b = pid[r.v];
+    if (a === b || seen[b * np + a] === 1) continue;
+    seen[b * np + a] = 1; up[b].push(a);
+  }
   const failing = [], record = RECORD ? [] : null;
-  let atGrip = false;
-  for (let t = 0; t < n; t++) {
-    G.fill(0); G[t] = 1;
-    let size = 1;
-    for (let changed = true; changed;) {
-      changed = false;
-      for (let k = 0; k < rels.length; k++) {
-        const r = rels[k];
-        if (r.v >= 0 && G[r.v] === 1 && G[r.u] === 0) { G[r.u] = 1; size++; changed = true; }
+  const inG = new Uint8Array(np), stack = new Int32Array(np);
+  let cycleHere = false;
+  for (let P = 0; P < np; P++) {
+    // the group: P and every piece reachable upward (locks keep pieces whole)
+    inG.fill(0); inG[P] = 1;
+    let sp = 0, gs = size[P], gWp = Wp[P], gWq = Wq[P], gMp = Mp[P], gMq = Mq[P], gLow = lowT[P];
+    stack[sp++] = P;
+    while (sp > 0) {
+      const Q = stack[--sp], uq = up[Q];
+      for (let k = 0; k < uq.length; k++) {
+        const R = uq[k];
+        if (inG[R] === 1) continue;
+        inG[R] = 1; stack[sp++] = R;
+        gs += size[R]; gWp += Wp[R]; gWq += Wq[R]; gMp += Mp[R]; gMq += Mq[R];
+        const a = tiles[lowT[R]], b = tiles[gLow];
+        if (ycmp(a.lowP, a.lowQ, b.lowP, b.lowQ) < 0) gLow = lowT[R];
       }
     }
     stats.groups++;
-    for (const r of rels) if (r.u === t && r.v >= 0 && G[r.v] === 1) stats.cycles++;
-    let Wp = 0, Wq = 0, Mp = 0, Mq = 0;
-    for (let i = 0; i < n; i++) {
-      if (G[i] === 0) continue;
-      const ti = tiles[i];
-      Wp += ti.w8p; Wq += ti.w8q; Mp += ti.w8p * ti.xc4; Mq += ti.w8q * ti.xc4;
-    }
-    let have = false, xmin = 0, xmax = 0, len = 0;
-    for (const r of rels) {
-      if (G[r.u] === 0 || (r.v >= 0 && G[r.v] === 1)) continue;
-      const ps = r.seg ? r.seg : [r.pt];
-      for (const P of ps) {
-        if (!have || P[0] < xmin) xmin = P[0];
-        if (!have || P[0] > xmax) xmax = P[0];
-        have = true;
+    // the support: contacts of a group tile resting on a tile outside the group, or on the car
+    let have = false, xmin = 0, xmax = 0, cyc = false;
+    for (let k = 0; k < rels.length; k++) {
+      const r = rels[k];
+      if (inG[pid[r.u]] === 0) continue;
+      if (r.v >= 0 && inG[pid[r.v]] === 1) {
+        if (pid[r.u] === P && pid[r.v] !== P) cyc = true; // P rests on a piece above it: a cycle
+        continue;
       }
-      len += r.len;
+      if (r.seg) {
+        const a = r.seg[0][0], b = r.seg[1][0];
+        if (!have) { xmin = xmax = a; have = true; }
+        if (a < xmin) xmin = a; if (a > xmax) xmax = a; if (b < xmin) xmin = b; if (b > xmax) xmax = b;
+      } else {
+        const a = r.pt[0];
+        if (!have) { xmin = xmax = a; have = true; }
+        if (a < xmin) xmin = a; if (a > xmax) xmax = a;
+      }
     }
-    if (!have) { stats.emptySupport++; throw new Error('internal: a group with an empty support (SPEC 5c leaves its lean undefined)'); }
-    // scaled by 32: M32 = sum w8 * xc4, W*xmax*32 = W8 * 2 * Xmax, grip*32 = 8L = 4 * (length in half units)
-    let side = null, mp = 0, mq = 0;
-    const rp = Mp - 2 * xmax * Wp, rq = Mq - 2 * xmax * Wq;
-    const lp = 2 * xmin * Wp - Mp, lq = 2 * xmin * Wq - Mq;
+    if (cyc) {
+      stats.pieceCycles++; cycleHere = true;
+      if (firstCycle === null) firstCycle = { tiles: tiles.map((t) => t.kind + t.col + '@' + t.lowP + ',' + t.lowQ), piece: P };
+    }
+    if (!have) { stats.emptySupport++; throw new Error('internal: a group with an empty support (SPEC 5c gives it no balance)'); }
+    // 32*M against 32*W*x = W8 * 2X
+    const rp = gMp - 2 * xmax * gWp, rq = gMq - 2 * xmax * gWq;
+    const lp = 2 * xmin * gWp - gMp, lq = 2 * xmin * gWq - gMq;
     const sr = sgn2(rp, rq), sl = sgn2(lp, lq);
-    if (sr > 0) { side = 'right'; mp = rp; mq = rq; } else if (sl > 0) { side = 'left'; mp = lp; mq = lq; }
-    if (side === null && size > 1 && (sr === 0 || sl === 0)) stats.knifeEdge++;
-    const c = sgn2(mp - 4 * len, mq);
-    if (side !== null) { stats.leaning++; if (c === 0) { stats.leanEqGrip++; atGrip = true; } }
-    if (len === 0) stats.zeroGrip++;
-    if (record) record.push({ t, members: Array.from(G), side, m32: [mp, mq], grip32: 4 * len, xmin, xmax, W8: [Wp, Wq], M32: [Mp, Mq], fails: c > 0 });
-    if (c > 0) {
+    const side = sr > 0 ? 'right' : sl > 0 ? 'left' : null;
+    if (side === null && gs > 1 && (sr === 0 || sl === 0)) stats.knifeEdge++;
+    const tb = tiles[lowT[P]], tg = tiles[gLow];
+    if (ycmp(tg.lowP, tg.lowQ, tb.lowP, tb.lowQ) < 0) stats.groupBelowPiece++;
+    if (record) {
+      const pt = [], gt = [];
+      for (let i = 0; i < n; i++) { if (pid[i] === P) pt.push(i); if (inG[pid[i]] === 1) gt.push(i); }
+      record.push({ piece: pt, group: gt, size: gs, W8: [gWp, gWq], M32: [gMp, gMq], xmin, xmax, side, fails: side !== null, base: lowT[P], cycle: cyc });
+    }
+    if (side !== null) {
       stats.failingGroups++;
-      if (G[newIdx] === 0) stats.failExcludesNew++;
-      failing.push({ t, G: G.slice(), size, side, xmin, xmax });
+      if (inG[pid[newIdx]] === 0) stats.failExcludesNew++;
+      failing.push({ P, G: inG.slice(), size: gs, side, xmin, xmax, gLow, low: tb });
     }
   }
-  if (failing.length === 0) { if (atGrip) stats.gripDecides++; return { tips: null, failing, record }; }
-  // the base: lowest lowest point, then smaller col
-  let best = failing[0];
-  for (let i = 1; i < failing.length; i++) {
-    const f = failing[i], a = tiles[f.t], b = tiles[best.t];
+  if (cycleHere) stats.pieceCycleDrops++;
+  if (failing.length === 0) return { tips: null, failing, record, pid };
+  // the reported group: the piece with the lowest lowest point, then the larger group, then the
+  // smaller col among its lowest tiles
+  const better = (f, g, useGroupLow) => {
+    const a = useGroupLow ? tiles[f.gLow] : f.low, b = useGroupLow ? tiles[g.gLow] : g.low;
     const c = ycmp(a.lowP, a.lowQ, b.lowP, b.lowQ);
-    if (c < 0 || (c === 0 && a.col < b.col)) best = f;
+    if (c !== 0) return c < 0;
+    if (f.size !== g.size) return f.size > g.size;
+    return tiles[lowT[f.P]].col < tiles[lowT[g.P]].col;
+  };
+  let best = failing[0];
+  for (let i = 1; i < failing.length; i++) if (better(failing[i], best, VARIANT.lowestOf === 'group')) best = failing[i];
+  let alt = failing[0];
+  for (let i = 1; i < failing.length; i++) if (better(failing[i], alt, VARIANT.lowestOf !== 'group')) alt = failing[i];
+  if (alt !== best) { stats.altLowestDiffers++; if (alt.G.every((x, i) => x === best.G[i])) stats.altLowestCycle++; }
+  if (failing.length > 1) stats.multiFail++;
+  // which tie rule decided
+  const tied = failing.filter((f) => ycmp(f.low.lowP, f.low.lowQ, best.low.lowP, best.low.lowQ) === 0);
+  let tie = null;
+  if (tied.length > 1) {
+    stats.lowTie++;
+    const top = tied.filter((f) => f.size === best.size);
+    if (top.length === 1) { stats.sizeDecides++; tie = 'size'; } else {
+      stats.colDecides++; tie = 'col';
+      if (top.length < tied.length) stats.sizeNarrows++;
+      if (top.some((f) => f !== best && f.G.every((x, i) => x === best.G[i]))) stats.sameGroupTie++;
+    }
   }
-  const bt = tiles[best.t];
-  const tie = failing.some((f) => f !== best && ycmp(tiles[f.t].lowP, tiles[f.t].lowQ, bt.lowP, bt.lowQ) === 0);
-  if (tie) stats.baseTie++;
-  if (best.t === newIdx) stats.baseIsNew++;
+  if (lowTies[best.P] > 1) stats.baseTileTie++;
+  const baseIdx = lowT[best.P];
+  if (baseIdx === newIdx) stats.baseIsNew++;
   // the pivot: the support point at the leaning end with the least y
   const X = best.side === 'right' ? best.xmax : best.xmin;
-  let pivot = null;
-  const cands = [];
-  for (const r of rels) {
-    if (best.G[r.u] === 0 || (r.v >= 0 && best.G[r.v] === 1)) continue;
-    for (const P of r.seg ? r.seg : [r.pt]) {
-      if (P[0] !== X) continue;
-      cands.push(P);
-      if (pivot === null || ycmp(P[1], P[2], pivot[1], pivot[2]) < 0) pivot = P;
+  let pivot = null, choice = false;
+  for (let k = 0; k < rels.length; k++) {
+    const r = rels[k];
+    if (best.G[pid[r.u]] === 0 || (r.v >= 0 && best.G[pid[r.v]] === 1)) continue;
+    const ps = r.seg ? r.seg : [r.pt];
+    for (let j = 0; j < ps.length; j++) {
+      const Pt = ps[j];
+      if (Pt[0] !== X) continue;
+      if (pivot === null) { pivot = Pt; continue; }
+      const c = ycmp(Pt[1], Pt[2], pivot[1], pivot[2]);
+      if (c !== 0) choice = true;
+      if (c < 0) pivot = Pt;
     }
   }
-  if (cands.some((P) => ycmp(P[1], P[2], pivot[1], pivot[2]) !== 0)) stats.pivotChoice++;
+  if (choice) stats.pivotChoice++;
   stats.tips++;
   return {
-    tips: { base: sortedTriples(bt.poly.v), members: best.size, side: best.side, pivot: triple(pivot) },
-    failing, baseIdx: best.t, tie, record,
+    tips: { base: sortedTriples(tiles[baseIdx].poly.v), members: best.size, side: best.side, pivot: triple(pivot) },
+    failing, best, baseIdx, tie, baseTileTie: lowTies[best.P] > 1, record, pid,
   };
 }
 
@@ -536,15 +623,21 @@ function evaluate(build, kind, col) {
     if (!points.some((w) => samePt(w, P))) points.push(triple(P));
   }
   points.sort(cmpTriple);
-  let outcome = 'off', reason = 'ONLY A POINT', gap = null, tips = null, newRels = null, bal = null, tile = null;
+  let outcome = 'off', reason = 'ONLY A POINT', gap = null, tips = null, newRels = null, newLocks = null, bal = null, tile = null;
   if (edge.fit) {
     tile = tileInfo(kind, col, poly);
     const n = st.tiles.length;
-    newRels = [];
-    for (const { nb, t } of touches) relate(n, poly, nb.idx, nb.poly, t, newRels);
-    bal = balance(st.tiles.concat([tile]), st.rels.concat(newRels), n);
+    newRels = []; newLocks = [];
+    for (const { nb, t } of touches) relate(n, poly, nb.idx, nb.poly, t, newRels, newLocks);
+    bal = balance(st.tiles.concat([tile]), st.rels.concat(newRels), st.locks.concat(newLocks), n);
     if (bal.tips) { reason = 'TIPS OVER'; tips = bal.tips; }
-    else { outcome = 'fit'; reason = null; gap = edge.gap; }
+    else {
+      outcome = 'fit'; reason = null; gap = edge.gap;
+      stats.newLocks += newLocks.length;
+      const old = new Set();
+      for (const L of newLocks) { if (L.dir === 'h') stats.lockH++; else if (L.dir === 'v') stats.lockV++; else stats.lockS++; old.add(st.pid[L.a]); }
+      if (old.size > 1) { stats.mergeDrops++; if (newLocks.some((L) => L.dir === 'v')) stats.vMergeDrops++; }
+    }
   }
   const res = {
     outcome,
@@ -556,7 +649,7 @@ function evaluate(build, kind, col) {
     gap,
     tips,
   };
-  const rec = { build, kind, col, y0: [p0, q0], tile, newRels, bal, edgeFit: edge.fit, json: null };
+  const rec = { build, kind, col, y0: [p0, q0], tile, newRels, newLocks, bal, edgeFit: edge.fit, json: null };
   MEMO.set(res, rec);
   return { res, rec };
 }
@@ -625,7 +718,7 @@ function place(build, result) {
   }
   const st = build[STATE];
   for (const w of rec.tile.poly.v) if (Math.abs(w[0]) > COORD_LIM || Math.abs(w[1]) > COORD_LIM || Math.abs(w[2]) > COORD_LIM) throw new Error('place: build too tall');
-  return makeBuild(st.half, st.tiles.concat([rec.tile]), st.rels.concat(rec.newRels));
+  return makeBuild(st.half, st.tiles.concat([rec.tile]), st.rels.concat(rec.newRels), st.locks.concat(rec.newLocks), rec.bal.pid);
 }
 
 // ---------------------------------------------------------------- test hooks (not part of the spec)
@@ -635,14 +728,27 @@ function _details(result) {
   const st = rec.build[STATE];
   return {
     y0: rec.y0, edgeFit: rec.edgeFit,
-    relsNew: rec.newRels && rec.newRels.map((r) => ({ u: r.u, v: r.v, seg: r.seg, pt: r.pt, len: r.len })),
+    relsNew: rec.newRels && rec.newRels.map((r) => ({ u: r.u, v: r.v, seg: r.seg, pt: r.pt })),
     relsAll: rec.newRels && st.rels.concat(rec.newRels).map((r) => ({ u: r.u, v: r.v })),
-    failing: rec.bal ? rec.bal.failing.map((f) => ({ t: f.t, size: f.size, side: f.side, members: Array.from(f.G) })) : null,
-    baseIdx: rec.bal && rec.bal.tips ? rec.bal.baseIdx : null, tie: rec.bal ? !!rec.bal.tie : false,
-    groups: rec.bal ? rec.bal.record : null, // per-group lean (x32) and grip (x32), with _record(true)
+    locksNew: rec.newLocks && rec.newLocks.map((L) => ({ a: L.a, b: L.b, dir: L.dir })),
+    locksAll: rec.newLocks && st.locks.concat(rec.newLocks).map((L) => [L.a, L.b]),
+    pieces: rec.bal ? Array.from(rec.bal.pid) : null, // the piece number of every tile of the new build
+    // failing groups, by piece: tiles of the piece, size of the group, side
+    failing: rec.bal ? rec.bal.failing.map((f) => ({ piece: f.P, size: f.size, side: f.side, groupPieces: Array.from(f.G) })) : null,
+    chosen: rec.bal && rec.bal.tips ? rec.bal.best.P : null,
+    baseIdx: rec.bal && rec.bal.tips ? rec.bal.baseIdx : null,
+    tie: rec.bal ? rec.bal.tie || null : null, // null, 'size' or 'col': the tie rule that decided
+    baseTileTie: rec.bal ? !!rec.bal.baseTileTie : false,
+    groups: rec.bal ? rec.bal.record : null, // with _record(true): every piece's group, W8 = 8W, M32 = 32M, ends in X
   };
 }
 function _selfCheck(on) { SELF_CHECK = !!on; }
 function _record(on) { RECORD = !!on; }
+function _variant(opts) {
+  const o = opts || {};
+  VARIANT.verticalLocks = o.verticalLocks === undefined ? true : !!o.verticalLocks;
+  VARIANT.lowestOf = o.lowestOf === 'group' ? 'group' : 'piece';
+}
+const _firstCycle = () => firstCycle;
 
-module.exports = { newBuild, drop, place, _details, _stats: stats, _resetStats: resetStats, _selfCheck, _record };
+module.exports = { newBuild, drop, place, _details, _stats: stats, _resetStats: resetStats, _selfCheck, _record, _variant, _firstCycle };

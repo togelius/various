@@ -8,7 +8,7 @@
 //  - the tiles are drawn where the rules' build puts them, as one rigid tower (the sway and the rock included);
 //  - the ghost drawn is the rules' drop at the hand's column (BIG MAGNETS: its pull), drawn where the rules put it:
 //    when it fits, its contact segments shine (the rules' shine), the ×2 / ×3 chip counts them, the fall column runs
-//    from the hand down to it, a thin gap under it is drawn open; when it falls off, red and dashed with its reason:
+//    from the hand down to it, a thin gap under it is drawn open (a wider one only at a near miss, its thin end); when it falls off, red and dashed with its reason:
 //    ONLY A POINT with red dots on exactly the points it touches, TIPS OVER with the part that tips outlined, a red dot
 //    on its corner and a plumb line hanging from the part's centre of weight; the held tile red;
 //  - the fit markers drawn are the rules' fits at every column: an outline per square fit, a chevron in each ▼ fit, a
@@ -186,9 +186,12 @@ function checkAim(sc, want, tag, stats, big) {
     const chip = r.shine.length >= 2 ? '×' + r.shine.length : null;
     if (g.chip !== chip) fail(`the chip says ${g.chip}, the drop touches ${r.shine.length} neighbours`);
     if (chip) stats.chips++;
-    const thin = r.gap && (r.gap[0] + r.gap[1] * G.R3) / 2 < 0.3;
-    if (!!thin !== !!(g.ghostGaps && g.ghostGaps.polys.length)) fail(`the gap: rules ${r.gap}, drawn ${g.ghostGaps ? g.ghostGaps.polys.length : 0}`);
-    if (thin) stats.gaps++;
+    // a thin gap (under 0.3 L) is drawn open; a wider one only at a near miss, its thin end (a slant rising to an apex
+    // just under the tile's bottom: the part where it is under 0.3 L, so the apex reads as not touching)
+    const gapL = r.gap ? (r.gap[0] + r.gap[1] * G.R3) / 2 : 0, thin = r.gap && gapL < 0.3, drawn = g.ghostGaps ? g.ghostGaps.polys : [];
+    const tall = drawn.map(pg => Math.max(...pg.map(q => q[1])) - Math.min(...pg.map(q => q[1]))).filter(hpx => hpx > 0.3 * sc.L + 1.5);
+    if (thin ? !drawn.length : (drawn.length && (!r.gap || tall.length))) fail(`the gap: rules ${r.gap}, drawn ${drawn.length}${tall.length ? ' (' + tall.length + ' taller than 0.3 L)' : ''}`);
+    if (thin) stats.gaps++; else if (drawn.length) stats.nearEnds++;
     const gx = g.poly.map(p => p[0]), gy = g.poly.map(p => p[1]), gb = { x0: Math.min(...gx), x1: Math.max(...gx), y0: Math.min(...gy) };
     // (from the held tile, its width under the hand, down to the ghost's top, its width there: slanted when the tower
     // sways the ghost sideways)
@@ -283,7 +286,7 @@ async function segment(browser, size, mode, n, seed) {
     }
     await input.cancel();
   }
-  const stats = { drops: 0, aims: 0, read: 0, unread: 0, fits: 0, offs: 0, chips: 0, gaps: 0, columns: 0, slanted: 0, warned: 0, tops: 0, markers: 0, reasons: {}, tipsMarked: 0, pointless: 0, segOff: 0, restDots: 0, exPointless: [], exSeg: [],
+  const stats = { drops: 0, aims: 0, read: 0, unread: 0, fits: 0, offs: 0, chips: 0, gaps: 0, nearEnds: 0, columns: 0, slanted: 0, warned: 0, tops: 0, markers: 0, reasons: {}, tipsMarked: 0, pointless: 0, segOff: 0, restDots: 0, exPointless: [], exSeg: [],
     released: 0, same: 0, landed: 0, landedOk: 0, offOut: 0, runs: 1, fails: 0, tileResid: 0, ghostDist: 0, markerDist: 0, fuse: 0 };
   const pend = [];
   let guard = 0;
@@ -354,7 +357,7 @@ async function segment(browser, size, mode, n, seed) {
   }
   const offsLeft = pend.filter(p => p.off).length;
   T.check(stats.drops >= n && stats.fails === 0, `${tag0}: ${stats.drops} drops through real ${keys ? 'keys' : size.touch ? 'touch' : 'mouse'}${big ? ' (BIG MAGNETS: the ghost is the pull)' : ''} over ${stats.runs} run(s): every ghost, marker set, reason and mark as the rules have it`);
-  T.info(`read ${stats.read} pictures (${stats.unread} not mapped: the tower not one rigid body); ${stats.fits} fits (${stats.chips} with a chip, ${stats.gaps} with an open gap, ${stats.columns} fall columns, ${stats.slanted} of them slanted, ${stats.warned} amber with PAST THE WHEEL!${stats.tops ? ', ' + stats.tops + ' THE TOPPER topping out' : ''}), ${stats.offs} falling off (${Object.entries(stats.reasons).map(([k, v]) => v + ' ' + k).join(', ')}${stats.tipsMarked ? ', ' + stats.tipsMarked + ' TIPS OVER marked' : ''}); ${stats.markers} markers matched; tiles within ${stats.tileResid.toFixed(2)} px of the rules, ghosts ${stats.ghostDist.toFixed(2)} px, markers ${stats.markerDist.toFixed(2)} px`);
+  T.info(`read ${stats.read} pictures (${stats.unread} not mapped: the tower not one rigid body); ${stats.fits} fits (${stats.chips} with a chip, ${stats.gaps} with an open gap, ${stats.nearEnds} with a near miss's thin end open, ${stats.columns} fall columns, ${stats.slanted} of them slanted, ${stats.warned} amber with PAST THE WHEEL!${stats.tops ? ', ' + stats.tops + ' THE TOPPER topping out' : ''}), ${stats.offs} falling off (${Object.entries(stats.reasons).map(([k, v]) => v + ' ' + k).join(', ')}${stats.tipsMarked ? ', ' + stats.tipsMarked + ' TIPS OVER marked' : ''}); ${stats.markers} markers matched; tiles within ${stats.tileResid.toFixed(2)} px of the rules, ghosts ${stats.ghostDist.toFixed(2)} px, markers ${stats.markerDist.toFixed(2)} px`);
   if (stats.restDots) T.info(`(${stats.restDots} ONLY A POINT ghosts dotted where a corner sits on something at the end of a side contact)`);
   if (stats.pointless || stats.segOff) T.info(`(${stats.pointless} ONLY A POINT drops touched no point${stats.exPointless.length ? ': ' + stats.exPointless.join(' | ') : ''}; ${stats.segOff} touched along a segment too${stats.exSeg.length ? ': ' + stats.exSeg.join(' | ') : ''})`);
   T.check(stats.released === stats.drops && stats.same === stats.released, `${tag0}: each press let go of the drop its ghost showed: ${stats.same}/${stats.released}${stats.fuse ? ' (' + stats.fuse + ' left by the fuse first, not counted)' : ''}`);

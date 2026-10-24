@@ -17,3 +17,13 @@ sentence, and `SEALED` gets the new hash in the same edit.
 - Revision 5c, round 1 (2026-10-23): revision 5c: SPEC changed (balance); oracle updated in isolation. `oracle.cjs`,
   `test-golden.cjs` and `ambiguities.md` were replaced by the 5c oracle author's delivery (written from SPEC.md 5c
   alone), and `SEALED` holds its sha256.
+- Revision 5d, round 1 (2026-10-23): revision 5d: SPEC changed (whole edges lock, no grip); oracle updated in isolation.
+  `oracle.cjs`, `test-golden.cjs` and `ambiguities.md` were replaced by the 5d oracle author's delivery (written from
+  SPEC.md 5d alone), and `SEALED` holds its sha256.
+- Revision 5d, round 2 (2026-10-24): no changes. The tier-1 rerun (depth 8, 11,781,976 I1 checks, 1,201.2 s), both golden
+  suites on both sides, the oracle author's 80 hand runs and a 1,910,969-drop steered fuzz to 40 tiles on half 1, 2, 3
+  and 50 found no disagreement, so neither side was changed.
+- Revision 5d, round 3 (2026-10-24): no changes. The tier-1 rerun (depth 8, 11,781,976 I1 checks), both golden suites
+  on both sides, the oracle author's 80 hand runs and a 1,852,260-drop steered fuzz to 40 tiles on half 1, 2, 3 and 50
+  (fitsAll and every new build's rests, locks, pieces and groups compared too) found no disagreement, so neither side
+  was changed. A hand-built build where SPEC §5c's last tie rule decides (golden R5, half 4) agrees on both sides.

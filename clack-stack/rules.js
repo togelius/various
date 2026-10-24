@@ -1,4 +1,4 @@
-/* CLACK STACK rules, revision 5c (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
+/* CLACK STACK rules, revision 5d (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
    wins on rules). The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness,
    no globals but the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into
    index.html between the RULES markers by tools/build.cjs.
@@ -9,9 +9,10 @@
         a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
       - A ▼ needs one of its lower sides whole against a ▲'s side (two such sides: it sits in a notch).
       Otherwise it falls off: ONLY A POINT.
-   2. Everything balances (§5c): with the tile added, every tile's part (the tile and everything resting on it, all
-      the way up) must have its weight over what holds it up, give or take the magnets' grip: it may lean past the end
-      of its support by a moment of up to a quarter of the length of edge it rests on. Otherwise: TIPS OVER.
+   2. Everything balances (§5c, revision 5d): tiles that share a whole edge are locked together and move as one piece
+      (half an edge or a point holds a piece up but does not lock it; the car locks to nothing). With the tile added,
+      the group of every piece (the piece, everything resting on it and everything locked to that, all the way up)
+      must have its weight over what it rests on, exactly over an end included. There is no grip. Otherwise: TIPS OVER.
 
    Numbers are exact. A point is a lattice point (X, a, b): x = X/2, y = a + b·h with h = √3/2. The comparison format
    writes it as SPEC's [X, p, q] with y = (p + q√3)/2, so p = 2a and q = b. Two heights are compared in integers
@@ -60,12 +61,14 @@ var RULES = (function () {
 
   // ---- builds (immutable) ----
   // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it,
-  //   anc: per tile i, an array over the tiles before it, 1 where tile i rests on that tile, directly or through others
-  //   (a tile only ever rests on tiles placed before it), agg: per tile, the sums of its part (see BALANCE) }
+  //   rests: per tile, what it rests on ([{i: a tile's index or −1 for the car, lo, hi: the contact's ends, hi null for
+  //   a point}]; a tile only ever rests on tiles placed before it), locks: per tile, the tiles locked to it, and the
+  //   pieces and groups those make (pc: per tile its piece; pieces: see structure) }
   function off(B) { return 2 * B.half + 1; }
   function freezeBuild(B) {
     for (var k = 0; k < B.idx.length; k++) if (B.idx[k]) Object.freeze(B.idx[k]);
-    Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log); Object.freeze(B.anc); Object.freeze(B.agg);
+    Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log); Object.freeze(B.rests); Object.freeze(B.locks);
+    Object.freeze(B.pc); Object.freeze(B.pieces);
     return Object.freeze(B);
   }
   function newBuild(opts) {
@@ -73,7 +76,7 @@ var RULES = (function () {
     if (typeof half !== 'number' || half !== Math.floor(half) || half < 1) throw new Error('newBuild: half must be a whole number of tiles, at least 1');
     var idx = [];
     for (var k = 0; k < 4 * half + 2; k++) idx.push(null);
-    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, anc: [], agg: [] });
+    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, rests: [], locks: [], pc: [], pieces: [] });
   }
   function inCol(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
   function carIn(B, s) { return s >= -2 * B.half && s < 2 * B.half; }
@@ -236,13 +239,13 @@ var RULES = (function () {
     return { segments: S, points: P, nb: nb };
   }
 
-  // ---- BALANCE (SPEC §5c) ----
+  // ---- BALANCE (SPEC §5c, revision 5d) ----
   // U rests on V when, over a half-tile column both span, U's underside meets V's top at an end of the column: they
   // touch there and, just inside the column, U's inside lies straight above V's (over one column two tiles are two
   // stacked intervals, so equal ends mean touching, never crossing). Side by side, two tiles share no column. This
   // is only ever asked with U the tile being dropped, which is above every placed tile it shares a column with (it
-  // came down from above); for two tiles in either order it would also need U on top, because where a ▲ sits on a
-  // ▼'s top their corners meet at the column's end with the ▼ below.
+  // came down from above, so no placed tile ever rests on it); for two tiles in either order it would also need U on
+  // top, because where a ▲ sits on a ▼'s top their corners meet at the column's end with the ▼ below.
   function restsOn(U, V) {
     for (var s = Math.max(U.c, V.c); s <= Math.min(U.c, V.c) + 1; s++) {
       var u = BOT[U.t][s - U.c], v = TOP[V.t][s - V.c];
@@ -259,103 +262,153 @@ var RULES = (function () {
     }
     return false;
   }
-  // A part's sums, all integers. Weights are taken ×4 (a square 4, a triangle √3) and x in half tiles (X, a tile's
-  // middle at X = col + 1), so the moment of the part past X0, 4·(sS − nS·X0) + √3·(sT − nT·X0), is 8 times SPEC's m.
-  // Its support is kept as its least and greatest X (x0, x1), the lowest support point at each (pL, pR) and L2, twice
-  // the length of edge it rests on (a flat contact |ΔX|, a slanted one 2·|ΔX|): the grip L/4 is L2/8 in the same
-  // units. So a part tips when 4·(…) + √3·(…) > L2, decided in integers.
-  function newAgg() { return { nS: 0, nT: 0, sS: 0, sT: 0, x0: 0, x1: 0, pL: null, pR: null, L2: 0 }; }
-  function cloneAgg(g) { return { nS: g.nS, nT: g.nT, sS: g.sS, sT: g.sT, x0: g.x0, x1: g.x1, pL: g.pL, pR: g.pR, L2: g.L2 }; }
+  // Two tiles are locked together when they share a whole edge: their contact (meet()) is a segment of length 1. On
+  // this lattice that is a flat segment one tile long (a tile seated squarely on a top), a slanted one half a tile
+  // across and h high (a ▼ hung on a ▲), or an upright one a tile high (two level squares side by side). Half an edge,
+  // any shorter upright contact and a point do not lock; the car locks to nothing (its contact is never asked).
+  // Returns the lock's direction, or null.
+  function lockOf(m) {
+    if (!m.seg) return null;
+    var p = m.seg[0], q = m.seg[1], dX = Math.abs(q[0] - p[0]), da = Math.abs(q[1] - p[1]), db = Math.abs(q[2] - p[2]);
+    if (dX === 2 && da === 0 && db === 0) return 'flat';
+    if (dX === 1 && da === 0 && db === 1) return 'slant';
+    if (dX === 0 && da === 1 && db === 0) return 'side';
+    return null;
+  }
+  function num(x, y) { return x - y; }
+  // The pieces and groups of a build (SPEC §5c), from each tile's rests and locks. A piece is a set of tiles joined by
+  // a chain of locks; the group of a piece is the smallest set that holds the piece, every tile resting on a tile of
+  // the set and every tile locked to one, so it is made of whole pieces. Returns pc (per tile, its piece) and pieces:
+  // per piece its tiles (sorted), its base (the lowest tile, the smaller col on a tie: SPEC's base, and the tile whose
+  // col breaks a tie between pieces), its group G (sorted) and inG (per tile, 1 when it is in the group).
+  function structure(T, rests, locks) {
+    var n = T.length, pc = [], pieces = [], above = [], i, j, k, h;
+    for (i = 0; i < n; i++) { pc.push(-1); above.push([]); }
+    for (i = 0; i < n; i++) for (k = 0; k < rests[i].length; k++) if (rests[i][k].i >= 0) above[rests[i][k].i].push(i);
+    for (i = 0; i < n; i++) {
+      if (pc[i] >= 0) continue;
+      var id = pieces.length, tl = [i];
+      pc[i] = id;
+      for (k = 0; k < tl.length; k++) {
+        var LK = locks[tl[k]];
+        for (j = 0; j < LK.length; j++) if (pc[LK[j]] < 0) { pc[LK[j]] = id; tl.push(LK[j]); }
+      }
+      tl.sort(num);
+      var base = tl[0];
+      for (k = 1; k < tl.length; k++) {
+        var t = T[tl[k]], bt = T[base], c = cmpH(t.a, t.b, bt.a, bt.b);
+        if (c < 0 || (c === 0 && t.c < bt.c)) base = tl[k];
+      }
+      pieces.push({ tiles: tl, base: base, G: null, inG: null });
+    }
+    for (k = 0; k < pieces.length; k++) {
+      var inG = [], G = pieces[k].tiles.slice();
+      for (i = 0; i < n; i++) inG.push(0);
+      for (i = 0; i < G.length; i++) inG[G[i]] = 1;
+      // everything resting on a tile of the group joins it, with its whole piece (so the group stays closed under locks)
+      for (h = 0; h < G.length; h++) {
+        var A = above[G[h]];
+        for (j = 0; j < A.length; j++) if (!inG[A[j]]) { var P2 = pieces[pc[A[j]]].tiles; for (var m2 = 0; m2 < P2.length; m2++) if (!inG[P2[m2]]) { inG[P2[m2]] = 1; G.push(P2[m2]); } }
+      }
+      G.sort(num);
+      pieces[k].G = Object.freeze(G); pieces[k].inG = Object.freeze(inG);
+      Object.freeze(pieces[k].tiles); Object.freeze(pieces[k]);
+    }
+    return { pc: pc, pieces: pieces };
+  }
+  // A group's sums, all integers. Weights are taken ×4 (a square 4, a triangle √3) and x in half tiles (X, a tile's
+  // middle at X = col + 1), so W·x past X0 is 4·(sS − nS·X0) + √3·(sT − nT·X0) in those units, 8 times SPEC's. Its
+  // support is kept as its least and greatest X (x0, x1) and the lowest support point at each (pL, pR, the pivots).
+  function newAgg() { return { nS: 0, nT: 0, sS: 0, sT: 0, x0: 0, x1: 0, pL: null, pR: null }; }
   function addWeight(g, T) { if (T.t === 'sq') { g.nS++; g.sS += T.c + 1; } else { g.nT++; g.sT += T.c + 1; } }
   function addPoint(g, p) {
     if (!g.pL || p[0] < g.x0 || (p[0] === g.x0 && cmpH(p[1], p[2], g.pL[1], g.pL[2]) < 0)) { g.x0 = p[0]; g.pL = p; }
     if (!g.pR || p[0] > g.x1 || (p[0] === g.x1 && cmpH(p[1], p[2], g.pR[1], g.pR[2]) < 0)) { g.x1 = p[0]; g.pR = p; }
   }
-  function addContact(g, d) { addPoint(g, d.lo); if (d.hi) addPoint(g, d.hi); g.L2 += d.L2; }
-  // the lean of a part: null when its weight is over its support (exactly over an end included), else its side and
-  // 8m = A + Q·√3
+  function addContact(g, d) { addPoint(g, d.lo); if (d.hi) addPoint(g, d.hi); }
+  // a group is balanced when W·xmin ≤ M ≤ W·xmax (exactly over an end included; no grip): null then, else the side
+  // it leans to
   function leanOf(g) {
     var A = 4 * (g.sS - g.nS * g.x1), Q = g.sT - g.nT * g.x1;
-    if (sgn3(A, Q) > 0) return { side: 'right', A: A, Q: Q };
+    if (sgn3(A, Q) > 0) return 'right';
     A = 4 * (g.nS * g.x0 - g.sS); Q = g.nT * g.x0 - g.sT;
-    if (sgn3(A, Q) > 0) return { side: 'left', A: A, Q: Q };
+    if (sgn3(A, Q) > 0) return 'left';
     return null;
   }
-  // it tips when it leans past its grip: m > L/4, that is A + Q·√3 > L2
-  function tipsOf(g) {
-    if (!g.pL) return null; // no support at all (not reachable: every tile that meets the tower rests on something)
-    var l = leanOf(g);
-    return l && sgn3(l.A - g.L2, l.Q) > 0 ? l : null;
-  }
-  // The balance with tile N (not placed yet; it met the tower edge to edge) added to build B. D: what N rests on, with
-  // each shared contact; anc: the tiles under N all the way down. Only the parts of those tiles gain N (nothing can
-  // rest on a tile that fell from above), and every other part of B already balances (place() checks every tile it
-  // adds), so these and N's own part are the ones tested. Returns {D, anc, own, aggs: [{i, g}], fails: [index]}.
+  // The balance with tile N (not placed yet; it met the tower edge to edge) added to build B: D, what N rests on, with
+  // each contact; L, the tiles N is locked to. Every group of B is balanced (place() only adds tiles that fit), and a
+  // group N does not join is the same set with the same support as before, so only the groups N joins are tested:
+  // - N's own piece: N and every piece it locks to, merged; its group X is N and those pieces' groups;
+  // - every other piece of B whose group holds a tile N rests on or is locked to: its group gains X.
+  // Returns {D, L, fails: [{base, members, g, side}] for the groups that are not balanced}.
   function balance(B, N, nb) {
-    var n = B.tiles.length, D = [], h2 = 2 * B.half, j, k;
+    var n = B.tiles.length, D = [], L = [], h2 = 2 * B.half, j, k, u;
     if (restsOnCar(B, N)) {
-      if (N.t === 'dn') D.push({ i: -1, lo: [N.c + 1, 0, 0], hi: null, L2: 0 });
+      if (N.t === 'dn') D.push({ i: -1, lo: [N.c + 1, 0, 0], hi: null });
       else {
         var lo = Math.max(N.c, -h2), hi = Math.min(N.c + 2, h2);
-        D.push(lo < hi ? { i: -1, lo: [lo, 0, 0], hi: [hi, 0, 0], L2: hi - lo } : { i: -1, lo: [lo, 0, 0], hi: null, L2: 0 });
+        D.push(lo < hi ? { i: -1, lo: [lo, 0, 0], hi: [hi, 0, 0] } : { i: -1, lo: [lo, 0, 0], hi: null });
       }
     }
     for (k = 0; k < nb.length; k++) {
       var V = nb[k].t, m = nb[k].m;
+      if (lockOf(m)) L.push(V.i);
       if (!restsOn(N, V)) continue;
-      if (m.pt) D.push({ i: V.i, lo: m.pt, hi: null, L2: 0 });
-      else {
-        var p = m.seg[0], q = m.seg[1], dX = q[0] > p[0] ? q[0] - p[0] : p[0] - q[0];
-        D.push({ i: V.i, lo: p, hi: q, L2: p[1] === q[1] && p[2] === q[2] ? dX : 2 * dX });
+      D.push(m.pt ? { i: V.i, lo: m.pt, hi: null } : { i: V.i, lo: m.seg[0], hi: m.seg[1] });
+    }
+    var P = B.pieces, merged = [], inX = [], X = [n], base = n, bt = N;
+    for (j = 0; j < n; j++) inX.push(0);
+    inX.push(1);
+    for (k = 0; k < L.length; k++) {
+      var q = B.pc[L[k]];
+      if (merged.indexOf(q) >= 0) continue;
+      merged.push(q);
+      var G = P[q].G, t = B.tiles[P[q].base], c = cmpH(t.a, t.b, bt.a, bt.b);
+      for (j = 0; j < G.length; j++) if (!inX[G[j]]) { inX[G[j]] = 1; X.push(G[j]); }
+      if (c < 0 || (c === 0 && t.c < bt.c)) { base = P[q].base; bt = t; }
+    }
+    var groups = [{ base: base, members: X, inA: null }];
+    for (k = 0; k < P.length; k++) {
+      if (merged.indexOf(k) >= 0) continue;
+      var inG = P[k].inG, hit = false;
+      for (j = 0; j < D.length && !hit; j++) if (D[j].i >= 0 && inG[D[j].i]) hit = true;
+      for (j = 0; j < L.length && !hit; j++) if (inG[L[j]]) hit = true;
+      if (!hit) continue;
+      var M2 = P[k].G.slice();
+      for (j = 0; j < X.length; j++) if (!inG[X[j]]) M2.push(X[j]);
+      groups.push({ base: P[k].base, members: M2, inA: inG });
+    }
+    var fails = [];
+    for (k = 0; k < groups.length; k++) {
+      var gr = groups[k], g = newAgg(), mem = gr.members, inA = gr.inA;
+      for (j = 0; j < mem.length; j++) addWeight(g, mem[j] === n ? N : B.tiles[mem[j]]);
+      // its support: what a tile of the group rests on outside it (a tile inside the group holds nothing up from outside)
+      for (j = 0; j < mem.length; j++) {
+        var rs = mem[j] === n ? D : B.rests[mem[j]];
+        for (u = 0; u < rs.length; u++) { var ri = rs[u].i; if (ri < 0 || !(inX[ri] || (inA && inA[ri]))) addContact(g, rs[u]); }
       }
+      var side = g.pL ? leanOf(g) : null;
+      if (side) fails.push({ base: gr.base, members: mem, g: g, side: side });
     }
-    var anc = [];
-    for (j = 0; j < n; j++) anc.push(0);
-    for (k = 0; k < D.length; k++) {
-      var di = D[k].i;
-      if (di < 0) continue;
-      anc[di] = 1;
-      var A = B.anc[di];
-      for (j = 0; j < di; j++) if (A[j]) anc[j] = 1;
-    }
-    // N's own part: N alone, on everything it rests on
-    var own = newAgg(), aggs = [], fails = [];
-    addWeight(own, N);
-    for (k = 0; k < D.length; k++) addContact(own, D[k]);
-    if (tipsOf(own)) fails.push(n);
-    for (j = 0; j < n; j++) {
-      if (!anc[j]) continue;
-      var g = cloneAgg(B.agg[j]);
-      addWeight(g, N);
-      for (k = 0; k < D.length; k++) {
-        var i = D[k].i;
-        // a tile inside j's part holds nothing up from outside it
-        if (i >= 0 && (i === j || B.anc[i][j])) continue;
-        addContact(g, D[k]);
-      }
-      aggs.push({ i: j, g: g });
-      if (tipsOf(g)) fails.push(j);
-    }
-    return { D: D, anc: anc, own: own, aggs: aggs, fails: fails };
+    return { D: D, L: L, fails: fails };
   }
-  // what the result says when something tips (DESIGN §18.7): the base is the failing tile whose lowest point is lowest
-  // (ties: the smaller col); its part's members (N's index is the build's length), the side it leans to, the lowest
-  // support point at that end (the pivot, SPEC's [X, p, q]) and its centre of weight in x (a number, for drawing)
+  // what the result says when something tips (DESIGN §18.7, SPEC §5c): of the pieces whose group is not balanced, the
+  // one whose lowest point is lowest; on a tie, the one whose group has more tiles; then the one with the smaller col
+  // among its lowest tiles. Its base (that piece's lowest tile, the smaller col on a tie; N's index is the build's
+  // length), its group's members (sorted), the side it leans to, the lowest support point at that end (the pivot,
+  // SPEC's [X, p, q]) and its centre of weight in x (a number, for drawing)
   function tipsReport(B, N, bal) {
-    var n = B.tiles.length, best = -1, k, u;
+    var n = B.tiles.length, best = null, k;
     for (k = 0; k < bal.fails.length; k++) {
-      var j = bal.fails[k], t = j === n ? N : B.tiles[j];
-      if (best < 0) { best = j; continue; }
-      var bt = best === n ? N : B.tiles[best], c = cmpH(t.a, t.b, bt.a, bt.b);
-      if (c < 0 || (c === 0 && t.c < bt.c)) best = j;
+      var f = bal.fails[k];
+      if (!best) { best = f; continue; }
+      var t = f.base === n ? N : B.tiles[f.base], bt = best.base === n ? N : B.tiles[best.base];
+      var c = cmpH(t.a, t.b, bt.a, bt.b) || (best.members.length - f.members.length) || (t.c - bt.c);
+      if (c < 0) best = f;
     }
-    var g = bal.own;
-    for (k = 0; k < bal.aggs.length; k++) if (bal.aggs[k].i === best) g = bal.aggs[k].g;
-    var l = tipsOf(g), members = [];
-    if (best < n) { members.push(best); for (u = best + 1; u < n; u++) if (B.anc[u][best]) members.push(u); }
-    members.push(n);
+    var g = best.g, members = best.members.slice().sort(num);
     var W = g.nS + g.nT * R3 / 4, M = (g.sS + g.sT * R3 / 4) / 2;
-    return { base: best, members: members, side: l.side, pivot: out(l.side === 'right' ? g.pR : g.pL), com: M / W };
+    return { base: best.base, members: members, side: best.side, pivot: out(best.side === 'right' ? g.pR : g.pL), com: M / W };
   }
 
   // ---- the API ----
@@ -366,7 +419,7 @@ var RULES = (function () {
     return cols;
   }
   function checkDrop(B, piece, col, way) {
-    if (!B || typeof B.half !== 'number' || !B.idx || !B.anc) throw new Error('drop: not a build');
+    if (!B || typeof B.half !== 'number' || !B.idx || !B.pieces) throw new Error('drop: not a build');
     if (piece !== 'sq' && piece !== 'tri') throw new Error("drop: piece must be 'sq' or 'tri'");
     if (typeof col !== 'number' || col !== Math.floor(col)) throw new Error('drop: col must be a whole number of half tiles');
     var h2 = 2 * B.half;
@@ -462,12 +515,13 @@ var RULES = (function () {
     var idx = B.idx.slice(), o = off(B), j;
     for (j = 0; j < 2; j++) idx[p.col + j + o] = (idx[p.col + j + o] || []).concat([t]);
     var log = B.log.concat([Object.freeze({ piece: type === 'sq' ? 'sq' : 'tri', col: p.col, way: WAY[type] })]);
-    // the balance sums: the parts under the new tile gain it, and it starts its own
-    var agg = B.agg.slice(), A = k.bal.aggs;
-    for (j = 0; j < A.length; j++) agg[A[j].i] = Object.freeze(A[j].g);
-    agg.push(Object.freeze(k.bal.own));
-    var anc = B.anc.concat([Object.freeze(k.bal.anc)]);
-    return freezeBuild({ half: B.half, tiles: B.tiles.concat([t]), log: log, idx: idx, anc: anc, agg: agg });
+    // what the new tile rests on and is locked to, and the pieces and groups of the new build
+    var D = k.bal.D, L = k.bal.L, rests = B.rests.concat([Object.freeze(D.map(function (d) { return Object.freeze({ i: d.i, lo: Object.freeze(d.lo), hi: d.hi && Object.freeze(d.hi) }); }))]);
+    var locks = B.locks.slice();
+    for (j = 0; j < L.length; j++) locks[L[j]] = Object.freeze(locks[L[j]].concat([n]));
+    locks.push(Object.freeze(L.slice()));
+    var tiles2 = B.tiles.concat([t]), S = structure(tiles2, rests, locks);
+    return freezeBuild({ half: B.half, tiles: tiles2, log: log, idx: idx, rests: rests, locks: locks, pc: S.pc, pieces: S.pieces });
   }
   // every column's result for a piece, left to right
   function fitsAll(B, piece, way) {

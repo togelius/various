@@ -12,6 +12,14 @@
 // bot afterwards (what each release really was), never to tell the bot anything.
 
 const pick = (o, keys) => { if (!o) return null; const r = {}; for (const k of keys) if (o[k] !== undefined) r[k] = o[k]; return r; };
+// the ghost weight's swing as drawn: a capsule over the weight's strip from lo to hi (L from the strip's middle, the
+// car's middle), its ends in px along the strip (the car's tilt left out: it is a few hundredths of a radian at most)
+function swingPx(d) {
+  const g = d.ghostWeight, w = d.weight, c = d.car;
+  if (!g || !w || !w.strip || !c || typeof g.lo !== 'number') return null;
+  const mid = (w.strip.x0 + w.strip.x1) / 2, L = Math.hypot(c.top[1][0] - c.top[0][0], c.top[1][1] - c.top[0][1]) / 4;
+  return [+(mid + Math.min(g.lo, g.hi) * L).toFixed(1), +(mid + Math.max(g.lo, g.hi) * L).toFixed(1)];
+}
 // the display list as seen: what is drawn, not what it means to the game
 function percept(d) {
   const g = d.ghost;
@@ -33,7 +41,8 @@ function percept(d) {
     ticks: d.ticks.map(t => ({ pts: t.pts })),
     falling: d.falling.map(f => ({ x: f.x, y: f.y, rot: f.rot, piece: f.piece, tinted: f.outcome === 'off' && f.stage !== 'fall' })),
     weight: d.weight && { x: d.weight.x, y: d.weight.y, zone: d.weight.zone, pinned: d.weight.pinned, strip: d.weight.strip, label: d.weight.label ? d.weight.label.text : null },
-    ghostWeight: d.ghostWeight && { x: d.ghostWeight.x, color: d.ghostWeight.color },
+    // (its swing: the capsule drawn over the strip, its two ends in px along it)
+    ghostWeight: d.ghostWeight && { x: d.ghostWeight.x, color: d.ghostWeight.color, swing: swingPx(d) },
     hand: d.hand && { x: d.hand.x, y: d.hand.y, poly: d.hand.poly, piece: d.hand.piece, way: d.hand.way || null, red: !!d.hand.red, ready: !!d.hand.ready, turning: !!d.hand.turning, color: d.hand.color },
     fuse: d.fuse && pick(d.fuse, ['u', 'x', 'y', 'r']),
     next: d.next && pick(d.next, ['piece', 'topper', 'color']),

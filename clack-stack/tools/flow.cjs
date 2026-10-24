@@ -186,8 +186,8 @@ async function swapScene(browser, size, seed) {
 
 /* ---- the hints ---- */
 const HINTS = {
-  drop: 'Let go: it falls straight down.', weight: 'Keep the weight between the wheels!', tri: "Triangles sit flat, or hang on a triangle's side.",
-  off: "Tiles hold by their edges. A point isn't enough.", tips: 'Too far out: it would tip. Balance it.', top: 'Tiles only go in from the top.', sway: 'Tall and thin sways. Let it settle.',
+  drop: 'Let go: it falls straight down.', weight: 'Keep the weight between the wheels!', tri: "Triangles turn themselves to fit: flat on a top, or hanging on a triangle's side.",
+  off: "Tiles hold by their edges. A point isn't enough.", tips: 'Too far out: it would tip the tiles under it.', top: 'Tiles only go in from the top.', sway: 'Tall and thin sways. Let it settle.',
   topper: 'Put THE TOPPER on the very top!',
 };
 // the hint is clear of the ghost, its column, the weight, the hand and its tile, the HUD and the tile box
@@ -271,6 +271,15 @@ async function hints(browser, size, seed) {
   await watch('sway');
   // THE TOPPER comes into the hand: its goal
   await until(page, () => !CS.state().hintNow, null, 6);
+  // (with the sway tuned in DESIGN §18.8 G4 a thin spire stacked this fast goes over, as it should: the scenes that follow
+  // need a run, so AGAIN)
+  if ((await G.state(page)).phase !== 'play') {
+    await until(page, () => { const s = CS.state(); return s.phase === 'over' && s.over && s.over.open; }, null, 10);
+    await G.wait(page, 0.6);
+    const ag = (await G.display(page)).buttons.find(b => b.name === 'again');
+    if (ag) await g.input.tap((ag.box.x0 + ag.box.x1) / 2, (ag.box.y0 + ag.box.y1) / 2);
+    await until(page, readyNow, null, 8);
+  }
   await page.evaluate(() => { CS.clear(); CS.build(['■-2', '■0']); CS.setPiece('tri', true); CS.setBox([]); });
   await watch('topper');
   if (process.env.G3_DEBUG) console.log(JSON.stringify(await page.evaluate(() => ({ KEEP: Array.from(KEEP), TIPT, cam: CS.cam(), e: buildExtent(), W: CAM.W, H: CAM.H, rib: { on: RIB.on, x0: RIB.x0, x1: RIB.x1, y: RIB.y, stub: RIB.stub }, w1: TIPH.w1, w2: TIPH.w2 }))));
@@ -365,7 +374,9 @@ async function bigMagnets(browser, size, seed) {
   };
   const bigSK = await swayKick(true), normSK = await swayKick(false);
   const rw = bigSK.dW / normSK.dW, rk = bigSK.omega / normSK.omega;
-  T.check(Math.abs(rw - 0.4) < 0.01 && Math.abs(rk - 0.5) < 0.05, `${tag}: gentler: the same landing sways it ${rw.toFixed(3)}× and kicks it ${rk.toFixed(3)}× as much as in a normal run`);
+  // (the factors are the page's own, CFG.WOB_BIG and CFG.KICK_BIG: the sway's was retuned in DESIGN §18.8 G4)
+  const want = await page.evaluate(() => [CFG.WOB_BIG, CFG.KICK_BIG]);
+  T.check(want[0] < 1 && want[1] < 1 && normSK.dW > 0 && Math.abs(rw - want[0]) < 0.01 && Math.abs(rk - want[1]) < 0.05, `${tag}: gentler: the same landing sways it ${rw.toFixed(3)}× (CFG ${want[0]}) and kicks it ${rk.toFixed(3)}× (CFG ${want[1]}) as much as in a normal run`);
   // the box never empties
   let dealt = 0;
   for (let i = 0; i < 64; i++) {

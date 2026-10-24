@@ -1,6 +1,6 @@
 'use strict';
 // Independent exact geometry for the invariants (DESIGN §18.8 I10, I13, the gap of SPEC §5a and the balance of SPEC §5c),
-// revision 5c: it shares no code with rules.js and reads
+// revision 5d: it shares no code with rules.js and reads
 // only the public results (tiles(), drop()). Coordinates are scaled by 2: a point [X, p, q] is (X, p + q√3), so every
 // x is an integer and every y is in ℤ[√3]; numbers a + b√3 are pairs [a, b] and compared exactly.
 
@@ -87,7 +87,8 @@ function mergeSegs(segs) {
 
 // ---- the state of a build (I10) ----
 // T: rules.tiles(build). Returns a list of problems (empty when the build is sound: no overlap, on the lattice, squares
-// on whole tiles, joined to the car, every tile held by half an edge or more, every part balanced) and, per tile, how it holds:
+// on whole tiles, joined to the car, every tile held by half an edge or more, every piece's group balanced) and, per tile,
+// how it holds:
 // {by: 'car' | tile indexes, len: the length of bottom edge held, in half tiles (1 or 2), sides: ▼ sides held (0..2)}.
 // Revision 5b (SPEC §5): a square or ▲ holds when part of its bottom edge (at least half) lies on a flat top below it:
 // the car top, a square's top or a ▼'s top; a ▼ holds when a lower side lies whole on a ▲'s side.
@@ -117,16 +118,17 @@ function checkState(T, half) {
     else if (!h.len) errs.push(`tile ${i} (${t.piece === 'sq' ? '■' : '▲'} col ${t.col}): its bottom touches no flat top along an edge`);
     else if (h.short) errs.push(`tile ${i}: a bottom contact shorter than half an edge`);
   });
-  // every part balanced within its grip (SPEC §5c)
-  let parts = null, rests = null;
+  // every piece's group balanced (SPEC §5c, revision 5d)
+  let pieces = null, rel = null;
   if (n && !errs.length) {
-    ({ parts, rests } = balanceOf(T, half));
-    for (const p of parts) {
-      if (!p.supported) errs.push(`tile ${p.t}: its part rests on nothing`);
-      else if (p.tips) errs.push(`tile ${p.t}'s part (${p.members.join(',')}) leans ${p.side} by 8m = ${p.m8[0]} + ${p.m8[1]}√3, past its grip L2 = ${p.L2}`);
+    const b = balanceOf(T, half);
+    pieces = b.pieces; rel = { rests: b.rests, locks: b.locks };
+    for (const p of pieces) {
+      if (!p.supported) errs.push(`piece ${p.tiles.join(',')}: its group rests on nothing`);
+      else if (p.side) errs.push(`piece ${p.tiles.join(',')}'s group (${p.members.join(',')}) leans ${p.side} past its support by ${p.m8[0]} + ${p.m8[1]}√3 (×8)`);
     }
-  }
-  return { errs, holds, parts, rests };
+  } else if (!n) rel = { rests: [], locks: [] };
+  return { errs, holds, pieces, rel };
 }
 // how tile i holds, from the geometry alone (see checkState)
 function holdOf(T, polys, i, half) {
@@ -300,83 +302,143 @@ function carContactOf(A, half) {
   for (const v of A) if (onSegment(v, car)) return [v, v];
   return null;
 }
-// twice a contact's length, an integer for any segment between lattice points at 0° or 60° (SPEC: |Δx| flat, 2·|Δx|
-// on a slant); scaled coordinates give 2·length = √(ΔX² + Δy²)
+// twice a contact's length, an integer for any segment between lattice points at 0°, 60° or 90° (scaled coordinates
+// give 2·length = √(ΔX² + Δy²) with Δy = Δp + Δq√3; a slant has Δp = 0, an upright Δq = 0 or a whole number of half
+// tiles); null for a length that is not a whole number of half tiles (an upright contact of 1 − h, say)
 function len2(s) {
   const dX = s[1][0] - s[0][0], dp = s[1][1] - s[0][1], dq = s[1][2] - s[0][2];
-  if (dp && dq) throw new Error('len2: not a lattice direction ' + JSON.stringify(s));
+  if (dp && dq) return null;
   const sq = dX * dX + dp * dp + 3 * dq * dq, r = Math.round(Math.sqrt(sq));
-  if (r * r !== sq) throw new Error('len2: length is not a whole number of half tiles ' + JSON.stringify(s));
-  return r;
+  return r * r === sq ? r : null;
 }
-// The balance of every tile's part in build T (rules.tiles()), as SPEC §5c says, in exact numbers:
+// the direction of a whole-edge contact, for coverage: 'flat', 'slant' or 'side' (upright)
+function lockDirOf(s) { return s[0][0] === s[1][0] ? 'side' : s[0][1] === s[1][1] && s[0][2] === s[1][2] ? 'flat' : 'slant'; }
+// The balance of a build T (rules.tiles()) as SPEC §5c (revision 5d) says, in exact numbers:
 //   rests: per tile, [{j: tile index or −1 (the car), c: contact}] of what it rests on;
-//   parts: per tile t, {members (sorted), x0, x1 (support's least and greatest X), L2 (2·L), m8: 8·m as [a, b] (a + b√3),
-//     side ('left' | 'right' | null), tips (m > L/4), ratio (m / (L/4) as a float, 0 when not leaning), pivot}.
-// Weights ×4 (a square's area 1 → 4, a triangle's √3/4 → √3) at each tile's middle X ((least + greatest X)/2), so with
-// x in half tiles, 8m = Σ w·(X − Xend) and the grip L/4 is L2/8: it tips when 8m > L2.
-// baseRests (optional): the rests of T without its last tile (balanceOf(T minus the last).rests), to add one tile to a
-// build without working out the rest again; the last tile's relations to every other are worked out either way.
-function balanceOf(T, half, baseRests) {
+//   locks: per tile, [{j, dir}] of the tiles it shares a whole edge with (a contact of length 1; the car never locks);
+//   pieces: the sets of tiles joined by chains of locks, each {tiles (sorted), low ([p, q] of its lowest point), base
+//     (its lowest tile, the smaller col on a tie), baseTie (more than one lowest tile), members (its group, sorted: the
+//     smallest set holding the piece, every tile resting on a tile of the set and every tile locked to one), x0, x1
+//     (the support's least and greatest X), segs (the support's segments, as 2·length), m8 (8·(W·x past the end) as
+//     [a, b], a + b√3), side ('left' | 'right' | null: balanced), pivot, supported, overX (the lean in tiles, a
+//     float, 0 when balanced), knife (its centre of weight exactly over an end of its support), halfEdge (its support
+//     is one half edge and any points), height (from its lowest support point to its top, in tiles, a float)}.
+// Weights ×4 (a square's area 1 → 4, a triangle's √3/4 → √3) at each tile's middle X ((least + greatest X)/2), x in half
+// tiles; a group leans right when Σ w·(X − x1) > 0 and left when Σ w·(x0 − X) > 0; exactly over an end is balanced.
+// base (optional): {rests, locks} of T without its last tile (a previous balanceOf or checkState().rel), to add one
+// tile to a build without working out the rest again; the last tile's relations to every other are worked out either way.
+function balanceOf(T, half, base) {
   const n = T.length, polys = T.map(t => shape(t.piece, t.way, t.col, t.y)), bounds = polys.map(boundsOf);
-  const add1 = (u, v) => { if (restsOnPoly(polys[u], polys[v], bounds[u], bounds[v])) rests[u].push({ j: v, c: contactOf(polys[u], polys[v]) }); };
-  let rests;
-  if (baseRests && baseRests.length === n - 1) {
-    rests = baseRests.map(r => r.slice());
-    rests.push([]);
+  const touch = (u, v) => !(bounds[u].x1 < bounds[v].x0 || bounds[v].x1 < bounds[u].x0 || cmp(bounds[u].y0, bounds[v].y1) > 0 || cmp(bounds[v].y0, bounds[u].y1) > 0);
+  const restRel = (u, v) => { if (restsOnPoly(polys[u], polys[v], bounds[u], bounds[v])) rests[u].push({ j: v, c: contactOf(polys[u], polys[v]) }); };
+  const lockRel = (u, v) => {
+    if (!touch(u, v)) return;
+    const segs = contactSegs(polys[u], polys[v]);
+    if (segs.length === 1 && len2(segs[0]) === 2) { const dir = lockDirOf(segs[0]); locks[u].push({ j: v, dir }); locks[v].push({ j: u, dir }); }
+  };
+  let rests, locks;
+  const baseOk = base && Array.isArray(base.rests) && base.rests.length === n - 1;
+  if (baseOk) {
+    rests = base.rests.map(r => r.slice()); rests.push([]);
+    locks = base.locks.map(r => r.slice()); locks.push([]);
     const u = n - 1;
     if (restsOnCarPoly(polys[u], half)) rests[u].push({ j: -1, c: carContactOf(polys[u], half) });
-    for (let v = 0; v < u; v++) { add1(u, v); add1(v, u); }
+    for (let v = 0; v < u; v++) { restRel(u, v); restRel(v, u); lockRel(u, v); }
   } else {
-    rests = polys.map(() => []);
+    rests = polys.map(() => []); locks = polys.map(() => []);
     for (let u = 0; u < n; u++) {
       if (restsOnCarPoly(polys[u], half)) rests[u].push({ j: -1, c: carContactOf(polys[u], half) });
-      for (let v = 0; v < n; v++) if (v !== u) add1(u, v);
+      for (let v = 0; v < n; v++) if (v !== u) restRel(u, v);
+      for (let v = u + 1; v < n; v++) lockRel(u, v);
     }
   }
   const above = polys.map(() => []);
   rests.forEach((rs, u) => rs.forEach(r => { if (r.j >= 0) above[r.j].push(u); }));
-  const w = polys.map((P, i) => T[i].piece === 'sq' ? [4, 0] : [0, 1]);
+  const w = T.map(t => t.piece === 'sq' ? [4, 0] : [0, 1]);
   const mid = polys.map(P => { const xs = P.map(v => v[0]); return (Math.min(...xs) + Math.max(...xs)) / 2; });
-  const parts = [];
-  for (let t = 0; t < n; t++) {
-    const inG = new Array(n).fill(false), stack = [t];
-    inG[t] = true;
-    while (stack.length) { const u = stack.pop(); for (const v of above[u]) if (!inG[v]) { inG[v] = true; stack.push(v); } }
+  // pieces: connected by locks
+  const pieceOf = new Array(n).fill(-1), pieces = [];
+  for (let i = 0; i < n; i++) {
+    if (pieceOf[i] >= 0) continue;
+    const id = pieces.length, tiles = [i], stack = [i];
+    pieceOf[i] = id;
+    while (stack.length) for (const l of locks[stack.pop()]) if (pieceOf[l.j] < 0) { pieceOf[l.j] = id; tiles.push(l.j); stack.push(l.j); }
+    tiles.sort((a, b) => a - b);
+    let low = null;
+    for (const t of tiles) if (!low || cmp(bounds[t].y0, low) < 0) low = bounds[t].y0;
+    const lowest = tiles.filter(t => cmp(bounds[t].y0, low) === 0).sort((a, b) => bounds[a].x0 - bounds[b].x0);
+    pieces.push({ id, tiles, low, base: lowest[0], baseTie: lowest.length > 1 });
+  }
+  for (const pc of pieces) {
+    // the group: the piece, then everything resting on a tile in the set and everything locked to one, until nothing joins
+    const inG = new Array(n).fill(false), stack = pc.tiles.slice();
+    for (const t of stack) inG[t] = true;
+    while (stack.length) {
+      const u = stack.pop();
+      for (const v of above[u].concat(locks[u].map(l => l.j))) if (!inG[v]) { inG[v] = true; stack.push(v); }
+    }
     const members = [];
     for (let i = 0; i < n; i++) if (inG[i]) members.push(i);
-    let x0 = Infinity, x1 = -Infinity, L2 = 0;
-    const pts = [];
+    // the support: the contacts of a tile in the group with what it rests on outside it
+    let x0 = Infinity, x1 = -Infinity, foot = Infinity, top = -Infinity;
+    const pts = [], segs = [], yf = v => (v[1] + v[2] * Math.sqrt(3)) / 2;
     for (const u of members) for (const r of rests[u]) {
       if (r.j >= 0 && inG[r.j]) continue;
       if (!r.c) throw new Error('balanceOf: tile ' + u + ' rests on ' + r.j + ' with no contact');
       pts.push(r.c[0], r.c[1]);
-      if (lex(r.c[0], r.c[1])) L2 += len2(r.c);
+      foot = Math.min(foot, yf(r.c[0]), yf(r.c[1]));
+      if (lex(r.c[0], r.c[1])) segs.push(len2(r.c));
     }
+    for (const u of members) for (const v of polys[u]) top = Math.max(top, yf(v));
     for (const p of pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); }
-    // 8m past each end: Σ w·(X − x1) (right) and Σ w·(x0 − X) (left)
-    let right = [0, 0], left = [0, 0];
-    for (const u of members) { right = add(right, mul(w[u], [mid[u] - x1, 0])); left = add(left, mul(w[u], [x0 - mid[u], 0])); }
+    let right = [0, 0], left = [0, 0], W = 0, M = 0;
+    for (const u of members) {
+      right = add(right, mul(w[u], [mid[u] - x1, 0])); left = add(left, mul(w[u], [x0 - mid[u], 0]));
+      const wf = w[u][0] + w[u][1] * Math.sqrt(3); W += wf; M += wf * mid[u];
+    }
     let side = null, m8 = [0, 0];
     if (sgn(...right) > 0) { side = 'right'; m8 = right; } else if (sgn(...left) > 0) { side = 'left'; m8 = left; }
-    const tips = side !== null && cmp(m8, [L2, 0]) > 0;
     let pivot = null;
     if (side) for (const p of pts) if (p[0] === (side === 'right' ? x1 : x0) && (!pivot || cmp(Y(p), Y(pivot)) < 0)) pivot = p;
-    parts.push({ t, members, x0, x1, L2, m8, side, tips, pivot, ratio: side ? (m8[0] + m8[1] * Math.sqrt(3)) / L2 : 0, supported: pts.length > 0 });
+    const com = M / W / 2; // in tiles
+    // it stands on half an edge: its support is one half edge (and any number of points)
+    const halfEdge = segs.length === 1 && segs[0] === 1;
+    Object.assign(pc, { members, x0, x1, segs, m8, side, pivot, supported: pts.length > 0, com, halfEdge, height: top - foot,
+      overX: side ? (side === 'right' ? com - x1 / 2 : x0 / 2 - com) : 0, knife: !side && (sgn(...right) === 0 || sgn(...left) === 0) });
   }
-  return { rests, parts };
+  return { rests, locks, pieces, pieceOf };
 }
-// SPEC §5c's report for a build whose last tile is the new one: the failing tile whose lowest point is lowest (ties:
-// the smaller col), as {base (index), members (list), side, pivot, m8, L2, failing (every failing tile)}, or
-// {none: true} when every part balances; both with the build's parts and rests (balanceOf)
-function tipsReportOf(T, half, baseRests) {
-  const { parts, rests } = balanceOf(T, half, baseRests);
-  const fails = parts.filter(p => p.tips);
-  if (!fails.length) return { none: true, parts, rests };
-  const low = i => T[i].y;
-  fails.sort((a, b) => cmp(low(a.t), low(b.t)) || T[a.t].col - T[b.t].col);
+// SPEC §5c's report for a build whose last tile is the new one: of the pieces whose group is not balanced, the one whose
+// lowest point is lowest; on a tie, the one whose group has more tiles; on a further tie, the one holding the smaller col
+// among its lowest tiles. Returns {base (index: that piece's lowest tile, the smaller col on a tie), members (list),
+// side, pivot, m8, piece (its tiles), failing (every failing piece's tiles), decided ('one': a single group tips;
+// 'lowest point', 'group size' or 'col': the first rule that told the failing pieces apart), baseTie (the base was
+// chosen by col among the piece's lowest tiles)}, or {none: true} when every group balances; both with the build's
+// pieces, rests and locks (balanceOf)
+function tipsReportOf(T, half, base) {
+  const b = balanceOf(T, half, base);
+  const fails = b.pieces.filter(p => p.side);
+  if (!fails.length) return Object.assign({ none: true }, b);
+  const col = p => T[p.base].col;
+  let decided = 'one';
+  if (fails.length > 1) {
+    const lo = fails.reduce((m, p) => cmp(p.low, m) < 0 ? p.low : m, fails[0].low);
+    const atLo = fails.filter(p => cmp(p.low, lo) === 0);
+    if (atLo.length === 1) decided = 'lowest point';
+    else {
+      const big = Math.max(...atLo.map(p => p.members.length));
+      decided = atLo.filter(p => p.members.length === big).length === 1 ? 'group size' : 'col';
+    }
+  }
+  fails.sort((p, q) => cmp(p.low, q.low) || q.members.length - p.members.length || col(p) - col(q));
   const f = fails[0];
-  return { base: f.t, members: f.members, side: f.side, pivot: f.pivot, m8: f.m8, L2: f.L2, failing: fails.map(p => p.t), parts, rests };
+  return Object.assign({ base: f.base, members: f.members, side: f.side, pivot: f.pivot, m8: f.m8, piece: f.tiles, group: f, failing: fails.map(p => p.tiles), decided, baseTie: f.baseTie }, b);
+}
+// the union of the groups that hold tile k (as a Set of indexes), from balanceOf's pieces
+function groupsHolding(pieces, k) {
+  const out = new Set();
+  for (const p of pieces) if (p.members.includes(k)) for (const m of p.members) out.add(m);
+  return out;
 }
 
-module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, holdOf, gapOf, onBoundary, covers, lex, normSeg, balanceOf, tipsReportOf, restsOnPoly, boundsOf, cmp, add, mul };
+module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, holdOf, gapOf, onBoundary, covers, lex, normSeg, balanceOf, tipsReportOf, groupsHolding, restsOnPoly, boundsOf, cmp, add, mul, len2, lockDirOf };

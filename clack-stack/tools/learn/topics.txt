@@ -1,0 +1,15 @@
+CLACK STACK: what your write-up should cover
+
+Write the rules of the game down in your own words, as you found them by playing. For each topic below, say what you
+saw and what you think the rule is (a guess is fine; say it is one). Topics with nothing to say: say so.
+
+ 1. Letting go: how a tile gets from the hand to where it ends up.
+ 2. Aiming: where the hand can hold a tile, and how it moves, for a square and for a triangle.
+ 3. Squares and point-up triangles: when they stay where they land.
+ 4. Points and corners.
+ 5. Point-down triangles: when they stay.
+ 6. Tiles that touch the tower and still fall off: when, and what the game shows.
+ 7. Tiles joined to each other: does it matter how they are joined?
+ 8. Triangles in the hand: which way up they come down, and what decides it.
+ 9. The tower itself falling over: when it happens, and what makes it more likely.
+10. A run: the box of tiles, the ring round the tile in the hand, how a run ends, and the score.
