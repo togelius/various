@@ -263,7 +263,7 @@ state = {
   you:    { kit: { weapon, garment, curio: [null, null], instrument }, tote: [ uid … ] },
   causes: [ last 64 cause records ],
   over:   null | { k: 'died' | 'left', turn, by, door, cause },   the visit's end
-  ui:     { pendingChoice }             a perk, door or hall choice waiting for an answer
+  ui:     { pendingChoice }             a seal, perk, door or hall choice waiting for an answer, {k, options}
 }
 
 actor = { uid, sp, arch, role, mods, modParams, trigger, group,     copied from the species at spawn
@@ -317,7 +317,7 @@ plaque = { k: 'plaque', x, y, ck }
 | Places | `sit` (on a bench); `leave(i)` (on exit tile i) |
 | Choices | `choose(index)` (a seal, a perk, a door, a hall offer, an accession) |
 
-**The action table** (`js/core/rules/actions.js`). Each action kind is defined once, by the file of the system that owns it: `Actions.define(id, {legal, candidates, apply})`, where `legal(state)` lists the legal actions of that kind, `candidates(state)` a superset with illegal ones, and `apply(state, action, ev)` returns the cost in ticks or a refusal code, checking everything before it changes anything. The kinds are closed, in the order `wait, rest, sit, move, attack, close, open, bash, push, take, drop, equip, unequip, use, throw, read, view, choose, leave` (`Actions.ORDER`); `push` and `view` are reserved for M4 and have no handler in M3. A pending choice is answered by `choose(index)`, which hands it to the function defined for its kind (`Actions.defineChoice`).
+**The action table** (`js/core/rules/actions.js`). Each action kind is defined once, by the file of the system that owns it: `Actions.define(id, {legal, candidates, apply})`, where `legal(state)` lists the legal actions of that kind, `candidates(state)` a superset with illegal ones, and `apply(state, action, ev)` returns the cost in ticks or a refusal code, checking everything before it changes anything. The kinds are closed, in the order `wait, rest, sit, move, attack, close, open, bash, push, take, drop, equip, unequip, use, throw, read, view, choose, leave` (`Actions.ORDER`); `push` and `view` are reserved for M4 and have no handler in M3. A pending choice is answered by `choose(index)`, which hands it to the function defined for its kind (`Actions.defineChoice`) and costs what that function says (choosing a seal costs nothing: reading the Catalogue Card was the cost).
 
 **Paths are a UI feature.** A tap on a distant tile becomes a sequence of `move` actions, issued one at a time and stopped by the interrupt rule (§7.1), so a replay never contains a path.
 
@@ -992,7 +992,7 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 
 *"A handful of kinds, unlabelled until you have used one or read about it."*
 
-**Eight kinds.** Solutions are drunk or thrown (thrown: a 3×3 unless the kind says otherwise, soft noise); Ephemera are read.
+**Eight kinds.** Solutions are drunk or thrown (thrown: a 3×3 unless the kind says otherwise, soft noise); Ephemera are read. You use them from your tote, one of a stack at a time, for `COST_USE`. A throw lands on a tile you can see through, within `THROW_RANGE` (a disc) and in line of sight, and reaches every creature with a tile in its square, you included, except one inside an intact case, which is behind glass.
 
 | Kind | Effect | Deck cards |
 |---|---|---|
@@ -1000,19 +1000,19 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 | Fixative | Drink (harmful): you are fixed (cannot move or act) for 4 turns. Throw: fixes every creature in the 3×3 for 4 turns | 8 |
 | Fumigant | Drink (harmful): you cough, a soft noise each turn for 5 turns. Throw: a 5×5 cloud for 10 turns that blocks sight; sleeping exhibits inside lose 1 pip a turn | 10 |
 | Solvent | Drink: removes your harmful statuses. Throw: dissolves case glass in the 3×3 silently | 8 |
-| Catalogue Card | Read: identify one unknown seal | 14 |
-| Floor Plan | Read: reveals the department's plan and the rooms of the remaining Highlights | 8 |
+| Catalogue Card | Read: identify one unknown seal, of your choice (with only one left, that one at once); a known Card cannot be read once every seal is known | 14 |
+| Floor Plan | Read: reveals the department's plan (every tile counts as explored) and the rooms of the remaining Highlights | 8 |
 | "Quiet, Please" | Read: every exhibit within 8 walking tiles loses all pips; awake exhibits that are not hunting settle where they stand; hunters drop to awake | 8 |
-| Re-admission Ticket | Read: return to this department's entrance; hunters lose you; unseals a Centrepiece hall | 5 |
+| Re-admission Ticket | Read: return to this department's entrance (or, if someone stands there, the free tile nearest it by walking distance, then in row-major order); hunters lose you; unseals a Centrepiece hall | 5 |
 
-**Seals.** Each run shuffles 4 wax seals over the Solutions and 4 ink stamps over the Ephemera. The seal carries identification through the run. Each department gives every kind a local name ("Rainwater, Collected at Slack Tide · verdigris seal").
+**Seals.** Each run shuffles 4 wax seals over the Solutions and 4 ink stamps over the Ephemera. The seal carries identification through the run. Each department gives every seal a local name ("Rainwater, Collected at Slack Tide · verdigris seal"; its pack's `consumables.names`, by the seal's position), so a name says nothing about the kind from one run to the next; a stack keeps the name of the department where it was first taken.
 
 **Identification:**
 - **By use.** A first use of an unidentified kind never harms you: a harmful drink is identified and does nothing, and the game says what it would have done; a throw of an unidentified Solution is refused if a 5×5 area (the largest any Solution has) centred on the target would include you, with a sentence that names no kind. Otherwise a throw does what its kind does, healing hostiles included. Use identifies at once, and the kind is recorded in the Catalogue.
-- **By label.** Each department shows at least 2 identifying labels for kinds you do not know, one in the Intro or the first section. Reading the full label identifies the kind.
+- **By label.** Each department shows at least 2 identifying labels for kinds you do not know, one in the Intro or the first section. Reading the full label identifies the kind. A label is a plaque on a wall, read with `read(x, y)` within `READ_RANGE` (a disc) and in line of sight, at no cost in time, while its kind is unknown.
 - **By Catalogue Card.**
 
-**The deck.** Ambient consumables are drawn from one run deck of the cards above (81), without replacement, refilled when empty.
+**The deck.** Ambient consumables are drawn from one run deck of the cards above (81), without replacement, refilled when empty. Until M4's population, a department places `CONSUMABLES_PER_DEPT` of them on free floor tiles of its Intro, sections and studies, and its labels on wall tiles beside those rooms (on §3.2's placement streams).
 
 ### 8.7 Grade
 
