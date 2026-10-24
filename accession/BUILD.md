@@ -310,7 +310,7 @@ plaque = { k: 'plaque', x, y, ck }
 | Kind | Actions |
 |---|---|
 | Moving | `move(dir)` (8 directions; into an exhibit it is an attack, into a closed door it opens it); `wait`; `rest` (one turn of a repeated wait); `close(x,y)` (a door beside you) |
-| Fighting | `attack(uid)` |
+| Fighting | `attack(uid)` (beside you, or 2 tiles away with a Reach weapon) |
 | Cases | `open(x,y)`; `bash(x,y)`; `push(x,y,dir)` (weather jars, M4) |
 | Items | `take(uid)`; `drop(uid)`; `equip(uid)`; `unequip(slot)`; `use(uid[, x, y][, on])` (an instrument at a tile, a kit on an item, a consumable); `throw(uid,x,y)` |
 | Reading and viewing | `read(x,y)` (0 ticks); `view` (one turn of the Centrepiece viewing, M4) |
@@ -625,7 +625,7 @@ renderer.dispose()
 - stepping onto shards;
 - breaking glass;
 - entering a Centrepiece hall;
-- any action whose telegraph shows damage to you.
+- any action that would leave you on a tile marked for damage by a special that resolves before your next decision (`Specials.threat`, §8.1).
 
 **Everything works with one button:**
 - no right-click, long-press, hover-only information or scroll wheel;
@@ -735,7 +735,8 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - **Damage:** a uniform roll in [min, max], minus the defender's Padding, at least 1 on a hit.
 - **No critical hits.**
 - **Shots** (a kiter's, the Pin-Driver's) are rolled as blows are. A shot's cause names it a shot (or, fired by an instrument, the instrument) with its range, and its damage comes from the last tile the bolt crossed before its target; an instrument's bolt is made with its own damage range and your Acc without the weapon's. A line a reflector sends back is the reflector's, naming who fired it.
-- **Surprise.** An attack hits automatically for maximum damage (×1.5, rounded down, with a Light weapon's melee blow) on an exhibit that is asleep or stirring, or awake and has not seen you since it last woke. The target then hunts you. Searching, returning and reinstalling exhibits are never surprised. Against a Centrepiece a surprise blow hits automatically but rolls damage, and it starts the encounter.
+- **Reach.** A Reach weapon also strikes a target exactly `REACH_RANGE` (2) tiles away in one of the 8 directions, over the tile between, which must be one you could walk onto and see through (not a wall, a closed door or a case) with no actor on it (refused `blocked`); a diagonal Reach blow keeps the corner rule on both of its halves (`corner`). A target beside you is struck as usual. A Reach blow is a blow like any other: it comes from your tile, costs your weapon's blow, and never reaches into a case.
+- **Surprise.** An attack hits automatically for maximum damage (×1.5, rounded down, with a Light weapon's melee blow) on an exhibit that is asleep or stirring, or awake and has not seen you since it last woke; any blow of yours can surprise, a Reach blow or a shot included. The target then hunts you. Searching, returning and reinstalling exhibits are never surprised. Against a Centrepiece a surprise blow hits automatically but rolls damage, and it starts the encounter.
 
 **Specials** (telegraphed): one action marks the tiles, each showing the exact damage you would take. The exhibit's next action resolves the special, with no rolls, and costs an attack plus `SPECIAL_RECOVERY` (100), so the exhibit's action after that comes 200 ticks after the resolve: marked at tick 400, resolved at 500, its next action at 700. Every special number in §8.10 is gross: a marked tile shows, and the special deals, `max(DMG_MIN_ON_HIT, gross − your Padding)`, recomputed from your Padding at every view-model update, so what resolves is what the floor showed the moment before. Specials ignore Eva.
 - **Who marks.** Only a hunting exhibit marks a special, and only one at a time. An exhibit in an intact case may mark only a beam (which passes glass) or a call (which is sound), never a ring of blows. Nor does a ring strike into an intact case: only a beam passes glass, so a ring never marks a case's tile, and an exhibit in a case, or a mimic in its disguise, is never hit by one.
@@ -745,6 +746,8 @@ These are the rules the slice implements. Each system opens with its sentence fr
   A beam's tiles are fixed when it is marked, so a cloud or dust laid while the mark is shown does not cut it.
 - **A damage special is an attack,** so its resolve makes a soft noise at its owner's tile, after its damage. A special that hits several actors applies every hit, with the wakes each causes (`ally_hit` included), before any noise, the loud noise of an exhibit it destroys included. A call makes no noise: it wakes directly.
 - **Cancelling.** A pending special is called off when its owner is fixed (at once, in the action that fixes it, so the mark is neither shown nor held against other marks), stops hunting (it lost you, was quieted, or you left by the Ticket), goes back to sleep, or is destroyed.
+- **The threat** (`Specials.threat(state, action)`) is the mark an action of yours would leave you on, when its special resolves before your next decision: the tile is where the action leaves you, your next decision comes when the action's ticks are done, and the special resolves first if its owner's next action comes earlier (ties go to you). Its number is what the mark shows, which is what resolves. The interface asks before such an action (§7.1). Nothing the action would roll is looked at, so the answer gives nothing away.
+- **The readout's line** for a special (`Specials.readout`) gives what it would deal you now through your Padding (none for a call), its gross number, its cadence in actions and its reach.
 
 **Weapons** (t is the tier):
 
@@ -788,10 +791,11 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - One line per special, with its exact net damage and cadence.
 
 **Health:**
-- **Regeneration:** 1 HP every `max(4, floor(400 / maxHP))` turns.
-- **Benches** double it.
-- **After the bell** the interval doubles.
-- **In the night watch,** and while a Centrepiece hall is sealed, regeneration stops.
+- **Regeneration:** 1 HP every `max(4, floor(400 / maxHP))` turns (the interval). It is kept as a store of units (`regen`), so that halving and doubling the rate stay exact on an odd interval: at boundary step 3, below full health, the store gains 2 units a turn, and when it reaches twice the interval it gives you 1 HP and gives up that many units. At full health the store is empty, so nothing builds up to spend later. So at 20 maximum health you regain 1 every 20 turns; at 30, every 13, and on a bench every 7 and 6 turns in turn.
+- **Benches** double it while you sit on one (4 units a turn). `sit` is legal on a bench when you are not seated already (refused `no_bench` or `seated`) and costs `COST_SIT`; waiting and resting keep you seated, and any other action that costs time gets you up. `rest` is a wait under its own name, which the interface repeats.
+- **After the bell** the interval doubles (1 unit a turn; 2 on a bench). Regeneration runs before the clock's step, so on the bell's own boundary it is still the open rate.
+- **In the night watch,** and while a Centrepiece hall is sealed, regeneration stops (no units).
+- **Healing** that is not regeneration (Consolidant, restoring, a warden back home) is a `healed` event with its cause, and never takes anyone past their maximum; when nothing is regained, nothing is said.
 - **Death** opens the death label and its recap: what killed you, why it was awake, and when and how it woke, read from the killer's own story (§3.4).
 
 ### 8.2 Waking
@@ -1421,6 +1425,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 - **Pairing.** Paired runs share seeds and per-actor streams, so the rooms and every actor's dice are the same. Once two policies act differently, the same draws serve different blows, so a single seed's difference can still be luck; the statistics below are over all seeds.
 - **Statistics, by kind:**
   - a single rate (death, fires, fallback) gets a 95% Wilson interval (`Stats.wilson(k, n, z)` in `tools/stats.js`, which runs beside the core, never in it, since it needs floating point);
+  - the hit-chance check (M3) rolls `Combat.rollHit` 10,000 times at each chance the slice can show, on one fixed `combat/test` stream, and requires each rate inside its 99.9% Wilson interval (z = 3.2905); it prints how many intervals it checked, of which about one in a thousand could fall outside by chance, and any that does is a finding;
   - a paired binary difference (death with and without a rule) gets Newcombe's paired-difference interval;
   - a continuous paired quantity (HP lost, turns) is reported as the mean per-seed difference with a 95% percentile-bootstrap interval: 10,000 resamples of seeds on a fixed resampling stream, so the result is deterministic;
   - a ratio margin is a ratio of sums over seeds, with the same bootstrap.

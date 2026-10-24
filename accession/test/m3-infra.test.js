@@ -120,7 +120,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(p.violations[0].text, /^not plain data at state\.actors\[0\]\.ax\.x after step 2 /);
     assert.equal(p.steps.length, 3, 'it stops there');
     // A rule that reads the order of an object's keys, which State.clone (canonical JSON) sorts.
-    wait.apply = (state, action, ev) => { if (Object.keys(state)[0] === 'v') state.actors[0].regen++; return apply(state, action, ev); };
+    // (It bumps your acts, a count no rule of yours resets; the regeneration store empties at full health.)
+    wait.apply = (state, action, ev) => { if (Object.keys(state)[0] === 'v') state.actors[0].acts++; return apply(state, action, ev); };
     assert.equal(H.play(X, X.TestRoom.create(1), waits, { inv: [] }).violations.length, 0, 'unseen without the clone check');
     const q = H.play(X, X.TestRoom.create(1), waits, { inv: [], clone: true });
     assert.equal(q.violations.length, 1);
