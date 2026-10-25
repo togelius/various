@@ -1,0 +1,11 @@
+{
+  "name": "stortorget-tower-defence",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A map-based tower defence game around Stortorget in Malmö",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --check server.js && node --check js/levels.js && node --check js/engine.js && node --check js/ui.js"
+  }
+}

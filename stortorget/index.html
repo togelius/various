@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#102b28">
+  <meta name="description" content="A friendly tower defence game on the real streets around Stortorget in Malmö. Defend Karl X Gustav against invading danskjävlar.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Stortorget — Defend Malmö</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="js/levels.js"></script>
+  <script defer src="js/engine.js"></script>
+  <script defer src="js/ui.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">♞</span>
+        <div>
+          <h1>STORTORGET</h1>
+          <p>Defend Malmö’s heart</p>
+        </div>
+      </div>
+
+      <div class="stats" aria-label="Game status">
+        <div class="stat" id="health-stat">
+          <span class="stat-label">STATUE</span>
+          <strong><span aria-hidden="true">♞</span> <span id="health-value">20</span></strong>
+        </div>
+        <div class="stat money-stat">
+          <span class="stat-label">FUNDS</span>
+          <strong><span id="money-value">240</span> <small>kr</small></strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">WAVE</span>
+          <strong><span id="wave-value">–</span><small> / 8</small></strong>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="icon-button" id="pause-button" type="button" aria-label="Pause game" title="Pause (P)">Ⅱ</button>
+        <button class="icon-button speed-button" id="speed-button" type="button" aria-label="Change game speed" title="Game speed">1×</button>
+        <button class="icon-button" id="sound-button" type="button" aria-label="Mute sound" title="Sound">♪</button>
+        <button class="icon-button" id="help-button" type="button" aria-label="How to play" title="How to play">?</button>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <section id="game-shell" aria-label="Map of Malmö and tower defence battlefield">
+        <canvas id="game-canvas" tabindex="0" aria-label="Stortorget battlefield. Select a defence below, then choose a marked build site. Drag to pan and pinch or use the buttons to zoom."></canvas>
+
+        <div class="map-topline">
+          <div id="phase-chip" class="phase-chip">BUILD PHASE</div>
+          <div class="map-controls" aria-label="Map controls">
+            <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in (+)">+</button>
+            <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out (−)">−</button>
+            <button id="zoom-fit" type="button" aria-label="Fit map to screen" title="Fit map (0)">⌂</button>
+          </div>
+        </div>
+
+        <div id="game-hint" class="game-hint">Pick a defence, then tap a white build site</div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        <div id="damage-vignette" class="damage-vignette"></div>
+
+        <div id="selection-panel" class="selection-panel" hidden>
+          <div class="selection-copy">
+            <span id="selection-kicker">LEVEL 1</span>
+            <strong id="selection-name">Falafel stand</strong>
+            <small id="selection-stats">13 damage · 0.62 s reload</small>
+          </div>
+          <div class="selection-actions">
+            <button id="upgrade-button" class="upgrade-button" type="button">Upgrade <span>50 kr</span></button>
+            <button id="sell-button" class="sell-button" type="button">Sell <span>42 kr</span></button>
+            <button id="close-selection" class="close-selection" type="button" aria-label="Close selected defence">×</button>
+          </div>
+        </div>
+
+        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
+      </section>
+
+      <aside id="controls" aria-label="Defence controls">
+        <section class="wave-card">
+          <div class="wave-copy">
+            <span id="wave-eyebrow" class="eyebrow">NEXT UP · WAVE 1</span>
+            <h2 id="wave-title">The first arrivals</h2>
+            <p id="wave-routes"><span class="route-dot"></span> Södergatan</p>
+          </div>
+          <button id="next-wave" class="primary-button" type="button">
+            <span id="next-wave-label">Start wave 1</span>
+            <small id="next-wave-detail">No rush — prepare first</small>
+          </button>
+        </section>
+
+        <section class="arsenal" aria-label="Build defences">
+          <div class="section-heading">
+            <span>BUILD A DEFENCE</span>
+            <small>Keys 1–3</small>
+          </div>
+          <div class="tower-shop">
+            <button class="tower-card" type="button" data-tower="falafel" aria-pressed="false">
+              <span class="tower-icon falafel-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="tower-copy"><strong>Falafel stand</strong><small>Fast · single target</small></span>
+              <span class="tower-cost">60 kr</span>
+              <kbd>1</kbd>
+            </button>
+            <button class="tower-card" type="button" data-tower="bulle" aria-pressed="false">
+              <span class="tower-icon bulle-icon" aria-hidden="true">◎</span>
+              <span class="tower-copy"><strong>Bun mortar</strong><small>Splash · groups</small></span>
+              <span class="tower-cost">95 kr</span>
+              <kbd>2</kbd>
+            </button>
+            <button class="tower-card" type="button" data-tower="glass" aria-pressed="false">
+              <span class="tower-icon glass-icon" aria-hidden="true">▼</span>
+              <span class="tower-copy"><strong>Ice-cream van</strong><small>Slows · support</small></span>
+              <span class="tower-cost">75 kr</span>
+              <kbd>3</kbd>
+            </button>
+          </div>
+        </section>
+
+        <button id="fika-button" class="fika-button" type="button">
+          <span class="fika-icon" aria-hidden="true">☕</span>
+          <span><strong>Fika break</strong><small>Slow every attacker for 5 s</small></span>
+          <span id="fika-state" class="fika-state">READY <kbd>F</kbd></span>
+        </button>
+
+        <p class="control-tip">Drag to pan · Pinch or scroll to zoom<br>Tap a built defence to upgrade or sell it</p>
+      </aside>
+    </main>
+  </div>
+
+  <div id="intro-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+    <div class="modal-card intro-card">
+      <span class="modal-eyebrow">MALMÖ · 1658-ish</span>
+      <div class="intro-statue" aria-hidden="true">♞</div>
+      <h2 id="intro-title">Hold Stortorget.</h2>
+      <p class="modal-lead">Dans&#107;jävlar are coming through Malmö’s real streets. Keep them away from the Karl X Gustav statue.</p>
+      <div class="how-to-grid">
+        <div><span>01</span><strong>Build</strong><p>Choose a defence and tap a white pavement site.</p></div>
+        <div><span>02</span><strong>Adapt</strong><p>New streets join the attack. Cover every approach.</p></div>
+        <div><span>03</span><strong>Fika</strong><p>Slow the whole invasion when things get crowded.</p></div>
+      </div>
+      <button id="start-game" class="primary-button modal-primary" type="button">Defend Stortorget <span>→</span></button>
+      <p class="modal-footnote">8 relaxed waves · upgrades · no timers before wave 1</p>
+    </div>
+  </div>
+
+  <div id="end-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="end-title" hidden>
+    <div class="modal-card end-card">
+      <span id="end-eyebrow" class="modal-eyebrow">VICTORY</span>
+      <div id="end-icon" class="intro-statue" aria-hidden="true">♞</div>
+      <h2 id="end-title">Stortorget stands!</h2>
+      <p id="end-message" class="modal-lead">Karl X Gustav is still on his horse. Time for a well-earned fika.</p>
+      <div class="end-stats">
+        <div><strong id="end-kills">0</strong><span>Stopped</span></div>
+        <div><strong id="end-health">0</strong><span>Statue health</span></div>
+        <div><strong id="end-towers">0</strong><span>Defences built</span></div>
+      </div>
+      <button id="restart-game" class="primary-button modal-primary" type="button">Play again <span>↻</span></button>
+    </div>
+  </div>
+
+  <noscript>This game needs JavaScript enabled.</noscript>
+</body>
+</html>
