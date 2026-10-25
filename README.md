@@ -34,6 +34,11 @@ subdirectory with its own README:
 - **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
   hopping along the rubber ball bollards on Stora Östergatan in Ystad, while
   little sister Arya comments. One HTML file. Open `bollard-hop/index.html`.
+- **[feral/](feral/)** — FERAL, a one-button action game about a feral ferret
+  raiding a moonlit clothesline. Socks, eggs and rival ferrets come from both
+  sides and off the line; a boot and a dog punish a greedy lunge, and five
+  perfect bites set off a war dance. Keyboard, one mouse button, or a touch
+  screen. One HTML file. Open `feral/index.html`.
 - **[gasp/](gasp/)** — GASP!, a fast parkour roguelike starring a talking,
   emotionally expressive papier-mâché fish head hopping across an office to
   find the elevator down. Procedural floors, relics, a mood on its face and

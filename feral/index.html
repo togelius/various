@@ -1,0 +1,1701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>FERAL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,560;0,9..144,700;1,9..144,560&family=Nunito:wght@600;800&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #1c1730; overflow: hidden; }
+  body { touch-action: none; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  #game { display: block; position: fixed; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+  #game:focus { outline: none; }
+</style>
+</head>
+<body>
+<canvas id="game" tabindex="0" aria-label="FERAL. A feral ferret raids a clothesline. Tap either side, or use the keyboard."></canvas>
+<script>
+(() => {
+'use strict';
+
+// FERAL — a one-button raid on a moonlit clothesline.
+// Anything that comes in from the side can be lunged at. Loot is taken,
+// rival ferrets are bitten, and a boot or a dog punishes a greedy lunge.
+// Space, a tap in the middle of a side, or a click there all choose for you.
+// Aim up for the line and down for the ground when you want to decide.
+
+const VW = 480, VH = 270;
+const PX = 240;
+const FEET = 214;
+const LINE_X0 = 26, LINE_X1 = 454;
+
+const COL = {
+  skyTop: '#1c1730',
+  skyMid: '#3a2746',
+  skyLow: '#6e3a4c',
+  horizon: '#e09268',
+  moon: '#f6ecd2',
+  house: '#14101c',
+  window: '#f0c56b',
+  fence: '#241c30',
+  shed: '#4a3034',
+  shedRoof: '#241418',
+  coop: '#5c3a30',
+  grassD: '#173026',
+  grass: '#2a4a36',
+  grassL: '#3f684c',
+  dirt: '#4a382c',
+  line: '#f4ecdf',
+  peg: '#c44b42',
+  cream: '#f6efe2',
+  gold: '#e6b15c',
+  coral: '#e15d4c',
+  ink: '#1a1220',
+  mute: '#b3a394',
+};
+
+const FONT = '"Fraunces", Georgia, "Times New Roman", serif';
+const UI = '"Nunito", "Trebuchet MS", "Gill Sans", sans-serif';
+
+const COATS = {
+  sable:     { body: '#c4844a', belly: '#f4ddc0', dark: '#2a1c16', nose: '#1a1012', ear: '#e7a3a8', eye: '#140e10', mask: true },
+  silver:    { body: '#c8c2b8', belly: '#f6f3ee', dark: '#3a4048', nose: '#2a2428', ear: '#e7b8c0', eye: '#141414', mask: true },
+  cinnamon:  { body: '#d4653c', belly: '#f6d2b4', dark: '#4a2418', nose: '#2a1210', ear: '#f0b0a4', eye: '#140e0c', mask: true },
+  panda:     { body: '#f3eee6', belly: '#fffcf7', dark: '#241c18', nose: '#1a1010', ear: '#f0b8c0', eye: '#140e10', mask: true },
+  albino:    { body: '#f7f3ee', belly: '#fffcf8', dark: '#f0e4dc', nose: '#e7a0b4', ear: '#f3c0cc', eye: '#d46a8a', mask: false },
+};
+const RIVAL = ['silver', 'cinnamon', 'sable', 'panda', 'albino'];
+const SOCKS = [
+  { a: '#f4efe4', b: '#c4473a' },
+  { a: '#f4efe4', b: '#3d5c8a' },
+  { a: '#6e4560', b: '#e6b15c' },
+  { a: '#e7e2d6', b: '#2f6a4a' },
+];
+const BASE = { sock: 64, egg: 80, ferret: 86, liner: 78, kit: 132, boot: 66, dog: 54, chicken: 154 };
+const VALUE = { sock: 100, egg: 150, chicken: 500, ferret: 200, liner: 280, kit: 260 };
+const SCRIPT = [
+  { kind: 'sock', lane: 'line', left: false, hint: 'side' },
+  { kind: 'egg', lane: 'ground', left: true, hint: 'low' },
+  { kind: 'ferret', lane: 'ground', left: false, hint: 'bite' },
+  { kind: 'sock', lane: 'line', left: true, hint: 'high' },
+  { kind: 'boot', lane: 'ground', left: false, hint: 'leave' },
+  { kind: 'liner', lane: 'line', left: true, hint: 'line' },
+];
+const SCALE = [146.83, 174.61, 196, 220, 261.63, 293.66, 220, 174.61];
+
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DEBUG = new URLSearchParams(location.search).has('debug');
+
+let W = 0, H = 0, dpr = 1, S = 1, OX = 0, OY = 0;
+let phase = 'title';
+let clock = 0;
+let best = 0;
+let mute = false;
+let lastDevice = 'pointer';
+let shake = 0;
+let freeze = 0;
+let speech = null;
+let sayLock = 0;
+let parts = [];
+let pops = [];
+let Srun = null;
+let ac = null, master = null, cricketGain = null;
+let beat = 0, nextNote = 0;
+let lastTs = 0;
+
+try { best = +localStorage.getItem('feral-best') || 0; } catch (e) {}
+
+const hash = (a, b) => {
+  const x = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+const STARS = Array.from({ length: 26 }, (_, i) => ({
+  x: hash(i, 1) * VW,
+  y: 8 + hash(i, 2) * 78,
+  r: hash(i, 3) > 0.82 ? 1.35 : 0.7,
+}));
+const BOARDS = Array.from({ length: 23 }, (_, i) => ({
+  x: 8 + i * 20.6,
+  h: 42 + hash(i, 8) * 16,
+  w: 13 + hash(i, 5) * 3,
+}));
+const HOUSES = [
+  { x: 8, w: 64, h: 40 },
+  { x: 78, w: 40, h: 54 },
+  { x: 124, w: 78, h: 34 },
+  { x: 214, w: 48, h: 50, win: true },
+  { x: 276, w: 70, h: 32 },
+  { x: 360, w: 52, h: 46 },
+  { x: 418, w: 54, h: 36 },
+];
+const FLIES = Array.from({ length: 6 }, (_, i) => ({
+  x: hash(i, 21) * VW,
+  y: 150 + hash(i, 22) * 70,
+  p: hash(i, 23) * 6,
+  s: 0.6 + hash(i, 24),
+}));
+const TITLE_SOCKS = [
+  { x: 78, s: 0 }, { x: 156, s: 1 }, { x: 318, s: 2 }, { x: 392, s: 3 },
+];
+
+function lineY(x) {
+  const u = clamp((x - LINE_X0) / (LINE_X1 - LINE_X0), 0, 1);
+  return 112 + Math.sin(u * Math.PI) * 14;
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth;
+  H = cv.clientHeight;
+  cv.width = Math.max(1, Math.round(W * dpr));
+  cv.height = Math.max(1, Math.round(H * dpr));
+  S = Math.min(W / VW, H / VH);
+  OX = (W - VW * S) / 2;
+  OY = (H - VH * S) / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function toWorld(cx, cy) {
+  const r = cv.getBoundingClientRect();
+  return { x: (cx - r.left - OX) / S, y: (cy - r.top - OY) / S };
+}
+
+// ---------------------------------------------------------------- audio
+function ensureAudio() {
+  if (!ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ac = new AC();
+    master = ac.createGain();
+    master.gain.value = mute ? 0 : 1;
+    master.connect(ac.destination);
+    startCrickets();
+    nextNote = ac.currentTime + 0.2;
+  }
+  if (ac.state === 'suspended') ac.resume();
+}
+
+function startCrickets() {
+  const dur = 2;
+  const sr = ac.sampleRate;
+  const buf = ac.createBuffer(1, Math.floor(sr * dur), sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const beatEnv = Math.sin((i / sr) * Math.PI * 2 * 14);
+    d[i] = (Math.random() * 2 - 1) * (beatEnv > 0.55 ? 0.55 : 0.04);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 4600;
+  filter.Q.value = 7;
+  cricketGain = ac.createGain();
+  cricketGain.gain.value = 0.018;
+  src.connect(filter);
+  filter.connect(cricketGain);
+  cricketGain.connect(master);
+  src.start();
+}
+
+function tone(freq, dur, type, vol, slide) {
+  if (!ac || mute) return;
+  const t = ac.currentTime;
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(Math.max(40, freq), t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq * slide), t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  o.connect(g);
+  g.connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+
+function noise(freq, q, dur, vol) {
+  if (!ac || mute) return;
+  const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, n, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const f = ac.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = ac.createGain();
+  g.gain.value = vol;
+  src.connect(f);
+  f.connect(g);
+  g.connect(master);
+  src.start();
+}
+
+function pluck(freq, vol) {
+  tone(freq, 0.18, 'triangle', vol, 1);
+}
+
+function sfx(name) {
+  if (name === 'lunge') noise(700, 2, 0.08, 0.08);
+  else if (name === 'whiff') noise(320, 1.2, 0.09, 0.04);
+  else if (name === 'dodge') noise(900, 0.7, 0.1, 0.05);
+  else if (name === 'sock') { noise(1800, 4, 0.04, 0.07); tone(880, 0.07, 'triangle', 0.05); }
+  else if (name === 'egg') tone(520, 0.09, 'sine', 0.06, 0.45);
+  else if (name === 'bite') { tone(160, 0.09, 'square', 0.04, 0.5); noise(240, 1, 0.06, 0.05); }
+  else if (name === 'chicken') { tone(740, 0.08, 'sawtooth', 0.04, 1.4); tone(540, 0.1, 'square', 0.03); }
+  else if (name === 'hurt') { tone(280, 0.22, 'sine', 0.08, 0.25); noise(180, 0.6, 0.16, 0.08); }
+  else if (name === 'woof') { tone(110, 0.18, 'sawtooth', 0.05, 0.7); tone(70, 0.22, 'sine', 0.04); }
+  else if (name === 'thump') noise(120, 0.8, 0.1, 0.07);
+  else if (name === 'dook') dook([980, 760, 1180]);
+  else if (name === 'dance') dook([880, 1040, 760, 1200, 920, 1320]);
+}
+
+function dook(freqs) {
+  if (!ac || mute) return;
+  const t0 = ac.currentTime;
+  freqs.forEach((f, i) => {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'triangle';
+    const t = t0 + i * 0.075;
+    o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.07, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.07);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + 0.08);
+  });
+}
+
+function tickMusic() {
+  if (!ac || mute || phase === 'pause') return;
+  const t = ac.currentTime;
+  if (t < nextNote) return;
+  const f = SCALE[beat % SCALE.length];
+  pluck(f, phase === 'play' ? 0.03 : 0.016);
+  if (beat % 4 === 0) pluck(f / 2, 0.018);
+  beat++;
+  nextNote = t + (phase === 'play' ? 0.48 : 0.72);
+}
+
+function toggleMute() {
+  mute = !mute;
+  if (master) master.gain.value = mute ? 0 : 1;
+}
+
+// ---------------------------------------------------------------- words
+function say(text, dur) {
+  if (sayLock > 0 && speech && speech.text === text) return;
+  speech = { text, t: dur || 0.7 };
+  sayLock = 0.2;
+}
+
+function popText(x, y, text, color) {
+  pops.push({ x, y, text, color: color || COL.cream, life: 0.8, max: 0.8 });
+  if (pops.length > 16) pops.shift();
+}
+
+function burst(x, y, kind) {
+  const n = kind === 'feather' ? 7 : 8;
+  for (let i = 0; i < n; i++) {
+    parts.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 90,
+      vy: -30 - Math.random() * 70,
+      life: 0.35 + Math.random() * 0.35,
+      max: 0.7,
+      kind,
+      rot: Math.random() * 6,
+      vr: (Math.random() - 0.5) * 8,
+      s: 0.6 + Math.random() * 0.8,
+    });
+  }
+  if (parts.length > 100) parts.splice(0, parts.length - 100);
+}
+
+// ---------------------------------------------------------------- run
+function ramp() { return 1 + Math.min(1.1, Srun.t / 70); }
+
+function startGame() {
+  ensureAudio();
+  Srun = {
+    t: 0, score: 0, combo: 0, bestCombo: 0, lives: 3, dance: 0, dancing: 0,
+    actors: [], snatched: 0, pile: 0, bitten: 0, facing: 1, action: null, recover: 0,
+    hurt: 0, iframes: 0, buffer: null, pendingDance: false, spawnIn: 0.12,
+    scriptI: 0, carry: 0, overT: 0, newBest: false, scheduled: [],
+  };
+  phase = 'play';
+  parts = [];
+  pops = [];
+  speech = null;
+  shake = 0;
+  freeze = 0;
+}
+
+function sideOf(a) { return a.vx > 0 ? -1 : 1; }
+function reachOf(a) {
+  const base = a.lane === 'line' ? 112 : 96;
+  const mercy = Srun.scriptI < SCRIPT.length ? 18 : 0;
+  return base + mercy;
+}
+function inbound(a) { return a.vx > 0 ? a.x < PX + 16 : a.x > PX - 16; }
+
+function selectTarget(side, lane) {
+  const live = Srun.actors.filter(a => !a.caught && !a.gone && inbound(a));
+  let pool = live;
+  if (side) pool = pool.filter(a => sideOf(a) === side);
+  if (lane !== 'auto') pool = pool.filter(a => a.lane === lane);
+  const hazards = pool.filter(a => a.hazard && Math.abs(a.x - PX) <= reachOf(a));
+  let good = pool.filter(a => !a.hazard && Math.abs(a.x - PX) <= reachOf(a));
+  good = good.filter(a => !hazards.some(h => h.lane === a.lane && Math.abs(h.x - PX) < Math.abs(a.x - PX) - 4));
+  if (lane === 'auto' || !side) {
+    const urgent = good.filter(a => a.danger && Math.abs(a.x - PX) / a.speed < 0.55);
+    const pickFrom = urgent.length ? urgent : good;
+    if (!pickFrom.length) return { target: null, hazard: hazards[0] || null };
+    pickFrom.sort((a, b) => Math.abs(a.x - PX) - Math.abs(b.x - PX));
+    return { target: pickFrom[0], hazard: null };
+  }
+  const all = pool.filter(a => Math.abs(a.x - PX) <= reachOf(a));
+  if (!all.length) return { target: null, hazard: null };
+  all.sort((a, b) => Math.abs(a.x - PX) - Math.abs(b.x - PX));
+  return { target: all[0], hazard: null };
+}
+
+function scoreCaught(a, perfect, danced) {
+  if (a.danger) Srun.bitten++;
+  else { Srun.snatched++; Srun.pile++; }
+  if (a.kind === 'sock') Srun.carry = 0.55;
+  Srun.combo++;
+  if (Srun.combo > Srun.bestCombo) Srun.bestCombo = Srun.combo;
+  const base = danced ? 120 : VALUE[a.kind];
+  const mult = danced ? 1 : 1 + (Srun.combo - 1) * 0.22;
+  const pts = Math.round(base * (perfect ? 2 : 1) * mult);
+  Srun.score += pts;
+  const y = a.lane === 'line' ? lineY(a.x) - 18 : FEET - 62;
+  popText(a.x, y, String(pts), perfect ? COL.gold : COL.cream);
+  if (perfect && !danced) {
+    Srun.dance = Math.min(5, Srun.dance + 1);
+    say('dook');
+    sfx('dook');
+    shake = reduce ? 0 : 3;
+    freeze = 0.04;
+    if (Srun.dance >= 5) Srun.pendingDance = true;
+  } else if (!danced) {
+    if (a.danger) sfx('bite');
+    else if (a.kind === 'sock') sfx('sock');
+    else if (a.kind === 'egg') sfx('egg');
+    else if (a.kind === 'chicken') sfx('chicken');
+    shake = reduce ? 0 : 1.5;
+  }
+  if (a.kind === 'chicken') {
+    say('mine');
+    Srun.scheduled.push({ in: 1.2, kind: 'dog', lane: 'ground', left: !(a.vx > 0), hint: null });
+  }
+}
+
+function badHit(a) {
+  a.gone = true;
+  Srun.combo = 0;
+  Srun.dance = Math.max(0, Srun.dance - 1);
+  Srun.lives -= 1;
+  Srun.hurt = 0.48;
+  Srun.iframes = 1.05;
+  Srun.action = null;
+  Srun.buffer = null;
+  Srun.recover = 0.2;
+  Srun.pendingDance = false;
+  shake = reduce ? 0 : 8;
+  freeze = 0.06;
+  say('no');
+  sfx('hurt');
+  burst(a.x, FEET - 20, 'mud');
+  if (Srun.lives <= 0) die();
+}
+
+function bitten(a) {
+  a.gone = true;
+  Srun.combo = 0;
+  Srun.dance = Math.max(0, Srun.dance - 1);
+  Srun.lives -= 1;
+  Srun.hurt = 0.42;
+  Srun.iframes = 1.05;
+  Srun.action = null;
+  Srun.buffer = null;
+  Srun.recover = 0.16;
+  Srun.pendingDance = false;
+  Srun.facing = sideOf(a);
+  Srun.pile = Math.max(0, Srun.pile - 1);
+  shake = reduce ? 0 : 7;
+  freeze = 0.05;
+  sfx('hurt');
+  burst(PX, FEET - 24, 'dust');
+  if (Srun.lives <= 0) die();
+}
+
+function die() {
+  phase = 'over';
+  Srun.overT = 0;
+  Srun.newBest = Srun.score > best && Srun.score > 0;
+  if (Srun.score > best) {
+    best = Srun.score;
+    try { localStorage.setItem('feral-best', String(best)); } catch (e) {}
+  }
+}
+
+function dustAt(face, lane) {
+  const y = lane === 'line' ? lineY(PX) : FEET - 8;
+  burst(PX + face * 30, y, 'dust');
+}
+
+function beginLunge(side, lane) {
+  const useLane = lane || 'auto';
+  const found = selectTarget(side, useLane);
+  const target = found.target;
+  const face = side || (target ? sideOf(target) : found.hazard ? sideOf(found.hazard) : Srun.facing);
+  Srun.facing = face;
+  Srun.buffer = null;
+  if (target && target.hazard) {
+    badHit(target);
+    return;
+  }
+  if (target) {
+    connectLunge(target);
+    return;
+  }
+  if (found.hazard && (useLane === 'auto' || !side)) {
+    Srun.action = { kind: 'dodge', t: 0, dur: 0.15, side: face, lane: 'ground', whiff: false, recoverAfter: 0.03 };
+    sfx('dodge');
+    return;
+  }
+  // A little early is still a bite. The lunge waits for them to arrive.
+  // A boot or a dog never gets this courtesy: you have to lunge into it.
+  const soon = approachingSoon(side, useLane, 0.85);
+  if (soon) {
+    const faceSoon = side || sideOf(soon);
+    Srun.facing = faceSoon;
+    Srun.action = {
+      kind: 'windup', t: 0, dur: 0.85, side: faceSoon, lane: soon.lane,
+      whiff: false, recoverAfter: 0.04,       watch: soon,
+    };
+    return;
+  }
+  Srun.action = {
+    kind: 'lunge', t: 0, dur: 0.14, side: face,
+    lane: useLane === 'auto' ? 'ground' : useLane,
+    whiff: true, recoverAfter: 0.1,
+  };
+  Srun.combo = 0;
+  sfx('whiff');
+  dustAt(face, Srun.action.lane);
+}
+
+function approachingSoon(side, lane, horizon) {
+  let pool = Srun.actors.filter(a => !a.caught && !a.gone && !a.hazard && inbound(a));
+  if (side) pool = pool.filter(a => sideOf(a) === side);
+  if (lane && lane !== 'auto') pool = pool.filter(a => a.lane === lane);
+  pool = pool.filter(a => {
+    const eta = (Math.abs(a.x - PX) - reachOf(a)) / a.speed;
+    return eta > 0 && eta < horizon;
+  });
+  if (!pool.length) return null;
+  const urgent = pool.filter(a => a.danger);
+  const list = urgent.length ? urgent : pool;
+  list.sort((a, b) => (Math.abs(a.x - PX) / a.speed) - (Math.abs(b.x - PX) / b.speed));
+  return list[0];
+}
+
+function connectLunge(target) {
+  target.caught = true;
+  target.catchT = 0;
+  const d = Math.abs(target.x - PX);
+  const perfect = d >= 30 && d <= 78;
+  Srun.facing = sideOf(target);
+  Srun.action = {
+    kind: 'lunge', t: 0, dur: perfect ? 0.12 : 0.14,
+    side: Srun.facing, lane: target.lane, whiff: false,
+    recoverAfter: perfect ? 0 : 0.04,
+  };
+  scoreCaught(target, perfect, false);
+  sfx('lunge');
+}
+
+function tryLunge(side, lane) {
+  if (phase !== 'play' || !Srun || Srun.lives <= 0) return;
+  if (Srun.dancing > 0 || Srun.hurt > 0 || Srun.action || Srun.recover > 0) {
+    Srun.buffer = { side, lane };
+    return;
+  }
+  beginLunge(side, lane);
+}
+
+function startDance() {
+  Srun.dancing = 2.1;
+  Srun.dance = 0;
+  Srun.iframes = 2.2;
+  Srun.hurt = 0;
+  let n = 0;
+  for (const a of Srun.actors) {
+    if (a.hazard) {
+      a.vx = (a.x < PX ? -1 : 1) * Math.abs(a.speed) * 1.4;
+      a.fled = true;
+      continue;
+    }
+    if (a.caught) continue;
+    a.caught = true;
+    a.catchT = -0.06 * n;
+    n++;
+    scoreCaught(a, false, true);
+  }
+  say('dook dook', 1.1);
+  sfx('dance');
+  shake = reduce ? 0 : 4;
+}
+
+function popActor(a) {
+  const y = a.lane === 'line' ? lineY(a.x) : FEET - 16;
+  const kind = a.kind === 'chicken' ? 'feather' : a.kind === 'egg' ? 'yolk' : a.kind === 'sock' ? 'fluff' : 'dust';
+  burst(a.x, y, kind);
+  a.gone = true;
+}
+
+function spawn(spec, offset) {
+  const early = Srun.t < 18 ? 0.78 : 1;
+  const speed = (BASE[spec.kind] || 80) * ramp() * early * (spec.kind === 'sock' && Srun.t < 8 ? 0.72 : 1);
+  const left = !!spec.left;
+  // The opening beats start close enough that a lunge at them connects,
+  // except the boot, which has time to be read and left alone.
+  let x;
+  if (spec.hint) {
+    const dist = spec.hint === 'leave' ? 168 : spec.hint === 'line' ? 124 : 104;
+    x = PX + (left ? -dist : dist);
+  } else {
+    x = left ? -18 - (offset || 0) : VW + 18 + (offset || 0);
+  }
+  Srun.actors.push({
+    kind: spec.kind,
+    lane: spec.lane,
+    x,
+    vx: (left ? 1 : -1) * speed,
+    speed,
+    walk: Math.random() * 10,
+    caught: false,
+    gone: false,
+    danger: spec.kind === 'ferret' || spec.kind === 'liner' || spec.kind === 'kit',
+    hazard: spec.kind === 'boot' || spec.kind === 'dog',
+    coat: RIVAL[(Srun.actors.length + Srun.bitten + Srun.scriptI) % RIVAL.length],
+    hint: spec.hint || null,
+    sock: (Srun.snatched + Srun.actors.length + 1) % 4,
+    fled: false,
+    catchT: 0,
+  });
+  if (spec.kind === 'dog') sfx('woof');
+  if (spec.kind === 'boot') sfx('thump');
+}
+
+function release(list) {
+  const seen = {};
+  let hazardOn = Srun.actors.some(a => a.hazard && !a.fled) || Srun.scheduled.some(s => s.kind === 'dog' || s.kind === 'boot');
+  for (const spec of list) {
+    if ((spec.kind === 'dog' || spec.kind === 'boot') && hazardOn) continue;
+    if (spec.kind === 'dog' || spec.kind === 'boot') hazardOn = true;
+    const key = (spec.left ? 'L' : 'R') + spec.lane;
+    const i = seen[key] || 0;
+    seen[key] = i + 1;
+    const speed = (BASE[spec.kind] || 80) * ramp();
+    spawn(spec, i * speed * 0.48);
+  }
+}
+
+function choosePattern() {
+  const t = Srun.t;
+  const r = Math.random();
+  const left = Math.random() < 0.5;
+  const L = left, R = !left;
+  if (t < 18) {
+    if (r < 0.4) return [{ kind: 'sock', lane: 'line', left: L }];
+    if (r < 0.62) return [{ kind: 'egg', lane: 'ground', left: L }];
+    if (r < 0.84) return [{ kind: 'ferret', lane: 'ground', left: L }];
+    return [{ kind: 'ferret', lane: 'ground', left: L }, { kind: 'sock', lane: 'line', left: R }];
+  }
+  if (t < 36) {
+    if (r < 0.14) return [{ kind: 'dog', lane: 'ground', left: L }, { kind: 'sock', lane: 'line', left: L }];
+    if (r < 0.28) return [{ kind: 'kit', lane: 'ground', left: L }];
+    if (r < 0.42) return [{ kind: 'liner', lane: 'line', left: L }];
+    if (r < 0.5) return [{ kind: 'ferret', lane: 'ground', left: L }, { kind: 'ferret', lane: 'ground', left: R }];
+    if (r < 0.7) return [{ kind: 'sock', lane: 'line', left: L }, { kind: 'ferret', lane: 'ground', left: L }];
+    if (r < 0.84) return [{ kind: 'egg', lane: 'ground', left: L }, { kind: 'liner', lane: 'line', left: R }];
+    return [{ kind: 'boot', lane: 'ground', left: L }, { kind: 'sock', lane: 'line', left: R }];
+  }
+  if (r < 0.1) return [{ kind: 'chicken', lane: 'ground', left: L }];
+  if (r < 0.24) return [{ kind: 'boot', lane: 'ground', left: L }, { kind: 'ferret', lane: 'ground', left: R }];
+  if (r < 0.38) return [{ kind: 'dog', lane: 'ground', left: L }, { kind: 'sock', lane: 'line', left: L }];
+  if (r < 0.52) return [{ kind: 'liner', lane: 'line', left: L }, { kind: 'kit', lane: 'ground', left: R }];
+  if (r < 0.68) return [{ kind: 'ferret', lane: 'ground', left: L }, { kind: 'liner', lane: 'line', left: L }];
+  if (r < 0.8) return [{ kind: 'kit', lane: 'ground', left: L }, { kind: 'kit', lane: 'ground', left: R }];
+  if (r < 0.9) return [{ kind: 'egg', lane: 'ground', left: L }, { kind: 'boot', lane: 'ground', left: R }];
+  return [{ kind: 'sock', lane: 'line', left: L }, { kind: 'ferret', lane: 'ground', left: R }, { kind: 'kit', lane: 'ground', left: L }];
+}
+
+function updateSpawns(dt) {
+  for (const s of Srun.scheduled) s.in -= dt;
+  const due = Srun.scheduled.filter(s => s.in <= 0);
+  Srun.scheduled = Srun.scheduled.filter(s => s.in > 0);
+  for (const s of due) release([s]);
+  Srun.spawnIn -= dt;
+  if (Srun.spawnIn > 0) return;
+  if (Srun.actors.filter(a => !a.caught && !a.gone).length >= 5) {
+    Srun.spawnIn = 0.22;
+    return;
+  }
+  if (Srun.scriptI < SCRIPT.length) release([SCRIPT[Srun.scriptI++]]);
+  else release(choosePattern());
+  const gap = Srun.scriptI <= SCRIPT.length && Srun.t < 14
+    ? 1.2
+    : Math.max(0.4, 1.12 - Srun.t * 0.006) * (0.82 + Math.random() * 0.34);
+  Srun.spawnIn = gap;
+}
+
+function updatePlay(dt) {
+  Srun.t += dt;
+  Srun.hurt = Math.max(0, Srun.hurt - dt);
+  Srun.iframes = Math.max(0, Srun.iframes - dt);
+  Srun.carry = Math.max(0, Srun.carry - dt);
+  sayLock = Math.max(0, sayLock - dt);
+  if (speech) {
+    speech.t -= dt;
+    if (speech.t <= 0) speech = null;
+  }
+  shake = Math.max(0, shake - dt * 14);
+
+  if (Srun.action && Srun.action.kind === 'windup') {
+    Srun.action.t += dt;
+    const w = Srun.action.watch;
+    const live = w && !w.gone && !w.caught;
+    if (live && Math.abs(w.x - PX) <= reachOf(w) && inbound(w)) {
+      connectLunge(w);
+    } else if (!live || Srun.action.t >= Srun.action.dur) {
+      const face = Srun.facing;
+      Srun.combo = 0;
+      Srun.action = null;
+      Srun.recover = 0.1;
+      sfx('whiff');
+      dustAt(face, 'ground');
+    }
+  } else if (Srun.action) {
+    Srun.action.t += dt;
+    for (const a of Srun.actors) {
+      if (!a.caught) continue;
+      a.catchT += dt;
+      const goal = PX + Srun.facing * 22;
+      a.x += (goal - a.x) * Math.min(1, dt * 16);
+      if (a.catchT > 0.1) popActor(a);
+    }
+    if (Srun.action.t >= Srun.action.dur) {
+      const extra = Srun.action.recoverAfter || 0;
+      Srun.action = null;
+      if (Srun.pendingDance) {
+        Srun.pendingDance = false;
+        Srun.buffer = null;
+        startDance();
+      } else Srun.recover = extra;
+    }
+  } else if (Srun.dancing > 0) {
+    Srun.dancing -= dt;
+    for (const a of Srun.actors) {
+      if (!a.caught) continue;
+      a.catchT += dt;
+      if (a.catchT > 0.08) popActor(a);
+    }
+    if (Srun.dancing < 0) Srun.dancing = 0;
+  } else if (Srun.recover > 0) {
+    Srun.recover -= dt;
+  }
+
+  if (!Srun.action && Srun.dancing <= 0 && Srun.hurt <= 0 && Srun.recover <= 0 && Srun.buffer && Srun.lives > 0 && phase === 'play') {
+    const b = Srun.buffer;
+    Srun.buffer = null;
+    beginLunge(b.side, b.lane);
+  }
+
+  if (phase !== 'play') return;
+
+  for (const a of Srun.actors) {
+    if (a.gone || a.caught) continue;
+    a.x += a.vx * dt;
+    a.walk += dt;
+    const passed = a.vx > 0 ? a.x >= PX : a.x <= PX;
+    if (a.danger && passed) {
+      if (Srun.iframes > 0 || Srun.dancing > 0 || Srun.hurt > 0) a.gone = true;
+      else bitten(a);
+    } else if (!a.danger && !a.hazard && passed) {
+      a.gone = true;
+    } else if (a.hazard && (a.vx > 0 ? a.x > PX + 100 : a.x < PX - 100)) {
+      a.gone = true;
+    } else if (a.x < -160 || a.x > VW + 160) a.gone = true;
+    if (phase !== 'play') break;
+  }
+  Srun.actors = Srun.actors.filter(a => !a.gone);
+  if (phase === 'play' && Srun.dancing <= 0) updateSpawns(dt);
+}
+
+function updateAmbient(dt) {
+  for (const f of FLIES) {
+    f.p += dt * f.s;
+    f.x += Math.sin(f.p * 1.3) * 10 * dt;
+    f.y += Math.cos(f.p) * 6 * dt;
+    if (f.x < 0) f.x += VW;
+    if (f.x > VW) f.x -= VW;
+  }
+  for (const p of parts) {
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 240 * dt;
+    p.rot += p.vr * dt;
+  }
+  parts = parts.filter(p => p.life > 0);
+  for (const p of pops) p.life -= dt;
+  pops = pops.filter(p => p.life > 0);
+}
+
+// ---------------------------------------------------------------- input
+function laneFromY(y) {
+  // Sky and the clothesline, including the socks hanging on it.
+  if (y < 152) return 'line';
+  // The grass under the ferret's paws. Anywhere else, the ferret chooses.
+  if (y > 230) return 'ground';
+  return 'auto';
+}
+function hitMute(p) { return p.x > VW - 78 && p.x < VW - 42 && p.y < 34; }
+function hitPause(p) { return p.x > VW - 40 && p.y < 34; }
+
+function togglePause() {
+  if (phase === 'play') phase = 'pause';
+  else if (phase === 'pause') phase = 'play';
+}
+
+function onPointer(e) {
+  e.preventDefault();
+  cv.focus({ preventScroll: true });
+  ensureAudio();
+  lastDevice = e.pointerType === 'touch' ? 'touch' : 'mouse';
+  const p = toWorld(e.clientX, e.clientY);
+  if (hitMute(p)) { toggleMute(); return; }
+  if (phase === 'title') { startGame(); return; }
+  if (phase === 'over') { if (Srun && Srun.overT > 0.45) startGame(); return; }
+  if (hitPause(p) || phase === 'pause') { togglePause(); return; }
+  // The life socks and the score sit in the top strip. Taps there are not lunges.
+  if (p.y < 30 && (p.x < 68 || p.x > VW - 92)) return;
+  const side = p.x < PX ? -1 : 1;
+  tryLunge(side, laneFromY(p.y));
+}
+
+function commandFor(key) {
+  switch (key) {
+    case 'ArrowLeft': case 'a': case 'A': return { side: -1, lane: 'ground' };
+    case 'ArrowRight': case 'd': case 'D': return { side: 1, lane: 'ground' };
+    case 'q': case 'Q': return { side: -1, lane: 'line' };
+    case 'e': case 'E': return { side: 1, lane: 'line' };
+    case 'ArrowUp': case 'w': case 'W': return { side: 0, lane: 'line' };
+    case 'ArrowDown': case 's': case 'S': return { side: 0, lane: 'ground' };
+    case ' ': case 'z': case 'Z': return { side: 0, lane: 'auto' };
+    default: return null;
+  }
+}
+
+function onKey(e) {
+  if (e.repeat) return;
+  if (e.key === 'm' || e.key === 'M') { ensureAudio(); toggleMute(); return; }
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    if (phase === 'play' || phase === 'pause') togglePause();
+    return;
+  }
+  if (phase === 'title') {
+    if (commandFor(e.key) || e.key === 'Enter') { lastDevice = 'key'; startGame(); }
+    return;
+  }
+  if (phase === 'over') {
+    if (Srun && Srun.overT > 0.45 && (commandFor(e.key) || e.key === 'Enter')) startGame();
+    return;
+  }
+  if (phase === 'pause') {
+    if (e.key === ' ' || e.key === 'Enter') togglePause();
+    return;
+  }
+  const cmd = commandFor(e.key);
+  if (!cmd) return;
+  lastDevice = 'key';
+  ensureAudio();
+  tryLunge(cmd.side, cmd.lane);
+}
+
+cv.addEventListener('pointerdown', onPointer, { passive: false });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('keydown', e => {
+  if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
+  onKey(e);
+}, { passive: false });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && phase === 'play') phase = 'pause';
+});
+cv.focus({ preventScroll: true });
+
+// ---------------------------------------------------------------- draw helpers
+function normAt(pts, i) {
+  const a = pts[Math.max(0, i - 1)];
+  const b = pts[Math.min(pts.length - 1, i + 1)];
+  let dx = b.x - a.x, dy = b.y - a.y;
+  const m = Math.hypot(dx, dy) || 1;
+  return { x: dy / m, y: -dx / m };
+}
+function sample(pts, t) {
+  const f = clamp(t, 0, 1) * (pts.length - 1);
+  const i = Math.min(pts.length - 2, Math.floor(f));
+  const u = f - i;
+  return {
+    x: pts[i].x + (pts[i + 1].x - pts[i].x) * u,
+    y: pts[i].y + (pts[i + 1].y - pts[i].y) * u,
+  };
+}
+function bodyRadius(t, hurt) {
+  const k = [[0, 3.4], [0.1, 6.5], [0.26, 9.2], [0.42, 8.2], [0.58, 7.2], [0.74, 8.4], [0.88, 9.4], [1, 7.2]];
+  let r = 8;
+  for (let i = 0; i < k.length - 1; i++) {
+    if (t >= k[i][0] && t <= k[i + 1][0]) {
+      const u = (t - k[i][0]) / (k[i + 1][0] - k[i][0]);
+      r = k[i][1] + (k[i + 1][1] - k[i][1]) * u;
+    }
+  }
+  return r * (hurt ? 0.72 : 1);
+}
+
+function drawFerret(x, y, dir, sc, coat, pose) {
+  ctx.save();
+  ctx.translate(x - dir * (pose.recoil || 0), y - (pose.lift || 0));
+  ctx.scale(dir * sc, sc);
+  const n = 12;
+  const len = 56 + (pose.stretch || 0) * 30;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const px = -len * 0.64 + len * t;
+    const slink = Math.sin(t * 6.2 + (pose.wag || 0)) * ((pose.stretch || 0) > 0.35 ? 0.7 : 2.2);
+    const arch = -Math.sin(t * Math.PI) * 13 * (pose.arch || 0);
+    const py = -13 + (pose.hurt ? 6 : slink) + arch;
+    pts.push({ t, x: px, y: py });
+  }
+  ctx.save();
+  ctx.globalAlpha = 0.22 * (1 - Math.min(1, (pose.lift || 0) / 80));
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(-4, 3, 20 + (pose.stretch || 0) * 8, 3.1, 0, 0, 7);
+  ctx.fill();
+  ctx.restore();
+
+  const upper = [], lower = [];
+  for (let i = 0; i <= n; i++) {
+    const p = pts[i];
+    const tn = normAt(pts, i);
+    const r = bodyRadius(p.t, pose.hurt);
+    upper.push([p.x + tn.x * r, p.y + tn.y * r]);
+    lower.push([p.x - tn.x * r, p.y - tn.y * r]);
+  }
+  ctx.beginPath();
+  ctx.moveTo(upper[0][0], upper[0][1]);
+  for (const p of upper) ctx.lineTo(p[0], p[1]);
+  for (let i = lower.length - 1; i >= 0; i--) ctx.lineTo(lower[i][0], lower[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = coat.body;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = coat.belly;
+  const mid = pts[6];
+  ctx.beginPath();
+  ctx.ellipse(mid.x - 2, mid.y + 4, 13, 5.5, -0.15, 0, 7);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = coat.dark;
+  const tip = pts[1];
+  ctx.beginPath();
+  ctx.ellipse(tip.x - 3, tip.y + 1, 6.5, 3.6, -0.5, 0, 7);
+  ctx.fill();
+
+  // Short legs. Ferrets stand low; the war dance hops, it doesn't grow stilts.
+  const legs = [0.34, 0.45, 0.58, 0.69];
+  ctx.strokeStyle = coat.dark;
+  ctx.lineWidth = 3.1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  legs.forEach((t, i) => {
+    const p = sample(pts, t);
+    const r = bodyRadius(t, pose.hurt);
+    const swing = Math.sin((pose.step || 0) + i * 1.7) * ((pose.stretch || 0) > 0.5 ? 1.2 : 2.4);
+    const splay = (pose.arch || 0) * (i < 2 ? -3 : 3);
+    const hip = p.y + r * 0.45;
+    const foot = pose.hurt ? 3 : 6;
+    ctx.beginPath();
+    ctx.moveTo(p.x, hip);
+    ctx.lineTo(p.x + swing * 0.35 + splay * 0.4, hip + foot * 0.55);
+    ctx.lineTo(p.x + swing + splay, hip + foot);
+    ctx.stroke();
+  });
+
+  const head = pts[n - 1];
+  const earBase = pts[n - 3];
+  ctx.fillStyle = coat.dark;
+  ctx.beginPath();
+  ctx.moveTo(earBase.x - 1, earBase.y - 3);
+  ctx.lineTo(earBase.x + 2, earBase.y - 14);
+  ctx.lineTo(earBase.x + 8, earBase.y - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = coat.ear;
+  ctx.beginPath();
+  ctx.moveTo(earBase.x + 1, earBase.y - 4);
+  ctx.lineTo(earBase.x + 2.4, earBase.y - 11);
+  ctx.lineTo(earBase.x + 6, earBase.y - 3.5);
+  ctx.closePath();
+  ctx.fill();
+
+  if (coat.mask) {
+    ctx.fillStyle = coat.dark;
+    ctx.beginPath();
+    ctx.ellipse(head.x - 1, head.y - 1, 8.2, 5.4, -0.35, 0, 7);
+    ctx.fill();
+  }
+  if (pose.hurt) {
+    ctx.strokeStyle = coat.mask ? COL.cream : coat.eye;
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y - 2);
+    ctx.lineTo(head.x + 4.5, head.y - 0.5);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = coat.mask ? '#f7f1e4' : coat.eye;
+    ctx.beginPath();
+    ctx.ellipse(head.x + 1.6, head.y - 1.2, 2.15, 2.15, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = coat.eye;
+    ctx.beginPath();
+    ctx.arc(head.x + 2.2, head.y - 1.2, 1.05, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = coat.nose;
+  ctx.beginPath();
+  ctx.arc(head.x + 6.5, head.y + 0.4, 1.7, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = coat.mask ? '#1a1012' : coat.nose;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  const open = (pose.mouth || 0) * 5;
+  ctx.moveTo(head.x + 4, head.y + 2);
+  ctx.quadraticCurveTo(head.x + 7, head.y + 2.4 + open, head.x + 11, head.y + 1.2);
+  ctx.stroke();
+  ctx.globalAlpha = 0.65;
+  ctx.lineWidth = 0.55;
+  ctx.strokeStyle = coat.dark;
+  for (let k = 0; k < 3; k++) {
+    ctx.beginPath();
+    ctx.moveTo(head.x + 5, head.y + 1);
+    ctx.lineTo(head.x + 16, head.y - 2 + k * 2.4);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (pose.carry) {
+    drawSock(head.x + 8, head.y + 4, 0.6, SOCKS[0], 0.38);
+  }
+  ctx.restore();
+}
+
+function drawSock(x, y, rot, style, sc) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(sc, sc);
+  ctx.fillStyle = style.a;
+  ctx.fillRect(-6, -16, 12, 16);
+  ctx.fillStyle = style.b;
+  ctx.fillRect(-6, -16, 12, 5);
+  ctx.fillStyle = style.a;
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.lineTo(-6, 6);
+  ctx.lineTo(12, 6);
+  ctx.quadraticCurveTo(16, 6, 16, 1);
+  ctx.lineTo(16, -3);
+  ctx.lineTo(-1, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = style.b;
+  ctx.fillRect(4, 1, 8, 3);
+  ctx.restore();
+}
+
+function drawEgg(x, y, spin) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(spin * 6) * 0.4);
+  ctx.fillStyle = '#f4edd8';
+  ctx.beginPath();
+  ctx.ellipse(0, -8, 7, 9, 0, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#d8c8a4';
+  ctx.beginPath();
+  ctx.arc(-2, -10, 1.1, 0, 7);
+  ctx.arc(2.5, -6, 0.8, 0, 7);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBoot(x, y, dir) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir, 1);
+  ctx.fillStyle = '#6a4634';
+  ctx.beginPath();
+  ctx.moveTo(-8, -4);
+  ctx.lineTo(-34, -6);
+  ctx.lineTo(-36, -28);
+  ctx.lineTo(-16, -30);
+  ctx.lineTo(-12, -16);
+  ctx.lineTo(-4, -14);
+  ctx.lineTo(0, -4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8a6248';
+  ctx.fillRect(-30, -28, 12, 6);
+  ctx.fillStyle = '#241810';
+  ctx.fillRect(-38, -8, 40, 5);
+  ctx.restore();
+}
+
+function drawDog(x, y, dir, bob) {
+  ctx.save();
+  // Nose sits on the collision point; the head trails behind it.
+  ctx.translate(x - dir * 12, y + Math.sin(bob * 3) * 1.5);
+  ctx.scale(dir, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(-20, 2, 28, 4, 0, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#d7cec0';
+  ctx.beginPath();
+  ctx.ellipse(-16, -26, 30, 20, 0, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#b7aa9a';
+  ctx.beginPath();
+  ctx.ellipse(-30, -40, 9, 13, -0.5, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#f3ece2';
+  ctx.beginPath();
+  ctx.ellipse(-2, -20, 16, 10, 0.15, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#1c1418';
+  ctx.beginPath();
+  ctx.arc(10, -22, 3.6, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#1c1418';
+  ctx.beginPath();
+  ctx.arc(-10, -30, 3, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = COL.cream;
+  ctx.beginPath();
+  ctx.arc(-9, -31, 1, 0, 7);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawChicken(x, y, dir, walk) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir, 1);
+  const step = Math.sin(walk * 14);
+  ctx.strokeStyle = '#c47a3a';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-8, -2);
+  ctx.lineTo(-10, -10 + step * 2);
+  ctx.moveTo(-2, -2);
+  ctx.lineTo(0, -10 - step * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#f3efe4';
+  ctx.beginPath();
+  ctx.ellipse(-8, -18, 12, 9, 0, 0, 7);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -24, 6, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#c4473a';
+  ctx.beginPath();
+  ctx.moveTo(2, -30);
+  ctx.lineTo(6, -34);
+  ctx.lineTo(8, -28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#e6b15c';
+  ctx.beginPath();
+  ctx.moveTo(9, -24);
+  ctx.lineTo(16, -22);
+  ctx.lineTo(9, -20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1a1220';
+  ctx.beginPath();
+  ctx.arc(6, -25, 1, 0, 7);
+  ctx.fill();
+  ctx.restore();
+}
+
+function playerPose() {
+  const carry = Srun && Srun.carry > 0 ? 1 : 0;
+  if (phase === 'title' || !Srun) {
+    const h = Math.abs(Math.sin(clock * 3.1));
+    return { arch: 0.3 + h * 0.7, lift: h * 11, stretch: 0, mouth: 0.2 + h * 0.55, hurt: 0, wag: clock * 2, step: clock * 8, recoil: 0, carry: 0 };
+  }
+  if (phase === 'over') return { arch: 0, lift: 0, stretch: 0.1, mouth: 0.15, hurt: 1, wag: 0, step: 0, recoil: 0, carry: 0 };
+  if (Srun.dancing > 0) {
+    const h = Math.abs(Math.sin(clock * 16));
+    return { arch: 1, lift: 8 + h * 14, stretch: 0.08, mouth: 0.9, hurt: 0, wag: clock * 4, step: clock * 22, recoil: 0, carry };
+  }
+  if (Srun.hurt > 0) return { arch: 0, lift: 0, stretch: 0, mouth: 0.1, hurt: 1, wag: 0, step: 0, recoil: 10, carry: 0 };
+  if (Srun.action) {
+    const u = clamp(Srun.action.t / Srun.action.dur, 0, 1);
+    const e = Math.sin(u * Math.PI);
+    if (Srun.action.kind === 'dodge') {
+      return { arch: 0.45, lift: e * 12, stretch: 0, mouth: 0.05, hurt: 0, wag: clock, step: 0, recoil: e * 18, carry };
+    }
+    if (Srun.action.kind === 'windup') {
+      return {
+        arch: Srun.action.lane === 'line' ? 0.25 : 0.08,
+        lift: Srun.action.lane === 'line' ? 8 : 0,
+        stretch: 0.28, mouth: 0.35, hurt: 0, wag: 0, step: 0, recoil: 0, carry,
+      };
+    }
+    return {
+      arch: Srun.action.lane === 'line' ? e * 0.3 : 0,
+      lift: Srun.action.lane === 'line' ? e * 82 : e * 2,
+      stretch: Srun.action.whiff ? e * 0.65 : e,
+      mouth: e * (Srun.action.whiff ? 0.35 : 1),
+      hurt: 0, wag: 0, step: 0, recoil: 0, carry,
+    };
+  }
+  return { arch: 0, lift: 0, stretch: 0, mouth: 0, hurt: 0, wag: clock * 1.3, step: clock * 2.4, recoil: 0, carry };
+}
+
+function faceDir() {
+  if (phase === 'title' || !Srun) return Math.sin(clock * 3.1) >= 0 ? 1 : -1;
+  if (Srun.dancing > 0) return Math.sin(clock * 16) >= 0 ? 1 : -1;
+  return Srun.facing || 1;
+}
+
+function rivalPose(a) {
+  const wob = a.lane === 'line' ? Math.sin(a.walk * 7) * 0.15 : 0;
+  return {
+    arch: wob, lift: 0, stretch: a.kind === 'kit' ? 0.15 : 0.05,
+    mouth: 0.05, hurt: 0, wag: a.walk * 2, step: a.walk * (a.kind === 'kit' ? 14 : 9),
+    recoil: 0, carry: 0,
+  };
+}
+
+function drawActor(a) {
+  const dir = a.vx > 0 ? 1 : -1;
+  if (a.kind === 'sock') {
+    const y = lineY(a.x);
+    const rot = Math.sin(clock * 2 + a.x * 0.05) * 0.18;
+    drawSock(a.x, y + 16, rot, SOCKS[a.sock], a.caught ? 0.7 : 0.85);
+    return;
+  }
+  if (a.lane === 'line') {
+    const y = lineY(a.x) + Math.sin(a.walk * 8) * 1.5;
+    const sc = 0.78;
+    drawFerret(a.x, y + 2, dir, sc, COATS[a.coat] || COATS.silver, rivalPose(a));
+    return;
+  }
+  if (a.kind === 'egg') { drawEgg(a.x, FEET - 2, a.walk); return; }
+  if (a.kind === 'boot') { drawBoot(a.x, FEET, dir); return; }
+  if (a.kind === 'dog') { drawDog(a.x, FEET, dir, a.walk); return; }
+  if (a.kind === 'chicken') { drawChicken(a.x, FEET, dir, a.walk); return; }
+  const sc = a.kind === 'kit' ? 0.62 : 0.9;
+  drawFerret(a.x, FEET, dir, sc, COATS[a.coat] || COATS.sable, rivalPose(a));
+}
+
+function drawSweet(a) {
+  if (!inSweet(a) || a.hazard || a.caught) return;
+  const y = a.kind === 'sock' ? lineY(a.x) + 8 : a.lane === 'line' ? lineY(a.x) - 6 : FEET - 10;
+  ctx.save();
+  ctx.globalAlpha = 0.4 + Math.sin(clock * 10) * 0.25;
+  ctx.strokeStyle = COL.gold;
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  ctx.arc(a.x, y, a.kind === 'sock' || a.kind === 'egg' ? 8 : 11, 0, 7);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function inSweet(a) {
+  const d = Math.abs(a.x - PX);
+  return d >= 30 && d <= 78 && !a.caught && !a.hazard;
+}
+
+function hintFor(a) {
+  if (!a.hint) return '';
+  const fromLeft = a.vx > 0;
+  if (a.hint === 'side') return lastDevice === 'key' ? (fromLeft ? '←' : '→') : 'this side';
+  if (a.hint === 'low') return lastDevice === 'key' ? (fromLeft ? 'A' : 'D') : 'low';
+  if (a.hint === 'high') return lastDevice === 'key' ? (fromLeft ? 'Q' : 'E') : 'high';
+  if (a.hint === 'bite') return 'bite';
+  if (a.hint === 'leave') return 'leave it';
+  if (a.hint === 'line') return lastDevice === 'key' ? (fromLeft ? 'Q' : 'E') : 'the line';
+  return '';
+}
+
+function drawScene() {
+  // sky bands
+  const bands = [[0, 48, COL.skyTop], [48, 42, COL.skyMid], [90, 28, COL.skyLow], [118, 22, COL.horizon]];
+  for (const b of bands) {
+    ctx.fillStyle = b[2];
+    ctx.fillRect(0, b[0], VW, b[1]);
+  }
+  for (const s of STARS) {
+    ctx.globalAlpha = 0.35 + Math.sin(clock * 1.5 + s.x) * 0.25;
+    ctx.fillStyle = COL.moon;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // moon
+  ctx.fillStyle = COL.moon;
+  ctx.beginPath();
+  ctx.arc(404, 36, 16, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#e6d7b4';
+  ctx.beginPath();
+  ctx.arc(398, 32, 3, 0, 7);
+  ctx.arc(410, 40, 2, 0, 7);
+  ctx.fill();
+
+  const base = 136;
+  for (const h of HOUSES) {
+    ctx.fillStyle = COL.house;
+    ctx.fillRect(h.x, base - h.h, h.w, h.h);
+    ctx.fillRect(h.x + h.w * 0.62, base - h.h - 10, 6, 12);
+    if (h.win) {
+      ctx.fillStyle = COL.window;
+      ctx.fillRect(h.x + 16, base - h.h + 14, 14, 16);
+      ctx.fillStyle = COL.house;
+      ctx.fillRect(h.x + 22, base - h.h + 14, 2, 16);
+      ctx.fillRect(h.x + 16, base - h.h + 21, 14, 2);
+    }
+  }
+  for (const b of BOARDS) {
+    ctx.fillStyle = COL.fence;
+    ctx.fillRect(b.x, base - 8, b.w, b.h * 0.55);
+  }
+
+  // shed
+  ctx.fillStyle = COL.shedRoof;
+  ctx.beginPath();
+  ctx.moveTo(14, 168);
+  ctx.lineTo(46, 150);
+  ctx.lineTo(86, 168);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = COL.shed;
+  ctx.fillRect(22, 168, 56, 40);
+  ctx.fillStyle = '#1a1014';
+  ctx.fillRect(44, 180, 16, 28);
+  ctx.fillStyle = '#6a4038';
+  ctx.fillRect(46, 184, 6, 8);
+
+  // coop
+  ctx.fillStyle = COL.coop;
+  ctx.fillRect(400, 176, 52, 32);
+  ctx.fillStyle = COL.shedRoof;
+  ctx.beginPath();
+  ctx.moveTo(396, 176);
+  ctx.lineTo(426, 160);
+  ctx.lineTo(456, 176);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1a1014';
+  ctx.beginPath();
+  ctx.arc(426, 190, 6, 0, 7);
+  ctx.fill();
+
+  // ground
+  ctx.fillStyle = COL.grassD;
+  ctx.fillRect(0, 196, VW, VH - 196);
+  ctx.fillStyle = COL.grass;
+  ctx.fillRect(0, 204, VW, 28);
+  ctx.fillStyle = COL.dirt;
+  ctx.beginPath();
+  ctx.ellipse(PX, FEET + 6, 54, 10, 0, 0, 7);
+  ctx.fill();
+
+  // line
+  ctx.strokeStyle = COL.line;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(LINE_X0, lineY(LINE_X0));
+  for (let x = LINE_X0; x <= LINE_X1; x += 8) ctx.lineTo(x, lineY(x));
+  ctx.stroke();
+  ctx.fillStyle = '#d9d0c4';
+  ctx.fillRect(LINE_X0 - 2, lineY(LINE_X0), 4, 196 - lineY(LINE_X0));
+  ctx.fillRect(LINE_X1 - 2, lineY(LINE_X1), 4, 196 - lineY(LINE_X1));
+
+  const showDecor = phase === 'title';
+  if (showDecor) {
+    for (const s of TITLE_SOCKS) {
+      drawSock(s.x, lineY(s.x) + 16, Math.sin(clock * 1.6 + s.x) * 0.2, SOCKS[s.s], 0.8);
+    }
+  } else {
+    for (let x = 60; x < 440; x += 46) {
+      ctx.fillStyle = COL.peg;
+      ctx.fillRect(x, lineY(x) - 3, 3, 8);
+    }
+  }
+
+  if (Srun && phase !== 'title') {
+    for (const a of Srun.actors) if (a.lane === 'line' && !a.caught) drawActor(a);
+    for (const a of Srun.actors) if (a.lane !== 'line' && !a.caught) drawActor(a);
+  } else if (phase === 'title') {
+    drawFerret(392, lineY(392) + 2, -1, 0.72, COATS.silver, {
+      arch: 0, lift: 0, stretch: 0, mouth: 0, hurt: 0, wag: clock, step: 0, recoil: 0,
+    });
+  }
+
+  // pile
+  const pile = phase === 'title' ? 4 : Srun ? Math.min(12, Srun.pile) : 0;
+  for (let i = 0; i < pile; i++) {
+    drawSock(28 + (i % 4) * 9, FEET - 2 - Math.floor(i / 4) * 7, 0.4 + i * 0.2, SOCKS[i % 4], 0.5);
+  }
+
+  ctx.save();
+  if (Srun && Srun.iframes > 0) ctx.globalAlpha = Math.sin(clock * 40) > 0 ? 0.35 : 1;
+  drawFerret(PX, FEET, faceDir(), 1.18, COATS.sable, playerPose());
+  ctx.restore();
+
+  if (Srun) {
+    for (const a of Srun.actors) if (a.caught) drawActor(a);
+    for (const a of Srun.actors) drawSweet(a);
+    for (const a of Srun.actors) {
+      const label = hintFor(a);
+      if (!label || a.caught) continue;
+      ctx.font = `700 11px ${UI}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = COL.cream;
+      const y = a.lane === 'line' ? lineY(a.x) - 8 : FEET - 48;
+      ctx.fillText(label, a.x, y);
+    }
+  }
+
+  // foreground grass
+  ctx.strokeStyle = COL.grassL;
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 22; i++) {
+    const x = (hash(i, 30) * VW);
+    const h = 8 + hash(i, 31) * 12;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x, 250);
+    ctx.quadraticCurveTo(x + 3, 250 - h, x + 7, 246);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const f of FLIES) {
+    ctx.globalAlpha = 0.35 + Math.sin(f.p * 3) * 0.35;
+    ctx.fillStyle = COL.gold;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, 1.3, 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const p of parts) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+    if (p.kind === 'fluff') { ctx.fillStyle = COL.cream; ctx.fillRect(-2, -2, 4, 3); }
+    else if (p.kind === 'yolk') { ctx.fillStyle = '#f0d36a'; ctx.beginPath(); ctx.arc(0, 0, 2.4 * p.s, 0, 7); ctx.fill(); }
+    else if (p.kind === 'feather') { ctx.fillStyle = COL.cream; ctx.beginPath(); ctx.ellipse(0, 0, 4 * p.s, 1.4, 0, 0, 7); ctx.fill(); }
+    else if (p.kind === 'mud') { ctx.fillStyle = '#3a2a22'; ctx.beginPath(); ctx.arc(0, 0, 2 * p.s, 0, 7); ctx.fill(); }
+    else { ctx.fillStyle = COL.dirt; ctx.fillRect(-1.5, -1.5, 3, 3); }
+    ctx.restore();
+  }
+  for (const p of pops) {
+    ctx.globalAlpha = clamp(p.life / 0.25, 0, 1);
+    ctx.font = `700 13px ${UI}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, p.x, p.y - (1 - p.life / p.max) * 16);
+  }
+  ctx.globalAlpha = 1;
+
+  if (speech && phase === 'play') {
+    const pose = playerPose();
+    const x = clamp(PX + faceDir() * 34, 36, VW - 36);
+    const y = FEET - 70 - (pose.lift || 0);
+    ctx.font = `italic 560 14px ${FONT}`;
+    const w = ctx.measureText(speech.text).width + 16;
+    ctx.fillStyle = COL.cream;
+    roundRect(x - w / 2, y - 16, w, 20, 8);
+    ctx.fill();
+    ctx.fillStyle = COL.ink;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(speech.text, x, y - 5);
+  }
+
+  if (DEBUG && Srun) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.strokeRect(PX - 96, FEET - 4, 192, 8);
+    ctx.strokeRect(PX - 112, 100, 224, 8);
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function drawSpeaker(x, y, off) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = COL.cream;
+  ctx.fillRect(-5, -3, 3, 6);
+  ctx.beginPath();
+  ctx.moveTo(-2, -3);
+  ctx.lineTo(3, -6);
+  ctx.lineTo(3, 6);
+  ctx.lineTo(-2, 3);
+  ctx.closePath();
+  ctx.fill();
+  if (off) {
+    ctx.strokeStyle = COL.coral;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-6, -6);
+    ctx.lineTo(6, 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawUI() {
+  if (phase === 'play' || phase === 'pause' || phase === 'over') {
+    for (let i = 0; i < 3; i++) {
+      ctx.globalAlpha = Srun && i < Srun.lives ? 1 : 0.22;
+      drawSock(16 + i * 16, 16, 0.2, SOCKS[0], 0.48);
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = `800 16px ${UI}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.cream;
+    ctx.fillText(String(Srun ? Srun.score : 0), VW - 86, 16);
+    if (Srun && Srun.combo >= 2 && phase === 'play') {
+      ctx.font = `800 11px ${UI}`;
+      ctx.fillStyle = COL.gold;
+      ctx.fillText('×' + Srun.combo, VW - 86, 30);
+    }
+    if (Srun && Srun.dance > 0 && phase === 'play') {
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc(PX - 28 + i * 14, 16, 3, 0, 7);
+        ctx.fillStyle = i < Srun.dance ? COL.gold : 'rgba(246,239,226,0.25)';
+        ctx.fill();
+      }
+    }
+    drawSpeaker(VW - 60, 16, mute);
+    // pause bars
+    ctx.fillStyle = COL.cream;
+    if (phase !== 'over') {
+      ctx.fillRect(VW - 28, 10, 3, 12);
+      ctx.fillRect(VW - 22, 10, 3, 12);
+    }
+  } else {
+    drawSpeaker(VW - 24, 16, mute);
+  }
+
+  if (phase === 'title') {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.cream;
+    ctx.font = `700 40px ${FONT}`;
+    ctx.fillText('FERAL', PX, 34);
+    ctx.font = `560 13px ${FONT}`;
+    ctx.fillStyle = '#f0d8c4';
+    ctx.fillText('the socks were already out', PX, 56);
+    ctx.font = `700 12px ${UI}`;
+    ctx.fillStyle = COL.cream;
+    ctx.fillText('tap a side  ·  the ferret chooses the bite', PX, 76);
+    ctx.font = `700 11px ${UI}`;
+    ctx.fillStyle = COL.cream;
+    ctx.fillText('A D low    Q E up on the line    space chooses', PX, 236);
+    ctx.fillStyle = COL.mute;
+    ctx.font = `600 11px ${UI}`;
+    ctx.fillText('aim up for the line, down for the ground', PX, 252);
+    if (best > 0) {
+      ctx.font = `700 11px ${UI}`;
+      ctx.fillStyle = COL.gold;
+      ctx.textAlign = 'left';
+      ctx.fillText('best ' + best, 12, 252);
+      ctx.textAlign = 'center';
+    }
+    const prompt = 'tap, click, or press a key';
+    ctx.font = `700 12px ${UI}`;
+    const pw = ctx.measureText(prompt).width + 20;
+    const blink = 0.72 + Math.sin(clock * 3) * 0.28;
+    ctx.globalAlpha = blink;
+    ctx.fillStyle = 'rgba(20,16,28,0.55)';
+    roundRect(PX - pw / 2, 84, pw, 18, 8);
+    ctx.fill();
+    ctx.fillStyle = COL.gold;
+    ctx.fillText(prompt, PX, 93);
+    ctx.globalAlpha = 1;
+  }
+
+  if (phase === 'pause') {
+    ctx.fillStyle = 'rgba(20,16,28,0.45)';
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.cream;
+    ctx.font = `700 28px ${FONT}`;
+    ctx.fillText('paused', PX, VH / 2 - 8);
+    ctx.font = `700 12px ${UI}`;
+    ctx.fillText('tap or space', PX, VH / 2 + 16);
+  }
+
+  if (phase === 'over' && Srun) {
+    ctx.fillStyle = 'rgba(20,16,28,0.35)';
+    ctx.fillRect(0, 70, VW, 120);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.cream;
+    ctx.font = `700 26px ${FONT}`;
+    ctx.fillText(Srun.newBest ? 'the yard remembers' : 'the yard wins', PX, 96);
+    ctx.font = `800 20px ${UI}`;
+    ctx.fillStyle = COL.gold;
+    ctx.fillText(String(Srun.score), PX, 122);
+    ctx.font = `700 12px ${UI}`;
+    ctx.fillStyle = COL.cream;
+    ctx.fillText(Srun.snatched + ' snatched  ·  ' + Srun.bitten + ' bitten', PX, 144);
+    ctx.fillStyle = COL.mute;
+    ctx.fillText('best ' + best, PX, 162);
+    if (Srun.overT > 0.45) {
+      ctx.fillStyle = COL.cream;
+      ctx.globalAlpha = 0.65 + Math.sin(clock * 3) * 0.35;
+      ctx.fillText('tap to go again', PX, 182);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawFrame() {
+  resize();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = COL.skyTop;
+  ctx.fillRect(0, 0, W, H);
+  const mag = reduce ? 0 : shake;
+  const shx = mag > 0 ? (Math.random() - 0.5) * mag * 2 : 0;
+  const shy = mag > 0 ? (Math.random() - 0.5) * mag : 0;
+  ctx.save();
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * (OX + shx), dpr * (OY + shy));
+  ctx.beginPath();
+  ctx.rect(0, 0, VW, VH);
+  ctx.clip();
+  drawScene();
+  ctx.restore();
+  ctx.save();
+  ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+  ctx.beginPath();
+  ctx.rect(0, 0, VW, VH);
+  ctx.clip();
+  drawUI();
+  ctx.restore();
+  // A portrait phone is a thin strip. The raid wants the long edge.
+  if (H > W * 1.15 && OY > 48) {
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.cream;
+    ctx.font = `700 ${Math.round(Math.min(26, OY * 0.16))}px ${UI}`;
+    ctx.fillText('turn sideways', W / 2, OY * 0.42);
+    ctx.fillStyle = COL.mute;
+    ctx.font = `600 ${Math.round(Math.min(15, OY * 0.09))}px ${UI}`;
+    ctx.fillText('the line runs the long way', W / 2, OY * 0.42 + Math.min(26, OY * 0.16) * 0.9);
+    ctx.restore();
+  }
+}
+
+function loop(ts) {
+  const dt = Math.min(0.034, lastTs ? (ts - lastTs) / 1000 : 0.016);
+  lastTs = ts;
+  if (phase !== 'pause') clock += dt;
+  if (phase === 'play') {
+    if (freeze > 0) freeze -= dt;
+    else updatePlay(dt);
+  } else if (phase === 'over' && Srun) {
+    Srun.overT += dt;
+  }
+  if (phase !== 'pause') updateAmbient(dt);
+  drawFrame();
+  tickMusic();
+  requestAnimationFrame(loop);
+}
+
+if (DEBUG) {
+  Object.defineProperty(window, '__feral', {
+    get() {
+      return {
+        phase,
+        score: Srun ? Srun.score : 0,
+        lives: Srun ? Srun.lives : 0,
+        combo: Srun ? Srun.combo : 0,
+        dance: Srun ? Srun.dance : 0,
+        dancing: Srun ? Srun.dancing : 0,
+        t: Srun ? +Srun.t.toFixed(2) : 0,
+        actors: Srun ? Srun.actors.filter(a => !a.gone).map(a => ({
+          kind: a.kind, x: Math.round(a.x), lane: a.lane,
+          hazard: !!a.hazard, danger: !!a.danger, caught: !!a.caught,
+        })) : [],
+      };
+    },
+  });
+}
+
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
