@@ -5,7 +5,10 @@
 // check at every zoom step; the longest Behaviour line fits the strip; every hostile on
 // screen carries the hostile mark; every actor in the view model is on the board or marked
 // at its edge. Each view first asserts that it is the active one, so a silent fallback
-// cannot pass.
+// cannot pass. Then M3's screens (BUILD.md §7.1, §7.2), in every view at both sizes and at
+// the smallest and largest text: the top bar with each stage's chip and your statuses, your
+// label, a case's label, the confirmation sheet, the bell's banner and the recap, each with
+// no sideways scroll and no target under 44 px.
 import { open, root } from './lib.mjs';
 import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton } from './measure.mjs';
 import path from 'node:path';
@@ -243,7 +246,101 @@ for (const view of registered) {
   if (errors.length) bad(`top bar sweep: console errors: ${errors.join('; ')}`);
   await browser.close();
 }
+// M3's screens, staged on the state (M.11, seed 3): each stage's chip with two statuses in the
+// top bar; your label on an exit (Wait, Rest, Leave); a case's label; the confirmation
+// before leaving and before breaking glass; the bell's banner in the strip; and the recap of
+// a death. At text sizes 1 and 1.3, nothing scrolls sideways and no target is under 44 px.
+for (const [w, h] of SIZES) for (const view of registered) {
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 1, query: `?dept=M11&seed=3&board=${view}` });
+  await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+  await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
+  const tag = `${w}×${h} M11 M3 screens (${view})`;
+  const check = async what => { for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${tag} ${what}: ${p}`); };
+  let seen = 0;
+  for (const size of ['1', '1.3']) {
+    await page.evaluate(v => window.ACCESSION.setting('text', v), size);
+    // The stages' chips, with two statuses on you.
+    for (const stage of [0, 1, 2]) {
+      const chip = await page.evaluate(n => {
+        const A = window.ACCESSION, s = A.state, me = s.actors[0], c = s.dept.clock;
+        for (const id of ['dazed', 'rooted']) if (!Status.has(me, id)) Status.apply(s, me, id, 3, { k: 'status', id }, []);
+        Status.settle(s);
+        c.stage = n; c.count = [0, c.B, c.B + c.G][n]; A.redraw();
+        return { stage: document.querySelector('#stage span').textContent, statuses: document.querySelectorAll('#statuses .st').length };
+      }, stage);
+      if (!chip.stage || chip.statuses !== 2) bad(`${tag} text ${size}: stage ${stage} shows "${chip.stage}" and ${chip.statuses} statuses`);
+      await check(`text ${size} stage ${stage}`);
+    }
+    // Your label on an exit, then the confirmation before leaving.
+    const leave = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, me = s.actors[0], [x, y] = s.dept.exits[0];
+      for (const a of s.actors) if (a.uid !== 'you' && !a.gone) { a.mode = 'dormant'; a.telegraph = null; }
+      me.x = x; me.y = y; A.redraw(); A.tap({ x, y });
+      const l = UI.labelShown() === 'you' && [...document.querySelectorAll('#sheet [data-label-act]')].map(b => b.dataset.labelAct);
+      return l;
+    });
+    if (!leave || !leave.includes('leave')) bad(`${tag} text ${size}: your label on an exit offers ${leave ? leave.join(', ') : 'nothing'}`);
+    await check(`text ${size} your label`);
+    await page.evaluate(() => window.ACCESSION.request({ a: 'leave', i: 0 }));
+    if (!await page.evaluate(() => UI.confirmOpen())) bad(`${tag} text ${size}: leaving did not ask first`);
+    await check(`text ${size} confirmation`);
+    await page.keyboard.press('Escape');
+    // A case's label, then the confirmation before breaking its glass.
+    const brk = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, me = s.actors[0];
+      for (const f of s.dept.fixtures) {
+        if (f.k !== 'case' || f.st !== 'shut') continue;
+        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          const x = f.x + dx, y = f.y + dy;
+          if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y, me)) continue;
+          me.x = x; me.y = y;
+          if (!Labels.allowed(s, { a: 'bash', x: f.x, y: f.y })) continue;
+          A.redraw(); A.tap({ x: f.x, y: f.y });
+          return { x: f.x, y: f.y };
+        }
+      }
+      return null;
+    });
+    if (!brk) bad(`${tag} text ${size}: no case to break`);
+    else {
+      await check(`text ${size} a case's label`);
+      await page.evaluate(c => window.ACCESSION.request({ a: 'bash', x: c.x, y: c.y }), brk);
+      if (!await page.evaluate(() => UI.confirmOpen())) bad(`${tag} text ${size}: breaking glass did not ask first`);
+      await check(`text ${size} confirmation to break`);
+      await page.keyboard.press('Escape');
+    }
+    await page.keyboard.press('Escape');
+    seen++;
+  }
+  // The bell's banner in the strip, then the recap of a death (text 1.3).
+  const bell = await page.evaluate(() => { const A = window.ACCESSION, c = A.state.dept.clock; c.stage = 0; c.count = c.B - 1; A.request({ a: 'wait' }); return !!document.querySelector('#strip .banner'); });
+  if (!bell) bad(`${tag}: the bell rang with no banner in the strip`);
+  await check('the bell\'s banner');
+  const died = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, me = s.actors[0], a = s.actors.find(q => q.uid !== 'you' && !q.gone && q.arch === 'plodder');
+    for (let d = 0; d < 8 && a; d++) { const x = me.x + Grid.DX[d], y = me.y + Grid.DY[d]; if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y) || !Step.adjacent(s, me, { x, y, size: 1 })) continue; Object.assign(a, { x, y, mode: 'hunting', sawYou: true, acc: 40, next: me.next }); break; }
+    me.hp = 1;
+    for (let i = 0; i < 12 && !s.over; i++) A.request({ a: 'wait' });
+    return !!s.over && UI.overlayOpen();
+  });
+  if (!died) bad(`${tag}: no recap after a staged death`);
+  await check('the recap');
+  // Enter (§7.1): on the recap it presses "Another visit"; on a confirmation, it confirms.
+  const seed = await page.evaluate(() => window.ACCESSION.seed);
+  await page.keyboard.press('Enter');
+  const again = await page.evaluate(() => ({ over: window.ACCESSION.state.over, seed: window.ACCESSION.seed, open: UI.overlayOpen() }));
+  if (again.over || again.open || again.seed !== seed + 1) bad(`${tag}: Enter on the recap did not start another visit`);
+  const asked = await page.evaluate(() => { const A = window.ACCESSION, s = A.state, [x, y] = s.dept.exits[0]; s.actors[0].x = x; s.actors[0].y = y; A.redraw(); A.request({ a: 'leave', i: 0 }); return UI.confirmOpen(); });
+  await page.keyboard.press('Enter');
+  const left = await page.evaluate(() => window.ACCESSION.state.over && window.ACCESSION.state.over.k);
+  if (!asked || left !== 'left') bad(`${tag}: Enter on the confirmation to leave did not leave (${left})`);
+  await check('the end of a visit');
+  lines.push(`${tag}: chips, your label, a case's label, two confirmations at ${seen} text sizes, the bell's banner, the recap and the end of a visit measured; Enter confirmed and started another visit`);
+  if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
+  await browser.close();
+}
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `screens: ${problems.length} problem(s)` : `screens: ${lines.length} measurements, both sizes and three narrow phones, every view, no problems`);
+console.log(problems.length ? `screens: ${problems.length} problem(s)` : `screens: ${lines.length} measurements, both sizes and three narrow phones, every view, M3's chips, labels, confirmations, banner and recap, no problems`);
 process.exit(problems.length ? 1 : 0);
