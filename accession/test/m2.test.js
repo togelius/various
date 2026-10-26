@@ -6,36 +6,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore(['js/view/art.gen.js', 'js/view/pictograms.js']);
   const { Dept, Labels, Packs, Setup, Step, State, Status, Roles, Text, Path, Grid, Registry, Pictograms, ART, Layout, Actors } = C;
 
-  // §8.1, independently. Hit = clamp(75 + 5(Acc − Eva) + 20 if the defender is fixed − 20 if
-  // the attacker is dazed, 10, 95); d(r) = max(1, r − Padding); typical = 100·Σd ÷ (n·HP)
-  // rounded half up; worst = ceil(HP ÷ max d); need = ceil(its HP · n ÷ Σd). An axis_sniper
-  // "has no blow and shoots no bolts" (§8.1), so its label gives no chance of its hitting you;
-  // "a swarm's bodies each lose all their health to any hit" (§8.1), so one needs 1 hit.
-  const has = (x, id) => (x.statuses || []).some(st => st.id === id);
-  const hit = (att, def) => Math.min(95, Math.max(10, 75 + 5 * (att.acc - def.eva) + (has(def, 'fixed') ? 20 : 0) - (has(att, 'dazed') ? 20 : 0)));
-  const nets = (att, def) => { const out = []; for (let r = att.dmin; r <= att.dmax; r++) out.push(Math.max(1, r - def.pad)); return out; };
-  const sum = xs => xs.reduce((p, q) => p + q, 0);
-  const halfUp = (num, den) => { const q = Math.floor(num / den); return 2 * (num - q * den) >= den ? q + 1 : q; };
-  // Surprise: asleep or stirring, or awake without having seen you since it woke; never
-  // hunting, searching, returning or reinstalling. Maximum damage, ×1.5 rounded down with
-  // a Light weapon; against a Centrepiece, the rolled range.
+  // §8.1, independently: test/m3-odds.test.js's model, written from §8.1's text (the hit
+  // chance, d(r) = max(1, r − Padding), typical, worst, hits needed, surprise, and the lines
+  // for shots, Reach and specials). An axis_sniper "has no blow and shoots no bolts", so its
+  // label gives no chance of its hitting you; "a swarm's bodies each lose all their health to
+  // any hit", so one needs 1 hit; and an old repair's side doubles what comes from it.
+  const M = require('./m3-odds.test.js').model(C);
+  const NO_BLOW = M.NO_BLOW, ANY_HIT = M.ANY_HIT;
   const unaware = a => a.mode === 'dormant' || (a.mode === 'awake' && !a.sawYou);
-  const NO_BLOW = ['axis_sniper'], ANY_HIT = ['mote_swarm'];
-  function expected(you, a) {
-    const t = nets(a, you), m = nets(you, a), hp = Math.max(1, you.hp), blow = !NO_BLOW.includes(a.arch);
-    const e = { blow, toYou: hit(a, you), typical: halfUp(100 * sum(t), t.length * hp), worst: Math.ceil(hp / Math.max(...t)),
-      toIt: hit(you, a), need: ANY_HIT.includes(a.arch) ? 1 : Math.ceil(a.hp * m.length / sum(m)), mine: [Math.min(...m), Math.max(...m)], surprise: null };
-    e.nums = (blow ? [e.toYou, e.typical, e.worst] : []).concat([e.toIt, e.need]);
-    if (unaware(a)) {
-      if (a.role === 'centrepiece') e.surprise = e.mine;
-      else { const d = Math.max(1, (you.weaponForm === 'light' ? Math.floor(you.dmax * 3 / 2) : you.dmax) - a.pad); e.surprise = [d, d]; }
-    }
-    return e;
-  }
   // Values made inside the core's context have its prototypes, so compare them as JSON.
   const same = (got, want, msg) => assert.equal(JSON.stringify(got), JSON.stringify(want), msg);
-  const fmt = r => r[0] === r[1] ? String(r[0]) : `${r[0]}–${r[1]}`;
-  const nums = r => r[0] === r[1] ? [r[0]] : r;
   const foot = a => { const out = []; for (let dy = 0; dy < (a.size || 1); dy++) for (let dx = 0; dx < (a.size || 1); dx++) out.push([a.x + dx, a.y + dy]); return out; };
   const footDist = (a, x, y) => Math.min(...foot(a).map(([fx, fy]) => Math.max(Math.abs(fx - x), Math.abs(fy - y))));
   const inFoot = (a, x, y) => foot(a).some(([fx, fy]) => fx === x && fy === y);
@@ -64,7 +44,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   }
 
   test('the odds readout and the Attack button equal an independent count, over varied states', () => {
-    const ran = new Set();
+    const ran = new Set(), takes = new Map();
     const FORMS = ['light', 'balanced', 'heavy'], MODES = ['dormant', 'hunting', 'returning', 'awake', 'awake-saw'];
     const STATUS = [[], [['you', 'fixed']], [['you', 'dazed']], [['it', 'fixed']], [['it', 'dazed']], [['you', 'dazed'], ['it', 'fixed']]];
     for (const acc of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth += 3) {
@@ -86,23 +66,27 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
           a.statuses = [];
           for (const [who, id] of st) Status.apply(s, who === 'you' ? you : a, id, 5, { k: 'status', id }, []);
           Status.settle(s);
-          const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
-          const want = e.nums.concat(e.surprise ? nums(e.surprise) : []);
+          const l = Labels.of(s, a.uid), e = M.expected(s, you, a), got = M.numbers(l.odds);
           const where = `${acc} d${depth} ${a.uid} ${form} hp ${you.hp} ${mode} ${JSON.stringify(st)} ${a.hp}/${a.maxHp}`;
-          assert.deepEqual(got, want, `${where}: ${l.odds.join(' ')}`);
-          assert.equal(l.odds.length, (e.blow ? 2 : 1) + (e.surprise ? 1 : 0), where);
+          assert.deepEqual(got, e.nums, `${where}: ${l.odds.join(' ')}`);
+          assert.equal(l.odds.length, e.lines, where);
           if (!e.blow) ran.add('no-blow'); if (ANY_HIT.includes(a.arch)) ran.add('any-hit');
-          const button = e.surprise ? `Attack: certain hit, ${fmt(e.surprise)} damage` : `Attack: ${e.toIt}%, ${fmt(e.mine)} damage`;
-          // (An encased exhibit, which has no button, is m3-cases's.)
-          same(l.actions, encased(s, a) ? [] : [{ id: 'attack', text: button }], where);
+          // The Attack button, exactly when step() takes the blow (so not while you are
+          // fixed, nor at an exhibit in an intact case, which is m3-cases's).
+          // (Whether step() takes it depends here only on the statuses, so it is asked once each.)
+          const key = a.uid + JSON.stringify(st);
+          if (!takes.has(key)) takes.set(key, M.takes(s, a));
+          same(l.actions, M.button(s, you, a, takes.get(key)), where);
+          if (!l.actions.length) ran.add(encased(s, a) ? 'no-button:encased' : 'no-button');
           // Which branches ran.
           ran.add('form:' + form); ran.add('mode:' + mode); ran.add('hp:' + (yhp === null ? 'max' : yhp)); if (low) ran.add('it:reduced');
           for (const [who, id] of st) ran.add(`${who}:${id}`);
           if (e.surprise) ran.add(a.role === 'centrepiece' ? (a.size === 2 ? 'surprise:centrepiece2x2' : 'surprise:centrepiece') : form === 'light' ? 'surprise:light' : 'surprise:max');
           else ran.add('surprise:none');
           if (e.surprise && a.role !== 'centrepiece' && form === 'light' && Math.floor(you.dmax * 3 / 2) - a.pad > Math.max(1, you.dmax - a.pad)) ran.add('surprise:light-adds');
-          if (e.toIt === 95 || e.toYou === 95) ran.add('clamp:95');
-          if (e.typical > 100) ran.add('typical>100');
+          if (M.SPECIAL[a.arch]) ran.add('special:' + M.SPECIAL[a.arch]); if (M.SHOOTS.includes(a.arch)) ran.add('shoots');
+          if (e.nums.includes(95)) ran.add('clamp:95');
+          if (e.blow && e.nums[1] > 100) ran.add('typical>100');
           if (a.size === 2) ran.add('size:2');
         }
         Object.assign(a, keep); delete a.sawYou;
@@ -111,7 +95,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     const want = ['form:light', 'form:balanced', 'form:heavy', 'mode:dormant', 'mode:hunting', 'mode:returning', 'mode:awake', 'mode:awake-saw',
       'hp:max', 'hp:7', 'hp:1', 'it:reduced', 'you:fixed', 'you:dazed', 'it:fixed', 'it:dazed', 'surprise:none', 'surprise:max', 'surprise:light',
-      'surprise:light-adds', 'surprise:centrepiece', 'surprise:centrepiece2x2', 'clamp:95', 'typical>100', 'size:2', 'no-blow', 'any-hit', 'disguised'];
+      'surprise:light-adds', 'surprise:centrepiece', 'surprise:centrepiece2x2', 'clamp:95', 'typical>100', 'size:2', 'no-blow', 'any-hit', 'disguised', 'no-button',
+      'special:ring', 'special:line', 'special:call', 'shoots'];
     assert.deepEqual(want.filter(k => !ran.has(k)), [], 'branches that never ran');
   });
 
@@ -121,8 +106,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const s = Dept.create(depth * 11, acc, depth), you = s.actors[0];
       for (const a of s.actors.slice(1)) {
         if (disguised(s, a)) { assert.equal(Labels.of(s, a.uid), null, a.uid); continue; }
-        const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
-        assert.deepEqual(got, e.nums.concat(e.surprise ? nums(e.surprise) : []), `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
+        const l = Labels.of(s, a.uid), e = M.expected(s, you, a), got = M.numbers(l.odds);
+        assert.deepEqual(got, e.nums, `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
         // An exhibit with no blow shows neither a blow's Acc nor its damage among its
         // pictograms (§8.1, the odds readout; §8.8), since it never uses them; one with a blow shows both.
         const icons = l.pictos.map(p => p.icon);
