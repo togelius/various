@@ -42,6 +42,26 @@ const Pictograms = (() => {
     grade:     ['.xxx....', 'x...x...', 'x...x...', '.xxx....', '..x.....', '..xxx...', '..x.....', '..xx....'],
     reads:     ['xxxxxxx.', 'x.....xx', 'x.xxx.xx', 'x.....xx', 'x.xx..xx', 'x....xxx', 'xxxxxxx.', '.....xx.'],
     bench:     ['........', '........', 'xxxxxxxx', 'xxxxxxxx', '.x....x.', '.x....x.', '.x....x.', '........'],
+    // cases and glass
+    lock:      ['..xxxx..', '.x....x.', '.x....x.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', 'xxxxxxxx'],
+    glass:     ['xxxxxxxx', 'x......x', 'x.x....x', 'x..x...x', 'x...x..x', 'x......x', 'x......x', 'xxxxxxxx'],
+    shards:    ['x.....x.', '.x...xx.', '..x.....', '......x.', '.xx..x..', '..x.....', 'x....xx.', '....x...'],
+    loan:      ['x.x.x.x.', '........', 'x......x', '........', 'x......x', '........', '.x.x.x.x', '........'],
+    // the item kinds (an item's icon is its kind, Kit.view; a Restoration kit is 'kit' above)
+    weapon:    ['...xx...', '...xx...', '...xx...', '...xx...', '...xx...', '.xxxxxx.', '...xx...', '...xx...'],
+    garment:   ['.xx..xx.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.'],
+    curio:     ['........', '.xxxxxx.', 'xx.xx.xx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '...xx...', '........'],
+    instrument:['.x....x.', '.x....x.', '.x....x.', '.x....x.', '..xxxx..', '...xx...', '...xx...', '...xx...'],
+    // the seals, keyed by Registry.SEALS[id].shape (D5.11): four wax seals over the Solutions,
+    // four ink stamps over the Ephemera, told apart by shape
+    round:     ['..xxxx..', '.xxxxxx.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..'],
+    square:    ['........', '.xxxxxx.', '.xxxxxx.', '.xx..xx.', '.xx..xx.', '.xxxxxx.', '.xxxxxx.', '........'],
+    diamond:   ['...xx...', '..xxxx..', '.xx..xx.', 'xx....xx', 'xx....xx', '.xx..xx.', '..xxxx..', '...xx...'],
+    star:      ['...xx...', '...xx...', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '.xxxxxx.', '.xx..xx.', 'x......x'],
+    anchor:    ['...xx...', '..x..x..', '...xx...', '.xxxxxx.', '...xx...', 'x..xx..x', '.x.xx.x.', '..xxxx..'],
+    key:       ['........', '.xxx....', 'x...x...', 'x...xxxx', 'x...x.xx', '.xxx..x.', '........', '........'],
+    bell:      ['...xx...', '..x..x..', '.x....x.', '.x....x.', '.x....x.', 'xxxxxxxx', '........', '...xx...'],
+    hand:      ['.x.x.x..', '.x.x.x..', '.x.x.x.x', '.xxxxx.x', '.xxxxxxx', '.xxxxxx.', '..xxxx..', '..xxxx..'],
     // statuses and surfaces, keyed by their registry ids (Registry.STATUSES, .SURFACES)
     fixed:     ['.xxxxxx.', '..xxxx..', '..xxxx..', '.xxxxxx.', '...xx...', '...xx...', '...xx...', '...x....'],
     rooted:    ['...xx...', '...xx...', '...xx...', '...xx...', '..xxxx..', '.x.xx.x.', 'x..xx..x', '.x.x..x.'],
@@ -60,6 +80,9 @@ const Pictograms = (() => {
     alert: 'hostile', hunting: 'hostile', returning: 'readable', heart: 'hostile', acc: 'readable', eva: 'readable', padding: 'readable',
     damage: 'readable', ranged: 'readable', fast: 'readable', slow: 'readable', special: 'hazard', seal: 'item', kit: 'item',
     certificate: 'item', highlight: 'item', grade: 'readable', reads: 'readable', bench: 'readable',
+    lock: 'readable', glass: 'readable', shards: 'hazard', loan: 'item',
+    weapon: 'item', garment: 'item', curio: 'item', instrument: 'item',
+    round: 'item', square: 'item', diamond: 'item', star: 'item', anchor: 'item', key: 'item', bell: 'item', hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
   };

@@ -8,7 +8,7 @@ Views.register('topdown', 'Flat', host => {
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'u', 's'];
+  const PLAIN = ['.', ','];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page
@@ -32,10 +32,13 @@ Views.register('topdown', 'Flat', host => {
   function drawTile(vm, P, x, y, px, py) {
     const ch = vm.tiles[y][x], t = tile, below = y + 1 < vm.h ? vm.tiles[y + 1][x] : '#';
     const floor = ((x + y) & 1) ? P.floor2 : P.floor;
+    // A tile you have never seen is masked in the view model (' '): drawn as the dark
+    // around the board, and a wall above one shows no face, which would say what lies there.
+    if (ch === ' ') { ctx.fillStyle = '#0d0c10'; ctx.fillRect(px, py, t, t); return; }
     const isWall = ch === '#';
     if (isWall) {
       ctx.fillStyle = P.wallTop; ctx.fillRect(px, py, t, t);
-      if (below !== '#') { ctx.fillStyle = P.wall; ctx.fillRect(px, py + t * 0.45, t, t * 0.55); ctx.fillStyle = shade(P.wall, 0.75); ctx.fillRect(px, py + t - 2, t, 2); }
+      if (below !== '#' && below !== ' ') { ctx.fillStyle = P.wall; ctx.fillRect(px, py + t * 0.45, t, t * 0.55); ctx.fillStyle = shade(P.wall, 0.75); ctx.fillRect(px, py + t - 2, t, 2); }
       return;
     }
     ctx.fillStyle = floor; ctx.fillRect(px, py, t, t);
@@ -48,6 +51,12 @@ Views.register('topdown', 'Flat', host => {
           ctx.strokeStyle = shade(P.glass, 1.15); ctx.lineWidth = 1; ctx.strokeRect(px + u + 0.5, py + u + 0.5, t - 2 * u - 1, t - 4 * u - 1);
           ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.6; ctx.fillRect(px + 3 * u, py + 3 * u, u, 4 * u); ctx.globalAlpha = 1;
         } else { ctx.fillStyle = P.glass; for (let i = 0; i < 5; i++) ctx.fillRect(px + ((x * 7 + i * 5) % 12 + 2) * u, py + ((y * 5 + i * 3) % 10 + 4) * u, u, u); }
+        break;
+      // An opened or dissolved case: its base and empty well, with no glass on it.
+      case 'u':
+        ctx.fillStyle = shade(P.floor, 0.7); ctx.fillRect(px + u, py + 3 * u, t - 2 * u, t - 3 * u);
+        ctx.fillStyle = shade(P.floor, 0.5); ctx.fillRect(px + 3 * u, py + 5 * u, t - 6 * u, t - 7 * u);
+        ctx.strokeStyle = P.glass; ctx.globalAlpha = 0.6; ctx.lineWidth = 1; ctx.strokeRect(px + u + 0.5, py + 3 * u + 0.5, t - 2 * u - 1, t - 3 * u - 1); ctx.globalAlpha = 1;
         break;
       case 'x':
         ctx.fillStyle = P.glass; for (let i = 0; i < 6; i++) ctx.fillRect(px + ((x * 7 + i * 5) % 13 + 1) * u, py + ((y * 5 + i * 7) % 13 + 1) * u, u, u);
@@ -86,9 +95,10 @@ Views.register('topdown', 'Flat', host => {
         ctx.fillStyle = ch === 'S' ? '#5c5560' : '#7a5232'; ctx.fillRect(px + 2 * u, py + 3 * u, t - 4 * u, t - 3 * u);
         ctx.fillStyle = ART.palettes.semantic.readable; ctx.fillRect(px + 10 * u, py + 9 * u, u, u);
         break;
-      case "'":
+      // An open door, ordinary or staff: the leaf swung back against the west jamb.
+      case "'": case 's':
         ctx.fillStyle = shade(floor, 0.8); ctx.fillRect(px, py, t, t);
-        ctx.fillStyle = '#7a5232'; ctx.fillRect(px, py, 2 * u, t);
+        ctx.fillStyle = ch === 's' ? '#5c5560' : '#7a5232'; ctx.fillRect(px, py, 2 * u, t);
         break;
       case '=':
         ctx.fillStyle = '#9a2a3a'; ctx.fillRect(px, py + 7 * u, t, u * 1.5);

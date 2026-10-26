@@ -8,7 +8,7 @@
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'u', 's'];
+  const PLAIN = ['.', ','];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -123,7 +123,7 @@ const Board3D = (() => {
         case '#': case '+': case 'S': return H.wall;
         case 'o': return H.column;
         case 'H': case '|': return H.partition;
-        case 'v': case 'k': return H.caseBase;
+        case 'v': case 'k': case 'u': return H.caseBase;
         case 'p': case 'C': return H.plinth;
         case 'f': case 'c': return H.furniture;
         case 'l': return H.lectern;
@@ -143,6 +143,8 @@ const Board3D = (() => {
         const v = vm.vis[y * vm.w + x];
         if (!v) continue;
         const k = v === 1 ? 0.45 : 1, ch = vm.tiles[y][x], i = y * vm.w + x, fid = 1 + i, oid = 1 + n + i;
+        // A tile you have never seen is masked (' ') and has no geometry (vis is 0 there).
+        if (ch === ' ') continue;
         const C = hex => scale(lin(hex), k);
         const top = C(P.wallTop), face = C(P.wall);
         if (ch === '#') { block(so, x, y, x + 1, y + 1, 0, H.wall, top, face, oid); continue; }
@@ -162,15 +164,25 @@ const Board3D = (() => {
             quad(fl, [[x + 0.15, 0.004, y + 0.06], [x + 0.85, 0.004, y + 0.06], [x + 0.85, 0.004, z1], [x + 0.15, 0.004, z1]], scale(lin(ART.palettes.semantic.readable), 0.55 * k), oid);
             break;
           }
-          // An open door: the leaf swung back against the west jamb.
-          case "'": block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, C('#7a5232'), C('#7a5232'), oid); break;
+          // An open door, ordinary or staff: the leaf swung back against the west jamb.
+          case "'": case 's': { const leaf = C(ch === 's' ? '#5c5560' : '#7a5232'); block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, leaf, leaf, oid); break; }
           // Shards: glass specks on the floor.
           case 'x': for (let j = 0; j < 6; j++) { const u = ((x * 7 + j * 5) % 13 + 1) / 16, w = ((y * 5 + j * 7) % 13 + 1) / 16;
             quad(fl, [[x + u, 0.004, y + w], [x + u + 0.07, 0.004, y + w], [x + u + 0.07, 0.004, y + w + 0.07], [x + u, 0.004, y + w + 0.07]], C(P.glass), fid); } break;
           case 'C': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
           case 'v': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
             block(gl_, x + 0.08, y + 0.08, x + 0.92, y + 0.92, H.caseBase, H.caseTop, C(P.glass), C(P.glass), oid); break;
-          case 'k': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid); break;
+          // A broken case: its base, with glass specks lying on it.
+          case 'k': { block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
+            const top = H.caseBase + 0.004;
+            for (let j = 0; j < 5; j++) { const u = ((x * 7 + j * 5) % 12 + 2) / 16, w = ((y * 5 + j * 3) % 10 + 3) / 16;
+              quad(so, [[x + u, top, y + w], [x + u + 0.07, top, y + w], [x + u + 0.07, top, y + w + 0.07], [x + u, top, y + w + 0.07]], C(P.glass), oid); }
+            break; }
+          // An opened or dissolved case: its base, with its glass gone, and the empty well in it.
+          case 'u': { block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
+            const top = H.caseBase + 0.004;
+            quad(so, [[x + 0.2, top, y + 0.2], [x + 0.8, top, y + 0.2], [x + 0.8, top, y + 0.8], [x + 0.2, top, y + 0.8]], scale(C(P.floor), 0.5), oid);
+            break; }
           case 'p': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
           case 'o': column(so, x + 0.5, y + 0.5, 0.32, H.column, top, face, oid); break;
           case 'b': block(so, x + 0.1, y + 0.3, x + 0.9, y + 0.7, 0, H.bench, C('#8a6440'), wood, oid); break;

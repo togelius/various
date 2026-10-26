@@ -164,7 +164,11 @@ export function board() {
       if (!drawn.find(d => d.kind === 'mark' && d.id === 'hostile:' + a.uid && inside(d.rect))) problems.push(`${a.uid} is hostile and on screen but has no hostile mark in view`);
     }
   }
-  // Every mark the view model holds is drawn: telegraphs, the path preview and the selection.
+  // Every mark the view model holds has its own id (kind:x,y), so each is found by it, and
+  // is drawn: telegraphs, calls, noise rings, a Solution's area and the aim; then the path
+  // preview and the selection.
+  const markIds = vm.marks.map(m => m.kind + ':' + m.x + ',' + m.y), twice = markIds.filter((id, i) => markIds.indexOf(id) !== i);
+  if (twice.length) problems.push(`the view model holds marks with the same id: ${[...new Set(twice)].join(', ')}`);
   const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < clearBottom; };
   for (const m of vm.marks) if (onBoard(m.x, m.y) && !drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
   // No two edge arrows lie on each other.

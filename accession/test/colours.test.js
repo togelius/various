@@ -3,7 +3,12 @@
 // colours differ pairwise by CIEDE2000 ΔE ≥ 15, and each differs by ΔE ≥ 10 from every
 // department's floor and wall colours. No reserved colour appears in a department palette:
 // every department colour stands off every reserved colour by ΔE ≥ 10 (≥ 5 simulated).
-module.exports = ({ test, assert, root, path }) => {
+// Every mark, glyph and pictogram (M3's noise rings, call marks, case glyphs, seal shapes and
+// the rest, R30g) carries its meaning in one of those reserved colours and in its shape:
+// marks.js names a reserved colour for each kind of mark and uses no other colour but black
+// and white, every pictogram has a reserved colour and a shape of its own, and every icon the
+// view model can name has a pictogram.
+module.exports = ({ test, assert, root, path, fs, loadCore }) => {
   const C = require(path.join(root, 'tools/colour.js'));
   const P = require(path.join(root, 'art/palettes.json'));
   const S = P.semantic, names = Object.keys(S);
@@ -45,5 +50,45 @@ module.exports = ({ test, assert, root, path }) => {
       if (e < min) fails.push(`${k}: ${n} vs ${dk}.${key} ${v} ΔE ${e.toFixed(1)}`);
     }
     assert.deepEqual(fails, []);
+  });
+
+  // The view's two shared files, run as the page runs them.
+  const vmod = require('node:vm'), ctx = vmod.createContext({ ART: { palettes: { semantic: S } }, Math });
+  for (const f of ['js/view/pictograms.js', 'js/view/marks.js']) vmod.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx);
+  const Marks = vmod.runInContext('Marks', ctx), Pictograms = vmod.runInContext('Pictograms', ctx);
+
+  test('every kind of mark and glyph is drawn in a reserved colour, and marks.js uses no other colour but black and white', () => {
+    const bad = Object.entries(Marks.COLOURS).filter(([, c]) => !names.includes(c));
+    assert.deepEqual(bad, []);
+    const src = fs.readFileSync(path.join(root, 'js/view/marks.js'), 'utf8');
+    const literals = [...src.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g)].map(m => m[0].toLowerCase());
+    const neutral = l => l === '#ffffff' || l === '#000000' || /^rgba\(0,\s*0,\s*0,\s*0?\.\d+\)$/.test(l);
+    assert.deepEqual(literals.filter(l => !neutral(l)), [], 'colours in marks.js that are not reserved, black or white');
+    // Every reserved colour reached as S().<name> or through COLOURS is one of the five.
+    for (const m of src.matchAll(/S\(\)\.(\w+)/g)) assert.ok(names.includes(m[1]), m[1]);
+  });
+
+  test('every pictogram has a reserved colour and a shape of its own', () => {
+    const shapes = new Map();
+    for (const id of Pictograms.ids) {
+      assert.ok(names.includes(Pictograms.COLOUR[id]), `${id}: ${Pictograms.COLOUR[id]}`);
+      const g = Pictograms.G[id];
+      assert.ok(g.length === 8 && g.every(r => r.length === 8 && /^[x.]+$/.test(r)), `${id} is not 8×8`);
+      const k = g.join('/');
+      assert.ok(!shapes.has(k), `${id} has the shape of ${shapes.get(k)}`);
+      shapes.set(k, id);
+    }
+  });
+
+  test('every icon the view model can name has a pictogram: item kinds, seal shapes, statuses, surfaces, state glyphs and the case glyphs', () => {
+    const C = loadCore(), R = C.Registry, need = new Set(['lock', 'glass', 'loan', 'reads', 'special', 'pip', 'pip_empty', 'seal', 'kit']);
+    for (const k of ['weapon', 'garment', 'curio', 'instrument', 'kit']) need.add(k);
+    for (const id of R.order('SEALS')) need.add(R.SEALS[id].shape);
+    for (const t of ['STATUSES', 'SURFACES']) for (const id of R.order(t)) need.add(R[t][id].icon);
+    for (const g of Object.values(Marks.GLYPH)) need.add(g);
+    const missing = [...need].filter(id => !Pictograms.G[id]);
+    assert.deepEqual(missing, []);
+    // The seals are told apart by shape: eight seals, eight shapes.
+    assert.equal(new Set(R.order('SEALS').map(id => R.SEALS[id].shape)).size, R.order('SEALS').length);
   });
 };

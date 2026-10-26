@@ -4,7 +4,13 @@
 // asserts that the 3D view is the active one, so a silent fallback cannot pass.
 //   Occlusion: of the visible tiles on screen with no actor or mark, at most 2% may show
 //     less than 25% of their floor pixels (id buffer, scene against floor alone); a tile's
-//     own case, plinth or bench counts as showing it.
+//     own case, plinth or bench counts as showing it. The faint rings of a noise, a call and
+//     a thrown Solution's area are drawn over the floor, which shows through them, so their
+//     tiles are measured too.
+//   M3's board: a frame with an opened case (u), a broken one (k), shards (x), an open staff
+//     door (s), a cracked case, a noise ring and a herald's call, and a frame with two awake
+//     exhibits in a column (the farther in a case, the nearer marking a special), each
+//     measured as every frame is; the scene first checks it holds what it is meant to.
 //   On top: every actor and mark shows at least 90% of its own pixels over the scene.
 //   Consistency: every actor and mark in the view model is in inspect(), on the board.
 //   Context loss: WEBGL_lose_context loses and restores the context; the board keeps
@@ -38,7 +44,8 @@ const measure = (page, tele) => page.evaluate(tele => {
   // Tiles with an actor or a mark on them are left out: what stands there covers them.
   const marked = new Set();
   for (const a of vm.actors) for (let dy = 0; dy < a.size; dy++) for (let dx = 0; dx < a.size; dx++) marked.add((a.y + dy) * vm.w + a.x + dx);
-  for (const k of vm.marks) marked.add(k.y * vm.w + k.x);
+  const FAINT = new Set(['noise', 'call', 'area']);
+  for (const k of vm.marks) if (!FAINT.has(k.kind)) marked.add(k.y * vm.w + k.x);
   for (const [x, y] of vm.path || []) marked.add(y * vm.w + x);
   let tiles = 0, hidden = 0, worst = 1;
   for (const [id, total] of fc) {
@@ -97,7 +104,13 @@ const measure = (page, tele) => page.evaluate(tele => {
     const e = document.elementFromPoint(cx, cy);
     return !(e && e.classList.contains('board-over'));
   }).map(d => d.id);
-  return { frame, tiles, hidden, worst, overlays: overlays.length, low, doors, top, painted, teles: vm.marks.filter(k => k.kind === 'telegraph').length };
+  // What the frame holds, for the scenes that must hold something: the marks by kind, the
+  // tiles in view by character, and the display list's ids.
+  const kinds = {}, chars = {};
+  for (const k of vm.marks) kinds[k.kind] = (kinds[k.kind] || 0) + 1;
+  for (let i = 0; i < n; i++) if (vm.vis[i] === 2) { const ch = vm.tiles[(i - i % vm.w) / vm.w][i % vm.w]; chars[ch] = (chars[ch] || 0) + 1; }
+  const ids = R.displayList().map(d => d.id);
+  return { frame, tiles, hidden, worst, overlays: overlays.length, low, doors, top, painted, teles: vm.marks.filter(k => k.kind === 'telegraph').length, kinds, chars, ids };
 }, tele);
 
 // The page as composited: a screenshot, at every fully opaque pixel the 2D layer painted over
@@ -148,7 +161,52 @@ function report(tag, m, b, shot) {
   else if (seen < 0.95) bad(`${tag}: on the page, only ${(100 * seen).toFixed(1)}% of the 2D layer's opaque actor and mark pixels show as painted`);
   if (!shot.box) bad(`${tag}: the 2D layer does not sit exactly over the board`);
 }
-const check = async (page, tag, tele) => { const m = await measure(page, tele); report(tag, m, await page.evaluate(board), await composited(page)); };
+const check = async (page, tag, tele) => { const m = await measure(page, tele); report(tag, m, await page.evaluate(board), await composited(page)); return m; };
+
+// M3's board, staged round you: an opened case, a broken one, shards and an open staff door
+// on free floor in view; a Security case beside you, bashed once, so it is cracked and the
+// bash's loud noise rings the floor; and a herald's call from the nearest exhibit.
+const stageTiles = page => page.evaluate(() => {
+  const A = window.ACCESSION, s = A.state, me = s.actors[0], vm = A.vm(), m = s.dept;
+  const free = [];
+  for (let r = 1; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const x = me.x + dx, y = me.y + dy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !Grid.inside(m, x, y) || Grid.ch(m, x, y) !== '.' || vm.vis[y * m.w + x] !== 2) continue;
+    if (Actors.at(s, x, y) || Cases.at(s, x, y) || free.some(([fx, fy]) => fx === x && fy === y)) continue;
+    free.push([x, y]);
+  }
+  const beside = free.find(([x, y]) => Math.max(Math.abs(x - me.x), Math.abs(y - me.y)) === 1 && (x === me.x || y === me.y));
+  if (!beside || free.length < 6) return { error: `only ${free.length} free tiles round you` };
+  const rest = free.filter(f => f !== beside);
+  ['u', 'k', 'x', 's'].forEach((ch, i) => Grid.set(m, rest[i][0], rest[i][1], ch));
+  m.fixtures.push(Cases.make({ x: beside[0], y: beside[1], room: null, num: 'staged', glass: 3, lock: 7 }));
+  Grid.set(m, beside[0], beside[1], 'v');
+  const ev = A.act({ a: 'bash', x: beside[0], y: beside[1] });
+  const refused = ev.find(e => e.k === 'refused');
+  if (refused) return { error: 'the bash was refused: ' + refused.reason };
+  const near = s.actors.filter(a => a.uid !== 'you' && !a.gone).sort((p, q) => Actors.dist(p, me.x, me.y) - Actors.dist(q, me.x, me.y))[0];
+  if (near) { near.telegraph = null; Specials.mark(s, near, 'call', Specials.tiles(s, near, 'call'), []); }
+  return { error: null };
+});
+// Two awake exhibits in a column beside you: the farther stands in a case, the nearer is
+// marking a special, so the glyph rows of both are as full as they get.
+const stageCrowd = page => page.evaluate(() => {
+  const A = window.ACCESSION, s = A.state, me = s.actors[0], m = s.dept, vm = A.vm();
+  const open = (x, y) => Grid.inside(m, x, y) && Grid.ch(m, x, y) === '.' && vm.vis[y * m.w + x] === 2 && !Actors.at(s, x, y) && !Cases.at(s, x, y);
+  const others = s.actors.filter(a => a.uid !== 'you' && !a.gone && (a.size || 1) === 1);
+  if (others.length < 2) return { error: 'fewer than two one-tile exhibits' };
+  for (const dx of [2, -2, 3, -3]) for (const dy of [-1, 0, 1]) {
+    const x = me.x + dx, y = me.y + dy;
+    if (!open(x, y) || !open(x, y + 1)) continue;
+    const [far, nearer] = others.slice(0, 2);
+    for (const a of [far, nearer]) { a.mode = 'awake'; a.pips = 0; a.telegraph = null; a.next = Math.max(a.next, me.next); }
+    far.x = x; far.y = y; nearer.x = x; nearer.y = y + 1;
+    Grid.set(m, x, y, 'v');
+    nearer.telegraph = { sp: 'ring', tiles: [], from: [], via: [], gross: 1, effect: 'damage', turn: s.turn, tick: s.tick };
+    return { error: null, far: far.uid, nearer: nearer.uid };
+  }
+  return { error: 'no two free tiles in a column beside you' };
+});
 
 for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   const t0 = Date.now();
@@ -204,6 +262,26 @@ for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
     // actors (§6.2), their numbers on top of everything.
     await check(page, `${tag} melee beside ${melee}, telegraphed`, true);
   } else lines.push(`${tag}: no exhibit with a free tile to its north within reach; melee frame skipped`);
+  // M3's board: the staged tiles, a cracked case, a noise ring and a call, at both zooms.
+  const staged = await stageTiles(page);
+  if (staged.error) bad(`${tag}: the M3 frame could not be staged: ${staged.error}`);
+  else for (const z of [0, 1]) {
+    await page.evaluate(i => window.ACCESSION.setZoom(i), z);
+    const m = await check(page, `${tag} M3 tiles and marks, zoom ${z}`);
+    const want = [['u', m.chars.u], ['k', m.chars.k], ['x', m.chars.x], ['s', m.chars.s], ['a noise ring', m.kinds.noise], ['a call', m.kinds.call], ['a cracked case', m.ids.some(i => i.startsWith('cracks:'))]];
+    for (const [what, n] of want) if (!n) bad(`${tag} M3 zoom ${z}: the frame shows no ${what}`);
+    lines.push(`${tag} M3 zoom ${z}: ${m.kinds.noise || 0} noise marks, ${m.kinds.call || 0} call marks, tiles ${['u', 'k', 'x', 's'].map(c => c + '×' + (m.chars[c] || 0)).join(' ')}`);
+  }
+  await page.evaluate(() => window.ACCESSION.setZoom(0));
+  // Two awake exhibits in a column: each shows at least 75% of itself (the glyph row of the
+  // nearer one never lies over the farther one).
+  const crowd = await stageCrowd(page);
+  if (crowd.error) bad(`${tag}: the crowd frame could not be staged: ${crowd.error}`);
+  else for (const z of [0, 1]) {
+    await page.evaluate(i => window.ACCESSION.setZoom(i), z);
+    const m = await check(page, `${tag} two exhibits in a column, zoom ${z}`);
+    for (const id of ['encased:' + crowd.far, 'telegraphing:' + crowd.nearer, 'state:' + crowd.far, 'state:' + crowd.nearer]) if (!m.ids.includes(id)) bad(`${tag} crowd zoom ${z}: ${id} is not drawn`);
+  }
   await page.evaluate(() => window.ACCESSION.setZoom(0));
   // Context loss and restore.
   const loss = await page.evaluate(async () => {

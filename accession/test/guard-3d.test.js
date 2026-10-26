@@ -32,6 +32,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const field of vm) table[field] = views.filter(v => shared.has(field) || reads(v).has(field)).map(v => path.basename(v, '.js'));
     const lopsided = Object.entries(table).filter(([, r]) => r.length > 0 && r.length < views.length);
     assert.deepEqual(lopsided, [], 'fields read by only some board views: ' + JSON.stringify(table));
+    // What the board shows (§6.1, and M3's marks, cases, staff doors, items, labels and
+    // surfaces) is drawn by every view, not only listed: each of these fields is read by all.
+    const drawn = ['tiles', 'vis', 'ring', 'actors', 'marks', 'cues', 'cases', 'staff', 'items', 'plaques', 'surfaces', 'camera', 'path', 'selection', 'selectedTile'];
+    const undrawn = drawn.filter(f => !table[f] || table[f].length !== views.length);
+    assert.deepEqual(undrawn, [], 'fields of the board that some view does not draw: ' + JSON.stringify(table));
     for (const v of views) for (const f of reads(v)) assert.ok(vm.includes(f), `${v} reads vm.${f}, which the view model does not have`);
   });
 };
