@@ -77,7 +77,7 @@ canvas#screen {
 /* ---------------------------------------------------------- touch controls */
 #touch { display: none; }
 
-@media (hover: none) and (pointer: coarse) {
+@media (hover: none) and (pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px) {
   #hint { display: none; }
   #touch {
     display: block;
@@ -115,3 +115,33 @@ canvas#screen {
 }
 
 @media (max-height: 620px) { #hint { display: none; } }
+
+/* Touch has its own space below the picture. Thumbs must not hide the fight. */
+@media (hover: none) and (pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px) {
+  body { justify-content: center; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: 190px; }
+  #frame { padding: 4px; }
+  #touch { height: 190px; background: linear-gradient(transparent, #090e1c 30%); }
+  #touch .pad { bottom: max(14px, env(safe-area-inset-bottom)); }
+  #touch .pad.left { width: 144px; height: 144px; left: 12px; }
+  #touch .pad.right { width: 192px; height: 150px; right: 10px; }
+  #touch button { font-size: 10px; background: #24334f; border: 2px solid #4a6287; }
+  #touch .pad.right .a { background: #93405e; border-color: #ef82a3; }
+  #touch .pad.right .b { background: #24586e; border-color: #62dce7; font-size: 8px; }
+  #touch .pad.right .c { background: #6a5337; border-color: #e4b765; }
+}
+@media (hover: none) and (pointer: coarse) and (orientation: landscape), (max-width: 950px) and (max-height: 500px) {
+  body { padding-top: 4px; padding-bottom: 104px; }
+  #touch { height: 104px; }
+  #touch .pad { bottom: 4px; }
+  #touch .pad.left { width: 96px; height: 96px; left: 7vw; }
+  #touch .pad.right { width: 232px; height: 108px; right: 7vw; }
+  #touch .pad.right .a { width: 68px; height: 68px; bottom: 7px; right: 0; }
+  #touch .pad.right .b { width: 68px; height: 68px; bottom: 30px; right: 76px; }
+  #touch .pad.right .c { width: 62px; height: 62px; top: 25px; right: 154px; }
+  #touch .pad.right .small { width: 45px; height: 22px; left: -50px; bottom: 5px; }
+}
+
+@media (max-width: 359px) {
+ #touch .pad.left { width: 122px; height: 122px; left: 6px; }
+ #touch .pad.right { width: 172px; height: 142px; right: 6px; }
+}

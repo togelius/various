@@ -47,6 +47,7 @@
       var act = actAt(e);
       if (!act) return;
       e.preventDefault();
+      if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
       active[e.pointerId] = act;
       refresh();
     });

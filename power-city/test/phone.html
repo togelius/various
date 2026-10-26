@@ -1,0 +1,9 @@
+<!DOCTYPE html><html lang="en"><meta charset="utf-8"><title>Power City — touch layout check</title>
+<style>body{margin:12px;background:#0b1020;color:#ccdfef;font:14px monospace}button{padding:9px;background:#284253;color:#fff;border:1px solid #7c9bad;margin:0 8px 12px 0}iframe{display:block;border:1px solid #64748c}</style>
+<button id="portrait">Portrait 390 × 844</button><button id="landscape">Landscape 844 × 390</button>
+<iframe title="Phone game" src="../index.html?muted=1" width="390" height="844"></iframe>
+<script>
+var frame=document.querySelector('iframe');
+document.getElementById('portrait').onclick=function(){frame.width=390;frame.height=844;};
+document.getElementById('landscape').onclick=function(){frame.width=844;frame.height=390;};
+</script></html>

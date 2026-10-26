@@ -51,7 +51,7 @@
   Hud.drawAlerts = function (ctx, g) {
     var camX = W.camX;
     var stage = PC.stage;
-    if (stage.coachT > 0 && stage.coach && !stage.bossBanner) {
+    if (stage.coachT > 0 && stage.coach && !stage.bossBanner && !stage.bossActive) {
       var cw = Art.textWidth(stage.coach, 1, 1) + 20;
       Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, cw, 19, '#101a2a');
       Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, 3, 19, '#ffe57a');
@@ -96,7 +96,7 @@
     for (var q = 0; q < ps.length; q++) {
       var pl = ps[q];
       if (pl.state === 'held' && pl.grabbedBy && (W.time >> 2) % 2) {
-        PC.art.text(ctx, 'MASH!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
+        PC.art.text(ctx, 'HOLD ATTACK!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
           '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
       }
     }
@@ -134,9 +134,10 @@
   Hud.drawBottom = function (ctx, g) {
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#0a101e');
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, 1, '#40506a');
-    Art.text(ctx, 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
-    Art.text(ctx, 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
-    Art.text(ctx, 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    var mode = PC.input.device || 'keys';
+    Art.text(ctx, mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    Art.text(ctx, mode === 'pad' ? 'B: BREAKOUT' : mode === 'touch' ? 'BREAKOUT' : 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
+    Art.text(ctx, mode === 'pad' ? 'A: JUMP KICK' : mode === 'touch' ? 'JUMP KICK' : 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
   };
 
   // ---------------------------------------------------------------- boss bar
@@ -147,6 +148,7 @@
     Art.text(ctx, b.name, PC.W / 2, y, '#ff5f6a', { align: 'center', shadow: '#000000' });
     var bx = PC.W / 2 - 66, bw = 132;
     Hud.bar(ctx, bx, y + 9, bw, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    Art.text(ctx, 'DODGE OR BREAKOUT. PUNISH THE RECOVERY.', PC.W / 2, y + 20, '#e6b786', { align: 'center', tracking: 0 });
     /* Ticks where the fight turns, so the player knows how much is left
      * of each chapter of it. */
     var ph = (b.T && b.T.phases) || [];

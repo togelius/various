@@ -68,10 +68,33 @@ ok(e.x===x,'a charge holds still through its visible wind-up');
 for(let i=0;i<20;i++) e.update();
 ok(e.x<x-20,'a charge travels during the active attack');
 
+p=arena();e=enemy('crusher',210);e.startAttack(P.ENEMY_MOVES.charge);e.atkT=12;
+const bossHp=e.hp, resistance=e.knockRes;
+p.startAttack(P.MOVES.jab);p.land(e,P.MOVES.jab);
+ok(e.hp<bossHp && e.atk===P.ENEMY_MOVES.charge,'ordinary attacks damage but do not cancel a committed boss charge');
+p.startAttack(P.MOVES.spin);p.land(e,P.MOVES.spin);
+ok(e.state==='fall' && !e.atk,'Breakout interrupts a committed boss charge');
+ok(e.knockRes===resistance,'Breakout does not permanently change boss defenses');
+
+p=arena();e=enemy('crusher',250);e.startAttack(P.ENEMY_MOVES.charge);p.y=P.FLOOR_TOP;
+const safeHp=p.hp;
+for(let i=0;i<58;i++)e.update();
+ok(p.hp===safeHp,'stepping outside the charge lane avoids damage');
+
 p=arena();G.credits=1;G.joinPlayer(1);const p2=G.players[1];p2.x=p.x;p2.y=p.y;
 W.separate();ok(p.x===p2.x,'partners can pass through each other');
 P.stage.cleared=true;P.stage.finishT=45;step();
 ok(G.state==='clear','defeating the boss clears the stage without a long empty walk');
+
+p=arena();const food=P.items.spawn('pickup','heart',p.x,p.y);
+ok(P.items.nearest(p,25)!==food,'a held Attack cannot waste food at full health');
+p.hp=60;P.items.update();ok(food.dead && p.hp>60,'food still collects when the player needs it');
+
+p=arena();P.stage.timeLeft=99;G.stageClear();const beforeBonus=p.score;
+step(105);ok(p.score-beforeBonus===9900,'the shorter stage-clear sequence pays the complete time bonus');
+G.setState('ending');step(901);ok(G.state==='ending','the rescue ending waits for the player instead of disappearing');
+P.input._edge.Enter=true;keys({Enter:true});step();
+ok(G.state==='ready' && G.stageIndex===0 && G.scores[0]===0,'Start begins a fresh run from the ending');
 
 // Beginner controller: approach, hold Attack, use Breakout in a crowd. The
 // controller has no private damage, teleport, healing, or enemy removal powers.

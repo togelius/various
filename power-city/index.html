@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>POWER CITY</title>
 <meta name="description" content="POWER CITY - a side-scrolling arcade beat 'em up in the browser. Four stages, four bosses, two players, no downloads.">
-<link rel="stylesheet" href="css/style.css?v=midnight2">
+<link rel="stylesheet" href="css/style.css?v=midnight8">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23050a24'/><rect x='2' y='3' width='12' height='4' fill='%23e02030'/><rect x='2' y='9' width='12' height='4' fill='%232f6ef0'/></svg>">
 </head>
 <body>
@@ -14,12 +14,12 @@
     <div id="loading">LOADING&hellip;</div>
   </div>
 
-  <div id="touch" aria-hidden="true">
+  <div id="touch" aria-label="Game controls">
     <div class="pad left">
-      <button data-act="up" class="u">&#9650;</button>
-      <button data-act="left" class="l">&#9664;</button>
-      <button data-act="right" class="r">&#9654;</button>
-      <button data-act="down" class="d">&#9660;</button>
+      <button data-act="up" aria-label="Up" class="u">&#9650;</button>
+      <button data-act="left" aria-label="Left" class="l">&#9664;</button>
+      <button data-act="right" aria-label="Right" class="r">&#9654;</button>
+      <button data-act="down" aria-label="Down" class="d">&#9660;</button>
     </div>
     <div class="pad right">
       <button data-act="jump" class="c">JUMP</button>
@@ -31,22 +31,22 @@
 
   <p id="hint"><b>WASD / Arrows</b> move &nbsp; <b>Hold Z / J</b> attack &nbsp; <b>X / K</b> breakout &nbsp; <b>Space / C</b> jump kick &nbsp; <b>Enter</b> play &nbsp; <b>2</b> join &nbsp; <b>Esc</b> pause &nbsp; <b>M</b> mute</p>
 
-  <script src="js/core.js?v=midnight2"></script>
-  <script src="js/art.js?v=midnight2"></script>
-  <script src="js/rig.js?v=midnight2"></script>
-  <script src="js/cast.js?v=midnight2"></script>
-  <script src="js/city.js?v=midnight2"></script>
-  <script src="js/audio.js?v=midnight2"></script>
-  <script src="js/music.js?v=midnight2"></script>
-  <script src="js/fx.js?v=midnight2"></script>
-  <script src="js/actors.js?v=midnight2"></script>
-  <script src="js/items.js?v=midnight2"></script>
-  <script src="js/player.js?v=midnight2"></script>
-  <script src="js/enemies.js?v=midnight2"></script>
-  <script src="js/stages.js?v=midnight2"></script>
-  <script src="js/hud.js?v=midnight2"></script>
-  <script src="js/game.js?v=midnight2"></script>
-  <script src="js/touch.js?v=midnight2"></script>
+  <script src="js/core.js?v=midnight8"></script>
+  <script src="js/art.js?v=midnight8"></script>
+  <script src="js/rig.js?v=midnight8"></script>
+  <script src="js/cast.js?v=midnight8"></script>
+  <script src="js/city.js?v=midnight8"></script>
+  <script src="js/audio.js?v=midnight8"></script>
+  <script src="js/music.js?v=midnight8"></script>
+  <script src="js/fx.js?v=midnight8"></script>
+  <script src="js/actors.js?v=midnight8"></script>
+  <script src="js/items.js?v=midnight8"></script>
+  <script src="js/player.js?v=midnight8"></script>
+  <script src="js/enemies.js?v=midnight8"></script>
+  <script src="js/stages.js?v=midnight8"></script>
+  <script src="js/hud.js?v=midnight8"></script>
+  <script src="js/game.js?v=midnight8"></script>
+  <script src="js/touch.js?v=midnight8"></script>
   <script>
     window.addEventListener('load', function () {
       try { PC.boot(); }

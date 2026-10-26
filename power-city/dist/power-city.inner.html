@@ -80,7 +80,7 @@ canvas#screen {
 /* ---------------------------------------------------------- touch controls */
 #touch { display: none; }
 
-@media (hover: none) and (pointer: coarse) {
+@media (hover: none) and (pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px) {
   #hint { display: none; }
   #touch {
     display: block;
@@ -118,18 +118,48 @@ canvas#screen {
 }
 
 @media (max-height: 620px) { #hint { display: none; } }
+
+/* Touch has its own space below the picture. Thumbs must not hide the fight. */
+@media (hover: none) and (pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px) {
+  body { justify-content: center; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: 190px; }
+  #frame { padding: 4px; }
+  #touch { height: 190px; background: linear-gradient(transparent, #090e1c 30%); }
+  #touch .pad { bottom: max(14px, env(safe-area-inset-bottom)); }
+  #touch .pad.left { width: 144px; height: 144px; left: 12px; }
+  #touch .pad.right { width: 192px; height: 150px; right: 10px; }
+  #touch button { font-size: 10px; background: #24334f; border: 2px solid #4a6287; }
+  #touch .pad.right .a { background: #93405e; border-color: #ef82a3; }
+  #touch .pad.right .b { background: #24586e; border-color: #62dce7; font-size: 8px; }
+  #touch .pad.right .c { background: #6a5337; border-color: #e4b765; }
+}
+@media (hover: none) and (pointer: coarse) and (orientation: landscape), (max-width: 950px) and (max-height: 500px) {
+  body { padding-top: 4px; padding-bottom: 104px; }
+  #touch { height: 104px; }
+  #touch .pad { bottom: 4px; }
+  #touch .pad.left { width: 96px; height: 96px; left: 7vw; }
+  #touch .pad.right { width: 232px; height: 108px; right: 7vw; }
+  #touch .pad.right .a { width: 68px; height: 68px; bottom: 7px; right: 0; }
+  #touch .pad.right .b { width: 68px; height: 68px; bottom: 30px; right: 76px; }
+  #touch .pad.right .c { width: 62px; height: 62px; top: 25px; right: 154px; }
+  #touch .pad.right .small { width: 45px; height: 22px; left: -50px; bottom: 5px; }
+}
+
+@media (max-width: 359px) {
+ #touch .pad.left { width: 122px; height: 122px; left: 6px; }
+ #touch .pad.right { width: 172px; height: 142px; right: 6px; }
+}
 </style>
 <div id="frame">
     <canvas id="screen" width="480" height="270"></canvas>
     <div id="loading">LOADING&hellip;</div>
   </div>
 
-  <div id="touch" aria-hidden="true">
+  <div id="touch" aria-label="Game controls">
     <div class="pad left">
-      <button data-act="up" class="u">&#9650;</button>
-      <button data-act="left" class="l">&#9664;</button>
-      <button data-act="right" class="r">&#9654;</button>
-      <button data-act="down" class="d">&#9660;</button>
+      <button data-act="up" aria-label="Up" class="u">&#9650;</button>
+      <button data-act="left" aria-label="Left" class="l">&#9664;</button>
+      <button data-act="right" aria-label="Right" class="r">&#9654;</button>
+      <button data-act="down" aria-label="Down" class="d">&#9660;</button>
     </div>
     <div class="pad right">
       <button data-act="jump" class="c">JUMP</button>
@@ -248,6 +278,7 @@ canvas#screen {
     init: function () {
       var self = this;
       global.addEventListener('keydown', function (e) {
+        self.device = 'keys';
         if (e.repeat) { e.preventDefault(); return; }
         if (self._interesting(e.code)) e.preventDefault();
         self._down[e.code] = true; self._latch[e.code] = true;
@@ -298,7 +329,7 @@ canvas#screen {
         var pad = pads[i];
         if (!pad || !pad.connected) continue;
         var b, ax;
-        for (b in MAP_PAD) if (pad.buttons[b] && pad.buttons[b].pressed) set(padPlayer, MAP_PAD[b]);
+        for (b in MAP_PAD) if (pad.buttons[b] && pad.buttons[b].pressed) { set(padPlayer, MAP_PAD[b]); this.device = 'pad'; }
         ax = pad.axes[0] || 0;
         if (ax < -0.35) set(padPlayer, 'left'); else if (ax > 0.35) set(padPlayer, 'right');
         ax = pad.axes[1] || 0;
@@ -308,7 +339,7 @@ canvas#screen {
 
       // Touch overlay always drives whichever player is on screen first.
       if (this.touch) {
-        for (a in this.touch.held) if (this.touch.held[a]) set(0, a);
+        for (a in this.touch.held) if (this.touch.held[a]) { set(0, a); this.device = 'touch'; }
       }
 
       for (i = 0; i < 2; i++) {
@@ -367,7 +398,7 @@ canvas#screen {
     resize: function () {
       var host = document.getElementById('stage');
       var maxW = global.innerWidth - 28, maxH = global.innerHeight - 60;
-      if (global.matchMedia && global.matchMedia('(pointer: coarse)').matches) maxH -= global.innerHeight > global.innerWidth ? 210 : 40;
+      if (global.matchMedia && global.matchMedia('(pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px)').matches) maxH = global.innerHeight - (global.innerHeight > global.innerWidth ? 210 : 112);
       if (host) {
         var r = host.getBoundingClientRect();
         if (r.width > 40 && r.height > 40) { maxW = r.width; maxH = r.height; }
@@ -378,7 +409,12 @@ canvas#screen {
       else s = Math.max(s, 0.3);
       this.scale = s;
       var w = Math.round(PC.W * s), h = Math.round(PC.H * s);
-      this.view.width = w; this.view.height = h;
+      // Keep sub-pixel font strokes when the phone fits less than one logical
+      // pixel per CSS pixel. Drawing first into a tiny canvas lost entire rows.
+      var density = Math.min(3, global.devicePixelRatio || 1);
+      var backing = s < 1 ? 2 : s * density;
+      this.view.width = Math.round(PC.W * backing); this.view.height = Math.round(PC.H * backing);
+      this.view.style.imageRendering = s < 1 ? 'auto' : 'pixelated';
       this.view.style.width = w + 'px';
       this.view.style.height = h + 'px';
       this.vctx.imageSmoothingEnabled = false;
@@ -1019,6 +1055,8 @@ canvas#screen {
     [[2, 21], [-1, 17]], [[-1, 22], [-4, 18]],
     [[4, 8], [8, 0]], [[-5, 9], [-10, 0]]);
 
+  POSES.safe = p([0,18],[0,29],[1,34.5], [[5,23],[6,16]],[[-5,22],[-6,15]], [[3,9],[4,0]],[[-3,9],[-5,0]]);
+
   /* The walk cycle gains its in-between frames, blended from the keyframes:
    * eight frames of walk instead of four, the difference between a strut
    * and a glide. Blended poses inherit the keyframes' joint structure, so
@@ -1279,6 +1317,13 @@ canvas#screen {
       pants: '#343d59', pantsD: '#20283e', trim: '#f2dab4',
       shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
     })
+  });
+
+  Rig.def('brother', {
+    name: 'LEE', hair: 'flat', scale: 0.93, bulk: 0.92, sleeves: true,
+    pal: pal({skin:'#efb18a',skinD:'#ba7656',hair:'#282031',eye:'#17152a',
+      shirt:'#d8ac60',shirtD:'#957347',pants:'#44567a',pantsD:'#27374f',trim:'#e7d1a1',
+      shoe:'#d6d9cb',shoeD:'#727f94',out:'#0a0a12'})
   });
 
   // --------------------------------------------------------------- the gang
@@ -3480,7 +3525,7 @@ canvas#screen {
      * wind-up looks like a wind-up, striking into it is a read, and a read
      * should pay - a thug caught that way loses their footing entirely. */
     var counter = this.team === 0 && t.team === 1 && t.state === 'attack' &&
-      t.atk && t.atkT < t.atk.startup;
+      t.atk && t.atkT < t.atk.startup && !(t.isBoss && t.atk.commit);
     // catching a big telegraphed swing is the read that pays most
     var counterBig = counter && t.atk.startup >= 11;
 
@@ -3488,7 +3533,7 @@ canvas#screen {
       dmg: d.dmg * (this.dmgOut || 1) * (counter ? 1.3 : 1), from: this, knock: d.knock,
       stun: d.stun || 14, push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
       dir: this.facing, x: cx, y: cy, heavy: heavy, counter: counter, counterBig: counterBig,
-      gb: d.gb
+      gb: d.gb, escape: d.escape
     });
     if (res === 'block') {
       /* Blocked: a clink, a shove off the guard, and the chain is broken -
@@ -3533,6 +3578,13 @@ canvas#screen {
       return;
     }
 
+    // A boss commits to the orange signature warning. Ordinary hits still
+    // deal damage, but only Breakout interrupts it. Step out of the marked
+    // lane, then punish the long recovery; button-holding alone has a limit.
+    if (this.isBoss && this.state === 'attack' && this.atk && this.atk.commit &&
+        this.atkT < this.atk.startup + this.atk.active && !h.escape) return;
+    if (h.escape && this.isBoss) this.armorLeft = 0;
+
     if (h.counter) {
       FX.pop(this.x, this.y - this.hh - 10, 'COUNTER', '#7fe0ff');
       // a boss caught winding up staggers straight through its armor
@@ -3574,7 +3626,7 @@ canvas#screen {
      * cannot hold a player still forever. The floor is where beat 'em ups
      * go to die, so the player visits it rarely and safely. */
     var heavyBlow = h.knock && (h.dmg >= 10 || h.launch || (h.from && h.from.isBoss));
-    var knocked = (this.team === 0 ? heavyBlow : h.knock) && PC.rand() >= this.knockRes;
+    var knocked = (this.team === 0 ? heavyBlow : h.knock) && (h.escape || PC.rand() >= this.knockRes);
     if (this.team === 0 && this.poiseT > 0 && !knocked && this.z <= 2) {
       /* standing on poise: the blow lands but does not take over the body */
       this.vx = h.dir * h.push * 0.5;
@@ -3913,9 +3965,9 @@ canvas#screen {
       var f=a.atkT/d.startup, width=d.sweep?far*2:far;
       var left=d.sweep?x-far:a.facing>0?x:x-far;
       ctx.save(); ctx.globalAlpha=0.14+f*0.16;
-      PC.art.rect(ctx,left,y-14,width,28,'#ff9667');
+      PC.art.rect(ctx,left,y-(d.depth||DEPTH_TOL),width,2*(d.depth||DEPTH_TOL),'#ff9667');
       ctx.globalAlpha=0.55+f*0.35;
-      PC.art.rect(ctx,left,y+13,width,1,f>0.75?'#ffe2a3':'#e99365');
+      PC.art.rect(ctx,left,y+(d.depth||DEPTH_TOL)-1,width,1,f>0.75?'#ffe2a3':'#e99365');
       ctx.restore();
       PC.art.text(ctx,'!',x,y-a.hh-11,'#ffd68a',{align:'center',shadow:'#5b2839'});
     }
@@ -4040,6 +4092,7 @@ canvas#screen {
       for (var i = 0; i < W.items.length; i++) {
         var it = W.items[i];
         if (it.held || it.dead || it.flying || it.z > 6) continue;
+        if (it.kind === 'pickup' && PC.pickups[it.key].heal && a.hp >= a.maxHp) continue;
         var d = Math.abs(it.x - a.x) + Math.abs(it.y - a.y) * 0.8;
         if (d < bd) { bd = d; best = it; }
       }
@@ -4320,7 +4373,7 @@ canvas#screen {
       dmg: 9, stun: 18, push: 2.2, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     spin: {
-      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true,
+      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, escape: true,
       startup: 2, active: 12, recovery: 18, reach: [0, 43], depth: 32, zlo: 0, zhi: 48,
       dmg: 14, stun: 18, push: 3.6, knock: true, launch: { vx: 4.2, vz: 3.4 }, stop: 7, sfx: 'whoosh', score: 50
     },
@@ -4816,10 +4869,10 @@ canvas#screen {
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
     batSwing: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 30, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', wind: 'windPunch', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
-    slam: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 34, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
-    charge: { pose: 'knee', wind: 'windCharge', startup: 32, active: 24, recovery: 36, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2, dash: true },
-    pound: { pose: 'upper', wind: 'windOver', startup: 36, active: 8, recovery: 38, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    slam: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 34, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard', commit: true },
+    charge: { pose: 'knee', wind: 'windCharge', startup: 32, active: 24, recovery: 36, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2, dash: true, commit: true },
+    pound: { pose: 'upper', wind: 'windOver', startup: 36, active: 8, recovery: 38, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom', commit: true },
+    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh', commit: true },
     upper: { pose: 'upper', wind: 'crouch', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
     spin: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
@@ -4850,7 +4903,7 @@ canvas#screen {
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 150, speed: 1.1, score: 5000, standoff: 20, mass: 3.4,
+      char: 'boss_crusher', hp: 190, speed: 1.1, score: 5000, standoff: 20, mass: 3.4,
       armor: 0, knockRes: 0.45, boss: true, downTime: 36,
       moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
       phases: [
@@ -4859,7 +4912,7 @@ canvas#screen {
       ]
     },
     viper: {
-      char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
+      char: 'boss_viper', hp: 150, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
       armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
       moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08, dodge: 0.55, guard: 0.4,
       phases: [
@@ -4868,7 +4921,7 @@ canvas#screen {
       ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
+      char: 'boss_jaws', hp: 190, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
       armor: 1, knockRes: 0.45, boss: true, downTime: 34,
       moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25, dodge: 0.2, guard: 0.25,
       phases: [
@@ -4877,7 +4930,7 @@ canvas#screen {
       ]
     },
     power: {
-      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
+      char: 'boss_power', hp: 230, speed: 1.3, score: 12000, standoff: 22, mass: 2,
       armor: 1, knockRes: 0.5, boss: true, downTime: 30,
       moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15, dodge: 0.45, guard: 0.45,
       phases: [
@@ -4978,7 +5031,7 @@ canvas#screen {
   Enemy.prototype.control = function () {
     if (this.dead) return;
     /* Phase changes: the fight turns halfway, loudly, and on purpose. */
-    if (this.isBoss && this.T.phases) {
+    if (this.isBoss && this.T.phases && this.z <= 0 && this.state !== 'down' && this.state !== 'fall') {
       while (this.phaseIndex < this.T.phases.length &&
         this.hp / this.maxHp <= this.T.phases[this.phaseIndex].at) {
         this.enterPhase(this.T.phases[this.phaseIndex]);
@@ -5143,11 +5196,22 @@ canvas#screen {
     if (this.spawnGuard > 0) return;
     if (this.atkCool > 0) { this.atkCool--; return; }
     var name = PC.rand.pick(this.T.moves);
+    if (this.isBoss) {
+      var patterns = {
+        crusher: ['slam', 'hook', 'charge', 'pound'],
+        viper: ['chainSweep', 'kick', 'charge'],
+        jaws: ['pound', 'hook', 'charge'],
+        power: ['spin', 'upper', 'charge', 'slam']
+      };
+      var sequence = patterns[this.type];
+      name = sequence[(this.attackCount || 0) % sequence.length];
+    }
     var mv = EM[name];
     if (!mv) return;
     if (adx > (mv.reach[1] - 4) * this.scale) return;
     if (!W.claimToken(this)) return;
     this.startAttack(mv);
+    this.attackCount = (this.attackCount || 0) + 1;
     this.atkCool = PC.rand.int(8, 22);
     this.think = mv.startup + mv.active + mv.recovery + 8;
   };
@@ -5245,11 +5309,11 @@ canvas#screen {
       intro: 'MIDNIGHT. YOUR BROTHER IS IN THE TOWER.',
       litter: [['pickup', 'coin', 290], ['pickup', 'heart', 535], ['prop', 'trash', 790]],
       encounters: [
-        enc(100, [['punk', 1, 1, 0]], { lesson: true, coach: 'HOLD Z / J TO BRAWL. KEEP IT SIMPLE.' }),
+        enc(100, [['punk', 1, 1, 0]], { lesson: true, coach: 'HOLD ATTACK TO BRAWL. KEEP IT SIMPLE.' }),
         enc(340, [['punk', 2, 1, 0], ['rough', 1, 1, 110, 1]],
-          { coach: 'SPACE / C: FLYING KICK', items: [['weapon', 'bat', 0]] }),
+          { coach: 'JUMP IS ALREADY A FLYING KICK.', items: [['weapon', 'bat', 0]] }),
         enc(620, [['punk', 2, 1, 0], ['punk', 1, -1, 90], ['batter', 1, 1, 110, 1]],
-          { coach: 'SURROUNDED? X / K TO BREAK OUT.', items: [['prop', 'crate', 0]] }),
+          { coach: 'SURROUNDED? HIT BREAKOUT.', items: [['prop', 'crate', 0]] }),
         enc(950, [], { boss: 'crusher', bossDelay: 35, items: [['pickup', 'heart', 0]] })
       ]
     },
@@ -5258,7 +5322,7 @@ canvas#screen {
       intro: 'THE STARLIGHT CREW KNOWS THE WAY IN.',
       litter: [['pickup', 'coin', 300], ['pickup', 'heart', 600], ['prop', 'trash', 900]],
       encounters: [
-        enc(160, [['rough', 2, 1, 0], ['punk', 1, -1, 100]], { coach: 'FINISH THE COMBO TO BREAK A GUARD.' }),
+        enc(160, [['rough', 2, 1, 0], ['punk', 1, -1, 100]], { coach: 'KEEP ATTACKING TO BREAK A GUARD.' }),
         enc(440, [['knifer', 1, 1, 0], ['punk', 2, 1, 55], ['rough', 1, -1, 110, 1]], { items: [['prop', 'drum', 0]] }),
         enc(760, [['batter', 2, 1, 0], ['punk', 2, -1, 110, 2]], { items: [['weapon', 'pipe', 0], ['pickup', 'heart', 80]] }),
         enc(1100, [['punk', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 50 })
@@ -5405,6 +5469,7 @@ canvas#screen {
         this.bossActive = e;
         this.bossBanner = 110;
         this.bossSub = null;
+        this.coach = 'ORANGE ATTACK? STEP ASIDE OR BREAK OUT.'; this.coachT = 500;
         e.invuln = 40;
         FX.flash('#ffffff', 5);
         FX.shakeBy(5);
@@ -5686,7 +5751,7 @@ canvas#screen {
   Hud.drawAlerts = function (ctx, g) {
     var camX = W.camX;
     var stage = PC.stage;
-    if (stage.coachT > 0 && stage.coach && !stage.bossBanner) {
+    if (stage.coachT > 0 && stage.coach && !stage.bossBanner && !stage.bossActive) {
       var cw = Art.textWidth(stage.coach, 1, 1) + 20;
       Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, cw, 19, '#101a2a');
       Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, 3, 19, '#ffe57a');
@@ -5731,7 +5796,7 @@ canvas#screen {
     for (var q = 0; q < ps.length; q++) {
       var pl = ps[q];
       if (pl.state === 'held' && pl.grabbedBy && (W.time >> 2) % 2) {
-        PC.art.text(ctx, 'MASH!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
+        PC.art.text(ctx, 'HOLD ATTACK!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
           '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
       }
     }
@@ -5769,9 +5834,10 @@ canvas#screen {
   Hud.drawBottom = function (ctx, g) {
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#0a101e');
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, 1, '#40506a');
-    Art.text(ctx, 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
-    Art.text(ctx, 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
-    Art.text(ctx, 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    var mode = PC.input.device || 'keys';
+    Art.text(ctx, mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    Art.text(ctx, mode === 'pad' ? 'B: BREAKOUT' : mode === 'touch' ? 'BREAKOUT' : 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
+    Art.text(ctx, mode === 'pad' ? 'A: JUMP KICK' : mode === 'touch' ? 'JUMP KICK' : 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
   };
 
   // ---------------------------------------------------------------- boss bar
@@ -5782,6 +5848,7 @@ canvas#screen {
     Art.text(ctx, b.name, PC.W / 2, y, '#ff5f6a', { align: 'center', shadow: '#000000' });
     var bx = PC.W / 2 - 66, bw = 132;
     Hud.bar(ctx, bx, y + 9, bw, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    Art.text(ctx, 'DODGE OR BREAKOUT. PUNISH THE RECOVERY.', PC.W / 2, y + 20, '#e6b786', { align: 'center', tracking: 0 });
     /* Ticks where the fight turns, so the player knows how much is left
      * of each chapter of it. */
     var ph = (b.T && b.T.phases) || [];
@@ -5832,6 +5899,7 @@ canvas#screen {
 
     // ------------------------------------------------------------------ boot
     boot: function () {
+      if (global.location && /[?&]muted=1(?:&|$)/.test(global.location.search)) PC.audio.muted = true;
       PC.input.init();
       PC.Screen.init(document.getElementById('screen'));
       PC.bakeThings();
@@ -5889,28 +5957,6 @@ canvas#screen {
     },
 
     enemyDown: function () { },
-
-    /* The clock ran out. Nobody dies to a number: the siren starts and
-     * health drains until the fight is finished or they are. */
-    clockDrain: function () {
-      for (var i = 0; i < 2; i++) {
-        var p = this.players[i];
-        if (!p || p.dead) continue;
-        p.hp -= 5;
-        p.flash = 4;
-        if (PC.stage) PC.stage.encHurt = true;
-        if (p.hp <= 0) {
-          p.hp = 0;
-          if (p.grabbedBy) p.grabbedBy.releaseGrab();
-          if (p.grabbing) p.releaseGrab();
-          if (p.carry) PC.items.drop(p);
-          p.knockDown(p.facing, { vx: 2, vz: 3 });
-          p.dead = true; p.deathT = 0;
-          p.onDeath();
-        }
-      }
-      FX.shakeBy(1);
-    },
 
     // ---------------------------------------------------------------- coins
     coin: function () {
@@ -6013,9 +6059,10 @@ canvas#screen {
         case 'clear':
           W.update();
           if (this.stateT > 40 && this.stateT % 3 === 0 && PC.stage.timeLeft > 0) {
-            PC.stage.timeLeft--;
+            var paid = Math.min(5, PC.stage.timeLeft);
+            PC.stage.timeLeft -= paid;
             var pl = this.players[0] || this.players[1];
-            if (pl) pl.addScore(100);
+            if (pl) pl.addScore(paid * 100);
             if (PC.audio) PC.audio.sfx('tally');
           }
           if (this.stateT > 150) this.nextStage();
@@ -6040,7 +6087,7 @@ canvas#screen {
 
         case 'ending':
           W.update();
-          if (this.stateT > 900 || anyStart) { this.saveHi(); this.setState('title'); PC.stage.load(0); if (PC.audio) PC.audio.play('title'); }
+          if (this.stateT > 60 && anyStart) { this.saveHi(); this.credits = Math.max(1, this.credits); this.startGame(0); }
           break;
       }
 
@@ -6245,7 +6292,8 @@ canvas#screen {
         Art.text(ctx, 'HOLD Z / J: COMBO + PICK UP + THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'X / K: BREAKOUT  (WHEN THE BAR IS FULL)', PC.W / 2, mid + 31, '#ffe57a', { align: 'center' });
         Art.text(ctx, 'SPACE / C: JUMP KICK', PC.W / 2, mid + 47, '#e3edf8', { align: 'center' });
-        Art.text(ctx, 'ESC TO RESUME', PC.W / 2, mid + 77, '#65e0ec', { align: 'center' });
+        Art.text(ctx, 'P2: ARROWS / , ATTACK / . BREAKOUT / / JUMP', PC.W / 2, mid + 64, '#8495b1', { align: 'center', tracking: 0 });
+        Art.text(ctx, 'ESC TO RESUME', PC.W / 2, mid + 85, '#65e0ec', { align: 'center' });
       }
     },
 
@@ -6258,28 +6306,26 @@ canvas#screen {
     },
 
     renderEnding: function (ctx) {
-      this.dim(ctx, 0.7);
-      var lines = [
-        'THE TOWER GOES QUIET.',
-        '',
-        'YOUR BROTHER CAN WALK. JUST ABOUT.',
-        'THE GANG IS FINISHED, AND THE BLOCK IS',
-        'YOURS AGAIN - FOR TONIGHT, ANYWAY.',
-        '',
-        'SOMEWHERE DOWNTOWN A NEON SIGN',
-        'FLICKERS BACK ON.',
-        '',
-        'THANK YOU FOR PLAYING'
-      ];
-      var y = PC.FIELD_Y + 26;
-      for (var i = 0; i < lines.length; i++) {
-        if (this.stateT < 30 + i * 26) break;
-        Art.text(ctx, lines[i], PC.W / 2, y + i * 12, i === lines.length - 1 ? '#ffe070' : '#ffffff', { align: 'center' });
+      this.dim(ctx, 0.78);
+      var mid = PC.W / 2;
+      Art.text(ctx, 'EVERYBODY HOME.', mid + 2, 55, '#8c365c', { align: 'center', scale: 3 });
+      Art.text(ctx, 'EVERYBODY HOME.', mid, 52, '#ffe1a0', { align: 'center', scale: 3 });
+      Art.text(ctx, 'FOUR BLOCKS. ONE NIGHT. NO ONE LEFT BEHIND.', mid, 84, '#95d9e6', { align: 'center' });
+      Art.rect(ctx, mid - 146, 105, 292, 85, '#131e34');
+      Art.rect(ctx, mid - 146, 105, 292, 1, '#4a6b85');
+      // A little victory tableau, with the rescued brother between the heroes.
+      for (var j = 0; j < 19; j++) {
+        var bx = mid - 140 + j * 15, bh = 8 + (j * 17 % 25);
+        Art.rect(ctx, bx, 175 - bh, 12, bh, '#22334b');
+        Art.rect(ctx, bx + 4, 177 - bh, 2, 3, '#b59169');
       }
-      if (this.stateT > 300) {
-        Art.text(ctx, 'FINAL SCORE  ' + PC.pad(Math.max(this.scores[0], this.scores[1]), 6),
-          PC.W / 2, PC.FIELD_BOT - 22, '#4ae06a', { align: 'center' });
-      }
+      Art.rect(ctx, mid - 146, 182, 292, 8, '#2d3c52');
+      PC.rig.draw(ctx, PC.rig.frame('hero1', 'win'), mid - 58, 183, false);
+      PC.rig.draw(ctx, PC.rig.frame('brother', 'safe'), mid, 183, false);
+      PC.rig.draw(ctx, PC.rig.frame('hero2', 'win'), mid + 58, 183, true);
+      Art.text(ctx, 'YOU GOT HIM OUT.', mid, 201, '#e7d4ba', { align: 'center' });
+      Art.text(ctx, 'TEAM SCORE  ' + PC.pad(this.scores[0] + this.scores[1], 6), mid, 217, '#65e0ec', { align: 'center' });
+      Art.text(ctx, 'ENTER / START: ONE MORE NIGHT', mid, 238, '#fff1c9', { align: 'center' });
     },
 
     // ----------------------------------------------------------------- title
@@ -6363,6 +6409,7 @@ canvas#screen {
       var act = actAt(e);
       if (!act) return;
       e.preventDefault();
+      if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
       active[e.pointerId] = act;
       refresh();
     });

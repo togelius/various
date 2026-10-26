@@ -105,6 +105,7 @@
     init: function () {
       var self = this;
       global.addEventListener('keydown', function (e) {
+        self.device = 'keys';
         if (e.repeat) { e.preventDefault(); return; }
         if (self._interesting(e.code)) e.preventDefault();
         self._down[e.code] = true; self._latch[e.code] = true;
@@ -155,7 +156,7 @@
         var pad = pads[i];
         if (!pad || !pad.connected) continue;
         var b, ax;
-        for (b in MAP_PAD) if (pad.buttons[b] && pad.buttons[b].pressed) set(padPlayer, MAP_PAD[b]);
+        for (b in MAP_PAD) if (pad.buttons[b] && pad.buttons[b].pressed) { set(padPlayer, MAP_PAD[b]); this.device = 'pad'; }
         ax = pad.axes[0] || 0;
         if (ax < -0.35) set(padPlayer, 'left'); else if (ax > 0.35) set(padPlayer, 'right');
         ax = pad.axes[1] || 0;
@@ -165,7 +166,7 @@
 
       // Touch overlay always drives whichever player is on screen first.
       if (this.touch) {
-        for (a in this.touch.held) if (this.touch.held[a]) set(0, a);
+        for (a in this.touch.held) if (this.touch.held[a]) { set(0, a); this.device = 'touch'; }
       }
 
       for (i = 0; i < 2; i++) {
@@ -224,7 +225,7 @@
     resize: function () {
       var host = document.getElementById('stage');
       var maxW = global.innerWidth - 28, maxH = global.innerHeight - 60;
-      if (global.matchMedia && global.matchMedia('(pointer: coarse)').matches) maxH -= global.innerHeight > global.innerWidth ? 210 : 40;
+      if (global.matchMedia && global.matchMedia('(pointer: coarse), (max-width: 700px), (max-width: 950px) and (max-height: 500px)').matches) maxH = global.innerHeight - (global.innerHeight > global.innerWidth ? 210 : 112);
       if (host) {
         var r = host.getBoundingClientRect();
         if (r.width > 40 && r.height > 40) { maxW = r.width; maxH = r.height; }
@@ -235,7 +236,12 @@
       else s = Math.max(s, 0.3);
       this.scale = s;
       var w = Math.round(PC.W * s), h = Math.round(PC.H * s);
-      this.view.width = w; this.view.height = h;
+      // Keep sub-pixel font strokes when the phone fits less than one logical
+      // pixel per CSS pixel. Drawing first into a tiny canvas lost entire rows.
+      var density = Math.min(3, global.devicePixelRatio || 1);
+      var backing = s < 1 ? 2 : s * density;
+      this.view.width = Math.round(PC.W * backing); this.view.height = Math.round(PC.H * backing);
+      this.view.style.imageRendering = s < 1 ? 'auto' : 'pixelated';
       this.view.style.width = w + 'px';
       this.view.style.height = h + 'px';
       this.vctx.imageSmoothingEnabled = false;

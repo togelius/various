@@ -28,11 +28,11 @@
       intro: 'MIDNIGHT. YOUR BROTHER IS IN THE TOWER.',
       litter: [['pickup', 'coin', 290], ['pickup', 'heart', 535], ['prop', 'trash', 790]],
       encounters: [
-        enc(100, [['punk', 1, 1, 0]], { lesson: true, coach: 'HOLD Z / J TO BRAWL. KEEP IT SIMPLE.' }),
+        enc(100, [['punk', 1, 1, 0]], { lesson: true, coach: 'HOLD ATTACK TO BRAWL. KEEP IT SIMPLE.' }),
         enc(340, [['punk', 2, 1, 0], ['rough', 1, 1, 110, 1]],
-          { coach: 'SPACE / C: FLYING KICK', items: [['weapon', 'bat', 0]] }),
+          { coach: 'JUMP IS ALREADY A FLYING KICK.', items: [['weapon', 'bat', 0]] }),
         enc(620, [['punk', 2, 1, 0], ['punk', 1, -1, 90], ['batter', 1, 1, 110, 1]],
-          { coach: 'SURROUNDED? X / K TO BREAK OUT.', items: [['prop', 'crate', 0]] }),
+          { coach: 'SURROUNDED? HIT BREAKOUT.', items: [['prop', 'crate', 0]] }),
         enc(950, [], { boss: 'crusher', bossDelay: 35, items: [['pickup', 'heart', 0]] })
       ]
     },
@@ -41,7 +41,7 @@
       intro: 'THE STARLIGHT CREW KNOWS THE WAY IN.',
       litter: [['pickup', 'coin', 300], ['pickup', 'heart', 600], ['prop', 'trash', 900]],
       encounters: [
-        enc(160, [['rough', 2, 1, 0], ['punk', 1, -1, 100]], { coach: 'FINISH THE COMBO TO BREAK A GUARD.' }),
+        enc(160, [['rough', 2, 1, 0], ['punk', 1, -1, 100]], { coach: 'KEEP ATTACKING TO BREAK A GUARD.' }),
         enc(440, [['knifer', 1, 1, 0], ['punk', 2, 1, 55], ['rough', 1, -1, 110, 1]], { items: [['prop', 'drum', 0]] }),
         enc(760, [['batter', 2, 1, 0], ['punk', 2, -1, 110, 2]], { items: [['weapon', 'pipe', 0], ['pickup', 'heart', 80]] }),
         enc(1100, [['punk', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 50 })
@@ -188,6 +188,7 @@
         this.bossActive = e;
         this.bossBanner = 110;
         this.bossSub = null;
+        this.coach = 'ORANGE ATTACK? STEP ASIDE OR BREAK OUT.'; this.coachT = 500;
         e.invuln = 40;
         FX.flash('#ffffff', 5);
         FX.shakeBy(5);

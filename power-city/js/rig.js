@@ -178,6 +178,8 @@
     [[2, 21], [-1, 17]], [[-1, 22], [-4, 18]],
     [[4, 8], [8, 0]], [[-5, 9], [-10, 0]]);
 
+  POSES.safe = p([0,18],[0,29],[1,34.5], [[5,23],[6,16]],[[-5,22],[-6,15]], [[3,9],[4,0]],[[-3,9],[-5,0]]);
+
   /* The walk cycle gains its in-between frames, blended from the keyframes:
    * eight frames of walk instead of four, the difference between a strut
    * and a glide. Blended poses inherit the keyframes' joint structure, so

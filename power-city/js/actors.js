@@ -225,7 +225,7 @@
      * wind-up looks like a wind-up, striking into it is a read, and a read
      * should pay - a thug caught that way loses their footing entirely. */
     var counter = this.team === 0 && t.team === 1 && t.state === 'attack' &&
-      t.atk && t.atkT < t.atk.startup;
+      t.atk && t.atkT < t.atk.startup && !(t.isBoss && t.atk.commit);
     // catching a big telegraphed swing is the read that pays most
     var counterBig = counter && t.atk.startup >= 11;
 
@@ -233,7 +233,7 @@
       dmg: d.dmg * (this.dmgOut || 1) * (counter ? 1.3 : 1), from: this, knock: d.knock,
       stun: d.stun || 14, push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
       dir: this.facing, x: cx, y: cy, heavy: heavy, counter: counter, counterBig: counterBig,
-      gb: d.gb
+      gb: d.gb, escape: d.escape
     });
     if (res === 'block') {
       /* Blocked: a clink, a shove off the guard, and the chain is broken -
@@ -278,6 +278,13 @@
       return;
     }
 
+    // A boss commits to the orange signature warning. Ordinary hits still
+    // deal damage, but only Breakout interrupts it. Step out of the marked
+    // lane, then punish the long recovery; button-holding alone has a limit.
+    if (this.isBoss && this.state === 'attack' && this.atk && this.atk.commit &&
+        this.atkT < this.atk.startup + this.atk.active && !h.escape) return;
+    if (h.escape && this.isBoss) this.armorLeft = 0;
+
     if (h.counter) {
       FX.pop(this.x, this.y - this.hh - 10, 'COUNTER', '#7fe0ff');
       // a boss caught winding up staggers straight through its armor
@@ -319,7 +326,7 @@
      * cannot hold a player still forever. The floor is where beat 'em ups
      * go to die, so the player visits it rarely and safely. */
     var heavyBlow = h.knock && (h.dmg >= 10 || h.launch || (h.from && h.from.isBoss));
-    var knocked = (this.team === 0 ? heavyBlow : h.knock) && PC.rand() >= this.knockRes;
+    var knocked = (this.team === 0 ? heavyBlow : h.knock) && (h.escape || PC.rand() >= this.knockRes);
     if (this.team === 0 && this.poiseT > 0 && !knocked && this.z <= 2) {
       /* standing on poise: the blow lands but does not take over the body */
       this.vx = h.dir * h.push * 0.5;
@@ -658,9 +665,9 @@
       var f=a.atkT/d.startup, width=d.sweep?far*2:far;
       var left=d.sweep?x-far:a.facing>0?x:x-far;
       ctx.save(); ctx.globalAlpha=0.14+f*0.16;
-      PC.art.rect(ctx,left,y-14,width,28,'#ff9667');
+      PC.art.rect(ctx,left,y-(d.depth||DEPTH_TOL),width,2*(d.depth||DEPTH_TOL),'#ff9667');
       ctx.globalAlpha=0.55+f*0.35;
-      PC.art.rect(ctx,left,y+13,width,1,f>0.75?'#ffe2a3':'#e99365');
+      PC.art.rect(ctx,left,y+(d.depth||DEPTH_TOL)-1,width,1,f>0.75?'#ffe2a3':'#e99365');
       ctx.restore();
       PC.art.text(ctx,'!',x,y-a.hh-11,'#ffd68a',{align:'center',shadow:'#5b2839'});
     }

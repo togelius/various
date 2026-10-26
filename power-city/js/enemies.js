@@ -52,10 +52,10 @@
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
     batSwing: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 30, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', wind: 'windPunch', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
-    slam: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 34, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
-    charge: { pose: 'knee', wind: 'windCharge', startup: 32, active: 24, recovery: 36, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2, dash: true },
-    pound: { pose: 'upper', wind: 'windOver', startup: 36, active: 8, recovery: 38, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    slam: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 34, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard', commit: true },
+    charge: { pose: 'knee', wind: 'windCharge', startup: 32, active: 24, recovery: 36, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2, dash: true, commit: true },
+    pound: { pose: 'upper', wind: 'windOver', startup: 36, active: 8, recovery: 38, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom', commit: true },
+    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh', commit: true },
     upper: { pose: 'upper', wind: 'crouch', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
     spin: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
@@ -86,7 +86,7 @@
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 150, speed: 1.1, score: 5000, standoff: 20, mass: 3.4,
+      char: 'boss_crusher', hp: 190, speed: 1.1, score: 5000, standoff: 20, mass: 3.4,
       armor: 0, knockRes: 0.45, boss: true, downTime: 36,
       moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
       phases: [
@@ -95,7 +95,7 @@
       ]
     },
     viper: {
-      char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
+      char: 'boss_viper', hp: 150, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
       armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
       moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08, dodge: 0.55, guard: 0.4,
       phases: [
@@ -104,7 +104,7 @@
       ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
+      char: 'boss_jaws', hp: 190, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
       armor: 1, knockRes: 0.45, boss: true, downTime: 34,
       moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25, dodge: 0.2, guard: 0.25,
       phases: [
@@ -113,7 +113,7 @@
       ]
     },
     power: {
-      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
+      char: 'boss_power', hp: 230, speed: 1.3, score: 12000, standoff: 22, mass: 2,
       armor: 1, knockRes: 0.5, boss: true, downTime: 30,
       moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15, dodge: 0.45, guard: 0.45,
       phases: [
@@ -214,7 +214,7 @@
   Enemy.prototype.control = function () {
     if (this.dead) return;
     /* Phase changes: the fight turns halfway, loudly, and on purpose. */
-    if (this.isBoss && this.T.phases) {
+    if (this.isBoss && this.T.phases && this.z <= 0 && this.state !== 'down' && this.state !== 'fall') {
       while (this.phaseIndex < this.T.phases.length &&
         this.hp / this.maxHp <= this.T.phases[this.phaseIndex].at) {
         this.enterPhase(this.T.phases[this.phaseIndex]);
@@ -379,11 +379,22 @@
     if (this.spawnGuard > 0) return;
     if (this.atkCool > 0) { this.atkCool--; return; }
     var name = PC.rand.pick(this.T.moves);
+    if (this.isBoss) {
+      var patterns = {
+        crusher: ['slam', 'hook', 'charge', 'pound'],
+        viper: ['chainSweep', 'kick', 'charge'],
+        jaws: ['pound', 'hook', 'charge'],
+        power: ['spin', 'upper', 'charge', 'slam']
+      };
+      var sequence = patterns[this.type];
+      name = sequence[(this.attackCount || 0) % sequence.length];
+    }
     var mv = EM[name];
     if (!mv) return;
     if (adx > (mv.reach[1] - 4) * this.scale) return;
     if (!W.claimToken(this)) return;
     this.startAttack(mv);
+    this.attackCount = (this.attackCount || 0) + 1;
     this.atkCool = PC.rand.int(8, 22);
     this.think = mv.startup + mv.active + mv.recovery + 8;
   };

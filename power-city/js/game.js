@@ -25,6 +25,7 @@
 
     // ------------------------------------------------------------------ boot
     boot: function () {
+      if (global.location && /[?&]muted=1(?:&|$)/.test(global.location.search)) PC.audio.muted = true;
       PC.input.init();
       PC.Screen.init(document.getElementById('screen'));
       PC.bakeThings();
@@ -82,28 +83,6 @@
     },
 
     enemyDown: function () { },
-
-    /* The clock ran out. Nobody dies to a number: the siren starts and
-     * health drains until the fight is finished or they are. */
-    clockDrain: function () {
-      for (var i = 0; i < 2; i++) {
-        var p = this.players[i];
-        if (!p || p.dead) continue;
-        p.hp -= 5;
-        p.flash = 4;
-        if (PC.stage) PC.stage.encHurt = true;
-        if (p.hp <= 0) {
-          p.hp = 0;
-          if (p.grabbedBy) p.grabbedBy.releaseGrab();
-          if (p.grabbing) p.releaseGrab();
-          if (p.carry) PC.items.drop(p);
-          p.knockDown(p.facing, { vx: 2, vz: 3 });
-          p.dead = true; p.deathT = 0;
-          p.onDeath();
-        }
-      }
-      FX.shakeBy(1);
-    },
 
     // ---------------------------------------------------------------- coins
     coin: function () {
@@ -206,9 +185,10 @@
         case 'clear':
           W.update();
           if (this.stateT > 40 && this.stateT % 3 === 0 && PC.stage.timeLeft > 0) {
-            PC.stage.timeLeft--;
+            var paid = Math.min(5, PC.stage.timeLeft);
+            PC.stage.timeLeft -= paid;
             var pl = this.players[0] || this.players[1];
-            if (pl) pl.addScore(100);
+            if (pl) pl.addScore(paid * 100);
             if (PC.audio) PC.audio.sfx('tally');
           }
           if (this.stateT > 150) this.nextStage();
@@ -233,7 +213,7 @@
 
         case 'ending':
           W.update();
-          if (this.stateT > 900 || anyStart) { this.saveHi(); this.setState('title'); PC.stage.load(0); if (PC.audio) PC.audio.play('title'); }
+          if (this.stateT > 60 && anyStart) { this.saveHi(); this.credits = Math.max(1, this.credits); this.startGame(0); }
           break;
       }
 
@@ -438,7 +418,8 @@
         Art.text(ctx, 'HOLD Z / J: COMBO + PICK UP + THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'X / K: BREAKOUT  (WHEN THE BAR IS FULL)', PC.W / 2, mid + 31, '#ffe57a', { align: 'center' });
         Art.text(ctx, 'SPACE / C: JUMP KICK', PC.W / 2, mid + 47, '#e3edf8', { align: 'center' });
-        Art.text(ctx, 'ESC TO RESUME', PC.W / 2, mid + 77, '#65e0ec', { align: 'center' });
+        Art.text(ctx, 'P2: ARROWS / , ATTACK / . BREAKOUT / / JUMP', PC.W / 2, mid + 64, '#8495b1', { align: 'center', tracking: 0 });
+        Art.text(ctx, 'ESC TO RESUME', PC.W / 2, mid + 85, '#65e0ec', { align: 'center' });
       }
     },
 
@@ -451,28 +432,26 @@
     },
 
     renderEnding: function (ctx) {
-      this.dim(ctx, 0.7);
-      var lines = [
-        'THE TOWER GOES QUIET.',
-        '',
-        'YOUR BROTHER CAN WALK. JUST ABOUT.',
-        'THE GANG IS FINISHED, AND THE BLOCK IS',
-        'YOURS AGAIN - FOR TONIGHT, ANYWAY.',
-        '',
-        'SOMEWHERE DOWNTOWN A NEON SIGN',
-        'FLICKERS BACK ON.',
-        '',
-        'THANK YOU FOR PLAYING'
-      ];
-      var y = PC.FIELD_Y + 26;
-      for (var i = 0; i < lines.length; i++) {
-        if (this.stateT < 30 + i * 26) break;
-        Art.text(ctx, lines[i], PC.W / 2, y + i * 12, i === lines.length - 1 ? '#ffe070' : '#ffffff', { align: 'center' });
+      this.dim(ctx, 0.78);
+      var mid = PC.W / 2;
+      Art.text(ctx, 'EVERYBODY HOME.', mid + 2, 55, '#8c365c', { align: 'center', scale: 3 });
+      Art.text(ctx, 'EVERYBODY HOME.', mid, 52, '#ffe1a0', { align: 'center', scale: 3 });
+      Art.text(ctx, 'FOUR BLOCKS. ONE NIGHT. NO ONE LEFT BEHIND.', mid, 84, '#95d9e6', { align: 'center' });
+      Art.rect(ctx, mid - 146, 105, 292, 85, '#131e34');
+      Art.rect(ctx, mid - 146, 105, 292, 1, '#4a6b85');
+      // A little victory tableau, with the rescued brother between the heroes.
+      for (var j = 0; j < 19; j++) {
+        var bx = mid - 140 + j * 15, bh = 8 + (j * 17 % 25);
+        Art.rect(ctx, bx, 175 - bh, 12, bh, '#22334b');
+        Art.rect(ctx, bx + 4, 177 - bh, 2, 3, '#b59169');
       }
-      if (this.stateT > 300) {
-        Art.text(ctx, 'FINAL SCORE  ' + PC.pad(Math.max(this.scores[0], this.scores[1]), 6),
-          PC.W / 2, PC.FIELD_BOT - 22, '#4ae06a', { align: 'center' });
-      }
+      Art.rect(ctx, mid - 146, 182, 292, 8, '#2d3c52');
+      PC.rig.draw(ctx, PC.rig.frame('hero1', 'win'), mid - 58, 183, false);
+      PC.rig.draw(ctx, PC.rig.frame('brother', 'safe'), mid, 183, false);
+      PC.rig.draw(ctx, PC.rig.frame('hero2', 'win'), mid + 58, 183, true);
+      Art.text(ctx, 'YOU GOT HIM OUT.', mid, 201, '#e7d4ba', { align: 'center' });
+      Art.text(ctx, 'TEAM SCORE  ' + PC.pad(this.scores[0] + this.scores[1], 6), mid, 217, '#65e0ec', { align: 'center' });
+      Art.text(ctx, 'ENTER / START: ONE MORE NIGHT', mid, 238, '#fff1c9', { align: 'center' });
     },
 
     // ----------------------------------------------------------------- title

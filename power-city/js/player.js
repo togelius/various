@@ -42,7 +42,7 @@
       dmg: 9, stun: 18, push: 2.2, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     spin: {
-      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true,
+      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, escape: true,
       startup: 2, active: 12, recovery: 18, reach: [0, 43], depth: 32, zlo: 0, zhi: 48,
       dmg: 14, stun: 18, push: 3.6, knock: true, launch: { vx: 4.2, vz: 3.4 }, stop: 7, sfx: 'whoosh', score: 50
     },

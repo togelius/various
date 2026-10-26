@@ -33,7 +33,9 @@ cannot trigger it. If grabbed without charge, hold Attack to struggle free.
 
 **Jump is already a flying kick.** There is no second input to time. Move up
 or down to change lanes. Orange floor warnings show incoming enemy attacks.
-Food and coins collect on contact. Weapons drop when enemies are knocked down.
+Food and coins collect on contact; food is saved until you need it. Weapons
+drop when enemies are knocked down. Bosses commit to their big attacks:
+change lanes to dodge, or spend Breakout to interrupt, then punish the recovery.
 
 The opening introduces one opponent, a small crowd, and an ambush before the
 boss. Later blocks mix weapons, heavy enemies, jumpers, and boss phases.
@@ -64,11 +66,13 @@ python3 power-city/tools/build-single.py
 
 `test/review.html` is a muted playtest desk with stage and boss selectors,
 co-op join, a beginner demo, and visible state. It is not part of the shipped
-game. The older Playwright telemetry tools remain in `tools/`, but their old
+game. `test/phone.html` previews portrait and landscape touch layouts.
+The older Playwright telemetry tools remain in `tools/`, but their old
 personas and conclusions in `PLAN.md` predate the simpler controls.
 
 Runtime checks cover held combos, guards, escape from grabs, the Breakout
 meter, jump kicks, buffered input, safe clock expiry, charge timing, co-op
-collision, immediate stage clear, and seeded campaigns. These are regression
+collision, boss interruption, food collection, stage bonuses, the rescue
+ending, and seeded solo/co-op campaigns. These are regression
 checks, not proof of fun; visual inspection and actual input playtests still
 matter.

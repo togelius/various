@@ -51,6 +51,7 @@
       for (var i = 0; i < W.items.length; i++) {
         var it = W.items[i];
         if (it.held || it.dead || it.flying || it.z > 6) continue;
+        if (it.kind === 'pickup' && PC.pickups[it.key].heal && a.hp >= a.maxHp) continue;
         var d = Math.abs(it.x - a.x) + Math.abs(it.y - a.y) * 0.8;
         if (d < bd) { bd = d; best = it; }
       }

@@ -32,6 +32,13 @@
     })
   });
 
+  Rig.def('brother', {
+    name: 'LEE', hair: 'flat', scale: 0.93, bulk: 0.92, sleeves: true,
+    pal: pal({skin:'#efb18a',skinD:'#ba7656',hair:'#282031',eye:'#17152a',
+      shirt:'#d8ac60',shirtD:'#957347',pants:'#44567a',pantsD:'#27374f',trim:'#e7d1a1',
+      shoe:'#d6d9cb',shoeD:'#727f94',out:'#0a0a12'})
+  });
+
   // --------------------------------------------------------------- the gang
   Rig.def('punk', {
     scowl: true,
