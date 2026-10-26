@@ -8,6 +8,9 @@
 // onTouched, shows the mimic if it has not shown itself, and wakes it, hunting, its cause
 // marked itself; then the soft or loud noise): every scenario runs joined up (W2a-BEHAVIOUR),
 // you of grade VII, so that a mimic's lock, drawn as a real case's is, never stops the open.
+// Beside the scenarios, a few tests drive a rule directly (what it hears, through Noise.emit
+// and Wake.setMode; its grip, through Archetypes.onTouched and Cases.touch) and one plants
+// faults to show that its invariants catch them.
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {

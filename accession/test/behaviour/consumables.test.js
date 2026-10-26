@@ -3,9 +3,13 @@
 // after every step (§3.5): a thrown Fixative and a thrown Consolidant on every M3 pack
 // species (and the Night Watchman) at depths 1–7, in the open and inside an intact case;
 // a first use of every kind, every way, at every depth; the Re-admission Ticket against a
-// pending special (R30c). Every scenario runs joined up (W2a-BEHAVIOUR): the other Wave 1
+// pending special (R30c); and each kind's clause, joined up, at the end. The other Wave 1
 // packages' hooks that consumables call (Health.heal, Wake.quiet, Wake.lose, Cases.dissolve,
-// Kit.addToTote) are their real rules, with nothing stood in for.
+// Kit.addToTote) are their real rules (W2a-BEHAVIOUR). What is planted, and where: the room
+// is made by hand (your tote, what you know, the statuses a Solvent drink ends, where you
+// stand to read a label or take a Highlight); the Ticket scenario's hunter is a planted
+// archetype that only marks its ring, so that its special is pending when you read; and the
+// first-use scenarios plant faults in their own cores to show the invariant catches them.
 const H = require('./_harness.js');
 
 module.exports = ({ test, assert, loadCore }) => {
@@ -349,41 +353,56 @@ module.exports = ({ test, assert, loadCore }) => {
     const C = loadCore();
     let n = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (const depth of H.DEPTHS) {
-      const s = C.Dept.create(depth, acc, depth);
+      const s = C.Dept.create(depth, acc, depth), where = `${acc} d${depth}`, m = s.dept;
       C.Consumables.make(s, 'plan', { at: 'tote' });
-      const turn = s.turn, r = H.play(C, s, [{ a: 'use', uid: toteUid(s, 'plan') }], { clone: true });
-      assert.deepEqual(r.violations, [], `${acc} d${depth}`);
-      const m = r.state.dept;
-      assert.equal(m.seen, '1'.repeat(m.w * m.h), `${acc} d${depth}: the plan shows every tile`);
-      assert.equal(m.planRead, turn, `${acc} d${depth}`);
-      const rooms = [...new Set(m.highlights.filter(h => { const it = r.state.items.find(i => i.uid === h.uid); return it.where.at === 'floor' || it.where.at === 'case'; }).map(h => h.room))];
-      assert.equal(json(C.Consumables.planRooms(r.state)), json(rooms), `${acc} d${depth}`);
-      assert.ok(rooms.length >= 1, `${acc} d${depth}: no Highlight to name`);
-      // One Highlight taken (put in your tote): its room is no longer named, unless another is there.
-      const h = m.highlights[0], it = r.state.items.find(i => i.uid === h.uid);
-      it.where = { at: 'tote' }; r.state.you.tote.push(it.uid);
-      const left = [...new Set(m.highlights.filter(x => { const i = r.state.items.find(y => y.uid === x.uid); return i.where.at === 'floor' || i.where.at === 'case'; }).map(x => x.room))];
-      assert.equal(json(C.Consumables.planRooms(r.state)), json(left));
+      // You stand on the first Highlight that lies on a free floor tile, to take it after
+      // reading the plan (the room as made; then only real actions).
+      const lies = h => { const it = s.items.find(i => i.uid === h.uid); return it.where.at === 'floor' && C.Grid.ch(m, it.where.x, it.where.y) === '.' && !C.Actors.at(s, it.where.x, it.where.y) ? it : null; };
+      const h = m.highlights.find(lies);
+      assert.ok(h, `${where}: no Highlight lies on a free floor tile`);
+      const it = lies(h);
+      s.actors[0].x = it.where.x; s.actors[0].y = it.where.y;
+      const turn = s.turn, named = st => [...new Set(st.dept.highlights.filter(x => { const i = st.items.find(y => y.uid === x.uid); return i.where.at === 'floor' || i.where.at === 'case'; }).map(x => x.room))];
+      let after = null;
+      const r = H.play(C, s, (st, i) => i === 0 ? { a: 'use', uid: toteUid(st, 'plan') } : i === 1 ? (after = { plan: C.Consumables.planRooms(st), rooms: named(st), seen: st.dept.seen, read: st.dept.planRead }, { a: 'take', uid: it.uid }) : null, { clone: true });
+      assert.deepEqual(r.violations, [], where);
+      assert.equal(after.seen, '1'.repeat(m.w * m.h), `${where}: the plan shows every tile`);
+      assert.equal(after.read, turn, where);
+      assert.ok(after.rooms.length >= 1, `${where}: no Highlight to name`);
+      assert.equal(json(after.plan), json(after.rooms), `${where}: read, the plan names the rooms of the Highlights still there`);
+      // Then the Highlight you stand on is taken, by a real take: its room is no longer
+      // named, unless another Highlight is still there.
+      const took = r.steps[1].events.find(e => e.k === 'took');
+      assert.ok(took && took.item === it.uid, `${where}: ${json(r.steps[1].events.map(e => e.k))}`);
+      const left = named(r.state);
+      assert.equal(json(C.Consumables.planRooms(r.state)), json(left), where);
+      assert.ok(left.length < after.rooms.length || m.highlights.some(x => x.uid !== it.uid && x.room === h.room), `${where}: the Highlight's room is still named`);
       n++;
     }
     assert.equal(n, 21);
   });
 
-  test('seals, the deck and the labels, joined up, in every department at depths 1–7: seals shuffled once a run; a department\'s consumables drawn from the deck; each label read identifies its kind for the run, at no cost', () => {
+  test('seals, the deck and the labels, joined up, in every department at depths 1–7: the seals drawn once, as the department is made, and kept; a department\'s consumables drawn from the deck; each label read identifies its kind, at no cost, and a consumable of that kind used afterwards is used as known', () => {
     const C = loadCore(), N = C.N, total = N.DECK.reduce((a, b) => a + b, 0);
-    let read = 0;
+    let read = 0, shuffled = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (const depth of H.DEPTHS) {
       const s = C.Dept.create(depth, acc, depth), where = `${acc} d${depth}`;
-      // The seals: four wax seals over the four Solutions, four ink stamps over the Ephemera.
+      // The seals: four wax seals over the four Solutions, four ink stamps over the Ephemera,
+      // drawn once (a second startRun, as every use's ensureSeals makes, keeps them).
+      const seals = json(s.run.seals);
       assert.equal(json([...s.run.seals.sol].sort((a, b) => a - b)), json([0, 1, 2, 3]), where);
       assert.equal(json([...s.run.seals.eph].sort((a, b) => a - b)), json([4, 5, 6, 7]), where);
+      if (json(s.run.seals.sol) !== json([0, 1, 2, 3]) || json(s.run.seals.eph) !== json([4, 5, 6, 7])) shuffled++;
+      C.Consumables.startRun(s);
+      assert.equal(json(s.run.seals), seals, `${where}: a second startRun drew the seals again`);
       // The deck: the department's consumables came out of it, one card each.
       const placed = s.items.filter(i => i.kind === 'consumable');
       assert.equal(placed.length, N.CONSUMABLES_PER_DEPT, where);
       assert.equal(s.run.deck.reduce((a, b) => a + b, 0), total - placed.length, where);
       for (const ck of C.Registry.order('CONSUMABLES')) assert.equal(s.run.deck[C.Registry.CONSUMABLES[ck].deck], N.DECK[C.Registry.CONSUMABLES[ck].deck] - placed.filter(i => i.ck === ck).length, `${where}: ${ck}`);
       // Each label: stand where you can read it (within READ_RANGE, in sight, on a free floor
-      // tile), read it, and its kind is known for the run.
+      // tile), with one consumable of its kind in your tote, unknown; read it, and its kind
+      // is known, at no cost; then use the consumable, which is used as known.
       const plaques = s.dept.fixtures.filter(f => f.k === 'plaque');
       assert.equal(plaques.length, N.ID_LABELS_PER_DEPT, where);
       for (const f of plaques) {
@@ -393,15 +412,22 @@ module.exports = ({ test, assert, loadCore }) => {
         const spot = spots[0];
         assert.ok(spot, `${where}: the label at ${f.x},${f.y} cannot be read from any free floor tile`);
         you.x = spot[0]; you.y = spot[1];
-        const before = you.next, r = H.play(C, t, [{ a: 'read', x: f.x, y: f.y }], { clone: true });
+        const mine = C.Consumables.make(t, f.ck, { at: 'tote' }).uid;
+        assert.ok(!C.Consumables.known(t, f.ck), `${where}: ${f.ck} is known before its label is read`);
+        let before = null;
+        const r = H.play(C, t, (st, i) => i === 0 ? (before = st.actors[0].next, { a: 'read', x: f.x, y: f.y }) : i === 1 ? { a: 'use', uid: mine } : null, { clone: true });
         assert.deepEqual(r.violations, [], where);
-        const id = r.events.find(e => e.k === 'identified');
-        assert.ok(id && id.ck === f.ck && id.cause.k === 'label', `${where}: ${json(r.events.map(e => e.k))}`);
-        assert.ok(C.Consumables.known(r.state, f.ck) && r.state.actors[0].next === before, `${where}: known, and it cost nothing`);
-        // Known for the rest of the run: a consumable of that kind now says so when used.
+        const id = r.steps[0].events.find(e => e.k === 'identified');
+        assert.ok(id && id.ck === f.ck && id.cause.k === 'label', `${where}: ${json(r.steps[0].events.map(e => e.k))}`);
+        assert.equal(r.steps[0].events.some(e => e.k !== 'identified'), false, `${where}: reading did more`);
+        assert.ok(r.steps.length === 2 && r.steps[1].events[0].tick === before, `${where}: the read cost something`);
+        const used = r.steps[1].events.find(e => e.k === 'used');
+        assert.ok(used && used.item === mine && used.cause.ck === f.ck && used.cause.known === true, `${where}: the ${f.ck} used after its label: ${json(used || r.steps[1].events[0])}`);
+        assert.ok(!r.steps[1].events.some(e => e.k === 'identified'), `${where}: it was identified again`);
         read++;
       }
     }
     assert.ok(read >= 21 * N.ID_LABELS_PER_DEPT);
+    assert.ok(shuffled > 0, 'no department\'s seals were shuffled out of order');
   });
 };

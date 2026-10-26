@@ -344,6 +344,38 @@ module.exports = ({ test, assert, loadCore }) => {
     jsweep(sc, depths());
   });
 
+  test('slowed, joined up: every consumable action takes SPEED_SLOW_PCT% of COST_USE while you are slowed, and COST_USE otherwise: a drink, a first drink of a harmful kind, a throw and a read', () => {
+    // Seeds 1–4 slowed for this turn, 5–8 not; each seed's action, from your tote (known
+    // unless it is the first drink): Consolidant drunk, Fixative drunk unknown (harmless, as
+    // a first drink of a harmful kind is), Fixative thrown three tiles off, "Quiet, Please"
+    // read. Your next decision comes when that action's ticks are done.
+    const WAYS = [
+      { ck: 'consolidant', known: true, act: s => ({ a: 'use', uid: toteUid(s, 'consolidant') }) },
+      { ck: 'fixative', known: false, act: s => ({ a: 'use', uid: toteUid(s, 'fixative') }) },
+      { ck: 'fixative', known: true, act: s => ({ a: 'throw', uid: toteUid(s, 'fixative'), x: 6, y: 2 }) },
+      { ck: 'quiet', known: true, act: s => ({ a: 'use', uid: toteUid(s, 'quiet') }) },
+    ];
+    const way = seed => WAYS[(seed - 1) % WAYS.length], slow = seed => seed <= WAYS.length;
+    let next = null;
+    const sc = H.scenario({
+      name: 'a consumable action, slowed or not', id: 'STATUSES.slowed', seeds: [1, 2, 3, 4, 5, 6, 7, 8], clone: true,
+      build: (p, sp, depth, opts) => carry(jroom(OPEN, [3, 2], [], slow(opts.seed) ? { youStatuses: [{ id: 'slowed', turns: 1 }] } : {}, opts, { depth }), [[way(opts.seed).ck, 1]], way(opts.seed).known ? undefined : []),
+      actions: (s, i) => {
+        if (i === 0) { next = null; return way(s.seed).act(s); }
+        if (i === 1) { next = s.actors[0].next; return { a: 'wait' }; }
+        return null;
+      },
+      expect(r, p) {
+        const w = way(r.seed), ev = r.steps[0].events, want = slow(r.seed) ? Math.floor(N.COST_USE * p.SPEED_SLOW_PCT / 100) : N.COST_USE;
+        const used = ev.find(e => e.k === 'used');
+        if (!used || used.cause.ck !== w.ck || used.cause.known !== w.known) return `the ${w.ck} was not used as planned: ${json(ev.map(e => e.k))}`;
+        if (!w.known && !used.cause.gentle) return 'a first drink of Fixative was not the harmless one';
+        return next === want ? null : `${slow(r.seed) ? 'slowed' : 'not slowed'}, the ${used.how} of ${w.ck} took until tick ${next}, not ${want}`;
+      },
+    });
+    jsweep(sc, depths());
+  });
+
   test('fixed, joined up: a known Fixative thrown at an exhibit of every M3 species, hunting you, fixes it for FIXATIVE_TURNS turns from its next decision; it only waits, and a mark it had pending is called off', () => {
     // As the planted scenario above, but thrown from your tote; what the exhibit was about to
     // do when it landed is noted as the throw is chosen.

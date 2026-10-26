@@ -1,12 +1,14 @@
 // ACCESSION — every refusal code, joined up (BUILD.md §4.2, §5.1; W2a-BEHAVIOUR). Each M3
 // code in Registry.REFUSALS is made to happen here by a real action in the real core, with
-// nothing stubbed: a room is made, the state got ready by real actions where it needs them
-// (a visit ended, a Card's choice waiting, a ring marked), and then the action is refused.
-// For each: the action is not among Step.legal's (the buttons), step() answers with exactly
-// one refused event with that code, every invariant holds (system.inv.js: a refused step has
-// no other event and changes nothing, not even a stream), the run is clone-checked, and the
-// refusal's sentence is a clean one. A code with no way to happen in M3 is named in
-// UNREACHABLE with why, and is not promoted (test/behaviour/follow-ups.json holds it).
+// nothing stubbed, at every depth 1–7: a room is made, the state got ready by real actions
+// where it needs them (a visit ended, a Card's choice waiting, a ring marked), and then the
+// action is refused. For each: the action is not among Step.legal's (the buttons), step()
+// answers with exactly one refused event with that code, every invariant holds
+// (system.inv.js: a refused step has no other event and changes nothing, not even a
+// stream), the run is clone-checked, and the refusal's sentence is a clean one. A code no
+// M3 action can give is named in UNREACHABLE with why, and its entry is built: 'M4' (the
+// part that builds the actions it is for decides whether it stays), so no M3 entry waits on
+// it.
 'use strict';
 const H = require('./_harness.js');
 const Inv = require('../../tools/invariants.js');
@@ -17,7 +19,9 @@ module.exports = ({ test, assert, loadCore }) => {
   const json = x => JSON.stringify(x);
   const OPEN = ['#############', '#...........#', '#...........#', '#...........#', '#...........#', '#...........#', '#...........#', '#############'];
   const dummy = (at, more) => Object.assign({ sp: 'dummy', at, mode: 'dormant', stats: { hp: 999, acc: -99, eva: 0, pad: 0, dmin: 1, dmax: 1 } }, more || {});
-  const room = (spec, opts) => Setup.room(1, Object.assign({ acc: 'T0', depth: 3, map: OPEN, you: [3, 3] }, spec || {}), opts);
+  // The depth every case's room is made at; each case is run at depths 1–7.
+  let D = 3;
+  const room = (spec, opts) => Setup.room(1, Object.assign({ acc: 'T0', depth: D, map: OPEN, you: [3, 3] }, spec || {}), opts);
   const carry = (s, tote, known) => {
     Consumables.startRun(s);
     for (const [ck, n] of tote) for (let k = 0; k < n; k++) Consumables.make(s, ck, { at: 'tote' });
@@ -30,10 +34,9 @@ module.exports = ({ test, assert, loadCore }) => {
   const curio = (uid, where) => ({ uid, kind: 'curio', where, prims: [{ id: 'acc', cls: 'S' }] });
   const shut = (x, y, glass, lock) => Cases.make({ x, y, room: null, glass, lock });
 
-  // Codes that no M3 action can give, with why (they are left below ready true, each with a
-  // follow-up in follow-ups.json).
+  // Codes that no M3 action can give, with why: each is built: 'M4', not an M3 entry.
   const UNREACHABLE = {
-    not_built: 'no M3 action refuses with it: push and view, reserved in Actions.ORDER, have no handler, so step() refuses them unknown_action; only m3-backbone\'s planted handler shows it',
+    not_built: 'no M3 action refuses with it: push and view, reserved in Actions.ORDER, have no handler, so step() refuses them unknown_action (§4.2); only m3-backbone\'s planted handler shows it',
   };
 
   // Each case: build() → the state, ready (real actions in pre, played first, each must not
@@ -89,7 +92,7 @@ module.exports = ({ test, assert, loadCore }) => {
     { code: 'in_case', build: () => room({ map: ['#######', '#..v..#', '#######'], you: [2, 1], items: [pole()], fixtures: [shut(3, 1, 1, 1)], exhibits: [dummy([3, 1])] }), act: () => ({ a: 'use', uid: 'r.pole', x: 3, y: 1, how: 'push' }) },
     // A pack warden beside you marks its ring (its ROLE_WARDEN_SPECIAL_EVERY-th action); the
     // pole is refused at a body with a mark of its own (it would move it off what it showed).
-    { code: 'marked', build: () => room({ acc: 'S9', items: [pole()], exhibits: [{ sp: 'S9.4', at: [4, 3], mode: 'hunting', stats: Roles.stats('warden', 3) }] }, { invulnerable: true }),
+    { code: 'marked', build: () => room({ acc: 'S9', items: [pole()], exhibits: [{ sp: 'S9.4', at: [4, 3], mode: 'hunting', stats: Roles.stats('warden', D) }] }, { invulnerable: true }),
       pre: Array.from({ length: 6 }, () => st => st.actors[1].telegraph ? null : { a: 'wait' }),
       act: s => ({ a: 'use', uid: 'r.pole', x: s.actors[1].x, y: s.actors[1].y, how: 'push' }), ready: s => !!s.actors[1].telegraph },
     { code: 'cannot_move', build: () => room({ map: ['######', '#...##', '######'], you: [2, 1], items: [pole()], exhibits: [dummy([3, 1])] }), act: () => ({ a: 'use', uid: 'r.pole', x: 3, y: 1, how: 'push' }) },
@@ -116,39 +119,50 @@ module.exports = ({ test, assert, loadCore }) => {
 
   const clean = t => typeof t === 'string' && t.length > 0 && !/undefined|NaN|\[object|null/.test(t);
 
-  test('every M3 refusal code has a joined-up case here, or is named unreachable with why; and every case is a code of the registry', () => {
+  test('every M3 refusal code has a joined-up case here, at ready true; a code named unreachable, with why, is built in M4, not M3; every case is a code of the registry', () => {
     const codes = R.order('REFUSALS').filter(c => R.REFUSALS[c].built === 'M3'), cased = CASES.map(c => c.code);
     assert.equal(new Set(cased).size, cased.length, 'a code is cased twice');
-    for (const c of codes) assert.ok(cased.includes(c) !== Object.prototype.hasOwnProperty.call(UNREACHABLE, c), `${c}: ${cased.includes(c) ? 'cased and named unreachable' : 'neither cased nor named unreachable'}`);
-    for (const c of cased.concat(Object.keys(UNREACHABLE))) assert.ok(R.REFUSALS[c] && R.REFUSALS[c].built === 'M3', `${c} is no M3 refusal`);
-    for (const c of Object.keys(UNREACHABLE)) assert.ok(R.REFUSALS[c].ready !== true, `${c} is unreachable but at ready true`);
+    for (const c of codes) assert.ok(cased.includes(c), `${c}: an M3 code with no case here`);
+    for (const c of cased) assert.ok(R.REFUSALS[c] && R.REFUSALS[c].built === 'M3' && R.REFUSALS[c].ready === true, `${c} is no M3 refusal at ready true`);
+    for (const [c, why] of Object.entries(UNREACHABLE)) {
+      assert.ok(!cased.includes(c), `${c} is cased and named unreachable`);
+      assert.ok(R.REFUSALS[c] && R.REFUSALS[c].built === 'M4', `${c}, which no M3 action gives (${why}), is an M3 entry, which --strict would wait on`);
+      assert.ok(R.REFUSALS[c].ready !== true, `${c} is unreachable but at ready true`);
+    }
   });
 
   for (const k of CASES) {
-    test(`refused ${k.code}: the action is no button, step() refuses it with that code and changes nothing, and its sentence is clean`, () => {
-      const s = k.build();
-      const pre = typeof k.pre === 'function' ? k.pre(s) : (k.pre || []);
-      for (const p of pre) {
-        const a = typeof p === 'function' ? p(s) : p;
-        if (a === null) break;
-        const ev = Step.step(s, a);
-        assert.ok(!(ev.length === 1 && ev[0].k === 'refused'), `${k.code}: getting ready, ${json(a)} was refused ${json(ev[0])}`);
-      }
-      if (k.ready) assert.ok(k.ready(s), `${k.code}: the state is not ready for the case`);
-      const action = k.act(s);
-      assert.ok(!Step.legal(s).some(a => json(a) === json(action)), `${k.code}: ${json(action)} is among the legal actions`);
-      // A visit already over is played no further by the harness, so that one step is taken
-      // here, with the same checks: every invariant, plain data, and a clone that agrees.
-      let r;
-      if (s.over) {
-        const pre = C.State.clone(s), twin = C.State.clone(s), events = Step.step(s, action), check = Inv.checker(C, Inv.select(C, 'all'));
-        Step.step(twin, action);
-        r = { events, violations: check(pre, action, events, s).concat(C.State.plainData(s) ? [{ text: 'not plain data' }] : [], C.State.hash(twin) !== C.State.hash(s) ? [{ text: 'a clone differs' }] : []) };
-      } else r = H.play(C, s, [action], { clone: true });
-      assert.equal(json(r.violations.map(v => v.text)), '[]', k.code);
-      assert.equal(json(r.events.map(e => [e.k, e.reason])), json([['refused', k.code]]), `${k.code}: ${json(action)}`);
-      const said = Text.event(r.events[0], Labels.nameOf(s)), direct = Text.refusal(k.code, r.events[0].data || {});
-      assert.ok(clean(said) && clean(direct), `${k.code}: "${said}" / "${direct}"`);
+    test(`refused ${k.code}, at every depth: the action is no button, step() refuses it with that code and changes nothing, and its sentence is clean`, () => {
+      try { for (const depth of H.DEPTHS) { D = depth; refused(k, depth); } } finally { D = 3; }
     });
+  }
+
+  // One case at one depth (D, which its build reads).
+  function refused(k, depth) {
+    const at = `${k.code} at depth ${depth}`;
+    const s = k.build();
+    const pre = typeof k.pre === 'function' ? k.pre(s) : (k.pre || []);
+    for (const p of pre) {
+      const a = typeof p === 'function' ? p(s) : p;
+      if (a === null) break;
+      const ev = Step.step(s, a);
+      assert.ok(!(ev.length === 1 && ev[0].k === 'refused'), `${at}: getting ready, ${json(a)} was refused ${json(ev[0])}`);
+    }
+    if (k.ready) assert.ok(k.ready(s), `${at}: the state is not ready for the case`);
+    const action = k.act(s);
+    assert.ok(!Step.legal(s).some(a => json(a) === json(action)), `${at}: ${json(action)} is among the legal actions`);
+    // A visit already over is played no further by the harness, so that one step is taken
+    // here, with the same checks: every invariant, plain data, and a clone that agrees.
+    let r;
+    if (s.over) {
+      const pre = C.State.clone(s), twin = C.State.clone(s), events = Step.step(s, action), check = Inv.checker(C, Inv.select(C, 'all'));
+      Step.step(twin, action);
+      r = { events, violations: check(pre, action, events, s).concat(C.State.plainData(s) ? [{ text: 'not plain data' }] : [], C.State.hash(twin) !== C.State.hash(s) ? [{ text: 'a clone differs' }] : []) };
+    } else r = H.play(C, s, [action], { clone: true });
+    assert.equal(json(r.violations.map(v => v.text)), '[]', at);
+    assert.equal(json(r.events.map(e => [e.k, e.reason])), json([['refused', k.code]]), `${at}: ${json(action)}`);
+    const said = Text.event(r.events[0], Labels.nameOf(s)), direct = Text.refusal(k.code, r.events[0].data || {});
+    assert.ok(clean(said) && clean(direct), `${at}: "${said}" / "${direct}"`);
+    assert.equal(s.dept.depth, depth, `${at}: the room is at depth ${depth}`);
   }
 };

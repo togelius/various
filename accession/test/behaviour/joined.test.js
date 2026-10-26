@@ -4,8 +4,8 @@
 // played from sleep through the real chain, in the real core, with nothing stubbed or set by
 // hand once the room is made: the herald wakes to a noise you make out of its sight, comes to
 // look, and calls on seeing you; the tethered warden is drawn by a noise as far as its tether
-// lets it, and fights you when you step inside it; the kiter wakes to a noise, sees you, keeps
-// its distance and shoots; the mimic is touched through a real open or bash of its case in
+// lets it, and fights you when you step inside it; the kiter wakes to a noise, sees you from
+// beyond its range, walks in to its distance and shoots; the mimic is touched through a real open or bash of its case in
 // every S.9 department that places one. Each runs for every pack species of its archetype at
 // depths 1–7, with every invariant (tools/invariants.js) after every step and a clone check.
 // The noise is your real Tuning Fork's (W1-KIT): a soft noise "as if you made it there".
@@ -147,37 +147,60 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   // ---- The kiter: woken by your noise out of its sight, it comes to look; seeing you, it
-  // hunts, keeps its distance and shoots you. ----
+  // hunts, walks in to its distance and shoots you only from there. ----
+  // A longer west room: you stand at (3, 3), 8 tiles from the gap at (11, 3), so that the
+  // kiter, come to look at the gap, first sees you from beyond ROLE_ARTILLERY_RANGE (and
+  // beyond KITER_HOLD1 walking steps), though within its sight. A kiter that shot on sight,
+  // or from outside its band, would shoot from there; this one must walk in first.
+  const LONG = ['###################', '#..........#......#', '#..........#......#', '#.................#', '#..........#......#', '#..........#......#', '###################'];
+  const KGAP = [11, 3], KYOU = [3, 3], KAT = [13, 1];
   const kiterSees = H.scenario({
-    name: 'a kiter woken by your noise comes to look; seeing you it hunts, keeps KITER_HOLD0 to KITER_HOLD1 tiles off and shoots you within ROLE_ARTILLERY_RANGE',
+    name: 'a kiter woken by your noise comes to look; seeing you from beyond its range it hunts, walks in to KITER_HOLD0 to KITER_HOLD1 tiles off, and shoots you from there within ROLE_ARTILLERY_RANGE',
     id: 'kiter', clone: true,
-    build: (params, sp, depth, opts) => Setup.room(opts.seed, { acc: accOf(sp), depth, map: TWO, you: YOU.slice(), items: [FORK],
-      exhibits: [{ sp: sp.id, at: AT.slice(), stats: Roles.stats(sp.role, depth) }] }, { rulesOff: opts.rulesOff, invulnerable: true }),
-    actions: (s, i) => forkThrice(s, i) || (i < 20 ? { a: 'wait' } : null),
+    build: (params, sp, depth, opts) => Setup.room(opts.seed, { acc: accOf(sp), depth, map: LONG, you: KYOU.slice(), items: [FORK],
+      exhibits: [{ sp: sp.id, at: KAT.slice(), stats: Roles.stats(sp.role, depth) }] }, { rulesOff: opts.rulesOff, invulnerable: true }),
+    actions: (s, i) => (i < N.TUNING_FORK[0] ? { a: 'use', uid: FORK.uid, x: KGAP[0], y: KGAP[1] } : null) || (i < 24 ? { a: 'wait' } : null),
     expect(r, params) {
-      const k = r.start.actors[1], woke = wokeToNoise(r, k.uid), [lo, hi] = range(params.dmg);
-      if (woke.bad) return woke.bad;
+      const k = r.start.actors[1], [lo, hi] = range(params.dmg), R = params.ROLE_ARTILLERY_RANGE, [near, far] = [params.KITER_HOLD0, params.KITER_HOLD1];
+      const m = r.start.dept, walk = Grid.distances(m, [KYOU], m.w * m.h, null, 'exhibit'), steps = p => walk[p[1] * m.w + p[0]];
+      const inRange = p => { const dx = p[0] - KYOU[0], dy = p[1] - KYOU[1]; return dx * dx + dy * dy <= R * R + R; };
+      // The geometry this scenario needs: the gap in your sight and its, out of range and band.
+      if (!sees(m, KGAP, KYOU) || inRange(KGAP) || steps(KGAP) <= far) return 'this scenario needs you seen from the gap, beyond its range and band';
+      // It woke awake to the noise at the gap, the third strike's pip.
+      const wi = r.steps.findIndex(st => st.events.some(e => e.k === 'woke' && e.who === k.uid));
+      const we = wi >= 0 ? r.steps[wi].events.find(e => e.k === 'woke' && e.who === k.uid) : null;
+      if (!we || we.mode !== 'awake' || we.cause.k !== 'noise' || we.cause.by !== 'you' || json([we.cause.x, we.cause.y]) !== json(KGAP)) return `the fork's noise did not wake it awake: ${json(we)}`;
+      if (wi !== N.PIPS_TO_WAKE - 1) return `it woke at the fork's ${wi + 1}th strike, not its ${N.PIPS_TO_WAKE}th`;
       const seen = r.steps.findIndex(st => st.events.some(e => e.k === 'hunting' && e.who === k.uid));
       if (seen < 0) return 'it never saw you';
       const hunt = r.steps[seen].events.find(e => e.k === 'hunting' && e.who === k.uid);
       if (hunt.cause.k !== 'seen') return `it began to hunt ${json(hunt.cause)}, not on seeing you`;
-      const t = track(r, k.uid), m = r.start.dept;
+      const t = track(r, k.uid);
+      // Where it stood when it began to hunt (its last step before the hunting event): beyond
+      // its range, as laid out.
+      let spotted = [k.x, k.y];
+      for (const e of r.events.slice(0, r.events.indexOf(hunt))) if (e.k === 'moved' && e.who === k.uid) spotted = e.to;
+      if (inRange(spotted)) return `it first saw you from ${spotted}, within ${R} tiles, which this scenario does not test`;
       const shots = [];
       r.steps.forEach((st, i) => { for (const e of st.events) if (e.k === 'attacked' && e.by === k.uid) shots.push({ i, e }); });
       if (!shots.length) return 'it never shot you';
       for (const { i, e } of shots) {
         if (i < seen) return `it shot at step ${i}, before it saw you at ${seen}`;
         if (e.how.kind !== 'shot') return `its attack was ${json(e.how)}, not a shot`;
-        const from = t[i + 1], dx = from[0] - YOU[0], dy = from[1] - YOU[1], R = params.ROLE_ARTILLERY_RANGE;
-        if (dx * dx + dy * dy > R * R + R) return `it shot from ${from}, beyond ${R} tiles`;
-        if (!sees(m, from, YOU)) return `it shot from ${from}, which has no sight of you`;
+        const from = t[i + 1];
+        if (!inRange(from)) return `it shot from ${from}, beyond ${R} tiles`;
+        if (!sees(m, from, KYOU)) return `it shot from ${from}, which has no sight of you`;
+        if (steps(from) < near || steps(from) > far) return `it shot from ${from}, ${steps(from)} walking steps from you, not ${near} to ${far}`;
       }
+      // Once in its band, it keeps to it: never nearer than KITER_HOLD0, never beyond KITER_HOLD1.
+      const first = shots[0].i + 1, off = t.slice(first).find(p => steps(p) < near || steps(p) > far);
+      if (off) return `after its first shot it stood at ${off}, ${steps(off)} walking steps from you`;
       const hurt = r.events.filter(e => e.k === 'damaged' && e.who === 'you' && e.cause.by === k.uid);
       const bad = hurt.find(e => e.cause.raw < lo || e.cause.raw > hi);
       return bad ? `a shot rolled ${bad.cause.raw}, outside ${params.dmg}` : null;
     },
   });
-  test('the kiter, joined up: woken by your noise, it comes to look, and once it sees you it hunts and shoots, only with you in sight and in range', () => {
+  test('the kiter, joined up: woken by your noise, it comes to look; seeing you from beyond its range, it walks in to its band and shoots only from there, in sight and in range', () => {
     ok(H.sweep(C, kiterSees, list('kiter')), kiterSees.name);
   });
 

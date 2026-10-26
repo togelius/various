@@ -1,3 +1,1 @@
-{
-  "REFUSALS.not_built": "No M3 action refuses with not_built: push and view, reserved in Actions.ORDER, have no handler, so step() refuses them unknown_action, and no M3 handler returns not_built; only m3-backbone's planted handler shows its refusal and sentence, so no joined-up scenario can reach it. Follow-up for the queue: M4, which builds push and view, either returns not_built from a handler it has not finished (and promotes it with a scenario), or removes the code and its sentence."
-}
+{}

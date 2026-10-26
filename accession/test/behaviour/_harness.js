@@ -11,6 +11,9 @@
 //   failures(results) → [line]
 //   sensitivity(C, sc, modifierId, list?) → {sensitive, problems, runs}
 //   species(C, id, {depths, m4}) → [{sp, depth, acc}]
+//   switchable(C, sc) → the modifier id rulesOff can switch off, or null
+//   reruns(id) → how many runs, in this process, sweep() and sensitivity() made with id
+//                switched off that failed as they must
 'use strict';
 const Inv = require('../../tools/invariants.js');
 
@@ -109,18 +112,29 @@ function scenario(def) {
 // special, status or wake clause) that a species' Behaviour line has, or a table-qualified
 // one, 'TABLE.id', for a clause that belongs to no species' line (a status nothing in the
 // packs inflicts, a surface, a consumable, an item's clause: §5.3's other clauses) or one
-// whose bare id is ambiguous (fumigant is a surface and a consumable).
+// whose bare id is ambiguous (fumigant is a surface and a consumable; tether is a trigger
+// and a wake cause). A qualified id names its table: it matches only a line part that
+// comes from that table (PART_KINDS: the kinds of part Clauses.of gives for its entries),
+// so 'WAKE_CAUSES.tether' is never the trigger's part.
 const qualified = id => { const m = /^([A-Z][A-Z_]*)\.(.+)$/.exec(id || ''); return m ? { table: m[1], id: m[2] } : null; };
 const bare = id => { const q = qualified(id); return q ? q.id : id; };
+const PART_KINDS = { ARCHETYPES: ['archetype'], SPECIALS: ['special'], STATUSES: ['status'], MODIFIERS: ['modifier'], TRIGGERS: ['trigger'], CLAUSES: ['wake', 'role'] };
+// Whether a part of Clauses.of is the clause id names: the same id, and, for a qualified id,
+// a part of its table's kind (none, for a table no line part comes from).
+function isPart(id) {
+  const q = qualified(id), want = bare(id), kinds = q ? (Object.prototype.hasOwnProperty.call(PART_KINDS, q.table) ? PART_KINDS[q.table] : []) : null;
+  return p => p.id === want && (kinds === null || kinds.includes(p.kind));
+}
 
 // The clause part's parameters for a species at a depth, as written (no rule switched off):
-// the part of the species' line with that id; or, for a table-qualified id the line has no
-// part for (or with no species), the registry entry's clause, filled at the depth.
+// the part of the species' line with that id (of that table, for a qualified id); or, for
+// a table-qualified id the line has no part for (or with no species), the registry entry's
+// clause, filled at the depth.
 function paramsOf(C, id, sp, depth) {
   if (!id) return { params: {}, clause: null };
   const q = qualified(id);
   if (!sp && !q) throw new Error(`the clause ${id} needs a species`);
-  const part = sp ? C.Clauses.of(sp, { depth, rulesOff: [] }).find(p => p.id === bare(id)) : null;
+  const part = sp ? C.Clauses.of(sp, { depth, rulesOff: [] }).find(isPart(id)) : null;
   if (part) return { params: Object.assign({}, part.params), clause: part.text };
   if (!q) throw new Error(`${sp.id}'s Behaviour line has no ${id} clause`);
   const R = C.Registry, e = R.TABLES.includes(q.table) && Object.prototype.hasOwnProperty.call(R[q.table], q.id) ? R[q.table][q.id] : null;
@@ -201,9 +215,16 @@ function sweep(C, sc, list, opts) {
     if (!check || on.failure) continue;
     const off = run(C, sc, sp, depth, Object.assign({}, opts, { seed, rulesOff: [rule], inv: [] }));
     if (off.error || !off.failure) out.push(Object.assign({}, off, { failure: off.error ? `with ${rule} switched off it threw (${off.error}), which shows nothing` : `with ${rule} switched off it still passed, so it does not test ${rule}` }));
+    else counted(rule);
   }
   return out;
 }
+
+// The reruns with a rule switched off that failed as they must, counted per rule id in this
+// process (test/behaviour.test.js reads them: every M3 modifier must have some).
+const RERUNS = new Map();
+const counted = id => RERUNS.set(id, (RERUNS.get(id) || 0) + 1);
+const reruns = id => RERUNS.get(id) || 0;
 
 const failures = results => results.filter(r => r.failure).map(describe);
 
@@ -222,13 +243,15 @@ function sensitivity(C, sc, modifierId, list) {
     if (on.failure) problems.push(`${describe(on)} (it must pass with the rule on)`);
     else if (off.error) problems.push(`${describe(off)} (with ${modifierId} switched off it threw, which shows nothing)`);
     else if (!off.failure) problems.push(`${describe(off)} with ${modifierId} switched off, so the scenario does not test it`);
+    else counted(modifierId);
   }
   return { sensitive: problems.length === 0, problems, runs };
 }
 
-// Every species whose Behaviour line has a part with this id (bare, or table-qualified), from
-// the packs and the shared species (Packs.sharedList: the Night Watchman), at every depth 1–7 (opts.depths), as
-// {sp, depth, acc}. The species records are the packs' own, so the fields by which a pack
+// Every species whose Behaviour line has a part with this id (bare, or table-qualified: a
+// part from that table, so a table no line part comes from gives none), from the packs and
+// the shared species (Packs.sharedList: the Night Watchman), at every depth 1–7
+// (opts.depths), as {sp, depth, acc}. The species records are the packs' own, so the fields by which a pack
 // overrides a number (§5.2; modParams) apply. Species whose archetype M3 does not build are
 // left out, as M3 departments leave them out (§5.5), unless opts.m4.
 function species(C, id, opts) {
@@ -243,13 +266,13 @@ function species(C, id, opts) {
     if (!built && !opts.m4) continue;
     // An M3 species' line always fills (lint-registry checks it), so an error there is
     // thrown; an unbuilt species whose line cannot be read simply uses nothing.
-    const want = bare(id);
-    let uses = sp.archetype === want;
-    if (!uses && built) uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === want);
-    else if (!uses) { try { uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === want); } catch (e) { uses = false; } }
+    const q = qualified(id), match = isPart(id);
+    let uses = (!q || q.table === 'ARCHETYPES') && sp.archetype === bare(id);
+    if (!uses && built) uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(match);
+    else if (!uses) { try { uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(match); } catch (e) { uses = false; } }
     if (uses) for (const depth of depths) out.push({ sp, depth, acc });
   }
   return out;
 }
 
-module.exports = { DEPTHS, CAP, play, scenario, run, sweep, failures, describe, sensitivity, species, switchable };
+module.exports = { DEPTHS, CAP, play, scenario, run, sweep, failures, describe, sensitivity, species, switchable, reruns };

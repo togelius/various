@@ -11,8 +11,11 @@
   const R = Registry;
   const TESTS = ['m3-status.test.js', 'behaviour/status.test.js'];
   // Each status's and surface's pictogram is keyed by its own id (js/view/pictograms.js).
-  // ready true (W2a-BEHAVIOUR): each status and surface is put on as the game puts it on, in
-  // behaviour/status.test.js's joined-up scenarios, every package's invariants on.
+  // ready true (W2a-BEHAVIOUR): behaviour/status.test.js's joined-up scenarios, every
+  // package's invariants on. Each status and surface the game puts on is put on as the game
+  // puts it on (Fixative, Fumigant and Consolidant from your tote, the mimic's grip, a cast's
+  // dust); slowed and dazed, which nothing in M3 puts on, are given to you as the room is
+  // made, and then hold through real actions.
   const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: true, tests: TESTS.slice(), inv: 'status' });
 
   // A status's clause continues the clause of the archetype that inflicts it (§5.3), so it
