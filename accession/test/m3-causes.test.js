@@ -6,6 +6,7 @@
 //     Text.recap's killer, wake turn, wake trigger and hunt turn equal Recap.fromLog's, rebuilt
 //     from the full event log: killers set out awake by a stamp ('placed'), the Night
 //     Watchman, a splitter's halves ('summoned') and department wakings;
+//   - a death by your own bolt sent back by a reflector is the reflector's, read from its story;
 //   - the Night Watchman, made mid-visit, is read from its entered event and its creation woke;
 //     an exhibit a stamp sets out awake has no event for that, and is read from the initial
 //     state, as any actor not dormant there is; Recap.fromLog on logs written by hand;
@@ -82,6 +83,40 @@ module.exports = ({ test, assert, root, path }) => {
     assert.equal(json(recapOf(C, state)), json(f));
     // Without the initial state, the log alone cannot say why it was awake.
     assert.equal(json(Recap.fromLog(null, events)), json({ killer: f.killer, wakeTurn: null, wakeTrigger: null, huntTurn: null }));
+  });
+
+  test('a death by your own Pin-Driver bolt sent back by a reflector: the battery\'s check reads the killer as the reflector, from its own story (D2.16), and a recap naming the shooter fails it', () => {
+    // As test/recap.test.js plays it: a Reflecting Dish (M11.4) woken by your ring, then a bolt
+    // at it from 1 HP, which it sends back; every step goes through the battery's checks.
+    const OPEN = ['###########', '#.........#', '#.........#', '#.........#', '###########'];
+    function boltBack(X) {
+      for (let seed = 1; seed <= 60; seed++) {
+        const s = X.Setup.room(seed, { acc: 'M11', depth: 3, map: OPEN, you: [2, 2], exhibits: [{ sp: 'M11.4', at: [4, 2], mode: 'dormant', stats: X.Roles.stats('controller', 3) }],
+          items: [{ uid: 'M11.3.room.i1', kind: 'instrument', form: 'pin_driver', tier: 2, where: { at: 'kit', slot: 'instrument' } }] });
+        const you = s.actors[0], dish = s.actors[1], chk = Battery.checks(X), out = [], initial = X.State.clone(s), events = [];
+        you.hp = you.maxHp = 999;
+        const go = action => { const pre = X.State.clone(s), ev = X.Step.step(s, action); events.push(...ev); out.push(...chk.check(pre, action, ev, s)); };
+        for (let i = 0; i < 20 && dish.mode === 'dormant'; i++) go({ a: 'wait' });
+        if (dish.mode === 'dormant') continue;
+        you.hp = 1;
+        go({ a: 'use', uid: 'M11.3.room.i1', x: dish.x, y: dish.y });
+        if (s.over && s.over.cause.k === 'reflected') return { seed, s, dish, out, tally: chk.tally, initial, events };
+      }
+      return null;
+    }
+    const r = boltBack(C);
+    assert.ok(r, 'a bolt sent back killed you within 60 seeds');
+    assert.equal(json([r.s.over.cause.by, r.s.over.cause.shooter]), json([r.dish.uid, 'you']));
+    assert.equal(json(r.out), '[]');
+    assert.equal(json([r.tally.deaths, r.tally.recaps]), json([1, 1]));
+    const f = Recap.fromLog(r.initial, r.events);
+    assert.equal(json(f), json({ killer: r.dish.uid, wakeTurn: r.dish.woke.turn, wakeTrigger: r.dish.woke.cause.k, huntTurn: r.dish.hunted.turn }));
+    assert.equal(json(recapOf(C, r.s)), json(f));
+    // Planted: a recap that names who fired the bolt, not the reflector that sent it back.
+    const X = Battery.load(), real = X.Text.recap;
+    X.Text.recap = (s, n) => { const q = real(s, n); if (q && s.over.cause.k === 'reflected') q.killer = s.over.cause.shooter; return q; };
+    const p = boltBack(X);
+    assert.ok(p && p.out.some(v => v.id === 'recap' && v.text.includes(`killer is "you" where the log gives "${p.dish.uid}"`)), json(p && p.out));
   });
 
   test('Recap.fromLog on logs written by hand: no death; a killer named by no one; the latest waking and hunt win; a creation into a hunt; a starting story an event replaces', () => {

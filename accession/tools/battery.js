@@ -18,9 +18,11 @@
 //   recap            at your death, Text.recap's killer, wake turn, wake trigger and hunt turn
 //                    equal Recap.fromLog's, rebuilt from the run's full event log and its first
 //                    state (criterion 6), and its lines read clean;
-//   start_story      in a run's first state, an exhibit not dormant has the story a room or
-//                    an arena starts it with ('awake' or 'placed', §3.4), which Recap.fromLog
-//                    reads since no event tells it.
+//   start_story      in a run's first state, an exhibit not dormant has the story a room, an
+//                    arena or a department starts it with (§3.4): woke at that state's turn,
+//                    'awake' if its trigger stands for the wake clause and 'placed' otherwise,
+//                    and a hunter's hunt begun then for the same cause; Recap.fromLog reads it
+//                    there, since no event tells it.
 // A step that throws, a policy that fails (tools/sim.js's errors) and a policy's illegal action
 // are violations too. Each violation keeps the replay that reaches it (up to its step), which
 // `node tools/replay.js` plays and `node tools/report.js` shrinks to a crash card.
@@ -186,12 +188,23 @@ function checks(C, o) {
     }
     return covers.get(key);
   }
+  // A run's first state: Recap.fromLog reads the starting story of an exhibit not dormant
+  // there, which no event tells, so that story is held here to the rule a room, an arena or a
+  // department starts it with (§3.4), not to itself: it woke at this state's turn, for the
+  // cause 'awake' if its trigger stands for the wake clause ("It never sleeps.") and 'placed'
+  // otherwise; a hunter began hunting then, for the same cause; one that does not hunt has no
+  // hunt.
   function startStory(state, v) {
+    const T = C.Registry.TRIGGERS;
     for (const a of state.actors) {
       if (a.uid === 'you' || a.gone || a.mode === 'dormant') continue;
-      const k = a.woke && a.woke.cause ? a.woke.cause.k : null;
-      if (k !== 'awake' && k !== 'placed') v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke ${k ? `by ${k}` : 'never'}, not as a room or arena starts it ('awake' or 'placed')`);
-      else if (a.mode === 'hunting' && !a.hunted) v('start_story', `${a.uid} starts hunting with no hunt in its story`);
+      const trig = typeof a.trigger === 'string' && Object.prototype.hasOwnProperty.call(T, a.trigger) ? T[a.trigger] : null;
+      const want = trig && trig.replacesWake ? 'awake' : 'placed', w = a.woke, h = a.hunted, k = w && w.cause ? w.cause.k : null;
+      const says = s => s ? `${s.cause ? s.cause.k : 'no cause'} on turn ${s.turn}` : 'none';
+      if (k !== want) v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke ${k ? `by ${k}` : 'never'}, not '${want}', as a room or arena starts it`);
+      else if (w.turn !== state.turn) v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke on turn ${w.turn}, not on turn ${state.turn}, when the visit began`);
+      else if (a.mode === 'hunting' && !(h && h.turn === state.turn && h.cause && h.cause.k === want)) v('start_story', `${a.uid} starts hunting, but its story's hunt is ${says(h)}, not ${want} on turn ${state.turn}`);
+      else if (a.mode !== 'hunting' && h) v('start_story', `${a.uid} starts ${a.mode}, not hunting, but its story has a hunt: ${says(h)}`);
     }
   }
   function death(post, v) {
@@ -243,7 +256,7 @@ function checks(C, o) {
       const uid = causer(e), a = uid && uid !== 'you' ? C.Actors.byUid(post, uid) : null, sp = a ? C.Packs.speciesFor(post, a) : null;
       if (sp && !allowed(sp, post).has(e.k)) {
         bump(tally.completeness, `${sp.id} ${e.k}`);
-        v('completeness', `${uid} (${sp.id}) caused a ${kind} event, which is neither universal nor covered by a clause of its Behaviour line`);
+        v('completeness', `${uid} (${sp.id}) caused ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind} event, which is neither universal nor covered by a clause of its Behaviour line`);
       }
     }
     for (const x of inv(pre, action, events, post)) v('invariant', `${x.inv}: ${x.message}${x.uid ? ` (${x.uid}${x.sp ? ', ' + x.sp : ''})` : ''}`, { inv: x.inv });
@@ -374,7 +387,8 @@ function sentence(r) {
   parts.push(!r.specials ? 'no special struck you' : `${n(r.specials)} ${r.specials === 1 ? 'special' : 'specials'} on you, checked against ${r.specials === 1 ? 'its mark' : 'their marks'}`);
   parts.push(`${n(r.events)} events`);
   const comp = Object.keys(r.completeness);
-  if (comp.length) parts.push(`completeness: ${list(comp.map(k => `${k} ×${r.completeness[k]}`))}`);
+  // Criterion 5 asks for an empty completeness tally, so the sentence says so either way.
+  parts.push(comp.length ? `completeness: ${list(comp.map(k => `${k} ×${r.completeness[k]}`))}` : 'an empty completeness tally');
   parts.push(r.violations ? `${n(r.violations)} ${r.violations === 1 ? 'violation' : 'violations'}, the first: ${r.problems[0].run}: ${r.problems[0].text}` : '0 violations');
   return parts.join('; ') + '.';
 }

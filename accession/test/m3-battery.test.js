@@ -12,7 +12,10 @@
 //     policies, is skipped and named.
 //   - Planted faults are caught: a plodder that steps twice, a darter that never steps back,
 //     marble at full speed, a cause with a float (slipped into an event, and emitted by a rule),
-//     a recap off by one turn, a special dealing one more than its mark.
+//     a recap off by one turn, a special dealing one more than its mark, a special that goes
+//     off before your next decision, and a beam that deals more on its way back from a
+//     reflector than its shooter's mark there showed (in a room built for it, since no pack's
+//     beam can strike you on its way back in play).
 //   - A log that links a missing build fails check-all (§12).
 //   - The battery's monkey plays as Monkey.run does, visit for visit.
 'use strict';
@@ -30,6 +33,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
     const kinds = Object.keys(r.kinds).sort();
     console.log(`  the monkeys drew ${kinds.map(k => `${k} ${r.kinds[k]}`).join(', ')}; your killers were awake by ${Object.keys(r.killers).map(k => `${k} ${r.killers[k]}`).join(', ')}`);
     assert.ok(r.pass, `${r.violations} violations:\n${r.problems.slice(0, 8).map(p => `${p.run}: ${p.id}: ${p.text}`).join('\n')}`);
+    assert.match(r.sentence, /; an empty completeness tally; 0 violations\.$/);
     assert.ok(r.ms <= Battery.GATE_MS, `the short battery took ${(r.ms / 1000).toFixed(1)} s, over the ${Battery.GATE_MS / 1000} s of check-all's gate (D6.3)`);
     // It ran each arena found, with both policies, on seed 1: here, a stamp in test/arena/ and
     // a policy file in tools/policies/ for each, which these lists find independently.
@@ -86,7 +90,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  test('planted faults are caught: a plodder that steps twice, a darter that never steps back, marble at full speed, a cause with a float, a recap off by one turn, a special dealing one more than its mark', () => {
+  test('planted faults are caught: a plodder that steps twice, a darter that never steps back, marble at full speed, a cause with a float, a recap off by one turn, a special dealing one more than its mark, a special that goes off before your next decision', () => {
     const monkey = named({ kind: 'monkey', room: 'T0', seed: 1, actions: 60 });
     const plants = [
       { what: 'a plodder that steps twice', want: 'invariant plodder_one_thing', runs: [arena('plodder', 'naive')],
@@ -104,6 +108,10 @@ module.exports = ({ test, assert, root, fs, path }) => {
         plant: X => { const real = X.Text.recap; X.Text.recap = (s, n) => { const r = real(s, n); if (r && r.wakeTurn !== null) r.wakeTurn += 1; return r; }; } },
       { what: 'a special dealing one more than its mark', want: 'special_marks', runs: [arena('axis_sniper', 'naive')],
         plant: X => { const real = X.Combat.hurt; X.Combat.hurt = (s, who, amount, cause, ev) => real(s, who, who.uid === 'you' && cause.k === 'special' ? amount + 1 : amount, cause, ev); } },
+      // A mark that costs a tick and no longer waits for your next decision (notBefore): the
+      // special goes off in the step it was marked, so no view model before a step showed it.
+      { what: 'a special that goes off before your next decision', want: 'special_marks', runs: [arena('axis_sniper', 'naive')],
+        plant: X => { const real = X.Specials.mark; X.Specials.mark = (s, a, id, list, ev) => { real(s, a, id, list, ev); a.notBefore = null; return 1; }; } },
     ];
     // Each run passes on the core as it is, so what fails is the plant.
     const clean = Battery.run([].concat(...plants.map(p => p.runs)).filter((d, i, all) => all.findIndex(x => x.name === d.name) === i));
@@ -121,7 +129,48 @@ module.exports = ({ test, assert, root, fs, path }) => {
     }
   });
 
-  test('the battery\'s other checks bite: more than 150 rng streams, more than 64 cause records, a state that is not plain data, a sentence with a gap, a starting story no room gives, an illegal action', () => {
+  test('special_marks reads a beam sent back by a reflector as its shooter\'s special: a beam that strikes you on its way back must deal what its shooter\'s mark there showed', () => {
+    // No pack's beam can strike you on its way back in play: the one axis_sniper species is glass,
+    // so its beam sent back ends on its own tile, and from beyond the reflector you cannot reach
+    // a tile behind it in the one decision you have. So a room for the test: the sniper without
+    // its glass, a dish between it and you, and you set, once the beam is marked, on a tile its
+    // way back crosses (behind the sniper), as a test sets a room. The step that follows is
+    // played and checked as the battery checks every step.
+    const CORRIDOR = ['##########', '#........#', '##########'];
+    function beamBack(X, depth) {
+      const body = (sp, at, extra) => Object.assign({ sp, at, mode: 'hunting', stats: X.Roles.stats(X.Packs.species('M11', sp).role, depth) }, extra || {});
+      const s = X.Setup.room(1, { acc: 'M11', depth, map: CORRIDOR, you: [4, 1], exhibits: [body('M11.4', [2, 1], { mode: 'dormant', hp: 999 }), body('M11.1', [6, 1], { mods: [] })] });
+      const you = s.actors[0], sniper = s.actors[2], chk = Battery.checks(X, { invs: [] }), out = [];
+      assert.equal(json([s.actors[1].arch, sniper.arch]), json(['reflector', 'axis_sniper']));
+      you.hp = you.maxHp = 999;
+      let at = null;
+      for (let i = 0; i < 12 && !s.over; i++) {
+        if (!at && sniper.telegraph) {
+          const t = sniper.telegraph, k = t.tiles.findIndex((xy, j) => t.via[j] && !s.actors.some(a => !a.gone && a.x === xy[0] && a.y === xy[1]));
+          assert.ok(k >= 0, `depth ${depth}: the beam's way back crosses no free tile: ${json(t)}`);
+          at = t.tiles[k]; you.x = at[0]; you.y = at[1];
+        }
+        const pre = X.State.clone(s), action = { a: 'wait' }, ev = X.Step.step(s, action);
+        out.push(...chk.check(pre, action, ev, s));
+        if (at && ev.some(e => e.k === 'special' && e.who === sniper.uid)) return { out, tally: chk.tally, hit: ev.filter(e => e.k === 'damaged' && e.who === 'you') };
+      }
+      assert.fail(`depth ${depth}: the beam never went off with you on its way back`);
+    }
+    for (const depth of [1, 4, 7]) {
+      const r = beamBack(Battery.context(), depth);
+      assert.equal(r.hit.length, 1, json(r.hit));
+      assert.equal(json([r.hit[0].cause.k, typeof r.hit[0].cause.sp]), json(['reflected', 'string']), 'the beam struck you on its way back');
+      assert.equal(r.tally.specials, 1, 'the battery counted it as a special on you');
+      assert.equal(json(r.out), '[]');
+    }
+    // Planted: a beam deals one more on its way back than the mark there showed.
+    const X = Battery.load(), real = X.Combat.hurt;
+    X.Combat.hurt = (s, who, amount, cause, ev) => real(s, who, who.uid === 'you' && cause.k === 'reflected' && typeof cause.sp === 'string' ? amount + 1 : amount, cause, ev);
+    const r = beamBack(X, 4);
+    assert.ok(r.out.some(v => v.id === 'special_marks' && /'s line dealt you \d+ on \d+,\d+; its mark there in the view model before the step showed \d+/.test(v.text)), json(r.out));
+  });
+
+  test('the battery\'s other checks bite: more than 150 rng streams, more than 64 cause records, a state that is not plain data, a sentence with a gap, a starting story no room gives or one told at another turn, an illegal action', () => {
     const monkey = named({ kind: 'monkey', room: 'T0', seed: 1, actions: 30 });
     const after = f => X => { const real = X.Step.step; X.Step.step = (s, a) => { const ev = real(s, a); f(s, ev, X); return ev; }; };
     const plants = [
@@ -130,6 +179,11 @@ module.exports = ({ test, assert, root, fs, path }) => {
       { want: 'plain_data', runs: [monkey], plant: after(s => { s.planted = 0.5; }) },
       { want: 'sentence', runs: [monkey], plant: X => { const real = X.Text.event; X.Text.event = (e, n) => e.k === 'moved' ? 'The undefined moved.' : real(e, n); } },
       { want: 'start_story', runs: [arena('plodder', 'naive')], plant: X => { const real = X.Arena.build; X.Arena.build = (...a) => { const s = real(...a); for (const x of s.actors) if (x.woke) x.woke.cause.k = 'seen'; return s; }; } },
+      // Set out awake, but its story says two turns after the visit began: Text.recap and
+      // Recap.fromLog would both read that story, so the starting rule must catch it.
+      { want: 'start_story', runs: [arena('plodder', 'naive')], plant: X => { const real = X.Arena.build; X.Arena.build = (...a) => { const s = real(...a); for (const x of s.actors) if (x.woke) { x.woke.turn += 2; if (x.hunted) x.hunted.turn += 2; } return s; }; } },
+      // Its hunt told as begun by another cause than its waking.
+      { want: 'start_story', runs: [arena('plodder', 'naive')], plant: X => { const real = X.Arena.build; X.Arena.build = (...a) => { const s = real(...a); for (const x of s.actors) if (x.hunted) x.hunted.cause = { k: 'seen', dist: 1 }; return s; }; } },
       { want: 'policy', runs: [arena('plodder', 'naive')], plant: X => { const p = X.Policies.get('plodder.naive').policy, real = p.decide; p.decide = obs => obs.legal.some(l => l.a === 'attack') ? real(obs) : { action: { a: 'move', dir: 99 }, reason: 'walks nowhere' }; } },
     ];
     for (const p of plants) {
