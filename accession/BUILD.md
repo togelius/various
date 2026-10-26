@@ -1455,7 +1455,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 
 ### 10.2 Tooling
 
-- **`test/run.js`** loads `js/core`, `content/` and the tests into a `vm` context and reports one line per failure. It runs `test/*.test.js` and every `*.test.js` under `test/behaviour/` and `test/arena/`, and its filter matches a file's path from `test/`, so `node test/run.js behaviour` runs the Behaviour-line scenarios. A scenario failure names the rule and gives the seed, the room as text and a replay.
+- **`test/run.js`** loads `js/core`, `content/` and the tests into a `vm` context and reports one line per failure. It runs `test/*.test.js` and every `*.test.js` under `test/behaviour/` and `test/arena/`, and its filter matches a file's path from `test/`, so `node test/run.js behaviour` runs the Behaviour-line scenarios. It shares the files out among worker processes, one per CPU up to 4 (`ACCESSION_TEST_JOBS` sets the number), each file running whole in one worker, and prints the output file by file in path order. A scenario failure names the rule and gives the seed, the room as text and a replay.
 - **The scenario harness,** `test/behaviour/_harness.js`, which every Behaviour-line test uses (§5.3, checks 1–3):
   - `scenario({name, id, build(params, sp, depth), actions, expect})`: a scenario for the clause of registry id `id`, written as a function of that clause's parameters, which the harness reads from `Clauses.of` at the species and depth;
   - `species(C, id)`: every pack species whose Behaviour line has that clause, at depths 1–7, as the packs give them, so a pack's override fields apply; species whose archetype is not yet built are left out, as departments leave them out;

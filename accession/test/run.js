@@ -7,6 +7,9 @@
 // files whose path contains "m0".
 // Usage: node test/run.js [filter]
 // (ACCESSION_TEST_DIR names another folder to run in place of test/; test/m3-infra uses it.)
+// The files are shared out among worker processes, one per CPU up to 4 (ACCESSION_TEST_JOBS
+// sets the number; 1 runs everything in this process). A file always runs whole in one
+// worker, and the output is printed file by file in path order, as a single run prints it.
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
@@ -31,28 +34,93 @@ function files(dir, filter) {
   return out.filter(f => f.includes(filter || '')).sort();
 }
 
-function main() {
+// The files of one worker: the biggest first, each to the worker with the least so far.
+function share(dir, list, n) {
+  const load = new Array(n).fill(0), out = list.map(() => []);
+  const sized = list.map(f => ({ f, size: fs.statSync(path.join(dir, f)).size })).sort((a, b) => b.size - a.size || (a.f < b.f ? -1 : 1));
+  for (const { f, size } of sized) {
+    let k = 0;
+    for (let i = 1; i < n; i++) if (load[i] < load[k]) k = i;
+    load[k] += size; out[k].push(f);
+  }
+  return out;
+}
+
+// Runs the given files' tests here. With capture, what each file prints is kept per file.
+function runFiles(dir, list, capture) {
   const { loadCore } = require('../tools/core-context.js');
-  const dir = process.env.ACCESSION_TEST_DIR ? path.resolve(process.env.ACCESSION_TEST_DIR) : __dirname;
-  const tests = [];
+  const tests = [], printed = {};
   const test = (name, fn) => tests.push({ name, fn });
-  for (const f of files(dir, process.argv[2] || '')) {
+  let current = null;
+  if (capture) {
+    const keep = s => { printed[current] = (printed[current] || '') + s; };
+    console.log = (...a) => keep(a.map(String).join(' ') + '\n');
+    process.stdout.write = chunk => { keep(String(chunk)); return true; };
+  }
+  for (const f of list) {
     const before = tests.length;
+    current = f;
     require(path.join(dir, f))({ test, assert, loadCore, root, fs, path });
     for (let i = before; i < tests.length; i++) tests[i].file = f;
   }
-
   let failed = 0;
-  const t0 = process.hrtime.bigint();
   for (const t of tests) {
+    current = t.file;
     try { t.fn(); }
     catch (e) { failed++; console.log(`FAIL ${t.file} :: ${t.name}\n  ${(e && e.message || String(e)).split('\n').join('\n  ')}`); }
   }
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-  console.log(`tests: ${tests.length - failed}/${tests.length} passed in ${ms.toFixed(0)} ms` + (failed ? ` — ${failed} FAILED` : ''));
-  process.exit(failed ? 1 : 0);
+  return { total: tests.length, failed, printed };
+}
+
+function main() {
+  const dir = process.env.ACCESSION_TEST_DIR ? path.resolve(process.env.ACCESSION_TEST_DIR) : __dirname;
+  const args = process.argv.slice(2), shard = args.find(a => a.startsWith('--shard=')), filter = args.find(a => !a.startsWith('--')) || '';
+  const list = files(dir, filter);
+  const t0 = process.hrtime.bigint();
+  const done = (total, failed) => {
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    console.log(`tests: ${total - failed}/${total} passed in ${ms.toFixed(0)} ms` + (failed ? ` — ${failed} FAILED` : ''));
+    process.exit(failed ? 1 : 0);
+  };
+  // A worker: run its share and hand back what each file printed.
+  if (shard) {
+    const mine = JSON.parse(Buffer.from(shard.slice(8), 'base64').toString('utf8'));
+    const write = process.stdout.write.bind(process.stdout);
+    const r = runFiles(dir, mine, true);
+    write('@@SHARD ' + JSON.stringify(r) + '\n');
+    process.exit(0);
+  }
+  const want = parseInt(process.env.ACCESSION_TEST_JOBS || '', 10);
+  const jobs = Math.max(1, Math.min(list.length, want > 0 ? want : Math.min(4, require('node:os').cpus().length)));
+  if (jobs === 1) { const r = runFiles(dir, list, false); return done(r.total, r.failed); }
+  const { spawn } = require('node:child_process');
+  const parts = share(dir, list, jobs).filter(p => p.length);
+  let left = parts.length, total = 0, failed = 0;
+  const printed = {};
+  parts.forEach(part => {
+    const arg = '--shard=' + Buffer.from(JSON.stringify(part)).toString('base64');
+    const child = spawn(process.execPath, [__filename, arg], { env: process.env });
+    let out = '', err = '';
+    child.stdout.on('data', d => { out += d; });
+    child.stderr.on('data', d => { err += d; });
+    child.on('close', code => {
+      const line = out.split('\n').find(l => l.startsWith('@@SHARD '));
+      if (code !== 0 || !line) {
+        failed++; total++;
+        console.log(`FAIL a test worker (files ${part.join(', ')}) stopped with code ${code}\n  ${(out + err).split('\n').join('\n  ')}`);
+      } else {
+        const r = JSON.parse(line.slice(8));
+        total += r.total; failed += r.failed; Object.assign(printed, r.printed);
+        if (err) process.stderr.write(err);
+      }
+      if (--left === 0) {
+        for (const f of list) if (printed[f]) process.stdout.write(printed[f]);
+        done(total, failed);
+      }
+    });
+  });
 }
 
 // Exported before main runs, since a test file run by main may require this file.
-module.exports = { files, FOLDERS };
+module.exports = { files, share, FOLDERS };
 if (require.main === module) main();
