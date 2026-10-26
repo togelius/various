@@ -49,14 +49,13 @@ Weights: turns without an exhibit in view before it goes to look 10.
 
 ### darter.counter
 
-Puts its back to a wall: goes to the nearest corner and holds still there, striking the darter whenever it is beside it, never walking after it.
+Corners the darter, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.
 
-1. Find the nearest corner once, at its first decision: a tile with walls on two sides that meet.
-2. Read the label of each exhibit the first time it is in view.
-3. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
-4. Otherwise, if it is not standing in the corner, take the first step of the way a tap on the corner would walk.
-5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
-6. Otherwise, wait in the corner for the darter to come back beside it.
+1. Read the label of each exhibit the first time it is in view (a darter steps back after its blow only if it has room).
+2. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+3. Otherwise, if an exhibit is in view, step toward the nearest by the step after which it would have the fewest tiles to step back to: the empty tiles beside it, not a closed door, that are farther from you by walking distance, none when its back is to a wall and you stand square in front of it. Ties go to the step that ends nearer it, then by direction.
+4. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+5. Otherwise, wait.
 
 Weights: turns without an exhibit in view before it goes to look 10.
 
@@ -116,7 +115,7 @@ Weights: turns without an exhibit in view before it goes to look 10.
 
 ### splitter.naive
 
-Fights the splitter with a T1 Light weapon: many small hits, each of which the body or a half may survive and split on.
+Fights the splitter with a Light weapon, of the tier the arena gives: many small hits, each of which the body or a half may survive and split on.
 
 1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
 2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
@@ -125,11 +124,11 @@ Fights the splitter with a T1 Light weapon: many small hits, each of which the b
 
 Weights: turns without an exhibit in view before it goes to look 10.
 
-Kit: weapon light tier 1.
+Kit: weapon light.
 
 ### splitter.counter
 
-Fights the splitter as naive does, but with a T1 Heavy weapon: fewer, harder hits, which leave less of a body to split and fell its halves sooner.
+Fights the splitter as naive does, but with a Heavy weapon, of the tier the arena gives: fewer, harder hits, which leave less of a body to split and fell its halves sooner.
 
 1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
 2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
@@ -138,4 +137,4 @@ Fights the splitter as naive does, but with a T1 Heavy weapon: fewer, harder hit
 
 Weights: turns without an exhibit in view before it goes to look 10.
 
-Kit: weapon heavy tier 1.
+Kit: weapon heavy.
