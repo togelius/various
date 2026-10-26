@@ -1,21 +1,499 @@
-// ACCESSION — the Bag (BUILD.md §7.2): your kit and tote, the quickslots, aiming a throw or
-// an instrument, and the floor plan. [stub → W2b-UI-BAG]: the interface is named here with
-// nothing behind it, and main.js does not attach it yet.
-//   Bag.attach(app, handlers)   build its DOM inside app; handlers are main.js's callbacks
-//   Bag.render(vm, labels)      show the view model's kit, tote and charges
-//   Bag.open(), Bag.close()     the Bag panel
-//   Bag.quick(n)                use quickslot n
-//   Bag.map()                   the floor plan, once read
-//   Bag.aiming() → null         the item being aimed, if any
-//   Bag.tapAim(t) → null        a tap on tile t while aiming: the action it makes, if any
+// ACCESSION — the Bag (BUILD.md §7.1, §7.2, §8.5, §8.6): what you wear and carry, each
+// item's label and buttons, the Catalogue Card's choice, the quickslots, aiming a throw or
+// an instrument at a tile, choosing a Restoration kit's item, the Window Pole's choice, and
+// the floor plan. It decides nothing: every button is an action a label offers (Labels.*,
+// the actions step() takes now), or the answer to a choice the state holds, and each goes
+// through main.js's act (request), so it is asked about as any other action is (§7.1).
+//
+//   Bag.attach(app, {bar, column, act, state, draw})
+//       builds its panel, aim strip and pole sheet inside app (#app, so they go inert while a
+//       confirmation asks); bar and column are UI's quickslot containers (3 on a phone, 6 in
+//       the laptop's column); act(action) asks for an action; state() is the state; draw()
+//       redraws the page (which calls render)
+//   Bag.render(vm, labels)   on every draw: fills the quickslots (your instrument first, then
+//                            your consumables in tote order), and shows what is open; a new
+//                            pending choice (vm.pending, the Catalogue Card's) opens the Bag
+//   Bag.open(uid?)           the Bag; with the uid of an item you carry that is aimed (an item
+//                            label's Throw…, Use at a tile… or Use on an item…), its aim
+//   Bag.close()              closes the Bag or the map, and ends any aim
+//   Bag.quick(n)             quickslot n: your instrument is aimed (pressed again while it is
+//                            aimed, the aim ends); a consumable is shown in the Bag with its
+//                            buttons; an empty slot opens the Bag
+//   Bag.map()                the floor plan: what you have seen (vm.tiles), and once a Floor
+//                            Plan is read here, the rooms that still hold a Highlight (vm.plan)
+//   Bag.aiming() → null | {kind, uid, x?, y?}
+//                            kind 'throw' (a Solution) or 'tile' (an instrument), with the tile
+//                            previewed, if any; 'item' while a Restoration kit's item is chosen
+//   Bag.tapAim(t) → action | null
+//                            a tap on tile t while aiming: the first tap on a tile previews it,
+//                            a second commits: the action, or for the Window Pole with more than
+//                            one way to use it there, its sheet (null until one is chosen); on a
+//                            tile where it cannot be used, the action step() refuses, saying why
+// Bag is a plain object whose methods main.js calls by name (check-play puts recorders in
+// their place for a while, so they stay writable); the Bag's own handlers call its inner
+// functions.
 'use strict';
-const Bag = {
-  attach(app, handlers) {},
-  render(vm, labels) {},
-  open() {},
-  close() {},
-  quick(n) {},
-  map() {},
-  aiming() { return null; },
-  tapAim(t) { return null; },
-};
+const Bag = (() => {
+  let h = {}, el = {}, lastVm = null, lastLabels = null;
+  // mode: null (shut), 'bag' or 'map'. view, in the Bag: the list; an item's label; or a
+  // Restoration kit's items to choose from (on: the one previewed).
+  let mode = null, view = { k: 'list' }, focusBack = null, focusIn = false;
+  // aim: a throw or an instrument being aimed, {kind, uid, tile}; pick: the Window Pole's
+  // actions at the aimed tile while its sheet asks which.
+  let aim = null, pick = null, seenPending = null, redrawSoon = false;
+  const shown = { slots: ['', ''], panel: '', aim: '', pick: '' };
+  const POLE_SAYS = { push: 'Push it one tile away', pull: 'Pull it one tile toward you', take: 'Take what the case holds' };
+  const SLOT_NAMES = { weapon: 'Weapon slot', garment: 'Garment slot', curio0: 'Curio slot', curio1: 'Curio slot', instrument: 'Instrument slot' };
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const P = (id, px) => Pictograms.svg(id, px || 16);
+  const own = (o, k) => typeof k === 'string' && o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const st = () => typeof h.state === 'function' ? h.state() : (window.ACCESSION ? window.ACCESSION.state : null);
+  const itemOf = (s, uid) => (s && s.items || []).find(i => i.uid === uid) || null;
+  const carried = (s, uid) => { const it = itemOf(s, uid); return !!it && (it.where.at === 'tote' || it.where.at === 'kit'); };
+  const labelOf = uid => lastLabels && typeof lastLabels.ofItem === 'function' ? lastLabels.ofItem(uid) : Labels.ofItem(st(), uid);
+  const same = (p, q) => { const a = Object.keys(p), b = Object.keys(q); return a.length === b.length && a.every(k => own(q, k) && p[k] === q[k]); };
+  function redraw() { if (typeof h.draw === 'function') h.draw(); else if (lastVm) render(lastVm, lastLabels); }
+  // Ask for an action through main.js's act, which draws after it; when it does nothing (a
+  // confirmation already asks), draw anyway, since the Bag has changed.
+  function ask(a) { if (!a || !h.act(a)) redraw(); }
+  // An item's name: a consumable's local name, a pack item's own, else the instrument's or
+  // what it is (the label's title, without building the label's buttons).
+  function nameOf(s, uid) {
+    const it = itemOf(s, uid);
+    if (!it) return 'it';
+    if (it.kind === 'consumable') return Consumables.name(s, it).local;
+    const d = Kit.describe(s, uid);
+    if (d && d.title) return d.title;
+    if (it.kind === 'instrument' && own(Registry.INSTRUMENTS, it.form)) return 'The ' + Registry.INSTRUMENTS[it.form].name;
+    const l = Labels.ofItem(s, uid);
+    return l ? l.title : 'it';
+  }
+
+  // ---- Building ----
+
+  function attach(app, handlers) {
+    h = handlers || {};
+    const make = (id, cls, attrs) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; for (const [k, v] of attrs || []) e.setAttribute(k, v); app.appendChild(e); return e; };
+    // The Bag and the floor plan: an overlay, so keys leave the game alone while it is open.
+    el.app = app;
+    el.panel = make('bag', 'overlay', [['role', 'dialog'], ['aria-labelledby', 'bag-title'], ['tabindex', '-1']]);
+    // What you aim, and what a tap does: in place of the strip on a phone, over the bar on a
+    // laptop, never over the board.
+    el.aim = make('bagaim', '', [['role', 'region'], ['aria-label', 'Aiming']]);
+    // The Window Pole's choice: a sheet like a confirmation's.
+    el.pick = make('bagpick', '', [['role', 'dialog'], ['aria-modal', 'true'], ['aria-labelledby', 'bagpick-title']]);
+    el.panel.addEventListener('click', onPanel);
+    el.aim.addEventListener('click', e => { if (e.target.closest('[data-aim-cancel]')) { endAim(); redraw(); } });
+    el.pick.addEventListener('click', e => {
+      const b = e.target.closest('[data-pick]');
+      if (b && pick) { const a = pick[Number(b.dataset.pick)]; endAim(); ask(a); return; }
+      if (e.target.closest('[data-pick-cancel]') || !e.target.closest('.box')) { pick = null; redraw(); }
+    });
+  }
+
+  // ---- Opening and closing ----
+
+  function show(m, v) {
+    if (!mode) { focusBack = document.activeElement; focusIn = true; }
+    mode = m; view = v || { k: 'list' }; pick = null; aim = null;
+  }
+  function open(uid) {
+    const s = st();
+    if (!s || s.over) return;
+    if (typeof uid === 'string' && carried(s, uid)) {
+      const l = Labels.ofItem(s, uid), a = l && l.actions.find(q => q.aim);
+      if (a && a.aim === 'tile') { startAim(s, uid); return; }
+      show('bag', a && a.aim === 'item' ? { k: 'restore', uid, on: null } : { k: 'item', uid });
+      return;
+    }
+    show('bag');
+  }
+  function map() { const s = st(); if (s && !s.over) show('map'); }
+  function close() {
+    const was = mode;
+    mode = null; view = { k: 'list' }; pick = null; aim = null;
+    if (was && focusBack && focusBack.isConnected && el.panel.contains(document.activeElement) && focusBack.getClientRects().length) focusBack.focus({ preventScroll: true });
+    focusBack = null;
+  }
+
+  // ---- Quickslots ----
+
+  // What the quickslots hold, in order: your instrument, then each consumable you carry, in
+  // the order of your tote (vm.you.consumables), at most six.
+  function quickList(vm) {
+    const out = [];
+    if (vm.you.charges) out.push({ uid: vm.you.charges.uid, inst: vm.you.charges });
+    for (const c of vm.you.consumables || []) out.push({ uid: c.uid, cons: c });
+    return out.slice(0, 6);
+  }
+  function slotHtml(n, q) {
+    if (!q) return `<button class="btn slot bag-slot empty" data-act="q${n}" aria-label="Quickslot ${n}, empty: opens the Bag"><span class="q-n">Q${n}</span></button>`;
+    const s = st(), aimed = !!aim && aim.uid === q.uid;
+    let icon, count, name, words;
+    if (q.inst) {
+      icon = 'instrument'; count = `${q.inst.charges}/${q.inst.max}`; name = nameOf(s, q.uid);
+      words = `${plural(q.inst.charges, 'charge', 'charges')} of ${q.inst.max}`;
+    } else {
+      icon = q.cons.shape ? 'seal_' + q.cons.shape : 'seal'; count = '×' + q.cons.n; name = q.cons.local; words = q.cons.n === 1 ? 'one' : `${q.cons.n} of them`;
+    }
+    return `<button class="btn slot bag-slot${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}" aria-pressed="${aimed}" aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}">${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
+  }
+  function drawSlots(vm) {
+    const list = quickList(vm);
+    [[h.bar, 3], [h.column, 6]].forEach(([box, n], i) => {
+      if (!box) return;
+      let html = '';
+      for (let k = 0; k < n; k++) html += slotHtml(k + 1, list[k]);
+      if (html !== shown.slots[i]) { box.innerHTML = html; shown.slots[i] = html; }
+    });
+  }
+  // A quickslot: your instrument is aimed (pressed again while aimed, the aim ends); a
+  // consumable is shown in the Bag with its buttons (Drink, Throw…, Read); an empty one opens
+  // the Bag.
+  function quick(n) {
+    const s = st();
+    if (!s || s.over) return;
+    const q = quickList(ViewModel.derive(s, {}))[n - 1];
+    if (!q) { show('bag'); return; }
+    if (q.inst) { if (aim && aim.uid === q.uid) endAim(); else startAim(s, q.uid); return; }
+    show('bag', { k: 'item', uid: q.uid });
+  }
+
+  // ---- Aiming at a tile ----
+
+  // Aim item uid: a Solution's throw, or your instrument. The Bag shuts, and on a phone the
+  // label sheet too, so the whole board can be tapped.
+  function startAim(s, uid) {
+    const it = itemOf(s, uid);
+    if (mode) close();
+    pick = null;
+    aim = { kind: it.kind === 'consumable' ? 'throw' : 'tile', uid, tile: null };
+    if (UI.labelShown() && UI.sheetCover() > 0) UI.closeLabel();
+  }
+  function endAim() { aim = null; pick = null; }
+  // The actions the aim makes at (x, y): a throw there; the instrument there (the pole's
+  // push, pull and take, in that order).
+  function candidates(s, x, y) {
+    if (aim.kind === 'throw') return [{ a: 'throw', uid: aim.uid, x, y }];
+    const it = itemOf(s, aim.uid);
+    return it && it.form === 'pole' ? ['push', 'pull', 'take'].map(how => ({ a: 'use', uid: aim.uid, x, y, how })) : [{ a: 'use', uid: aim.uid, x, y }];
+  }
+  // Those step() takes now (Labels.allowed, the test every button passes).
+  const legalAt = (s, x, y) => candidates(s, x, y).filter(a => Labels.allowed(s, a));
+  // Why none is taken at (x, y): the refusal step() gives, tried on a copy of the state, so
+  // the sentence is the game's own; for the pole, the most telling of its three (that there
+  // is no exhibit or nothing to take only when nothing more is wrong). {action, sentence}.
+  const VAGUE = ['no_exhibit', 'nothing_to_take'];
+  let why = { state: null, key: '', out: null };
+  function refusal(s, x, y) {
+    const key = `${s.tick}|${s.turn}|${aim.uid}|${x},${y}|${s.you.tote.join()}|${s.run.knownSeals.join()}`;
+    if (why.state === s && why.key === key) return why.out;
+    const names = Labels.nameOf(s), tries = candidates(s, x, y).map(action => ({ action, e: Step.step(State.clone(s), action).find(e => e.k === 'refused') || null }));
+    const best = tries.find(t => t.e && !VAGUE.includes(t.e.reason)) || tries.find(t => t.e) || tries[0];
+    const out = { action: best.action, reason: best.e ? best.e.reason : null, sentence: best.e ? Text.event(best.e, names) : 'It cannot be used there now.' };
+    why = { state: s, key, out };
+    return out;
+  }
+  function tapAim(t) {
+    const s = st();
+    if (!aim || !t || !s || s.over || pick || !Number.isInteger(t.x) || !Number.isInteger(t.y)) return null;
+    if (!aim.tile || aim.tile.x !== t.x || aim.tile.y !== t.y) { aim.tile = { x: t.x, y: t.y }; return null; }
+    const legal = legalAt(s, t.x, t.y);
+    if (legal.length === 1) { endAim(); return legal[0]; }
+    if (legal.length > 1) { pick = legal; return null; }
+    // Refused there: step() says why, in the log, and the aim stays for another tile.
+    return refusal(s, t.x, t.y).action;
+  }
+  function aiming() {
+    if (aim) return aim.tile ? { kind: aim.kind, uid: aim.uid, x: aim.tile.x, y: aim.tile.y } : { kind: aim.kind, uid: aim.uid };
+    if (mode === 'bag' && view.k === 'restore') return { kind: 'item', uid: view.uid };
+    return null;
+  }
+
+  // What the aim strip says: what you aim, then what a tap does there, or why it cannot be
+  // used there (the game's refusal), or, before a tap, how to aim (or that nothing is in
+  // reach now). Short, so that it fits the strip at every text size.
+  function aimWords(s) {
+    const it = itemOf(s, aim.uid), name = nameOf(s, aim.uid);
+    const names = Labels.nameOf(s), who = (x, y) => { const a = Actors.at(s, x, y); return (a && names(a.uid)) || 'the exhibit'; };
+    const I = aim.kind === 'tile' && own(Registry.INSTRUMENTS, it.form) ? Registry.INSTRUMENTS[it.form] : null, range = I ? N[I.row][2] : 0;
+    const head = aim.kind === 'throw' ? `Throwing ${name}.` : `${I ? I.name : name}, ${it.charges} of ${plural(it.max, 'charge', 'charges')}.`;
+    if (!aim.tile) {
+      if (aim.kind === 'throw') return { head, text: Consumables.targets(s, aim.uid).length ? `Tap a tile within ${N.THROW_RANGE} tiles, then tap it again to throw.` : 'There is no tile you can throw it at from here.' };
+      if (!Kit.targets(s, aim.uid).length) return { head, text: it.charges < 1 ? Text.refusal('no_charges') : 'There is no tile it can be used at from here.' };
+      return { head, text: it.form === 'pin_driver' ? `Tap an exhibit within ${range} tiles, then tap it again to fire.`
+        : it.form === 'pole' ? `Tap an exhibit, or an opened or broken case, within ${range} tiles, then tap it again.`
+          : `Tap a tile within ${range} tiles, then tap it again to strike.` };
+    }
+    const { x, y } = aim.tile, legal = legalAt(s, x, y);
+    if (!legal.length) return { head, text: refusal(s, x, y).sentence, refused: true };
+    if (legal.length > 1) return { head, text: 'Tap it again to choose what the pole does here.' };
+    const a = legal[0];
+    if (a.a === 'throw') {
+      const ck = it.ck, known = Consumables.known(s, ck), side = known ? N[Registry.CONSUMABLES[ck].area] : Consumables.AREA;
+      return { head, text: known ? `Tap it again to throw it here; it covers the marked ${side}×${side}.`
+        : `Tap it again to throw it here. Its kind unknown, the mark is the largest any Solution covers: ${side}×${side}.` };
+    }
+    if (a.how === 'push' || a.how === 'pull') return { head, text: `Tap it again to ${a.how} ${who(x, y)} one tile ${a.how === 'push' ? 'away' : 'toward you'}.` };
+    if (a.how === 'take') return { head, text: 'Tap it again to take what the case holds.' };
+    if (it.form === 'pin_driver') return { head, text: `Tap it again to fire a bolt at ${who(x, y)}.` };
+    return { head, text: 'Tap it again to strike the fork here: a soft noise, as if you made it.' };
+  }
+  function drawAim(s) {
+    const on = !!aim && !!s && !s.over;
+    el.aim.classList.toggle('open', on);
+    if (el.app) el.app.classList.toggle('bag-aiming', on);
+    let html = '';
+    if (on) {
+      const w = aimWords(s);
+      html = `<div class="in"><button class="btn" data-aim-cancel>Cancel</button><p class="aim-text${w.refused ? ' refused' : ''}" aria-live="polite"><b>${esc(w.head)}</b> ${esc(w.text)}</p></div>`;
+    }
+    if (html !== shown.aim) { el.aim.innerHTML = html; shown.aim = html; }
+  }
+  function drawPick(s) {
+    const on = !!pick && !!aim && !!s && !s.over;
+    el.pick.classList.toggle('open', on);
+    const html = on ? `<div class="box"><h2 id="bagpick-title">The Window Pole</h2><p>What should it do at this tile?</p><div class="acts">${
+      pick.map((a, i) => `<button class="btn" data-pick="${i}" data-how="${a.how}">${esc(POLE_SAYS[a.how])}</button>`).join('')}<button class="btn" data-pick-cancel>Cancel</button></div></div>` : '';
+    if (html !== shown.pick) { el.pick.innerHTML = html; shown.pick = html; if (on) { const b = el.pick.querySelector('[data-pick]'); if (b) b.focus({ preventScroll: true }); } }
+  }
+
+  // ---- The panel ----
+
+  function head(title) {
+    return `<div class="ohead"><h2 id="bag-title">${esc(title)}</h2><span class="ohead-btns"><button class="btn" data-how aria-label="How the museum works">?</button><button class="btn" data-close>Close</button></span></div>`;
+  }
+  // A row for an item you carry: its pictogram, name and what it is (its slot when worn).
+  function row(uid, note) {
+    const l = labelOf(uid);
+    if (!l) return '';
+    const p = l.pictos[0], c = lastVm && (lastVm.you.consumables || []).find(q => q.uid === uid);
+    const kind = c ? (c.kind && own(Registry.CONSUMABLES, c.kind) ? 'it is ' + Registry.CONSUMABLES[c.kind].name : 'not identified') : '';
+    // What it is, unless its name already says so ("A Heavy weapon, tier 1").
+    const is = p && !l.title.toLowerCase().includes(p.text.toLowerCase()) ? p.text : '';
+    const what = [note, is, kind].filter(Boolean).join(' · ');
+    return `<li><button class="btn bag-row" data-item="${esc(uid)}">${P(p ? p.icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(l.title)}</span>${what ? `<span class="bag-note">${esc(what)}</span>` : ''}</span></button></li>`;
+  }
+  // The Catalogue Card's choice (vm.pending): one button for each seal you do not know, with
+  // what you carry under it.
+  function choice(vm) {
+    const p = vm.pending;
+    if (!p || p.k !== 'seal' || !Array.isArray(p.options)) return '';
+    const opts = p.options.map((seal, i) => {
+      const S = own(Registry.SEALS, seal) ? Registry.SEALS[seal] : null, mine = (vm.you.consumables || []).filter(c => c.seal === seal);
+      const note = mine.length ? 'You carry ' + mine.map(c => c.local + (c.n > 1 ? ` (${c.n})` : '')).join(', ') + '.' : 'You carry none.';
+      return `<button class="btn bag-row" data-choose="${i}">${P(S && S.shape ? 'seal_' + S.shape : 'seal', 20)}<span class="bag-text"><span class="bag-name">${esc(S ? cap(S.name) : seal)}</span><span class="bag-note">${esc(note)}</span></span></button>`;
+    }).join('');
+    return `<section class="bag-card bag-choice"><h2>Catalogue Card</h2><p>Choose a seal to identify: you will know its kind for the rest of the run. Nothing else can be done until you choose.</p><div class="bag-opts">${opts}</div></section>`;
+  }
+  function list(vm) {
+    const k = vm.you.kit, worn = [['weapon', k.weapon], ['garment', k.garment], ['curio0', k.curio[0]], ['curio1', k.curio[1]], ['instrument', k.instrument]];
+    let html = `<h3>Worn</h3><ul class="bag-list">`;
+    for (const [slot, uid] of worn) html += uid ? row(uid, SLOT_NAMES[slot]) : `<li class="bag-empty">${SLOT_NAMES[slot]}: empty</li>`;
+    html += `</ul><h3>Tote: ${vm.you.tote.length} of ${N.TOTE_SLOTS} slots</h3><ul class="bag-list">`;
+    html += vm.you.tote.length ? vm.you.tote.map(uid => row(uid, '')).join('') : '<li class="bag-empty">Nothing in your tote.</li>';
+    return html + '</ul>';
+  }
+  // An item's label, as the label panel shows it (§8.8), on a card, with its buttons.
+  function card(l, body) {
+    const tomb = l.tomb ? [l.tomb.maker, l.tomb.date, l.tomb.medium, l.tomb.dims, l.tomb.credit, l.number].filter(Boolean).map(esc).join(' · ') : '';
+    return `<section class="bag-card label"><h2><span>${esc(l.title)}</span></h2>${tomb ? `<div class="tomb">${tomb}</div>` : ''}
+      ${l.pictos.length ? `<div class="pictos">${l.pictos.map(p => `<span>${P(p.icon, 14)}${esc(p.text)}</span>`).join('')}</div>` : ''}
+      ${l.behaviour ? `<div class="beh">${esc(l.behaviour)}</div>` : ''}
+      ${l.odds && l.odds.length ? `<div class="odds">${l.odds.map(esc).join('<br>')}</div>` : ''}
+      ${l.paragraph ? `<div class="para">${esc(l.paragraph)}</div>` : ''}${body}</section>`;
+  }
+  function itemView(s, uid) {
+    const l = labelOf(uid), it = itemOf(s, uid);
+    if (!l || !carried(s, uid)) return null;
+    const where = it.where.at === 'kit' ? `You wear it, in your ${SLOT_NAMES[it.where.slot].toLowerCase()}.` : 'It is in your tote.';
+    const acts = l.actions.length ? `<div class="acts">${l.actions.map((a, i) => `<button class="btn" data-do="${i}" data-action="${esc(a.id)}">${esc(a.text)}</button>`).join('')}</div>`
+      : `<p class="bag-none">${s.ui && s.ui.pendingChoice ? 'Answer the Catalogue Card first.' : 'There is nothing to do with it now.'}</p>`;
+    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<p class="bag-where">${esc(where)}</p>${acts}`);
+  }
+  // A Restoration kit's items: those its legal uses name, in Kit.useLegal's order (what you
+  // wear in slot order, then your tote). A first tap on one shows what it would gain; a
+  // second uses the kit on it.
+  function restoreTargets(s, kit) {
+    const legal = Step.legal(s);
+    return Kit.useLegal(s).filter(a => a.uid === kit && typeof a.on === 'string' && legal.some(q => same(q, a)));
+  }
+  function restoreView(s) {
+    const l = labelOf(view.uid);
+    if (!l || !carried(s, view.uid)) return null;
+    const acts = restoreTargets(s, view.uid);
+    const rows = acts.map(a => {
+      const t = labelOf(a.on), it = itemOf(s, a.on), sel = view.on === a.on;
+      if (!t) return '';
+      const where = it.where.at === 'kit' ? SLOT_NAMES[it.where.slot] : 'In your tote';
+      const gain = sel ? preview(s, view.uid, a.on) : '';
+      return `<li><button class="btn bag-row${sel ? ' chosen' : ''}" data-on="${esc(a.on)}" aria-pressed="${sel}">${P(t.pictos[0] ? t.pictos[0].icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(t.title)}</span><span class="bag-note">${esc(where)}</span>${gain ? `<span class="bag-gain">${esc(gain)}</span>` : ''}</span></button></li>`;
+    }).join('');
+    const say = acts.length ? 'Tap an item to see what it would gain, then tap it again to use the kit on it.' : 'There is nothing you wear or carry that it can be used on now.';
+    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
+  }
+  // What one level gives the item: Kit.restore on a copy of the state, read back through
+  // Kit.describe (its own numbers at your grade before any bonus, its rank, bonuses and
+  // charges), so the preview is what the rule does.
+  function preview(s, kit, on) {
+    const c = State.clone(s);
+    if (typeof Kit.restore(c, kit, on, []) === 'string') return '';
+    const b = Kit.describe(s, on), a = Kit.describe(c, on), out = [`level ${b.level} → ${a.level}`];
+    const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+    if (b.stats && a.stats) {
+      if (b.stats.dmin !== a.stats.dmin || b.stats.dmax !== a.stats.dmax) out.push(`damage ${b.stats.dmin}–${b.stats.dmax} → ${a.stats.dmin}–${a.stats.dmax}`);
+      if (b.stats.acc !== a.stats.acc) out.push(`Acc ${sign(b.stats.acc)} → ${sign(a.stats.acc)}`);
+      if (b.stats.pad !== a.stats.pad) out.push(`Padding ${b.stats.pad} → ${a.stats.pad}`);
+    }
+    if (b.rank !== a.rank) out.push(`rank ${b.rank} → ${a.rank}`);
+    const NAME = { dmg: 'damage', acc: 'Acc', eva: 'Eva', pad: 'Padding' };
+    b.bonuses.forEach((x, i) => { const y = a.bonuses[i]; if (y && Number.isInteger(x.n) && x.n !== y.n && own(NAME, x.id)) out.push(`its ${NAME[x.id]} bonus ${sign(x.n)} → ${sign(y.n)}`); });
+    if (b.instrument && a.instrument && (b.instrument.max !== a.instrument.max || b.instrument.charges !== a.instrument.charges)) out.push(`charges ${b.instrument.charges} of ${b.instrument.max} → ${a.instrument.charges} of ${a.instrument.max}`);
+    return cap(out.join('; ')) + (b.stats ? ' (before any bonus).' : '.');
+  }
+
+  // The floor plan: the department as you know it (vm.tiles: what you see and remember;
+  // all of it once a Floor Plan is read here), you, the exits, and the rooms that still hold
+  // a Highlight (vm.plan), each drawn with its own shape, so colour is never the only sign.
+  function mapView(s, vm) {
+    const room = s.dept.roomOf && s.dept.roomOf[vm.you.y] ? (s.dept.rooms || []).find(r => r.id === s.dept.roomOf[vm.you.y][vm.you.x]) : null;
+    const here = room && room.number ? ` You are in Room ${room.number}.` : '';
+    let say;
+    const rooms = (vm.plan || []).map(r => 'Room ' + (r.number === null ? r.key : r.number));
+    const and = rooms.length > 1 ? rooms.slice(0, -1).join(', ') + ' and ' + rooms[rooms.length - 1] : rooms.join('');
+    if (vm.plan === null) say = `This is what you have seen of the department.${here} A Floor Plan, read here, shows all of it and the rooms whose Highlights have not been taken.`;
+    else if (!rooms.length) say = `You have read a Floor Plan here, so all of the department is drawn; every Highlight has been taken.${here}`;
+    else say = `You have read a Floor Plan here, so all of the department is drawn. The ${rooms.length === 1 ? 'room whose Highlight has' : 'rooms whose Highlights have'} not been taken ${rooms.length === 1 ? 'is' : 'are'} outlined: ${and}.${here}`;
+    return `<p class="bag-where map-say">${esc(say)}</p><div class="map-box"><canvas class="bag-map" role="img" aria-label="${esc(say)}"></canvas></div>
+      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: brown; staff doors: purple; cases: glass blue.${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
+  }
+  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#9db6c0', pool: '#6f93bd', thing: '#8f8573' };
+  function tileColour(ch) {
+    const t = Grid.TILES[ch];
+    if (!t) return null;
+    if ('+\''.includes(ch)) return MAP.door;
+    if ('Ss'.includes(ch)) return MAP.staff;
+    if (ch === 'v') return MAP.glass;
+    if ('uk'.includes(ch)) return MAP.open;
+    if (ch === 'w') return MAP.pool;
+    if (t.walk) return MAP.floor;
+    return t.see ? MAP.thing : MAP.wall;
+  }
+  function drawMap(vm) {
+    const c = el.panel.querySelector('canvas.bag-map');
+    if (!c) return;
+    const box = c.parentElement.getBoundingClientRect(), maxH = Math.max(120, Math.floor(window.innerHeight * 0.55));
+    const px = Math.max(3, Math.min(24, Math.floor(Math.min(box.width / vm.w, maxH / vm.h))));
+    const W = vm.w * px, H = vm.h * px, dpr = window.devicePixelRatio || 1;
+    c.style.width = W + 'px'; c.style.height = H + 'px'; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    const x = c.getContext('2d'), S = ART.palettes.semantic;
+    x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+    for (let ty = 0; ty < vm.h; ty++) for (let tx = 0; tx < vm.w; tx++) {
+      const v = vm.vis[ty * vm.w + tx], ch = vm.tiles[ty][tx], col = v ? tileColour(ch) : null;
+      if (!col) continue;
+      x.globalAlpha = v === 2 ? 1 : 0.72; x.fillStyle = col; x.fillRect(tx * px, ty * px, px, px);
+      if (ch === 'X' || ch === 'E') {
+        x.globalAlpha = 1; x.strokeStyle = ch === 'X' ? S.readable : '#ece6d8'; x.lineWidth = Math.max(1, px / 6);
+        x.beginPath(); x.moveTo(tx * px + 1, ty * px + 1); x.lineTo(tx * px + px - 1, ty * px + px - 1);
+        if (ch === 'X') { x.moveTo(tx * px + px - 1, ty * px + 1); x.lineTo(tx * px + 1, ty * px + px - 1); }
+        x.stroke();
+      }
+    }
+    x.globalAlpha = 1;
+    for (const r of vm.plan || []) {
+      if (!Number.isInteger(r.x0)) continue;
+      x.setLineDash([Math.max(2, px / 2), Math.max(2, px / 3)]); x.strokeStyle = S.item; x.lineWidth = Math.max(2, px / 4);
+      x.strokeRect(r.x0 * px + 1, r.y0 * px + 1, (r.x1 - r.x0 + 1) * px - 2, (r.y1 - r.y0 + 1) * px - 2);
+      x.setLineDash([]);
+      const label = String(r.number === null ? r.key : r.number), fs = Math.max(9, Math.min(16, px));
+      x.font = `600 ${fs}px system-ui, sans-serif`; x.textBaseline = 'top';
+      const tw = x.measureText(label).width;
+      x.fillStyle = 'rgba(10,9,13,0.85)'; x.fillRect(r.x0 * px + 3, r.y0 * px + 3, tw + 6, fs + 4);
+      x.fillStyle = S.item; x.fillText(label, r.x0 * px + 6, r.y0 * px + 5);
+    }
+    const ux = vm.you.x * px + px / 2, uy = vm.you.y * px + px / 2, rr = Math.max(3, px * 0.9);
+    x.fillStyle = S.player; x.fillRect(vm.you.x * px, vm.you.y * px, px, px);
+    x.strokeStyle = S.player; x.lineWidth = Math.max(1.5, px / 5); x.beginPath(); x.arc(ux, uy, rr, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = '#15131a'; x.lineWidth = 1; x.strokeRect(vm.you.x * px + 0.5, vm.you.y * px + 0.5, px - 1, px - 1);
+  }
+
+  function drawPanel(s, vm) {
+    const on = !!mode && !!s && !s.over && !!vm;
+    if (!on) {
+      if (mode && (!s || s.over)) close();
+      el.panel.classList.remove('open');
+      if (shown.panel) { el.panel.innerHTML = ''; shown.panel = ''; }
+      return;
+    }
+    let html;
+    if (mode === 'map') html = head('Floor plan') + mapView(s, vm);
+    else {
+      let body = null;
+      if (view.k === 'item') body = itemView(s, view.uid);
+      else if (view.k === 'restore') body = restoreView(s);
+      if (body === null) { view = { k: 'list' }; body = list(vm); }
+      html = head('Bag') + choice(vm) + body;
+    }
+    el.panel.classList.add('open');
+    if (html !== shown.panel) {
+      // Rebuilt, it keeps its scroll, and a keyboard's focus stays on the same button (a
+      // chosen item, the same action) or else on the panel, so Tab goes on inside it.
+      const top = el.panel.scrollTop, had = el.panel.contains(document.activeElement) ? document.activeElement : null;
+      const key = had && had !== el.panel ? ['on', 'item', 'action', 'choose'].filter(k => had.dataset[k] !== undefined).map(k => `[data-${k}="${had.dataset[k]}"]`)[0] : null;
+      el.panel.innerHTML = html; shown.panel = html;
+      el.panel.scrollTop = top;
+      if (had) (key && el.panel.querySelector(key) || el.panel).focus({ preventScroll: true });
+    }
+    if (mode === 'map') drawMap(vm);
+    if (focusIn) { focusIn = false; el.panel.focus({ preventScroll: true }); }
+  }
+  function onPanel(e) {
+    const s = st(), b = e.target.closest('button');
+    if (!b || !s) return;
+    if (b.matches('[data-close]')) { close(); redraw(); return; }
+    if (b.matches('[data-how]')) { UI.toggle('how', true); return; }
+    if (b.matches('[data-back]')) { view = view.k === 'restore' && view.from ? { k: 'item', uid: view.uid } : { k: 'list' }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.dataset.choose !== undefined) { close(); ask({ a: 'choose', index: Number(b.dataset.choose) }); return; }
+    if (b.dataset.item !== undefined) { view = { k: 'item', uid: b.dataset.item }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.dataset.on !== undefined && view.k === 'restore') {
+      if (view.on !== b.dataset.on) { view.on = b.dataset.on; redraw(); return; }
+      const a = restoreTargets(s, view.uid).find(q => q.on === view.on);
+      close(); ask(a);
+      return;
+    }
+    if (b.dataset.do !== undefined && view.k === 'item') {
+      const l = labelOf(view.uid), a = l && l.actions[Number(b.dataset.do)];
+      if (!a) return;
+      if (a.aim === 'tile') { startAim(s, view.uid); redraw(); return; }
+      if (a.aim === 'item') { view = { k: 'restore', uid: view.uid, on: null, from: 'item' }; el.panel.scrollTop = 0; redraw(); return; }
+      if (a.act) { close(); ask(a.act); }
+    }
+  }
+
+  // ---- Every draw ----
+
+  function render(vm, labels) {
+    lastVm = vm; lastLabels = labels || null;
+    const s = st();
+    if (!el.panel || !vm || !vm.you) return;
+    drawSlots(vm);
+    // A new choice waiting (the Catalogue Card's) opens the Bag on it, once.
+    const pending = vm.pending ? JSON.stringify(vm.pending) : null;
+    if (pending && pending !== seenPending && s && !s.over) show('bag');
+    seenPending = pending;
+    // An aim ends when what it aims is no longer yours to use (thrown, used up, taken off),
+    // or the visit is over; the board then loses its marks at the next draw.
+    if (aim && (!s || s.over || !carried(s, aim.uid) || (aim.kind === 'tile' && s.you.kit.instrument !== aim.uid))) {
+      endAim();
+      if (!redrawSoon) { redrawSoon = true; setTimeout(() => { redrawSoon = false; redraw(); }, 0); }
+    }
+    drawAim(s);
+    drawPick(s);
+    drawPanel(s, vm);
+  }
+
+  return { attach, render, open, close, quick, map, aiming, tapAim };
+})();
