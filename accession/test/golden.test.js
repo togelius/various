@@ -27,4 +27,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (!v.ok) assert.fail('golden hash changed: if a rule changed on purpose, run node tools/golden.js and log why.\n' + v.text);
     });
   }
+
+  // M3's replay (the plan's m3Replay) is held to its story as well as its hash, so that a
+  // re-pin which changes what happens in it is seen: it applies a Restoration kit, breaks a
+  // case, hears the bell, opens a case, and dies to the Night Watchman in the night watch,
+  // with the recap that names it (DEVELOPMENT.md, "M3 accepted").
+  if (GOLDEN.m3Replay) test('m3Replay: a use, a case broken and one opened, the bell and the night watch, and a death with its known recap', () => {
+    const g = GOLDEN.m3Replay, s = Replay.begin(g.start, g.options), ev = [];
+    for (const a of g.actions) for (const e of C.Step.step(s, a)) ev.push(e);
+    const mine = k => ev.some(e => e.k === k && (e.by === 'you' || e.who === 'you'));
+    assert.deepEqual(ev.filter(e => e.k === 'stage').map(e => e.stage), ['bell', 'night_watch']);
+    assert.ok(mine('used') && mine('glass_broke') && mine('case_opened'), 'you use an item, break a case and open one');
+    assert.equal(s.over && s.over.k, 'died');
+    const r = C.Text.recap(s, ev);
+    assert.deepEqual([r.killer, r.wakeTurn, r.wakeTrigger, r.huntTurn, r.lines[0]],
+      ['M11.3.watch.1', 290, 'night_watch', 290, 'The Night Watchman defeated you on turn 309.']);
+  });
 };

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="accession-core-hash" content="e2671457">
+<meta name="accession-core-hash" content="7aeba871">
 <meta name="accession-vm-hash" content="d50dd3e2">
 <meta name="accession-build" content="dev">
 <meta charset="utf-8">
@@ -1310,10 +1310,13 @@ const Registry = (() => {
     params: { cost: 'N:COST_DOOR' }, covers: ['opened', 'noise'] }));
 
   // The glasses, in order; n indexes the GLASS_BASHES, GLASS_MIX_D*, GLASS_LOCK_MIN and
-  // GLASS_LOCK_MAX rows (§8.10), and a case fixture's `glass` is n.
+  // GLASS_LOCK_MAX rows (§8.10), and a case fixture's `glass` is n. Its clause names the locks
+  // a case of it can have in the department, at its depth (lock:GLASS[i], Cases.lockSpan:
+  // its glass's range, never above the depth + 1, §8.3), so a label names no lock the
+  // department cannot hold (at depth 1 a Laminated case's lock is always Grade II).
   const glass = (id, n, name) => R.define('GLASS', id, proved({ n, name, icon: null,
-    clause: `${name} glass breaks after {bashes} bash${n === 1 ? '' : 'es'}; its lock is drawn from grade {lo} to {hi}.`,
-    params: { bashes: `N:GLASS_BASHES[${n - 1}]`, lo: `N:GLASS_LOCK_MIN[${n - 1}]`, hi: `N:GLASS_LOCK_MAX[${n - 1}]` }, covers: ['glass_cracked', 'glass_broke'] }));
+    clause: `${name} glass breaks after {bashes} bash${n === 1 ? '' : 'es'}; in this department its lock is {locks}.`,
+    params: { bashes: `N:GLASS_BASHES[${n - 1}]`, locks: `lock:GLASS[${n - 1}]` }, covers: ['glass_cracked', 'glass_broke'] }));
   glass('plate', 1, 'Plate');
   glass('laminated', 2, 'Laminated');
   glass('security', 3, 'Security');
@@ -1451,7 +1454,9 @@ const Registry = (() => {
       `A ${Form} weapon strikes for its tier${a} to {b} × its tier${c} damage${acc}; a blow with it costs {cost} ticks${extra}.`,
       Object.assign({ b: `${F}[1]`, cost: `${F}[3]` }, ap, cp, accp, more || {}), ['attacked', 'missed', 'damaged']));
   };
-  weapon('light', 'Light', '; a surprise blow with it deals {surprise}% of its most damage, and it cannot break Laminated or Security glass', { surprise: 'N:SURPRISE_LIGHT_PCT' });
+  // Only a blow from beside its target (§8.1: a Light weapon's melee blow): a surprise Reach
+  // blow, with a Light weapon that has the reach primitive, deals its most damage.
+  weapon('light', 'Light', '; a surprise blow with it from beside its target deals {surprise}% of its most damage, and it cannot break Laminated or Security glass', { surprise: 'N:SURPRISE_LIGHT_PCT' });
   weapon('balanced', 'Balanced', '');
   weapon('heavy', 'Heavy', '; one bash with it counts as two');
   weapon('reach', 'Reach', '; it also hits {reach} tiles away in a straight line, over a tile you could step onto that no one stands on', { reach: 'N:REACH_RANGE' });
@@ -1616,8 +1621,11 @@ const Registry = (() => {
       'Read, returns you to this department’s entrance (or the nearest free tile to it), even while you are rooted, and every exhibit hunting you but the Night Watchman loses you: it searches where it last knew you were, and its pending special is called off. With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read.',
       {}, ['used', 'identified', 'lost', 'special']],
   ];
+  // `noun` is how a sentence names the kind after "it is": the Solutions are stuff
+  // ("Fixative"), the Ephemera things ("a Catalogue Card"), "Quiet, Please" its own title.
+  const COUNTED = ['card', 'plan', 'ticket'];
   kinds.forEach(([id, cls, name, area, harmfulDrink, clause, params, covers], deck) =>
-    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
+    R.define('CONSUMABLES', id, Object.assign({ cls, name, noun: COUNTED.includes(id) ? 'a ' + name : name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
 
   // The seals: 4 wax seals shuffled over the Solutions and 4 ink stamps over the Ephemera,
   // each run (§8.6). A seal is a position; `n` indexes run.seals.sol or run.seals.eph, and
@@ -1803,9 +1811,11 @@ const Registry = (() => {
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
     covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, proved(WARDEN)));
   // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
-  // its line takes the pipless wake clause; it is slow at everything (§8.1).
+  // its line takes the pipless wake clause; it is slow at everything (§8.1). Its line is shown
+  // only on its own label, once it has shown itself, and that label has its accession number
+  // (§8.8), so the line says that the case it looks like has none, never that its label has none.
   R.define('ARCHETYPES', 'mimic_vitrine', Object.assign({ icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
-    clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
+    clause: 'Looks like a case whose label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, proved(MIMIC)));
 
   // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call
@@ -1858,9 +1868,14 @@ const Clauses = (() => {
   //   curve:KEY   the role curve N.KEY at the depth (Roles.at, §8.1)
   //   role:HP     the species role's health at the depth; role:DMG its damage, as "min–max"
   //   mod:NAME    the species' modParams[mod].NAME; a compass side ('W') reads as its word
+  //   lock:GLASS[i]  the locks a case of glass i + 1 can have at the depth (Cases.lockSpan,
+  //               §8.3: its glass's range, never above the depth + 1), as on the badge:
+  //               "Grade II", or "Grade II to Grade IV"
   // Anything missing throws, naming what is missing, so a line never shows a gap.
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const grade = n => 'Grade ' + (ROMAN[n] || String(n));
   function value(ref, sp, depth, mod) {
-    const m = /^(N|curve|role|mod):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
+    const m = /^(N|curve|role|mod|lock):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
     const where = `${sp && sp.id ? sp.id : 'a species'}: ${ref}`;
     if (!m) throw new Error(`Clauses: cannot read the parameter reference ${where}`);
     const [, kind, key, index] = m;
@@ -1877,6 +1892,11 @@ const Clauses = (() => {
       if (key === 'HP') return s.hp;
       if (key === 'DMG') return range(s.dmin, s.dmax);
       throw new Error(`Clauses: ${where}: a role gives only HP or DMG`);
+    }
+    if (kind === 'lock') {
+      if (key !== 'GLASS' || index === undefined || +index >= N.GLASS_LOCK_MIN.length) throw new Error(`Clauses: ${where}: a lock is lock:GLASS[i], i a glass's index`);
+      const [lo, hi] = Cases.lockSpan(+index + 1, depth);
+      return lo === hi ? grade(lo) : `${grade(lo)} to ${grade(hi)}`;
     }
     const p = sp && sp.modParams && mod && own(sp.modParams, mod) ? sp.modParams[mod] : null;
     if (!p || p[key] === undefined || p[key] === null) throw new Error(`Clauses: ${where} needs modParams.${mod}.${key}`);
@@ -3877,10 +3897,15 @@ const Cases = (() => {
   const drawGlass = (rng, depth) => 1 + rng.weighted(N['GLASS_MIX_D' + Math.min(6, Math.max(1, depth))]);
   // A lock is drawn uniformly from the overlap of the glass's range (GLASS_LOCK_MIN … MAX)
   // and I to depth + 1; if they do not overlap, it is the glass range's minimum, with no draw.
+  // lockSpan gives the locks a case of that glass can have at that depth, [lowest, highest],
+  // which the glass's clause states (its parameter lock:GLASS[i], Clauses.value), so a label
+  // names only locks the department can hold.
+  const lockCap = (glass, depth) => Math.min(N.GLASS_LOCK_MAX[glass - 1], depth + 1);
   function drawLock(rng, glass, depth) {
-    const lo = N.GLASS_LOCK_MIN[glass - 1], hi = Math.min(N.GLASS_LOCK_MAX[glass - 1], depth + 1);
+    const lo = N.GLASS_LOCK_MIN[glass - 1], hi = lockCap(glass, depth);
     return hi < lo ? lo : rng.int(lo, hi);
   }
+  const lockSpan = (glass, depth) => { const lo = N.GLASS_LOCK_MIN[glass - 1]; return [lo, Math.max(lo, lockCap(glass, depth))]; };
   const drawLoan = rng => rng.int(1, N.CASE_EMPTY_ONE_IN) === 1;
   function draw(rng, depth) {
     const glass = drawGlass(rng, depth), lock = drawLock(rng, glass, depth), loan = drawLoan(rng);
@@ -4297,7 +4322,7 @@ const Cases = (() => {
     },
   });
 
-  return { at, encased, make, lockRange, need, drawGlass, drawLock, drawLoan, draw, drawStaff, shardTile, roomKey, disguise, reveal,
+  return { at, encased, make, lockRange, lockSpan, need, drawGlass, drawLock, drawLoan, draw, drawStaff, shardTile, roomKey, disguise, reveal,
     place, staffGrade, enter, swing, canBreak, openCost, touch, release, spreadShards, open, bash, dissolve, reach, highlightOk,
     view, staffView, rules, describe, check };
 })();
@@ -8825,19 +8850,23 @@ const Packs = (() => {
 // kind and its cause, because many rules emit the same kind for their own reasons.
 'use strict';
 const Text = (() => {
-  const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null);
+  const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null),
+    AGAIN = Object.create(null);
   const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const once = (o, k, what) => { if (has(o, k)) throw new Error(`Text: ${what} is defined twice`); };
   const isFn = (f, what) => { if (typeof f !== 'function') throw new Error(`Text: ${what} needs a function`); };
 
-  // Text.define(k, fn, {log}?): the kind's default sentence, by its base owner. `log` says
-  // whether Text.log shows the kind: true (the default), false (never), or 'seen' (only when
-  // the actor it is about, `who`, is you or in view).
+  // Text.define(k, fn, {log, again}?): the kind's default sentence, by its base owner. `log`
+  // says whether Text.log shows the kind: true (the default), false (never), or 'seen' (only
+  // when the actor it is about, `who`, is you or in view). `again(n)`, for a kind two actors
+  // of one name can tell word for word in one step (a swarm's bodies stirring), is what
+  // Text.log adds to the first such sentence in place of the n more ('So does another…').
   function define(k, fn, opts) {
     once(KINDS, k, `the sentence for ${k}`); isFn(fn, k);
     const log = opts && opts.log !== undefined ? opts.log : true;
     if (log !== true && log !== false && log !== 'seen') throw new Error(`Text: ${k} has log ${JSON.stringify(log)}`);
     KINDS[k] = fn; LOG[k] = log;
+    if (opts && opts.again !== undefined) { isFn(opts.again, k + ' again'); AGAIN[k] = opts.again; }
   }
   // Text.defineCause(k, causeK, fn): the sentence for one cause of a kind, by that cause's owner.
   function defineCause(k, causeK, fn) {
@@ -8847,7 +8876,8 @@ const Text = (() => {
   }
   // Text.defineRefusal(code, fn): the sentence for a refusal code, fn(data) → sentence.
   function defineRefusal(code, fn) { once(REFUSALS, code, `the refusal ${code}`); isFn(fn, code); REFUSALS[code] = fn; }
-  // Text.provide(name, fn): a named sentence maker ('clock', 'recap'), by its one owner.
+  // Text.provide(name, fn): a named sentence maker ('clock', 'stage', 'recap', 'confirm',
+  // 'rest'), by its one owner.
   function provide(name, fn) { once(MAKERS, name, `the sentence maker ${name}`); isFn(fn, name); MAKERS[name] = fn; }
 
   // The words a sentence uses for an actor. nameOf(uid) gives an actor's name in
@@ -8872,23 +8902,39 @@ const Text = (() => {
   // A refusal code's sentence; a reason with no sentence defined is shown as it is.
   const refusal = (code, data) => has(REFUSALS, code) ? REFUSALS[code](data === undefined ? null : data) : String(code);
   const clock = view => has(MAKERS, 'clock') ? MAKERS.clock(view) : null;
+  // The stage chip's words (§7.2), {name, next}, from Clock.view(state), or null with no clock.
+  const stage = view => has(MAKERS, 'stage') ? MAKERS.stage(view) : null;
   const recap = (state, nameOf) => has(MAKERS, 'recap') ? MAKERS.recap(state, nameOf) : null;
+  // A count of tiles in words: '1 tile', '3 tiles' (a distance or a range from an event can be 1).
+  const tiles = n => n === 1 ? '1 tile' : `${n} tiles`;
+  // A confirmation's words (§7.1), {title, yes, line}, or null for a kind with none.
+  const confirm = (k, data, nameOf) => has(MAKERS, 'confirm') ? MAKERS.confirm(k, data, nameOf) : null;
+  // A long rest's one line in the log (§7.1): data {turns, regained, hp, maxHp}, or null.
+  const rest = data => has(MAKERS, 'rest') ? MAKERS.rest(data) : null;
 
   // Text.log(events, nameOf, visible): the sentences of one step for the player's log.
   // It leaves out the kinds defined with log: false, and those with log: 'seen' about an
   // actor that visible(uid) says is out of view (everything is in view without visible).
   // An exhibit that wakes straight into a hunt emits woke, then hunting; the log shows the
-  // hunting sentence alone, which says that it woke.
+  // hunting sentence alone, which says that it woke. Of a kind with `again`, a sentence the
+  // step has already told word for word is not told twice: the first says how many more.
   function log(events, nameOf, visible) {
     const seen = uid => uid === 'you' || typeof visible !== 'function' || !!visible(uid);
-    const out = [];
+    const out = [], told = new Map();
     for (let i = 0; i < events.length; i++) {
       const e = events[i], how = has(LOG, e.k) ? LOG[e.k] : true;
       if (how === false || (how === 'seen' && !seen(e.who))) continue;
       if (e.k === 'woke' && e.mode === 'hunting' && events.slice(i + 1).some(f => f.k === 'hunting' && f.who === e.who)) continue;
       const s = event(e, nameOf);
-      if (s) out.push(s);
+      if (!s) continue;
+      if (has(AGAIN, e.k)) {
+        const key = e.k + '\n' + s, t = told.get(key);
+        if (t) { t.n++; continue; }
+        told.set(key, { at: out.length, k: e.k, n: 0 });
+      }
+      out.push(s);
     }
+    for (const t of told.values()) if (t.n > 0) out[t.at] += ' ' + AGAIN[t.k](t.n);
     return out;
   }
 
@@ -8903,7 +8949,7 @@ const Text = (() => {
   }
   const logs = k => has(LOG, k) ? LOG[k] : true;
 
-  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, log, defined, refusalDefined, provided, list, logs };
+  return { define, defineCause, defineRefusal, provide, event, refusal, clock, stage, recap, confirm, rest, tiles, log, defined, refusalDefined, provided, list, logs };
 })();
 
 </script>
@@ -8952,17 +8998,18 @@ const Text = (() => {
   // A noise is told as its caption (§8.2): "Crash: glass breaking, heard 10 tiles away."
   // Each noise's own cause says what made it; this is the sentence for one that does not.
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.define('noise', e => `${CLS[e.cls] || 'A noise'}: a noise, heard ${e.range} tiles away.`);
+  Text.define('noise', e => `${CLS[e.cls] || 'A noise'}: a noise, heard ${Text.tiles(e.range)} away.`);
 
   // A pip is shown only for an exhibit in view, so the log never tells you about one you
-  // cannot see (§8.2's pips are shown on the exhibit).
+  // cannot see (§8.2's pips are shown on the exhibit). Exhibits of one name (a swarm's
+  // bodies) that stir alike in one step are told once, with how many more did the same.
   const pips = e => `${e.pips} of ${N.PIPS_TO_WAKE} pips`;
   const stir = (e, w, why) => `${w.Name(e.who)} ${e.delta < 0 ? 'settles' : 'stirs'} (${pips(e)})${why ? ': ' + why : ''}.`;
   const ally = (e, w) => e.cause.ally ? `${w.name(e.cause.ally)}, one of its group, took damage` : 'one of its group took damage';
-  Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen' });
-  Text.defineCause('pip', 'ring', (e, w) => stir(e, w, `you are inside your ring, ${e.cause.dist} tiles away`));
-  Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${e.cause.dist} tiles away`));
-  Text.defineCause('pip', 'axis', (e, w) => stir(e, w, `you are in its row or column, ${e.cause.dist} tiles away`));
+  Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen', again: n => n === 1 ? 'So does another of the same name.' : `So do ${n} others of the same name.` });
+  Text.defineCause('pip', 'ring', (e, w) => stir(e, w, `you are inside your ring, ${Text.tiles(e.cause.dist)} away`));
+  Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away`));
+  Text.defineCause('pip', 'axis', (e, w) => stir(e, w, `you are in its row or column, ${Text.tiles(e.cause.dist)} away`));
   Text.defineCause('pip', 'decay', (e, w) => stir(e, w, `nothing has disturbed it for ${N.PIP_DECAY_TURNS} turns`));
   Text.defineCause('pip', 'quiet', (e, w) => stir(e, w, '“Quiet, Please” was read'));
   Text.defineCause('pip', 'tether', (e, w) => stir(e, w, `you came within ${N.TETHER_RANGE} tiles of what it guards`));
@@ -8970,8 +9017,8 @@ const Text = (() => {
 
   // Waking. `was` is null for an actor made awake. A sleeper woken straight into a hunt is
   // told once, by its hunting sentence (Text.log merges the two).
-  Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} is awake.` : `${w.Name(e.who)} woke.`);
-  Text.define('hunting', (e, w) => `${w.Name(e.who)} is hunting you.`);
+  Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake.` : `${w.Name(e.who)} woke.`);
+  Text.define('hunting', (e, w) => `${w.Name(e.who)} began hunting you.`);
   const why = {
     ring: e => 'you stayed inside your ring',
     noise: e => e.cause.cls ? `it heard a ${e.cause.cls} noise` : 'it heard a noise',
@@ -8983,10 +9030,10 @@ const Text = (() => {
   };
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
-    // Woken by a noise, it goes to look where the noise was.
-    const then = k === 'noise' ? ', and goes to look' : '';
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${because(e, w)}.` : `${w.Name(e.who)} is hunting you: ${because(e, w)}.`);
+    // Woken by a noise, it sets off to look where the noise was.
+    const then = k === 'noise' ? ', and set off to look' : '';
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${because(e, w)}.` : `${w.Name(e.who)} began hunting you: ${because(e, w)}.`);
   }
 
   // Losing you, being settled, and being sent to look, for waking's reasons. A hunter's
@@ -8996,7 +9043,7 @@ const Text = (() => {
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
   Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
-  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${e.cause.dist} tiles away, and goes to look.`);
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, and set off to look.`);
 })();
 
 </script>
@@ -9019,7 +9066,7 @@ const Text = (() => {
   Text.defineCause('lost', 'idle', (e, w) => `${w.Name(e.who)} is going back: nothing has disturbed it for ${turns(e.cause.turns)}.`);
   Text.defineCause('lost', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and is going back.`);
   Text.defineCause('lost', 'displaced', (e, w) => `${w.Name(e.who)} was moved from its place, and is going back to it.`);
-  Text.define('alerted', (e, w) => `${w.Name(e.who)} goes to look.`);
+  Text.define('alerted', (e, w) => `${w.Name(e.who)} set off to look.`);
   Text.defineCause('alerted', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and wanders, for it does not go back to sleep.`);
   Text.defineCause('alerted', 'homeless', (e, w) => `${w.Name(e.who)} has no place left to go back to, and wanders.`);
   Text.defineCause('alerted', 'blocked', (e, w) => `${w.Name(e.who)} cannot get back to its place, for others stand in the way, and wanders for now.`);
@@ -9027,11 +9074,11 @@ const Text = (() => {
   Text.define('returned', back);
   Text.defineCause('returned', 'home', back);
 
-  Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${e.cause.dist} tiles away.`);
-  Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it saw you.` : `${w.Name(e.who)} saw you and is hunting you.`);
+  Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${Text.tiles(e.cause.dist)} away.`);
+  Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: it saw you.` : `${w.Name(e.who)} saw you and began hunting you.`);
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'door', noise('a door opening'));
   Text.defineCause('noise', 'close', noise('a door closing'));
 
@@ -9093,7 +9140,7 @@ const Text = (() => {
   // Every blow is announced as `attacked` before it lands or misses; the log shows the result.
   Text.define('attacked', (e, w) => `${w.Name(e.by)} attacked ${w.name(e.at)}.`, { log: false });
   Text.defineCause('attacked', 'attack', (e, w) => e.cause.how && e.cause.how.kind === 'reach'
-    ? `${w.Name(e.by)} struck at ${w.name(e.at)} with Reach, from ${e.cause.dist} tiles away.`
+    ? `${w.Name(e.by)} struck at ${w.name(e.at)} with Reach, from ${Text.tiles(e.cause.dist)} away.`
     : `${w.Name(e.by)} attacked ${w.name(e.at)}.`);
   Text.define('missed', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}.`);
   Text.defineCause('missed', 'attack', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}${reach(e.cause)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
@@ -9111,13 +9158,28 @@ const Text = (() => {
   Text.defineCause('died', 'attack', died);
   Text.defineCause('died', 'special', died);
 
-  // A mark: the tiles it covers, and for a damage special its number before your Padding.
-  const tiles = list => `${list.length} ${list.length === 1 ? 'tile' : 'tiles'}`;
-  Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}.`);
+  // A mark: the tiles it covers, said by its shape (a ring round it, a beam's line, a call's
+  // reach; the marks on the board show each tile), and for a damage special its number
+  // before your Padding.
+  const covers = e => {
+    const S = typeof e.sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, e.sp) ? Registry.SPECIALS[e.sp] : null;
+    const n = Array.isArray(e.tiles) ? e.tiles.length : 0, shape = S ? S.shape : null;
+    if (shape === 'ring') return 'the tiles round it';
+    if (shape === 'line') return `a line of ${Text.tiles(n)}`;
+    if (shape === 'call' && S.range && Number.isInteger(N[S.range])) return `the tiles within ${Text.tiles(N[S.range])} of it`;
+    return Text.tiles(n);
+  };
+  Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}.`);
   Text.defineCause('telegraphed', 'special', (e, w) => isInt(e.cause.gross) && e.cause.gross > 0
-    ? `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, at its next action.`
-    : `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}, at its next action.`);
-  const struck = hits => !Array.isArray(hits) ? '' : hits.length === 1 ? ': it struck 1' : hits.length ? `: it struck ${hits.length}` : ': it struck nothing';
+    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, at its next action.`
+    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, at its next action.`);
+  // Whom a damage special struck: you, and how many exhibits (never their names, since some
+  // may be out of your sight).
+  const struck = hits => {
+    if (!Array.isArray(hits)) return '';
+    const me = hits.includes('you'), n = hits.length - (me ? 1 : 0), them = n === 1 ? '1 exhibit' : `${n} exhibits`;
+    return me ? (n ? `: it struck you and ${them}` : ': it struck you') : n ? `: it struck ${them}` : ': it struck nothing';
+  };
   const used = (e, w) => e.cancelled ? `${whose(w, e.who)} ${spName(e.sp)} was called off.` : `${w.Name(e.who)} used its ${spName(e.sp)}${struck(e.hits)}.`;
   Text.define('special', used);
   Text.defineCause('special', 'special', used);
@@ -9134,16 +9196,25 @@ const Text = (() => {
   Text.define('regenerated', (e, w) => `${w.Name(e.who)} recovered 1 health: now ${e.hp}.`, { log: false });
   Text.defineCause('regenerated', 'regen', (e, w) => `${w.Name(e.who)} recovered 1 health${e.cause.bench ? ' on the bench' : ''}: now ${e.hp}.`);
   Text.define('healed', (e, w) => `${w.Name(e.who)} regained ${e.amount} health: now ${e.hp}.`);
+  // A long rest (§7.1: Rest repeated by the interface) is told once, when it ends: how many
+  // turns it took and how much health came back, Text.rest({turns, regained, hp, maxHp}).
+  Text.provide('rest', d => {
+    const n = d && Number.isInteger(d.turns) ? d.turns : 0, got = d && Number.isInteger(d.regained) ? d.regained : 0;
+    const back = got > 0 ? `recovered ${got} health` : 'recovered no health';
+    return `You rested for ${n === 1 ? '1 turn' : `${n} turns`} and ${back}: now ${d.hp} of ${d.maxHp}.`;
+  });
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'attack', noise('a blow'));
   Text.defineCause('noise', 'destroyed', noise('an exhibit destroyed'));
-  Text.defineCause('noise', 'special', noise('a special'));
+  Text.defineCause('noise', 'special', noise('a special attack'));
 
-  // Damage always wakes, straight to hunting.
+  // Damage always wakes, straight to hunting. The log tells a sleeper woken into a hunt by its
+  // hunting sentence alone (Text.log), so that sentence says it hunts you, as every other
+  // cause's does.
   Text.defineCause('woke', 'damage', (e, w) => `${w.Name(e.who)} woke: it was struck.`);
-  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke: it was struck.` : `${w.Name(e.who)} is hunting you: it was struck.`);
+  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: it was struck.` : `${w.Name(e.who)} began hunting you: it was struck.`);
 
   // Sitting (§4.2).
   Text.defineRefusal('no_bench', () => 'There is no bench here to sit on.');
@@ -9187,7 +9258,7 @@ const Text = (() => {
 
   // The noise a case or a staff door makes, from its tile.
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'staff_door', noise('a staff door opening'));
   Text.defineCause('noise', 'case_opened', noise('a case opening'));
   Text.defineCause('noise', 'bash', noise('glass bashed'));
@@ -9204,14 +9275,15 @@ const Text = (() => {
   Text.defineCause('pip', 'touch_case', (e, w) => `${w.Name(e.who)} stirs (${e.pips} of ${N.PIPS_TO_WAKE} pips): ${touched(e.cause)}.`);
   for (const k of ['touch_case', 'case_broken', 'dissolved']) {
     Text.defineCause('woke', k, (e, w) => `${w.Name(e.who)} woke: ${why[k](e.cause)}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k](e.cause)}.` : `${w.Name(e.who)} is hunting you: ${why[k](e.cause)}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why[k](e.cause)}.` : `${w.Name(e.who)} began hunting you: ${why[k](e.cause)}.`);
   }
 })();
 
 </script>
 <script>
 // ACCESSION — sentences: the clock and leaving (BUILD.md §8.4, §8.9), owned by W1-CLOCK. Also
-// the dial's sentence, Text.clock(view), from Clock.view(state).
+// the dial's sentence, Text.clock(view), and the stage chip's words, Text.stage(view), from
+// Clock.view(state).
 'use strict';
 (() => {
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
@@ -9252,9 +9324,9 @@ const Text = (() => {
   const why = { night_bell: 'the night-watch bell rang', night_watch: 'the night watch is on' };
   for (const k of ['night_bell', 'night_watch']) {
     Text.defineCause('woke', k, (e, w) => e.was == null
-      ? (k === 'night_watch' ? `${w.Name(e.who)} is on its rounds, hunting you from the start.` : `${w.Name(e.who)} is awake: ${why[k]}.`)
+      ? (k === 'night_watch' ? `${w.Name(e.who)} began its rounds, hunting you from the start.` : `${w.Name(e.who)} was already awake: ${why[k]}.`)
       : `${w.Name(e.who)} woke: ${why[k]}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why[k]}.` : `${w.Name(e.who)} began hunting you: ${why[k]}.`);
   }
 
   // leave(i)'s refusals.
@@ -9272,6 +9344,16 @@ const Text = (() => {
     return `The clock: the night watch, ${at}; the next night-watch bell rings in ${turns(v.toNightBell)}.${back}`;
   }
   Text.provide('clock', dial);
+
+  // The stage chip's words (§7.2), from Clock.view(state): the stage's name and what comes
+  // next and when ("Open:" "bell in 238 turns"), or null with no clock.
+  function chip(v) {
+    if (!v) return null;
+    if (v.stage === 0) return { name: 'Open:', next: `bell in ${turns(v.toBell)}` };
+    if (v.stage === 1) return { name: 'After the bell:', next: `night watch in ${turns(v.toWatch)}` };
+    return { name: 'Night watch:', next: `next bell in ${turns(v.toNightBell)}` };
+  }
+  Text.provide('stage', chip);
 })();
 
 </script>
@@ -9332,7 +9414,7 @@ const Text = (() => {
   });
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${Text.tiles(e.range)} away.`);
 
   // The Pin-Driver's bolt (§8.1): rolled as a blow is, with its own damage. Through an
   // old_repair exhibit's repaired side (cause.side, §5.5) the damage is doubled, and the sum
@@ -9413,7 +9495,7 @@ const Text = (() => {
   Text.defineCause('pip', 'fumigant', (e, w) => `${w.Name(e.who)} settles (${e.pips} of ${N.PIPS_TO_WAKE} pips): the Fumigant cloud calms it.`);
   const CLS = { soft: 'a soft', loud: 'a loud', crash: 'a crashing' };
   const who = (e, w) => !e.cause.by ? 'A cough' : e.cause.by === 'you' ? 'You cough' : `${w.Name(e.cause.by)} coughs`;
-  Text.defineCause('noise', 'cough', (e, w) => `${who(e, w)}: ${CLS[e.cls] || 'a'} noise, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'cough', (e, w) => `${who(e, w)}: ${CLS[e.cls] || 'a'} noise, heard ${Text.tiles(e.range)} away.`);
 
   // A surface laid (§8.1): what it is, how big, and that it blocks sight, for how long; a
   // Fumigant cloud also calms sleepers. Told whether or not you see it, as a death is.
@@ -9422,9 +9504,9 @@ const Text = (() => {
   const NAMES = { fumigant: 'A Fumigant cloud', dust: 'Plaster dust' };
   const named = e => Object.prototype.hasOwnProperty.call(NAMES, e.kind) ? NAMES[e.kind] : `A ${e.kind}`;
   const blocks = e => Registry.SURFACES[e.kind] && Registry.SURFACES[e.kind].blocksSight ? 'it blocks sight' : 'it lies';
-  Text.define('surface', (e, w) => `${named(e)} lies here, ${e.size} tiles a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
-  Text.defineCause('surface', 'died', (e, w) => `${w.Name(e.cause.by)} crumbles into dust: ${blocks(e)}, ${e.size} tiles a side, for ${turns(e.turns)}${after(e)}.`);
-  Text.defineCause('surface', 'item', (e, w) => `${named(e)} rises, ${e.size} tiles a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
+  Text.define('surface', (e, w) => `${named(e)} lies here, ${Text.tiles(e.size)} a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
+  Text.defineCause('surface', 'died', (e, w) => `${w.Name(e.cause.by)} crumbles into dust: ${blocks(e)}, ${Text.tiles(e.size)} a side, for ${turns(e.turns)}${after(e)}.`);
+  Text.defineCause('surface', 'item', (e, w) => `${named(e)} rises, ${Text.tiles(e.size)} a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
 })();
 
 </script>
@@ -9437,9 +9519,9 @@ const Text = (() => {
   const R = Registry;
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  // A kind's name in a sentence: the Solutions are stuff ("Fixative"), the Ephemera things.
-  const NOUN = { card: 'a Catalogue Card', plan: 'a Floor Plan', ticket: 'a Re-admission Ticket' };
-  const kind = ck => own(NOUN, ck) ? NOUN[ck] : own(R.CONSUMABLES, ck) ? R.CONSUMABLES[ck].name : 'a consumable';
+  // A kind's name in a sentence (its registry noun): the Solutions are stuff ("Fixative"),
+  // the Ephemera things ("a Catalogue Card").
+  const kind = ck => own(R.CONSUMABLES, ck) ? R.CONSUMABLES[ck].noun : 'a consumable';
   const seal = s => own(R.SEALS, s) ? `the ${R.SEALS[s].name}` : 'a seal';
   // What the thing is, before you know it: a phial (a Solution) or a leaflet (an Ephemera).
   const thing = (s, ck) => {
@@ -9477,7 +9559,7 @@ const Text = (() => {
   const lasts = n => Number.isInteger(n) ? ` for ${n === 1 ? '1 turn' : `${n} turns`}` : '';
   Text.defineCause('status', 'item', (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${state(e.id)}${lasts(e.turns)}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${state(e.id)}.`);
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.defineCause('noise', 'throw', e => `${own(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: a thrown phial landing, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'throw', e => `${own(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: a thrown phial landing, heard ${Text.tiles(e.range)} away.`);
 
   // Refusals (§4.2). A first throw refused for being too near names no kind.
   const REFUSALS = {
@@ -9506,15 +9588,15 @@ const Text = (() => {
 // from another, a splitter's half, whose creation woke names where it came from.
 'use strict';
 (() => {
-  // A splitter's half: "The Bust of the Proposing Trustee splits in two, under your hit; the
-  // new half is hunting you." Any other body made from another: "X came from Y."
+  // A splitter's half: "The Bust of the Proposing Trustee split in two, under your hit; the
+  // new half began hunting you." Any other body made from another: "X came from Y."
   function made(e, w, hunts) {
     const c = e.cause;
     if (c.how === 'split') {
       const under = typeof c.by === 'string' ? (c.by === 'you' ? ', under your hit' : `, hit by ${w.name(c.by)}`) : '';
-      return `${w.Name(c.from)} splits in two${under}; the new half ${hunts ? 'is hunting you' : 'is awake'}.`;
+      return `${w.Name(c.from)} split in two${under}; the new half ${hunts ? 'began hunting you' : 'was awake'}.`;
     }
-    return `${w.Name(e.who)} came from ${w.name(c.from)}${hunts ? ' and is hunting you' : ''}.`;
+    return `${w.Name(e.who)} came from ${w.name(c.from)}${hunts ? ' and began hunting you' : ''}.`;
   }
   Text.defineCause('woke', 'summoned', (e, w) => made(e, w, e.mode === 'hunting'));
   Text.defineCause('hunting', 'summoned', (e, w) => made(e, w, true));
@@ -9534,8 +9616,9 @@ const Text = (() => {
   const rolled = c => c.surprise ? 'a surprise shot, at full strength' : c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`;
   // Whose shot it was: "your" for you, "the Signal Lamp’s" for an exhibit.
   const whose = (w, uid) => uid === 'you' ? 'your' : `${w.name(uid)}’s`;
-  // Who a shot sent back went into: "you", "itself" for an exhibit hit by its own shot.
-  const into = (w, who, shooter) => who === shooter && who !== 'you' ? 'itself' : w.name(who);
+  // Who a shot sent back went into: "you", or for an exhibit hit by its own shot its name,
+  // "which fired it" (never "itself", which after "The Reflecting Dish sent" names the dish).
+  const into = (w, who, shooter) => who === shooter && who !== 'you' ? `${w.name(who)}, which fired it` : w.name(who);
 
   Text.defineCause('missed', 'shot', (e, w) => `${w.Name(e.by)} shot at ${w.name(e.at)} and missed (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   Text.defineCause('damaged', 'shot', (e, w) => {
@@ -9592,8 +9675,8 @@ const Text = (() => {
   // You left the warden's tether, so it goes back.
   Text.defineCause('lost', 'tether', (e, w) => `${w.Name(e.who)} goes back: it will not follow you more than ${N.TETHER_RANGE} tiles from what it guards.`);
   // A herald's call wakes a sleeper awake, sent to look where you were.
-  Text.defineCause('woke', 'herald', (e, w) => `${w.Name(e.who)} woke at the call of ${w.name(e.cause.by)}, and goes to look where you were.`);
-  Text.defineCause('hunting', 'herald', (e, w) => `${w.Name(e.who)} is hunting you: ${w.name(e.cause.by)} called.`);
+  Text.defineCause('woke', 'herald', (e, w) => `${w.Name(e.who)} woke at the call of ${w.name(e.cause.by)}, and set off to look where you were.`);
+  Text.defineCause('hunting', 'herald', (e, w) => `${w.Name(e.who)} began hunting you: ${w.name(e.cause.by)} called.`);
 })();
 
 </script>
@@ -9690,6 +9773,42 @@ const Text = (() => {
     return out;
   }
   Text.provide('recap', recap);
+})();
+
+</script>
+<script>
+// ACCESSION — sentences: the confirmations (BUILD.md §7.1), owned by the interface (js/main.js
+// decides when one is asked; the words are here, as every sentence about the rules is, §3.4).
+//
+// Text.confirm(k, data, nameOf) → {title, yes, line} | null: the sheet's question, its button
+// and the sentence that says what the action would do, for
+//   'shards'  stepping onto shards from a tile without them;
+//   'bash'    a blow at a case's glass: data {glassName, blows}, Cases.describe's (the blows
+//             left to break it, this one included);
+//   'leave'   leaving by an exit (a minimal confirmation, D4.9);
+//   'threat'  an action that would leave you on a tile marked for damage by a special that
+//             goes off before your next decision: data {by, shape, dmg, stay}, Specials.threat's
+//             owner and number, the special's shape, and whether you stay where you are.
+'use strict';
+(() => {
+  const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+  // A special's name by its shape, as its label's line says it ("Its beam", "Its ring of blows").
+  const SPECIAL = { line: 'beam', ring: 'ring of blows' };
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const more = n => n === 1 ? '1 more breaks it' : `${n} more break it`;
+  const SAY = {
+    shards: () => ({ title: 'Step onto the shards?', yes: 'Step onto the shards',
+      line: `Broken glass is loud underfoot: while you stand on it, your ring reaches ${N.RING_LOUD_FLOOR} tiles farther.` }),
+    bash: d => ({ title: 'Break the glass?', yes: 'Strike the glass',
+      line: d.blows === 1 ? `This blow breaks its ${d.glassName} glass, with a crash.` : `This blow is loud and cracks its ${d.glassName} glass; ${more(d.blows - 1)}, the last with a crash.` }),
+    leave: () => ({ title: 'Leave the department?', yes: 'Leave', line: 'Your visit ends when you go through this door.' }),
+    threat: (d, nameOf) => {
+      const who = (typeof nameOf === 'function' && nameOf(d.by)) || 'an exhibit', what = own(SPECIAL, d.shape) ? SPECIAL[d.shape] : 'special';
+      return { title: d.stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', yes: d.stay ? 'Stay' : 'Step onto it',
+        line: `${cap(who)}’s ${what} goes off on that tile before your next turn: it would deal you ${d.dmg}, with no roll.` };
+    },
+  };
+  Text.provide('confirm', (k, data, nameOf) => own(SAY, k) ? SAY[k](data || {}, nameOf) : null);
 })();
 
 </script>
@@ -9882,6 +10001,8 @@ const Labels = (() => {
   // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
   // wakes it (§8.3), so no blow could ever catch it as the line would say.
   const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
+  // A chance with its article, as it is said: 'an 80%', 'an 11%', 'a 75%'.
+  const aChance = n => `${n === 11 || n === 18 || String(n).charAt(0) === '8' ? 'an' : 'a'} ${n}%`;
   function odds(state, a) {
     const you = state.actors[0], hp = Math.max(1, you.hp), at = [you.x, you.y];
     const said = Archetypes.readout(state, a, you), noBlow = said.some(r => r.k === 'noBlow'), set = said.find(r => r.k === 'hits');
@@ -9891,10 +10012,10 @@ const Labels = (() => {
     if (!noBlow) {
       const theirs = rolls(state, a, you, fromTile(a, you.x, you.y)), chance = Combat.hitChance(a, you);
       const typ = halfUp(100 * theirs.sum, theirs.n * hp), worst = hits(Int.ceilDiv(hp, theirs.max));
-      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
-        : `It has a ${chance}% chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
+      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: ${aChance(chance)} chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
+        : `It has ${aChance(chance)} chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
     }
-    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
+    lines.push(`You have ${aChance(Combat.hitChance(you, a))} chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
     if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
     if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;
@@ -10032,7 +10153,7 @@ const Labels = (() => {
       if (n > 1) base.title += ` (${n})`;
       if (nm.seal && own(Registry.SEALS, nm.seal)) base.pictos.push({ icon: sealIcon(nm.seal), text: Registry.SEALS[nm.seal].name });
       base.behaviour = Consumables.line(state, it);
-      base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].name}.` : 'Not identified: which kind it is is not known yet.');
+      base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].noun}.` : 'Not identified: which kind it is is not known yet.');
       return base;
     }
     const d = Kit.describe(state, uid);
@@ -10158,14 +10279,16 @@ const Labels = (() => {
   // and what you can do on your own tile: wait, rest, sit on a bench, leave by an exit.
   function yours(state) {
     const you = state.actors[0], r = Vision.ringRadius(state);
+    // Acc (and, in principle, Eva) can fall below 0 (a weapon worn grades short, §8.1): written
+    // with the minus sign every label uses (num), never a hyphen.
     const pictos = [
-      { icon: 'heart', text: `${you.hp}/${you.maxHp}` }, { icon: 'acc', text: String(you.acc) }, { icon: 'eva', text: String(you.eva) },
-      { icon: 'padding', text: String(you.pad) }, { icon: 'damage', text: `${you.dmin}–${you.dmax}` }, { icon: 'ring', text: count(r, 'tile', 'tiles') },
+      { icon: 'heart', text: `${you.hp}/${you.maxHp}` }, { icon: 'acc', text: num(you.acc) }, { icon: 'eva', text: num(you.eva) },
+      { icon: 'padding', text: num(you.pad) }, { icon: 'damage', text: `${you.dmin}–${you.dmax}` }, { icon: 'ring', text: count(r, 'tile', 'tiles') },
     ].concat(statusPictos(state, you));
     if (you.seated) pictos.push({ icon: 'bench', text: 'seated' });
     const lines = [`Handling Clearance, ${grade(yourGrade(state))}.`,
-      `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${you.acc}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
-      `You have Padding ${you.pad} and Eva ${you.eva}.`,
+      `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${num(you.acc)}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
+      `You have Padding ${num(you.pad)} and Eva ${num(you.eva)}.`,
       `Your ring reaches ${count(r, 'tile', 'tiles')} now.`];
     for (const s of you.statuses || []) if (own(Registry.STATUSES, s.id)) lines.push(`You are ${Registry.STATUSES[s.id].words}: ${turns(Status.left(state, you, s.id))} left.`);
     const actions = offer(state, 'wait', 'Wait', { a: 'wait' }).concat(offer(state, 'rest', 'Rest', { a: 'rest' }), offer(state, 'sit', 'Sit on the bench', { a: 'sit' }));
@@ -16900,6 +17023,11 @@ const Main = (() => {
   // preview: the tile a "tap twice" walk previews. asking: the action a confirmation waits on.
   // ended: what the end-of-visit overlay says.
   let preview = null, asking = null, ended = null;
+  // known: each exhibit the board has shown you this visit, as you last saw it (its mode, pips
+  // and tile), so a walk stops for one new or changed, not for one you have seen come back
+  // into view as it was (§7.1). ending: what a run does when it ends (a long rest's line).
+  const known = new Map();
+  let ending = null;
   const history = [], HISTORY = 6, banners = new Set();
 
   function newVisit() {
@@ -17030,39 +17158,33 @@ const Main = (() => {
   // ---- Confirmations (§7.1) ----
 
   const SHARDS = 'xk'; // shards, and a broken case's tile, which holds its glass
-  const SPECIAL = { line: 'beam', ring: 'ring of blows' };
-  const turns = n => n === 1 ? '1 turn' : `${n} turns`;
   // What a confirmation says before an action, or null when it needs none. It asks before:
   // stepping onto shards from a tile without them; every blow at a case's glass; leaving by
   // an exit (a minimal confirmation, D4.9); and any action that would leave you on a tile
   // marked for damage by a special that goes off before your next decision (Specials.threat).
-  // An action step() would refuse is never asked about: its refusal says why.
+  // An action step() would refuse is never asked about: its refusal says why. This decides
+  // when to ask; the words are Text.confirm's (text/confirm.js), as every sentence about the
+  // rules is (§3.4). The first that applies gives the title and button; each adds its line.
   function askFor(action) {
     if (!action || state.over || !Labels.allowed(state, action)) return null;
-    const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), why = [];
-    let title = null, yes = null;
-    const say_ = (t, y, ...lines) => { if (!title) { title = t; yes = y; } why.push(...lines); };
+    const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), said = [];
+    const ask = (k, data) => { const c = Text.confirm(k, data, nameOf); if (c) said.push(c); };
     if (action.a === 'move') {
       const x = you.x + Grid.DX[action.dir], y = you.y + Grid.DY[action.dir];
-      if (SHARDS.includes(Grid.ch(m, x, y)) && !SHARDS.includes(Grid.ch(m, you.x, you.y)) && !Actors.at(state, x, y))
-        say_('Step onto the shards?', 'Step onto the shards', `Broken glass is loud underfoot: while you stand on it, your ring reaches ${N.RING_LOUD_FLOOR} tiles farther.`);
+      if (SHARDS.includes(Grid.ch(m, x, y)) && !SHARDS.includes(Grid.ch(m, you.x, you.y)) && !Actors.at(state, x, y)) ask('shards');
     }
     if (action.a === 'bash') {
       const d = Cases.describe(state, Cases.at(state, action.x, action.y));
-      if (d && d.canBreak) say_('Break the glass?', 'Strike the glass', d.blows === 1
-        ? `This blow breaks its ${d.glassName} glass, with a crash.`
-        : `This blow is loud and cracks its ${d.glassName} glass; ${d.blows - 1 === 1 ? '1 more breaks it' : `${d.blows - 1} more break it`}, the last with a crash.`);
+      if (d && d.canBreak) ask('bash', { glassName: d.glassName, blows: d.blows });
     }
-    if (action.a === 'leave') say_('Leave the department?', 'Leave', 'Your visit ends when you go through this door.');
+    if (action.a === 'leave') ask('leave');
     const t = Specials.threat(state, action);
     if (t) {
       const owner = Actors.byUid(state, t.by), sp = owner && owner.telegraph ? owner.telegraph.sp : null;
-      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null, what = SPECIAL[shape] || 'special';
-      const who = nameOf(t.by) || 'an exhibit', stay = t.x === you.x && t.y === you.y;
-      say_(stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', stay ? 'Stay' : 'Step onto it',
-        `${who.charAt(0).toUpperCase() + who.slice(1)}’s ${what} goes off on that tile before your next turn: it would deal you ${t.dmg}, with no roll.`);
+      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null;
+      ask('threat', { by: t.by, shape, dmg: t.dmg, stay: t.x === you.x && t.y === you.y });
     }
-    return title ? { title, lines: why, yes } : null;
+    return said.length ? { title: said[0].title, lines: said.map(c => c.line), yes: said[0].yes } : null;
   }
 
   // ---- Walking and resting ----
@@ -17070,18 +17192,38 @@ const Main = (() => {
   // A walk or a rest: one action at a time, each through the confirmations, until it is done
   // or something stops it (§7.1). next() gives the next action, or null when done. An action
   // that needs a confirmation ends the run: the sheet asks, and its answer does that one
-  // action or nothing. stopWhy says why the last run stopped.
+  // action or nothing. stopWhy says why the last run stopped; end(), if given, is called once
+  // when the run ends, however it ends (done, stopped, asked, or interrupted by stop()).
   //   A run stops after an action whose events the log tells you of and that §7.1 lists
-  //   (STOPS; status only when it is yours), when an exhibit comes into view or changes its
-  //   mode or pips, when a new telegraph or call is marked, on the first loud tile you step
-  //   onto, and when the visit ends.
+  //   (STOPS; status only when it is yours), when an exhibit in view changes its mode or pips,
+  //   when one comes into view that is new to you or not as you last saw it (its mode, pips or
+  //   tile: known), when a new telegraph or call is marked, on the first loud tile you step
+  //   onto, and when the visit ends. An exhibit going out of view, or one you have seen coming
+  //   back into view as it was, does not stop it.
   const STOPS = new Set(['refused', 'opened', 'hunting', 'damaged', 'missed', 'died', 'telegraphed', 'woke', 'alerted', 'stage', 'entered',
     'case_opened', 'glass_cracked', 'glass_broke', 'took', 'used', 'identified', 'status', 'left']);
   const loudHere = () => { const you = state.actors[0], t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)]; return !!(t && t.loud); };
+  // How an exhibit looks: its mode and pips, and its tile.
+  const look = a => a.mode + '/' + a.pips;
+  const lookAt = a => look(a) + '@' + a.x + ',' + a.y;
+  // What the board shows now: each exhibit in view as it looks, the marks, and what the board
+  // had shown of each exhibit before (a copy of known).
   const watch = () => {
-    const vm = ViewModel.derive(state, {});
-    return { sights: vm.actors.map(a => a.uid + a.mode + a.pips).join(), marks: vm.marks.filter(k => k.kind === 'telegraph' || k.kind === 'call').map(k => k.kind + k.x + ',' + k.y + k.by), inView: new Set(vm.actors.map(a => a.uid)) };
+    const vm = ViewModel.derive(state, {}), sights = new Map();
+    for (const a of vm.actors) if (a.uid !== 'you') sights.set(a.uid, a);
+    return { sights, marks: vm.marks.filter(k => k.kind === 'telegraph' || k.kind === 'call').map(k => k.kind + k.x + ',' + k.y + k.by), inView: new Set(vm.actors.map(a => a.uid)), known: new Map(known) };
   };
+  // Is there something new or changed in sight since before: an exhibit in view then whose
+  // mode or pips changed, or one come into view that you had not seen, or not as it is now?
+  function news(now, before) {
+    for (const [uid, a] of now.sights) {
+      const was = before.sights.get(uid);
+      if (was ? look(was) !== look(a) : before.known.get(uid) !== lookAt(a)) return true;
+    }
+    return false;
+  }
+  // The board has shown you these exhibits: remember them as they look (draw, each frame).
+  function remember(vm) { for (const a of vm.actors) if (a.uid !== 'you') known.set(a.uid, lookAt(a)); }
   function stopFor(ev, before, wasLoud) {
     if (state.over) return 'over';
     const now = watch(), nameOf = Labels.nameOf(state);
@@ -17089,29 +17231,31 @@ const Main = (() => {
       if (!STOPS.has(e.k)) continue;
       if (e.k === 'status' ? e.who === 'you' : Text.log([e], nameOf, uid => now.inView.has(uid)).length) return e.k;
     }
-    if (now.sights !== before.sights) return 'sight';
+    if (news(now, before)) return 'sight';
     if (now.marks.some(k => !before.marks.includes(k))) return 'mark';
     if (!wasLoud && loudHere()) return 'loud';
     return null;
   }
-  function run(next) {
-    stop(); stopWhy = null;
+  function run(next, end) {
+    stop(); stopWhy = null; ending = end || null;
     let before = watch();
+    const done = () => { runner = null; const f = ending; ending = null; if (f) f(); };
     const once = () => {
       runner = null;
-      if (state.over) { stopWhy = 'over'; return; }
+      if (state.over) { stopWhy = 'over'; done(); return; }
       const action = next();
-      if (!action) { draw(); return; }
+      if (!action) { done(); draw(); return; }
       const c = askFor(action);
-      if (c) { stopWhy = 'confirm'; asking = { action }; UI.confirm(c); draw(); return; }
+      if (c) { stopWhy = 'confirm'; done(); asking = { action }; UI.confirm(c); draw(); return; }
       const wasLoud = loudHere(), ev = act_(action, true), why = stopFor(ev, before, wasLoud);
-      if (why) { stopWhy = why; return; }
+      if (why) { stopWhy = why; done(); return; }
       before = watch();
       runner = setTimeout(once, settings.motion === 'reduce' ? 0 : 70);
     };
     runner = setTimeout(once, 0);
   }
-  function stop() { clearTimeout(runner); runner = null; }
+  // Stops a run, which then ends (its end() is called, once).
+  function stop() { clearTimeout(runner); runner = null; const f = ending; ending = null; if (f) f(); }
 
   // Walk a path one move at a time; it also stops where the next tile is taken (a walk
   // never turns into an attack).
@@ -17127,15 +17271,31 @@ const Main = (() => {
   }
   // Rest (§8.1: a wait under its own name, which the interface repeats): once, then again
   // while you are below your maximum health and can recover it (not in the night watch,
-  // Clock.regenRate), under the walk's stop rules.
+  // Clock.regenRate), under the walk's stop rules. A rest that repeated leaves one line in the
+  // log when it ends, however it ends: the turns it took and the health that came back
+  // (Text.rest), since a rest's own turns are left out of the log.
   function rest() {
-    let n = 0;
+    const visit = state, turn = state.turn;
+    let n = 0, regained = 0, counted = last;
+    // The health each rest brought back (regenerated, or healed by anything else), counted
+    // once per step from the step's events (last).
+    const count = () => {
+      if (n === 0 || last === counted) return;
+      counted = last;
+      for (const e of last) if (e.who === 'you') regained += e.k === 'regenerated' ? 1 : e.k === 'healed' ? e.amount : 0;
+    };
     run(() => {
       const you = state.actors[0];
+      count();
       if (n > 0 && you.hp >= you.maxHp) { stopWhy = 'rested'; return null; }
       if (n > 0 && Clock.regenRate(state) === 0) { stopWhy = 'no_recovery'; return null; }
       n++;
       return { a: 'rest' };
+    }, () => {
+      if (n < 2 || state !== visit) return;
+      count();
+      const you = state.actors[0], s = Text.rest({ turns: state.turn - turn, regained, hp: you.hp, maxHp: you.maxHp });
+      if (s) { say(s); draw(); }
     });
   }
 
@@ -17239,7 +17399,7 @@ const Main = (() => {
     stop(); asking = null; UI.closeConfirm(); UI.closeOverlays(); UI.closeLabel();
     seed += 1; state = newVisit();
     ui = blank(); preview = null; ended = null; last = []; shown = null; stopWhy = null; overLogged = false;
-    history.length = 0; banners.clear(); Bag.close();
+    history.length = 0; banners.clear(); known.clear(); Bag.close();
     say(welcome());
     draw();
   }
@@ -17256,6 +17416,7 @@ const Main = (() => {
     // carry the selection themselves).
     ui.selectedTile = preview || tileOf(ui.selection);
     const vm = ViewModel.derive(state, ui);
+    remember(vm);
     // While a label is open the camera centres between you and what it names in the part of
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
     // leans as far towards it as it can.
@@ -17268,13 +17429,11 @@ const Main = (() => {
     renderer.draw(vm);
     shown = vm.camera;
   }
-  // The stage chip: the clock's stage (name) and what comes next (next), as one sentence
-  // (§7.2, §8.4), or null with no clock.
+  // The stage chip: the clock's stage (n, for its colour) with Text.stage's words, its name
+  // and what comes next (§7.2, §8.4, §3.4), or null with no clock.
   function stageChip(c) {
-    if (!c) return null;
-    if (c.stage === 0) return { n: 0, name: 'Open:', next: `bell in ${turns(c.toBell)}` };
-    if (c.stage === 1) return { n: 1, name: 'After the bell:', next: `night watch in ${turns(c.toWatch)}` };
-    return { n: 2, name: 'Night watch:', next: `next bell in ${turns(c.toNightBell)}` };
+    const w = c ? Text.stage(c) : null;
+    return w ? { n: c.stage, name: w.name, next: w.next } : null;
   }
   // Your statuses for the top bar: each by its registry pictogram, with its words and the
   // turns it still covers (Status.left), as your label says them.

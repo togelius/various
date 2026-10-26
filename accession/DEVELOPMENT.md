@@ -30,7 +30,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | M1 Layout | accepted, 23 October 2026 |
 | M2 Look and read | accepted, 23 October 2026 |
 | M2b The 3D board | the 3D checks and every M2 screen check pass in both views; waiting on Julian's side-by-side look and device numbers |
-| M3 Exhibits wake | underway: Wave 0 (the backbone) done, all five parts landed (W0a–W0e), the golden re-pinned, and the review's 28 findings fixed; all fourteen Wave 1 packages landed, and the Wave 1 integration review's findings fixed in two passes; the golden re-pinned at the end of Wave 1 (2478084208 → 234379235) and pending again for Wave 2a; Wave 2a done: W2a-BEHAVIOUR, W2a-LABELS and W2a-VM landed, the Wave 2a integration review's findings fixed, and the golden re-pinned at the end of Wave 2a (234379235 → 567324071), with `dist/` rebuilt, and pending again for Wave 2b; Wave 2b is next |
+| M3 Exhibits wake | accepted, 26 October 2026: the six criteria of BUILD.md §11's M3 row pass, with the golden re-pinned (pending no more) and the acceptance build kept as `dist/builds/7aeba871.html` (Chromium; Safari and Firefox hash checks pending, see below) |
 | M4 Three departments | not started |
 | M5 A run | not started |
 | M6 Sound | not started |
@@ -40,9 +40,9 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 
 | Check | How | Last result |
 |---|---|---|
-| Hash page in Safari (Mac) | open `dist/accession-hash.html` | pending |
-| Hash page in Safari (iPhone) | open the hosted hash page | pending |
-| Hash page in Firefox | open `dist/accession-hash.html` | pending |
+| Hash page in Safari (Mac) | open `dist/accession-hash.html` | pending for the M3 build (coreHash 7aeba871; four new golden runs) |
+| Hash page in Safari (iPhone) | open the hosted hash page | pending for the M3 build (coreHash 7aeba871) |
+| Hash page in Firefox | open `dist/accession-hash.html` | pending for the M3 build (coreHash 7aeba871) |
 | The game on the iPhone, both board views | open the hosted or Artifact build; walk, read a label, switch Board in Settings | pending |
 | 3D cost on the iPhone and the Mac | Settings → Board: 3D; note how smooth walking feels; leave the page in the background for a minute mid-department and come back | pending |
 
@@ -429,3 +429,105 @@ No number changed. Every rule below moved in BUILD.md in the same commit, and ea
   - **Dates:** three headings above dated 27 October (Wave 2b done, the Wave 3 tune and the rules review) say 26 October, the day they were written.
 - **Left as findings:** shards under an item are nearly invisible; on a phone a distant exhibit's own label can cover it.
 - coreHash 0254456c (main after the picks) → 7aeba871 (sentences only); vmHash d50dd3e2 and the pending golden 4167662364 unchanged (`node tools/golden.js --check`: pending, unchanged). `node test/run.js`: 846/846; the long battery's slice 1–180 (189,000 steps, 731 deaths): 0 violations, every recap equal to the log; `./check-all.sh`: 16 passed, 0 skipped, 0 failed.
+
+### 26 October 2026: M3 accepted
+
+- **The acceptance run** (the plan's Wave 3, one check per criterion of BUILD.md §11's M3 row), on the tree of c3b1fb9 with this commit's golden runs: coreHash 7aeba871, vmHash d50dd3e2, the same in every command below. Every check passed as it stood, so no fix was needed in this run; the only code here is a test of the new replay's story (below).
+
+| # | Criterion | Command | n and seeds | Result |
+|---|---|---|---|---|
+| 1 | Hit chance | `node test/run.js m3-combat`; the slice's pairs in `node test/run.js m3-odds` | Acc − Eva from −30 to +30 × the modifier sets {none, fixed, dazed, both} × Eva 0 and 3: 488 cases, 18 distinct chances, 10,000 rolls at each | 13/13; at every case the chance shown is the number of d100 faces that hit, and all K = 18 chances lie inside their 99.9% Wilson interval (z = 3.2905), 0 outside; the slice's Acc − Eva runs from −7 to +8, inside the tested range |
+| 2 | Odds readout | `node test/run.js m3-odds` | every pack species and the Night Watchman, depths 1–7, over the kit space (forms, tiers, grades short, Reach, surprise, old repairs, a splitter's halves) | 7/7; 175,800 readouts and 58,600 Attack buttons equal an independent count from §8.1 |
+| 3 | Special = mark | `node test/run.js m3-specials`; the long battery's `special_marks` | 123 planted runs; the long battery below | 11/11, 374 resolutions on you each equal to the view model's mark the step before; in the long battery 1,239 specials on you, each equal to its mark, 0 violations |
+| 4 | Counterplay beats naive | `node tools/sim.js --arena <id> --paired naive counter --seeds 1-200 --check`, then `node tools/report.js` on its JSON | each of the 11 arenas, seeds 1–200 (odd seeds depth 2, even seeds depth 5), every invariant after every step | all 11 pass (table below), 0 violations, 0 errors, each exit 0 |
+| 5 | Clauses hold; scenarios sensitive | the long battery; `node test/run.js behaviour` | the long battery below; every Behaviour-line scenario | 0 invariant violations over 451,459 steps and an empty completeness tally; 288/288, and every modifier's scenarios fail with the modifier off (`test/behaviour.test.js`'s sensitivity test) |
+| 6 | Causes and recap | the long battery | 809,844 events; 2,609 deaths | 0 schema failures; at every death `Text.recap`'s killer, wake turn, wake trigger and hunt turn equal `Recap.fromLog`'s, rebuilt from the log and the first state |
+
+- **Criterion 4, the eleven arenas** (`node tools/report.js`: the statistic with its 95% bootstrap interval, or Newcombe's for the Watchman; the goal met, naive → counterplay; the margin):
+
+| Arena | Statistic | 95% interval | Won, naive → counter | Margin | Verdict |
+|---|---|---|---|---|---|
+| plodder | HP lost ratio 0.48 | 0.46–0.51 | 50% → 100% | ≤ 90% | pass |
+| darter | HP lost ratio 0.67 | 0.63–0.71 | 34.5% → 87% | ≤ 70% | pass |
+| splitter | HP lost ratio 0.55 | 0.51–0.59 | 20% → 94.5% | ≤ 70% | pass |
+| mote_swarm | HP lost ratio 0.64 | 0.61–0.66 | 100% → 100% | ≤ 70% | pass |
+| kiter | HP lost ratio 0.45 | 0.42–0.48 | 79.5% → 98.5% | ≤ 70% | pass |
+| axis_sniper | HP lost ratio 0.00 | 0.00–0.00 | 100% → 100% | ≤ 50% | pass |
+| reflector | HP lost ratio 0.53 | 0.50–0.57 | 16% → 89.5% | ≤ 70% | pass |
+| herald | exhibits woken ratio 0.00 (naive wakes 4 a seed) | 0.00–0.00 | 100% → 100% | ≤ 50% | pass |
+| tethered_warden | HP lost ratio 0.00 | 0.00–0.00 | 100% → 100% | ≤ 50% | pass |
+| mimic_vitrine | HP lost ratio 0.00 | 0.00–0.00 | 100% → 100% | ≤ 30% | pass |
+| night_watchman | death rate 100% → 0%, difference 1.00 | 0.97–1.00 (Newcombe) | 0% → 100% | lower | pass |
+
+  In every row the interval of the per-seed difference excludes zero. The paired seeds, the replays chosen by rule and the policies' cards are in each report; the build they run in is `dist/builds/7aeba871.html`.
+- **The long battery** (`node tools/battery.js long --slice a-b --json <file>`, in eleven slices, each under 10 minutes: 1–91, 92–181, 182–2381, 2382–4581, 4582–4844, 4845–5107, 5108–5370, 5371–5631, and the three soaks alone, 5632, 5633 and 5634): 5,634 runs (the golden monkey, seed 20261023, 10,000 actions; 1,000-action monkeys in S.9, A.4 and M.11 at depths 1, 4 and 7, seeds 1–20; the 11 arenas × both policies × seeds 1–200; wander in the three departments at depths 1–7, seeds 1–50, to 1,000 turns; a 10,000-turn invulnerable soak per department at depth 3, seed 1, each crossing the bell and the night watch), 451,459 steps and 809,844 events in 30.9 minutes of slices (74–329 s each; 4.1 ms a step). 0 violations of any check (plain data, cause schema, clean sentences, every invariant, special marks, completeness, the rng and cause bounds, the starting story, the recap); an empty completeness tally; 2,609 deaths, every recap equal to the log's; 1,239 specials on you, each equal to its mark; every M3 action kind drawn. The killers' wake causes: ring 817, night_watch 680, placed 321, summoned 293, noise 242, tether 85, herald 59, night_bell 53, axis 35, damage 11, touch_case 10, ally_hit 3.
+- **Also required:** `node tools/lint-registry.js --strict`: "3 packs, 22 species, 39 event kinds, 119 cause pairs, 50 ledger entries clean; M3 entries at ready false 0, 'unit' 0, true 157; 157 M3 ids referenced; 19 M4 entries; strict". The ring ≡ pip test, `node test/run.js m3-ring`: 3/3 (the ring drawn after a step is exactly where sleepers gained a ring pip at its last boundary, and an independent ring, over 3 programmes × 10 seeds; its planted faults fail it; a 2×2 sleeper gains one pip when any of its tiles is in the ring).
+- **`./check-all.sh`,** with no skips: "check-all: 16 passed, 0 skipped, 0 failed" (363 s): lint-core 89 files, lint-tools 17, lint-numbers "227 numbers match BUILD.md, 165 meanings too", lint-registry, art, linked-builds, tests 851/851, short-sims 8/8, the build, revert-3d (without 3D the build is 900,283 bytes and 851/851 pass), check-3d, check-bag, check-hash ("every golden run passes; core 7aeba871"), check-play, check-screens (39 measurements, both sizes and three narrow phones) and check-smoke.
+- **Sizes:** `dist/accession.html` is 1,406,877 bytes (388,245 gzipped); `dist/accession-hash.html` 787,366 bytes (267,199 gzipped). M2's game was 783,221 bytes.
+- **The A.4 measurement** (plan D3.2, promised to Julian): in A.4 at depths 1–7, seeds 1–50 (350 departments, a median of 41–44 cases each, of which a median of 15.5 at depth 1 down to 5.5 at depth 7 have lock I, all of them Plate), the walk from the entrance to the nearest exit, with every case a wall (and every closed staff door above your grade), is a median 25 tiles. With every case your entry grade (I, `dept.entryGrade`) can open treated as passable, it shortens by a median of 0 tiles (0% at every depth); it is shorter in 41 of the 350 (8, 6, 7, 9, 6, 3 and 2 at depths 1–7), by at most 3 tiles, and the worst case is 26 → 23 tiles (12%, depth 4, seed 44). For a later run's visitor of grade d (the arena's kit rule), who can open more, the median is still 0 (0.5 at depth 7), 114 of 350 are shorter, by at most 4 tiles (15%). So opening lock-I Plate cases barely shortens the crossing: the shortest way rarely runs along the case rows. (Measured with `Grid.distances` by your step rule, the corner rule included, on each department as made; the script is not in the repository.)
+- **The golden runs.**
+  - golden re-pinned at the end of M3: 4167662364 → 4167662364 (unchanged); commit c3b1fb9 (the tree re-pinned, with no core change since); reason: M3's rules are complete, so the pending stretch ends; first divergence: none. `node tools/golden.js` reports "no step differs from the old pin", and `node tools/golden.js --against 80be683` (Wave 3's start) finds no step that differs in 10,000 actions, both ending at 4167662364: Wave 3 changed sentences, labels, tools and tests, none of which the state holds. `--check` then passes with nothing pending.
+  - **Added and pinned** (`node tools/golden.js --add`): `m3Replay` (hash 1926062853), 309 actions from the `wander` policy on M.11 at depth 3, seed 116, with a use and a bash put in at their first chance, since wander itself never bashes or uses: you apply a Restoration kit to your weapon (turn 20), break a Laminated case in two bashes (turn 29), hear the bell (turn 230), open a lock-I case (turn 278), see the night watch begin (turn 290), and die on turn 309, recapped "The Night Watchman defeated you on turn 309. The Night Watchman hit you for 5 (rolled 43 against 80%; 6 − 1 Padding). On turn 290, the Night Watchman began its rounds, hunting you from the start." (killer M11.3.watch.1, woken by `night_watch` on turn 290, equal to `Recap.fromLog`); and one 1,000-action monkey per department at depth 3, `m3MonkeyS9` (seed 2, 575567726), `m3MonkeyA4` (seed 370, 112734607) and `m3MonkeyM11` (seed 162, 1246583292). The monkey draws from every action kind that is legal; each seed is the first of 1–400 in its department to draw 14 of M3's 17 kinds (S.9's and A.4's miss `sit`, `close` and `leave`, M.11's `sit`, `bash` and `leave`). In 1,200 such monkeys (seeds 1–400 in each department) `sit` and `leave` were never drawn, and in the 90 counted they were never even legal: in 1,000 actions a monkey reaches no bench and no exit. The long battery draws them (`sit` 5 times, `close` 19, `leave` 600).
+  - `test/golden.test.js` plays all five runs twice and once cloned after every step, against their pins (6/6 with the new test, which holds m3Replay to its story: the use, the break and the open, the two stages and the recap's killer, wake turn, trigger and first line; a planted wake turn fails it). The hash page runs all five in Chromium ("PASS" for each, then "ALL PASS"), and `check-hash` passes. BUILD.md §3.5 names the new runs.
+- **The release build:** `python3 tools/build-single.py --release` rebuilt `dist/` and kept the acceptance build as [`dist/builds/7aeba871.html`](dist/builds/7aeba871.html), the build every report above names; check-all's linked-builds step reads this link.
+- **How M3 was built and reviewed:**
+  - **Wave 0** (the backbone, five serial parts W0a–W0e): its review confirmed 28 findings (13 on the interfaces Wave 1 is written against, 8 on rules, 7 on determinism and checks), all fixed at the root with a test that failed before.
+  - **Wave 1** (fourteen packages): each of the fourteen packages reviewed before it landed; then the integration review's 33 findings (joined-up play, explainability, determinism, readiness), fixed in two passes, among them a tethered warden's shown ring, three sentences that overstated, a beam's tiles fixed when marked, and the lint's missed equivalents.
+  - **Wave 2a** (the view model, labels, joined-up behaviour): the integration review's 27 findings (what is shown, the contract, readiness for Wave 2b), fixed in two sets, among them a splitter's hits needed, remembered tiles showing what you saw, and the wake pictograms.
+  - **Wave 2b** (the eleven arenas, the battery, the play and Bag screens): each of the six packages reviewed by one reviewer who also fixed (among the finds, `node tools/golden.js --help` re-pinned; check-bag catches 32 planted faults).
+  - **Wave 3:** the tune (one kit rule for the arenas; the darter and splitter rows; the mimic policies break a case they cannot open), with every arena passing over 200 seeds; the rules and explainability review (no rule departs from §8; seven false or wrong things a player reads fixed); the tests and interface review (each criterion test shown failing on planted faults; `sim --check` exits 1 on a verdict that is not a pass; the ring test bites on a 2×2 body; the confirmations' words from `Text`); and its fixes (walk stops, a long rest's line, the stage chip's words, the log's wording, the recap in the past tense).
+- **Readings flagged for Julian** (each one BUILD.md line or one row, cheap to reverse; gathered from BUILD.md, this file and the plan's Decisions):
+  - **The plan's Decisions:**
+    1. D1.4: a hunting exhibit's last-known tile moves only for a noise you make (the Tuning Fork's included), where §8.2 said any noise.
+    2. D2.1: a special's recovery follows the design's worked fight (marked at 400, resolved at 500, next action at 700), rather than "the action after that costs +100" read in this scheduler.
+    3. D2.2: after it marks a special, an exhibit acts no earlier than your next decision, ties going to you, so no special resolves before you have seen its mark.
+    4. D2.13: specials belong to archetypes, not roles (the axis_sniper's line, the tethered warden's ring, the herald's call); the kiter shoots ordinary shots, and the reflector and the Night Watchman have none.
+    5. D3.2: every vitrine inside a room is a case you can open or break, so A.4's case rows are maze walls (measured above: they barely shorten the crossing).
+    6. D3.13: an encased exhibit never steps or strikes out of its case; it may fire a beam or call, but never marks a ring or shoots a bolt.
+    7. D4.6: the Night Watchman is an exhibit you can harm, not the invulnerable night staff of DESIGN.md.
+    8. D5.3: a consumable's local name belongs to its seal, not its kind, so no name tells a kind from one run to the next.
+    9. D5.13: each room's cases, items and consumables draw on one populate stream in turn, and a new local stream, `…/a<k>/items`, picks the rooms for items (a new §3.2 row).
+    10. D6.11: the plodder arena has three plodders, since one plodder gains nothing from a doorway.
+    11. D7.6: M3 departments place only species whose archetype M3 builds, and no Centrepiece, so no Behaviour line is false before M4.
+    12. D7.7: policies see the view model with the last turn's events and unseen tiles masked, plus the log and the labels they read, not `derive(state, {})`.
+    13. D7.11: the golden run was pending within each wave and re-pinned at each wave's end, the hash page compared with Node throughout.
+  - **Labels and the screen:**
+    14. The reading distances: exhibits, cases and items are read within 2 king moves, plaques within `read`'s disc, so a plaque 2 tiles off on both axes cannot be read where an exhibit could.
+    15. The walk-stop reading: a walk stops when an exhibit in view changes its mode or pips, or comes into view new or changed, but not when one leaves view or comes back as you last saw it.
+    16. Narrower phones at the largest text: below 390 px wide at text size 1.3 the board keeps less than 40% of the window's height, as it did before M3 (at 390×844 it keeps 341 px against 337.6).
+    17. The ring's sentence: the ring is drawn from your tile on the map as it is now, which after a Heavy blow can differ from the ring the last boundary applied.
+  - **The arenas (§10.3):**
+    18. The arena kit rule: in every arena at depth d you are grade d with that grade's health, in Balanced and Standard kit of the lower tier on offer at d, unless a row names a form.
+    19. The plodder row: three plodders, "kill them" (D6.11).
+    20. The darter row: the counterplay shoots the darter with the arena's Pin-Driver while it is out of reach, besides cornering it, since cornering alone measured 0.835 against 0.70.
+    21. The splitter row: the arena has a doorway, naive brings a Light weapon into the open, and the counterplay keeps the Balanced weapon in the doorway.
+    22. The kiter row's wording says "approach behind pillars", while its counterplay fights from cover.
+    23. The Heavy-versus-splitter design question: a Heavy weapon is no counter to splitting under §8.1, so keeping "big single hits" as the answer needs a Heavy blow worth its 150 ticks or a split that needs a small hit.
+    24. The warden take-tile question: a sleeping warden's guarded item can be taken with no lure wherever a take tile is one step from outside its tether.
+  - **Rules read in Wave 1:**
+    25. The `quiet` primitive makes your ring smaller after a move or any blow, however the blow is struck.
+    26. A restoring status put on again while held lasts to the later end at the same rate, so overlapping doses heal less than twice the total.
+    27. A sleeper in an intact case under a Fumigant cloud still loses pips.
+    28. An exhibit never reacts to a noise it made itself.
+    29. Encased exhibits keep §8.2's mode timers, so one never stays hunting for ever.
+    30. An awake exhibit wanders to walkable tiles it can reach, not to every tile it could stand on (a vitrine or a plinth).
+    31. Exhibits walk round other actors, and one blocked from home wanders and tries again after 20 undisturbed turns (two new rules).
+    32. Event kinds carry no `ready` field, so `lost`, `alerted`, `returned`, `moved`, `opened` and `closed` cannot be marked `'unit'`.
+    33. A night-watch bell can wake a sleeper behind a staff door you cannot open, which then cannot come through it.
+    34. Nine M2 sample paragraphs stay outside §5.2's 40–70 words (an exception written in §5.2, pinned so the list cannot grow).
+    35. "Equipment" is read as the samples' item tables, curios and instruments included.
+    36. Both halves of a split move a generation on, and a body splits only from 2 health, so "at most 2 splits" holds; the splitter's clause was reworded to be true in every case.
+    37. The darter steps back by its own rule, not by `AI.away`, which could open a door instead.
+    38. A shot's range is a disc, as "within r" is elsewhere.
+    39. A bolt sent back by a reflector always comes into its shooter, its damage from the tile next to the shooter.
+    40. The axis_sniper never aims through a reflector, and waits rather than mark a line that would overlap another mark.
+    41. The kiter keeps its band of 3–5 steps strictly.
+    42. A beam's tiles are fixed when it is marked, so a reflector that steps onto them later does not cut it, and the floor's marks never change after they are shown.
+    43. The mimic's pipless rule covers any sleep, not only its disguise, so its "Wakes only when…" line stays true.
+    44. A warden watched from outside its tether stands its ground quietly; an awake warden lured by a noise is not sent back (which keeps the Tuning Fork's lure); and its heal at home does not go through `Health.heal`.
+    45. The arena stamp gains a `metric` key; a Newcombe comparison in which neither policy ever has the outcome is a finding, not a pass; with a check on, a policy that changes the state while deciding stops the run.
+  - **Wave 2a's two:**
+    46. `holdsWithout` narrows §5.3's check 3: three scenarios show what a modifier leaves alone and may hold with it off (marble's blows, old_repair's opposite side, glass pulled onto a beam already marked).
+    47. `not_built` is M4's: no M3 action gives that refusal, so it is classed `built: 'M4'`.
+- **Pending for Julian:** the hash page in Safari (Mac and iPhone) and Firefox on this build (four golden runs new, the first department runs among them), and the M2b look and device numbers; see "Checks Julian runs" above.
+- **Commands for this commit:** `node test/run.js` (851/851 passed); `./check-all.sh` ("check-all: 16 passed, 0 skipped, 0 failed").
