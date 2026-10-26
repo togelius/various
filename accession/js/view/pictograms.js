@@ -52,16 +52,16 @@ const Pictograms = (() => {
     garment:   ['.xx..xx.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.'],
     curio:     ['........', '.xxxxxx.', 'xx.xx.xx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '...xx...', '........'],
     instrument:['.x....x.', '.x....x.', '.x....x.', '.x....x.', '..xxxx..', '...xx...', '...xx...', '...xx...'],
-    // the seals, keyed by Registry.SEALS[id].shape (D5.11): four wax seals over the Solutions,
-    // four ink stamps over the Ephemera, told apart by shape
-    round:     ['..xxxx..', '.xxxxxx.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..'],
-    square:    ['........', '.xxxxxx.', '.xxxxxx.', '.xx..xx.', '.xx..xx.', '.xxxxxx.', '.xxxxxx.', '........'],
-    diamond:   ['...xx...', '..xxxx..', '.xx..xx.', 'xx....xx', 'xx....xx', '.xx..xx.', '..xxxx..', '...xx...'],
-    star:      ['...xx...', '...xx...', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '.xxxxxx.', '.xx..xx.', 'x......x'],
-    anchor:    ['...xx...', '..x..x..', '...xx...', '.xxxxxx.', '...xx...', 'x..xx..x', '.x.xx.x.', '..xxxx..'],
-    key:       ['........', '.xxx....', 'x...x...', 'x...xxxx', 'x...x.xx', '.xxx..x.', '........', '........'],
-    bell:      ['...xx...', '..x..x..', '.x....x.', '.x....x.', '.x....x.', 'xxxxxxxx', '........', '...xx...'],
-    hand:      ['.x.x.x..', '.x.x.x..', '.x.x.x.x', '.xxxxx.x', '.xxxxxxx', '.xxxxxx.', '..xxxx..', '..xxxx..'],
+    // the seals, keyed seal_<shape> by Registry.SEALS[id].shape (D5.11, §8.8): four wax seals
+    // over the Solutions, four ink stamps over the Ephemera, told apart by shape
+    seal_round: ['..xxxx..', '.xxxxxx.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..'],
+    seal_square: ['........', '.xxxxxx.', '.xxxxxx.', '.xx..xx.', '.xx..xx.', '.xxxxxx.', '.xxxxxx.', '........'],
+    seal_diamond: ['...xx...', '..xxxx..', '.xx..xx.', 'xx....xx', 'xx....xx', '.xx..xx.', '..xxxx..', '...xx...'],
+    seal_star: ['...xx...', '...xx...', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '.xxxxxx.', '.xx..xx.', 'x......x'],
+    seal_anchor: ['...xx...', '..x..x..', '...xx...', '.xxxxxx.', '...xx...', 'x..xx..x', '.x.xx.x.', '..xxxx..'],
+    seal_key:  ['........', '.xxx....', 'x...x...', 'x...xxxx', 'x...x.xx', '.xxx..x.', '........', '........'],
+    seal_bell: ['...xx...', '..x..x..', '.x....x.', '.x....x.', '.x....x.', 'xxxxxxxx', '........', '...xx...'],
+    seal_hand: ['.x.x.x..', '.x.x.x..', '.x.x.x.x', '.xxxxx.x', '.xxxxxxx', '.xxxxxx.', '..xxxx..', '..xxxx..'],
     // statuses and surfaces, keyed by their registry ids (Registry.STATUSES, .SURFACES)
     fixed:     ['.xxxxxx.', '..xxxx..', '..xxxx..', '.xxxxxx.', '...xx...', '...xx...', '...xx...', '...x....'],
     rooted:    ['...xx...', '...xx...', '...xx...', '...xx...', '..xxxx..', '.x.xx.x.', 'x..xx..x', '.x.x..x.'],
@@ -82,7 +82,8 @@ const Pictograms = (() => {
     certificate: 'item', highlight: 'item', grade: 'readable', reads: 'readable', bench: 'readable',
     lock: 'readable', glass: 'readable', shards: 'hazard', loan: 'item',
     weapon: 'item', garment: 'item', curio: 'item', instrument: 'item',
-    round: 'item', square: 'item', diamond: 'item', star: 'item', anchor: 'item', key: 'item', bell: 'item', hand: 'item',
+    seal_round: 'item', seal_square: 'item', seal_diamond: 'item', seal_star: 'item',
+    seal_anchor: 'item', seal_key: 'item', seal_bell: 'item', seal_hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
   };

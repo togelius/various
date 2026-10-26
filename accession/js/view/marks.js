@@ -38,8 +38,8 @@ const Marks = (() => {
   // reinstalling into returning, D1.1); a sleeper with pips shows its pips instead.
   const GLYPH = { dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' };
   const glyphOf = mode => GLYPH[mode] || 'alert';
-  // An item's pictogram: a consumable's seal shape (D5.11), else its kind's.
-  const iconOf = it => (it && it.shape) || (it && it.icon === 'consumable' ? 'seal' : (it && it.icon) || 'seal');
+  // An item's pictogram: a consumable's seal shape, seal_<shape> (D5.11, §8.8), else its kind's.
+  const iconOf = it => (it && it.shape ? 'seal_' + it.shape : null) || (it && it.icon === 'consumable' ? 'seal' : (it && it.icon) || 'seal');
   const NOISE = { soft: 1, loud: 2, crash: 3 };
 
   function list(vm, rectOf, actorRect, tile, width, height, clearBottom) {

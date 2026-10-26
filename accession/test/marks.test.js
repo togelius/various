@@ -113,7 +113,7 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
     const { c, log } = recorder(); let drawn = null;
     const orig = Pictograms.draw; Pictograms.draw = (cx, id) => { drawn = id; };
     try { items.find(d => d.id === 'item:5,5').paint(c); } finally { Pictograms.draw = orig; }
-    assert.equal(drawn, 'star');
+    assert.equal(drawn, 'seal_star');
   });
 
   test('an exhibit\'s glyph row (glass, state or pips, the special it marks) sits above it, or beside its head where another actor stands above, and never covers another actor', () => {

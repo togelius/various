@@ -83,12 +83,28 @@ module.exports = ({ test, assert, root, path, fs, loadCore }) => {
   test('every icon the view model can name has a pictogram: item kinds, seal shapes, statuses, surfaces, state glyphs and the case glyphs', () => {
     const C = loadCore(), R = C.Registry, need = new Set(['lock', 'glass', 'loan', 'reads', 'special', 'pip', 'pip_empty', 'seal', 'kit']);
     for (const k of ['weapon', 'garment', 'curio', 'instrument', 'kit']) need.add(k);
-    for (const id of R.order('SEALS')) need.add(R.SEALS[id].shape);
+    for (const id of R.order('SEALS')) need.add('seal_' + R.SEALS[id].shape);
     for (const t of ['STATUSES', 'SURFACES']) for (const id of R.order(t)) need.add(R[t][id].icon);
     for (const g of Object.values(Marks.GLYPH)) need.add(g);
     const missing = [...need].filter(id => !Pictograms.G[id]);
     assert.deepEqual(missing, []);
     // The seals are told apart by shape: eight seals, eight shapes.
     assert.equal(new Set(R.order('SEALS').map(id => R.SEALS[id].shape)).size, R.order('SEALS').length);
+  });
+
+  test('every icon a label or the strip can show has a pictogram: exhibits, cases, staff doors, plaques for every kind, items and you, in the three departments', () => {
+    const C = loadCore(), { Dept, Labels, Registry: R } = C, seen = new Set();
+    const take = l => { if (!l) return; for (const i of l.stateIcons || []) seen.add(i); for (const p of l.pictos || []) seen.add(typeof p === 'string' ? p : p.icon); };
+    for (const acc of ['S9', 'A4', 'M11']) for (const depth of [1, 4, 7]) {
+      const s = Dept.create(depth * 7, acc, depth);
+      for (const a of s.actors.slice(1)) take(Labels.of(s, a.uid));
+      for (const it of s.items) take(Labels.ofItem(s, it.uid));
+      for (const f of s.dept.fixtures) take(f.k === 'case' ? Labels.ofCase(s, f) : f.k === 'staff' ? Labels.ofStaffDoor(s, f) : Labels.ofPlaque(s, f));
+      // A plaque for every kind, so every seal's pictogram is asked for.
+      for (const ck of R.order('CONSUMABLES')) take(Labels.ofPlaque(s, { k: 'plaque', x: 0, y: 0, ck }));
+      take(Labels.you(s)); take(Labels.strip(s));
+    }
+    for (const id of R.order('SEALS')) assert.ok(seen.has('seal_' + R.SEALS[id].shape), `no label shows seal_${R.SEALS[id].shape}`);
+    assert.deepEqual([...seen].filter(id => !Pictograms.G[id]), [], 'icons a label shows with no pictogram');
   });
 };
