@@ -440,11 +440,12 @@ module.exports = ({ test, assert, loadCore }) => {
 
   // Until the department golden runs of Wave 3 (§3.5), this is where a department's own
   // code (cases, kit, consumables, surfaces, the clock) is held to §3.1 and §3.5 step by step:
-  // a 300-action monkey (moves, waits and attacks) at depth d with seed d, your health 999,
-  // played once continuously and once with a clone after every step, their hashes compared
-  // every 10 steps (a difference, once there, stays) and plain data checked every step. A
-  // difference is played again step by step, so the report names the first step that
-  // differs, its action and events, and the first field of the state that differs.
+  // a 300-action monkey (every action kind a player has, weighted; tools/monkey.js) at depth d
+  // with seed d, your health 999, played once continuously and once with a clone after every
+  // step, their hashes compared every 10 steps (a difference, once there, stays) and plain data
+  // checked every step. A difference is played again step by step, so the report names the
+  // first step that differs, its action and events, and the first field of the state that
+  // differs.
   // cloneCheck(K, acc, depth) → null, or that report.
   const firstField = (a, b, at) => {
     if (JSON.stringify(a) === JSON.stringify(b)) return null;
