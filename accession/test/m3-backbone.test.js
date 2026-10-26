@@ -372,12 +372,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // its invariant (test/behaviour/system.inv.js), which catches a refusal that comes with
   // other events, draws, or changes the state; each the real game can give is at true, made
   // to happen joined up in behaviour/refusals.test.js (W2a-BEHAVIOUR), and not_built, which
-  // no M3 action gives, stays at 'unit'.
+  // no M3 action gives, is built: 'M4', at 'unit'.
   test('the backbone refusal codes are proved here and joined up, with the system invariant, which catches a refusal that changes anything', () => {
     const BACKBONE = ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'not_built', 'no_use'];
     for (const code of BACKBONE) {
       const e = C.Registry.REFUSALS[code];
-      const want = code === 'not_built' ? ['M3', 'unit', ['m3-backbone.test.js'], 'system'] : ['M3', true, ['m3-backbone.test.js', 'behaviour/refusals.test.js'], 'system'];
+      const want = code === 'not_built' ? ['M4', 'unit', ['m3-backbone.test.js'], 'system'] : ['M3', true, ['m3-backbone.test.js', 'behaviour/refusals.test.js'], 'system'];
       assert.equal(json([e.built, e.ready, e.tests, e.inv]), json(want), code);
     }
     const Inv = require(path.join(root, 'tools/invariants.js'));

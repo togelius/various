@@ -273,22 +273,24 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     r = lint("Registry.define('GLASS', 'planted_named', { ready: 'unit', tests: ['m3-grammar.test.js'], inv: 'cases' });");
     assert.doesNotMatch(r.stdout, /planted_named is referenced by no pack/, 'this file names \'planted_named\'');
     assert.equal(r.status, 0, r.stdout);
-    // --strict is M3's acceptance: it fails until every M3 entry is ready.
-    r = lint(null, ['--strict']);
-    assert.equal(r.status, 1); assert.match(r.stdout, /--strict: \S+ is at ready (false|"unit")/);
+    // --strict is M3's acceptance: it fails while any M3 entry is below ready true (here a
+    // planted one, at 'unit').
+    const below = "Registry.define('GLASS', 'planted_below', { ready: 'unit', tests: ['m3-grammar.test.js'], inv: 'cases' });";
+    r = lint(below, ['--strict']);
+    assert.equal(r.status, 1); assert.match(r.stdout, /--strict: GLASS\.planted_below is at ready "unit"/);
     // With --follow-ups, an entry below true passes while test/behaviour/follow-ups.json (here a
     // planted copy) holds an open follow-up for it; one without stays a problem, and a
     // follow-up for an id that is not an M3 entry fails.
-    const ids = [];
+    const ids = ['GLASS.planted_below'];
     for (const t of C.Registry.TABLES) for (const id of C.Registry.order(t)) if (C.Registry[t][id].built === 'M3' && C.Registry[t][id].ready !== true) ids.push(t + '.' + id);
     const follow = Object.fromEntries(ids.map(w => [w, 'planted: promoted by the joined-up scenarios']));
     const ff = path.join(tmp, 'follow-ups.json');
     fs.writeFileSync(ff, JSON.stringify(follow));
-    r = lint(null, ['--strict', '--follow-ups', '--follow-file', ff]);
+    r = lint(below, ['--strict', '--follow-ups', '--follow-file', ff]);
     assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, new RegExp(`${ids.length} open follow-up\\(s\\)`));
     delete follow[ids[0]]; follow['ARCHETYPES.patrol_guard'] = 'an M4 entry';
     fs.writeFileSync(ff, JSON.stringify(follow));
-    r = lint(null, ['--strict', '--follow-ups', '--follow-file', ff]);
+    r = lint(below, ['--strict', '--follow-ups', '--follow-file', ff]);
     assert.equal(r.status, 1);
     assert.match(r.stdout, new RegExp(`--strict: ${ids[0].replace('.', '\\.')} is at ready`)); assert.match(r.stdout, /follow-ups: ARCHETYPES\.patrol_guard is not an M3 entry/);
     // And the tree itself is clean, with the readiness counts reported.
