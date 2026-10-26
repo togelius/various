@@ -1,18 +1,26 @@
 // ACCESSION — the Bag with left clicks only (BUILD.md §7.1, §7.2, §8.5, §8.6). At phone and
 // laptop size, in every board view, in M.11 (seed 3): open the Bag; equip a weapon; drink a
-// Solution; throw one, aimed (the first click on a tile previews it and its square, the
-// second throws); throw an unknown one too near (the preview and the refusal name no kind,
-// its square is the largest any Solution covers, and the aim stays); strike a Tuning Fork
-// from its quickslot; push and then pull an exhibit with the Window Pole, through its sheet,
-// at a tile where both are legal; use a Restoration kit on what you wear (a first click
-// shows what it gains, a second uses it); the quickslots (your instrument first, then your
-// consumables in tote order); a Catalogue Card's choice, shown by the Bag; the floor plan,
-// before and after a Floor Plan is read. The Bag goes inert under a confirmation. With each
-// open: no sideways scroll, nothing past the window, no target under 44 px.
+// Solution; a drink and a throw on a tile a beam is marked through ask first (the Bag acts
+// through main.js's confirmations), and Cancel does nothing (the aim stays); throw one, aimed
+// (the first click on a tile previews it and its square, the second throws); throw an
+// unknown one too near (nothing in the Bag, its quickslot, the preview or the refusal names
+// its kind, its square is the largest any Solution covers, and the aim stays); strike a
+// Tuning Fork from its quickslot, then with Enter on its preview (never the selected thing's
+// action), and Escape ends its aim; push and then pull an exhibit with the Window Pole,
+// through its sheet, at a tile where both are legal (keys do nothing behind the sheet, and a
+// click beside it cancels); use a Restoration kit on what you wear (a first click shows what
+// it gains, a second uses it); the quickslots (your instrument first, then your consumables
+// in tote order); a Catalogue Card's choice, shown by the Bag, closed, and shown again when
+// anything else is tried; the floor plan, before and after a Floor Plan is read, its doors,
+// staff doors and cases each with a shape; time passing ends an aim, so a phone's strip shows
+// what happened. At every text size, the aim strip holds its longest words (an unknown
+// Solution with the longest local name of any pack), also on the narrowest laptop board. The
+// Bag goes inert under a confirmation. With each open: no sideways scroll, nothing past the
+// window, no target under 44 px.
 // No department places a fork or a pole, so each scene is staged on window.ACCESSION.state
 // (as check-3d and check-play stage theirs): the items are made in your tote and you and an
 // exhibit are put where the scene needs; everything the player then does is a left click on
-// what is on screen.
+// what is on screen (and Enter, Escape and "." where a key is what is tested).
 import { open } from './lib.mjs';
 import { layout, targets } from './measure.mjs';
 
@@ -80,6 +88,83 @@ function helpers() {
     },
     // The kind names a sentence must not say before the kind is known.
     kinds: () => Registry.order('CONSUMABLES').map(ck => Registry.CONSUMABLES[ck].name.replace(/[“”"]/g, '')),
+    // A beam marked through your tile, going off before your next decision: an axis_sniper
+    // hunting you from 3 to 6 tiles along a line, with its beam marked now (as check-play
+    // stages it). {sn, x, y} or {why}.
+    beam() {
+      const A = window.ACCESSION, s = S(), me = s.actors[0], T = window.__t, was = [me.x, me.y];
+      T.calm();
+      const sn = s.actors.find(a => a.arch === 'axis_sniper' && !a.gone);
+      if (!sn) return { why: 'no axis_sniper in this department' };
+      for (const d of [6, 2, 0, 4]) for (let r = 3; r <= 6; r++) {
+        const x = sn.x + Grid.DX[d] * r, y = sn.y + Grid.DY[d] * r;
+        if (!free(x, y)) continue;
+        T.put(x, y);
+        Object.assign(sn, { mode: 'hunting', sawYou: true, lastKnown: [x, y], stim: s.turn, telegraph: null });
+        const tiles = Specials.tiles(s, sn, 'line');
+        if (!tiles.some(([p, q]) => p === x && q === y) || !Specials.canMark(s, sn, 'line', tiles)) continue;
+        sn.next = me.next;
+        Specials.mark(s, sn, 'line', tiles, []);
+        A.redraw();
+        return { sn: sn.uid, x, y, was };
+      }
+      sn.mode = 'dormant'; T.put(was[0], was[1]);
+      return { why: 'no tile in the sniper’s line to stand on' };
+    },
+    // An unknown Solution with the longest local name any pack gives (a stack keeps the name
+    // of the department it was first taken in, its `from`), in your tote: {uid, name}.
+    longest() {
+      const s = S(), seals = Registry.order('SEALS');
+      let best = null;
+      for (const ck of Registry.order('CONSUMABLES')) {
+        if (Registry.CONSUMABLES[ck].cls !== 'solution' || Consumables.known(s, ck)) continue;
+        const pos = seals.indexOf(Consumables.sealFor(s, ck));
+        for (const acc of ['S9', 'A4', 'M11']) { const n = Packs.get(acc).consumables.names[pos]; if (!best || n.length > best.name.length) best = { ck, acc, name: n }; }
+      }
+      if (!best) return null;
+      Consumables.make(s, best.ck, { at: 'tote' });
+      const it = s.items.find(i => i.ck === best.ck && i.where.at === 'tote');
+      it.from = best.acc;
+      window.ACCESSION.redraw();
+      return { uid: it.uid, name: Consumables.name(s, it).local };
+    },
+    // M.11 (seed 3) has staff doors and archways but no door: once a Floor Plan is read, an
+    // archway in view, off every Highlight room's outline, is made a closed door, on the map
+    // and in what you remember, so the plan has one to draw. Its tile, or null.
+    door() {
+      const A = window.ACCESSION, s = S(), m = s.dept, vm = A.vm();
+      const near = (x, y) => (vm.plan || []).some(r => x >= r.x0 - 2 && x <= r.x1 + 2 && y >= r.y0 - 2 && y <= r.y1 + 2);
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+        if (Grid.ch(m, x, y) !== ',' || near(x, y) || Actors.at(s, x, y) || (s.items || []).some(i => i.where.x === x && i.where.y === y)) continue;
+        m.tiles[y] = m.tiles[y].slice(0, x) + '+' + m.tiles[y].slice(x + 1);
+        if (typeof m.seen === 'string' && m.seen.length === m.w * m.h) m.seen = m.seen.slice(0, y * m.w + x) + '+' + m.seen.slice(y * m.w + x + 1);
+        A.redraw();
+        return { x, y };
+      }
+      return null;
+    },
+    // How the floor plan draws a door, a staff door and a shut case: for one tile of each in
+    // view (not yours, nor on a Highlight room's outline or number), the colours inside it
+    // and the colours at its centre and at the middle of its left side. {door, staff, case},
+    // each {x, y, colours, centre, side} or null.
+    mapShapes() {
+      const vm = window.ACCESSION.vm(), c = document.querySelector('#bag.open canvas.bag-map');
+      if (!c || !c.width) return null;
+      const px = c.width / vm.w, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const onOutline = (x, y) => (vm.plan || []).some(r => x >= r.x0 - 1 && x <= r.x1 + 1 && y >= r.y0 - 1 && y <= r.y1 + 1 && (Math.abs(x - r.x0) <= 1 || Math.abs(x - r.x1) <= 1 || Math.abs(y - r.y0) <= 1 || Math.abs(y - r.y1) <= 1 || (y <= r.y0 + 2 && x <= r.x0 + 4)));
+      const at = (X, Y) => { const i = (Math.floor(Y) * c.width + Math.floor(X)) * 4; return `${d[i]},${d[i + 1]},${d[i + 2]}`; };
+      const out = {};
+      for (const [k, chars] of [['door', "+'"], ['staff', 'Ss'], ['case', 'v']]) {
+        out[k] = null;
+        for (let y = 0; y < vm.h && !out[k]; y++) for (let x = 0; x < vm.w && !out[k]; x++) {
+          if (!chars.includes(vm.tiles[y][x]) || !vm.vis[y * vm.w + x] || (x === vm.you.x && y === vm.you.y) || onOutline(x, y)) continue;
+          const seen = new Set();
+          for (let j = 0; j < px; j++) for (let i = 0; i < px; i++) seen.add(at(x * px + i, y * px + j));
+          out[k] = { x, y, colours: seen.size, centre: at(x * px + px / 2, y * px + px / 2), side: at(x * px + 1, y * px + px / 2) };
+        }
+      }
+      return out;
+    },
   };
 }
 
@@ -99,6 +184,18 @@ async function run(W, H) {
   const aimText = () => page.evaluate(() => { const e = document.querySelector('#bagaim.open .aim-text'); return e ? e.textContent : ''; });
   const rectOf = t => page.evaluate(q => JSON.stringify(window.ACCESSION.renderer.tileRect(q.x, q.y).rect), t);
   const slotSel = W < 900 ? '#barslots' : '#slots';
+  // Whether the confirmation sheet asks, with its title; a key pressed (Enter, Escape and "."
+  // are tested as keys); the text size, set by clicks in Settings.
+  const confirmShown = () => page.evaluate(() => { const c = document.querySelector('#confirm.open h2'); return c ? c.textContent : ''; });
+  const key = async k => { await page.keyboard.press(k); await settle(); };
+  const textSize = async (v, tag) => { await press('#setbtn', tag, 'Settings'); await press(`[data-set="text"][data-value="${v}"]`, tag, `text size ${v}`); await press('#settings [data-close]', tag, 'Close'); };
+  // The text a player meets for item uid (its row in the Bag, its view, its quickslot's words
+  // and name for a screen reader), checked for a kind's name while its kind is unknown.
+  const leaks = (uid, where) => page.evaluate(([uid, where]) => {
+    const kinds = window.__t.kinds(), e = document.querySelector(where);
+    const said = e ? [e.textContent, ...[...e.querySelectorAll('[aria-label]')].map(q => q.getAttribute('aria-label'))].concat(e.getAttribute('aria-label') || '').join(' ') : '';
+    return kinds.filter(k => said.toLowerCase().includes(k.toLowerCase()));
+  }, [uid, where]);
   // A tile 1 or 2 away that a first throw of uid refuses for being too near, or null.
   const nearTile = uid => page.evaluate(u => {
     const s = window.ACCESSION.state, me = s.actors[0], out = [];
@@ -168,10 +265,51 @@ async function run(W, H) {
     else if (!t1.ev.includes('used') || !t1.ev.includes('healed') || t1.hp <= t0.hp) bad(`${tag}: Drink did not heal (${t0.hp} → ${t1.hp}; ${t1.ev.join()})`);
     else did.push(`drank (${t0.hp} → ${t1.hp})`);
 
+    // ---- The Bag acts through main.js's confirmations (§7.1), as every button does: on a
+    // tile a beam is marked through, going off before your next decision, a drink would leave
+    // you there, and so would a throw, so each asks first; Cancel does nothing, and a
+    // cancelled throw leaves its aim for another tile (the aim strip is inert meanwhile).
+    const CB = await make(() => { const s = window.ACCESSION.state; Consumables.make(s, 'consolidant', { at: 'tote' }); window.ACCESSION.redraw(); return s.items.find(i => i.ck === 'consolidant' && i.where.at === 'tote').uid; });
+    const bm = await page.evaluate(() => window.__t.beam());
+    if (bm.why) bad(`${tag}: could not stage a beam: ${bm.why}`);
+    else {
+      const left = () => page.evaluate(uid => window.ACCESSION.state.items.find(i => i.uid === uid).n, CB);
+      await press('#bar [data-act="bag"]', tag, 'the Bag button');
+      await press(`#bag [data-item="${CB}"]`, tag, 'the Consolidant');
+      t0 = await now(); const n0 = await left();
+      await press('#bag [data-action="use"]', tag, 'Drink');
+      const q1 = await confirmShown();
+      if (!/marked tile/.test(q1)) bad(`${tag}: a drink on a beam's tile did not ask first ("${q1}")`);
+      else await press('#confirm.open [data-confirm="no"]', tag, 'Cancel');
+      if ((await now()).tick !== t0.tick || await left() !== n0) bad(`${tag}: the drink cancelled on a beam's tile still did something`);
+      else did.push('a drink on a beam asked first');
+      await press('#bar [data-act="bag"]', tag, 'the Bag button');
+      await press(`#bag [data-item="${CB}"]`, tag, 'the Consolidant');
+      await press('#bag [data-action="throw"]', tag, 'Throw…');
+      const bt = await page.evaluate(uid => window.__t.tileIn(Consumables.targets(window.ACCESSION.state, uid), 3, 5), CB);
+      if (!bt) bad(`${tag}: no tile 3 to 5 away to throw at from the beam`);
+      else {
+        await tapTile(bt, tag, 'a tile to throw at'); await tapTile(bt, tag, 'the tile again');
+        const q2 = await confirmShown(), inert = await page.evaluate(() => document.getElementById('bagaim').inert);
+        if (!/marked tile/.test(q2)) bad(`${tag}: a throw from a beam's tile did not ask first ("${q2}")`);
+        else {
+          if (!inert) bad(`${tag}: the aim strip was not inert while the confirmation asked`);
+          await press('#confirm.open [data-confirm="no"]', tag, 'Cancel');
+        }
+        const t2 = await now();
+        if (t2.tick !== t0.tick || await left() !== n0) bad(`${tag}: the throw cancelled on a beam's tile still did something`);
+        else if (!t2.aiming || t2.aiming.uid !== CB) bad(`${tag}: cancelling the throw's confirmation ended the aim (${JSON.stringify(t2.aiming)})`);
+        else did.push('a throw on a beam asked first, and its aim stayed');
+      }
+      await press('#bagaim [data-aim-cancel]', tag, 'Cancel');
+      await page.evaluate(w => window.__t.put(w[0], w[1]), bm.was);
+    }
+    await page.evaluate(() => { window.__t.calm(); window.ACCESSION.redraw(); });
+
     // ---- An aimed throw: a known Consolidant (the drink identified it). Throw… aims; the
     // first click on a tile previews it and its 3×3 square, and takes no time; the board does
     // not move; the second click throws.
-    const C2 = await make(() => { const s = window.ACCESSION.state, it = Consumables.make(s, 'consolidant', { at: 'tote' }); window.ACCESSION.redraw(); return it.uid; });
+    const C2 = await make(() => { const s = window.ACCESSION.state; Consumables.make(s, 'consolidant', { at: 'tote' }); window.ACCESSION.redraw(); return s.items.find(i => i.ck === 'consolidant' && i.where.at === 'tote').uid; });
     await press('#bar [data-act="bag"]', tag, 'the Bag button');
     await press(`#bag [data-item="${C2}"]`, tag, 'the second Consolidant');
     await press('#bag [data-action="throw"]', tag, 'Throw…');
@@ -212,14 +350,25 @@ async function run(W, H) {
       const local = await page.evaluate(uid => Consumables.name(window.ACCESSION.state, window.ACCESSION.state.items.find(i => i.uid === uid)).local, U.uid);
       if (!shownTitle || !shownTitle.text.startsWith(local)) bad(`${tag}: the Fixative's quickslot did not show it in the Bag (${shownTitle && shownTitle.text})`);
       else did.push('a consumable\'s quickslot showed it in the Bag');
+      // Nothing a player meets names its kind: its view in the Bag, its quickslot (words and
+      // screen-reader name), its row in the Bag's list.
+      const l1 = (await leaks(U.uid, '#bag.open')).concat(await leaks(U.uid, `${slotSel} [data-uid="${U.uid}"]`));
+      await press('#bag [data-back]', tag, 'Back');
+      const l2 = await leaks(U.uid, `#bag.open [data-item="${U.uid}"]`);
+      if (l1.length || l2.length) bad(`${tag}: the unknown Solution's view, quickslot or row names a kind: ${l1.concat(l2).join(', ')}`);
+      else did.push('an unknown Solution named nowhere by its kind');
+      await press(`#bag [data-item="${U.uid}"]`, tag, 'the unknown Solution');
       await press('#bag [data-action="throw"]', tag, 'Throw…');
       const kinds = await page.evaluate(() => window.__t.kinds()), named = s => kinds.filter(k => s.toLowerCase().includes(k.toLowerCase()));
       // First a tile it may be thrown at: its preview, too, names no kind, and its square is
-      // the largest.
+      // the largest. The words change in the same live element, so a screen reader hears them.
       const far = await page.evaluate(uid => window.__t.tileIn(Consumables.targets(window.ACCESSION.state, uid), 3, 5), U.uid);
       if (!far) bad(`${tag}: no tile 3 to 5 away to aim the unknown Solution at`);
       else {
+        const said0 = await page.evaluate(() => { const p = document.querySelector('#bagaim [aria-live]'); if (p) p.__kept = 1; return p ? p.textContent : ''; });
         await tapTile(far, tag, 'a tile it may be thrown at');
+        const live = await page.evaluate(() => { const p = document.querySelector('#bagaim [aria-live]'); return { kept: !!p && p.__kept === 1, said: p ? p.textContent : '' }; });
+        if (!live.kept || live.said === said0) bad(`${tag}: the preview's words did not change in the aim strip's live element (${JSON.stringify(live)})`);
         const m = await page.evaluate(() => window.__t.aimMarks()), say = await aimText();
         if (m.reach !== 2) bad(`${tag}: an unknown Solution aimed at ${far.x},${far.y} shows a square reaching ${m.reach}, not 2 (5×5)`);
         if (!/Tap it again to throw/.test(say) || !/5×5/.test(say)) bad(`${tag}: aiming an unknown Solution at ${far.x},${far.y}, the strip says "${say}"`);
@@ -289,11 +438,34 @@ async function run(W, H) {
       if (!f.used || !f.noise || f.charges !== f.max - 1) bad(`${tag}: the second click did not strike the fork at ${ft.x},${ft.y} (${JSON.stringify(f)})`);
       else did.push('the fork struck from its quickslot');
     }
+    // Enter on a preview is a second tap there (§7.1: Enter confirms), never the action of
+    // what is selected: with yourself selected (your label's first action is Wait), the fork
+    // aimed by its key and a tile previewed, Enter strikes the fork. Escape ends an aim.
+    const meT = await page.evaluate(() => { const m = window.ACCESSION.state.actors[0]; return { x: m.x, y: m.y }; });
+    await tapTile(meT, tag, 'yourself');
+    if (await page.evaluate(() => UI.labelShown()) !== 'you') bad(`${tag}: clicking yourself did not select you`);
+    await key('1');
+    const fe = await page.evaluate(uid => window.__t.tileIn(Kit.targets(window.ACCESSION.state, uid), 2, 6), F);
+    if (!(await now()).aiming || !fe) bad(`${tag}: the fork's key did not aim it at a tile in view (${JSON.stringify(fe)})`);
+    else {
+      await tapTile(fe, tag, 'a tile for the fork');
+      await page.evaluate(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+      await key('Enter');
+      const e = await page.evaluate(t => { const ev = window.ACCESSION.events; return { fork: ev.some(q => q.k === 'noise' && q.x === t.x && q.y === t.y && q.cause.k === 'fork'), waited: ev.some(q => q.k === 'waited'), aiming: Bag.aiming() }; }, fe);
+      if (!e.fork || e.waited) bad(`${tag}: Enter on the fork's preview ${e.waited ? 'did your Wait instead' : 'did not strike it'} (${JSON.stringify(e)})`);
+      else if (e.aiming) bad(`${tag}: the aim stayed after Enter struck the fork`);
+      else did.push('Enter struck the fork on its preview');
+    }
+    await key('1');
+    if (!(await now()).aiming) bad(`${tag}: the fork's key did not aim it`);
+    await key('Escape');
+    if ((await now()).aiming) bad(`${tag}: Escape did not end the aim`);
+    else did.push('Escape ended an aim');
 
     // ---- The Window Pole: an exhibit put two tiles from you, in a straight line, where it
     // can be pushed one tile away and pulled one toward you. A second click opens the sheet,
     // with Push, then Pull; each is chosen in turn, and the exhibit sleeps on.
-    const PL = await make(() => { const s = window.ACCESSION.state, it = Kit.make(s, { kind: 'instrument', instrument: 'pole', tier: 1 }, { at: 'tote' }); window.ACCESSION.redraw(); return it.uid; });
+    const PL = await make(() => { const s = window.ACCESSION.state, it = Kit.make(s, { kind: 'instrument', instrument: 'pole', tier: 1 }, { at: 'tote' }); window.__t.calm(); window.ACCESSION.redraw(); return it.uid; });
     await press('#bar [data-act="bag"]', tag, 'the Bag button');
     await press(`#bag [data-item="${PL}"]`, tag, 'the Window Pole');
     await press('#bag [data-action="equip"]', tag, 'Equip');
@@ -331,6 +503,20 @@ async function run(W, H) {
       if (hows.join() !== 'push,pull' || !sheet[0].endsWith('Push it one tile away') || !sheet[1].endsWith('Pull it one tile toward you')) bad(`${tag}: the pole's sheet offers ${sheet.join(' | ') || 'nothing'}`);
       else if ((await now()).tick !== t0.tick) bad(`${tag}: opening the pole's sheet took time`);
       await sized(`${tag} the pole's sheet`);
+      if (how === 'push') {
+        // While the sheet asks, a key does nothing behind it (it neither waits nor moves you);
+        // a click beside it cancels it, with nothing done and the aim kept; a second click on
+        // the exhibit asks again.
+        const k0 = await now();
+        await key('Period'); await key('ArrowLeft');
+        const k1 = await now();
+        if (k1.tick !== k0.tick || k1.x !== k0.x || k1.y !== k0.y || !await page.evaluate(seenAt, '#bagpick.open .box')) bad(`${tag}: a key acted behind the pole's sheet (tick ${k0.tick} → ${k1.tick}, you ${k0.x},${k0.y} → ${k1.x},${k1.y})`);
+        await click(4, 4);
+        const k2 = await now();
+        if (await page.evaluate(seenAt, '#bagpick.open .box') || k2.tick !== k0.tick || !k2.aiming) bad(`${tag}: a click beside the pole's sheet did not cancel it, with nothing done and the aim kept (${JSON.stringify(k2.aiming)})`);
+        else did.push('the pole\'s sheet: keys do nothing behind it, a click beside cancels');
+        await tapTile(ex, tag, 'the exhibit once more');
+      }
       await press(`#bagpick.open [data-how="${how}"]`, tag, `${how} on the sheet`);
       const moved = await page.evaluate(uid => { const A = window.ACCESSION, a = Actors.byUid(A.state, uid); return { x: a.x, y: a.y, mode: a.mode, used: A.events.filter(e => e.k === 'used').map(e => e.how).join() }; }, ex.uid);
       const to = ex[how];
@@ -368,6 +554,10 @@ async function run(W, H) {
     }, slotSel);
     if (qs.shown.join() !== qs.want.join()) bad(`${tag}: the quickslots hold ${qs.shown.join()}, not ${qs.want.join()}`);
     else did.push(`quickslots ${qs.shown.length}`);
+    // Only the instrument's slot is a toggle for a screen reader (pressed while aimed); a
+    // consumable's opens the Bag and says nothing of being pressed.
+    const toggles = await page.evaluate(sel => [...document.querySelectorAll(`${sel} [data-uid]`)].map(b => b.getAttribute('aria-pressed')), slotSel);
+    if (toggles[0] !== 'false' || toggles.slice(1).some(v => v !== null)) bad(`${tag}: the quickslots' pressed states are ${JSON.stringify(toggles)}, not the instrument's alone`);
 
     // ---- A Catalogue Card: read from the Bag, its choice opens the Bag on itself; choosing
     // a seal identifies it.
@@ -379,6 +569,19 @@ async function run(W, H) {
     if (!ch.pending || ch.buttons !== ch.pending.options.length) bad(`${tag}: the Card's choice is not shown in the Bag (${JSON.stringify(ch)})`);
     else {
       await sized(`${tag} the Card's choice`);
+      // Closed, the choice is still waiting: a click on a tile is refused ("Answer the choice
+      // first.") with no time taken, and the Bag opens again with the choice at its top.
+      await press('#bag [data-close]', tag, 'the Bag\'s Close');
+      const step = await page.evaluate(() => { const s = window.ACCESSION.state, me = s.actors[0], out = []; for (let y = me.y - 1; y <= me.y + 1; y++) for (let x = me.x - 1; x <= me.x + 1; x++) if (window.__t.free(x, y)) out.push([x, y]); return window.__t.tileIn(out, 1, 1); });
+      const c0 = await now();
+      if ((await now()).open || !step) bad(`${tag}: the Bag did not close on the Card's choice, or no tile beside you to click (${JSON.stringify(step)})`);
+      else {
+        await tapTile(step, tag, 'a tile beside you');
+        const back = await page.evaluate(() => ({ choice: document.querySelectorAll('#bag.open .bag-choice [data-choose]').length, refused: window.ACCESSION.events.map(e => e.reason).join() }));
+        const c1 = await now();
+        if (!back.choice || back.refused !== 'choice_pending' || c1.tick !== c0.tick || c1.x !== c0.x || c1.y !== c0.y) bad(`${tag}: with the Card's choice closed, a click on a tile did not bring the choice back (${JSON.stringify(back)})`);
+        else did.push('the Card\'s choice, closed, came back');
+      }
       const seal = ch.pending.options[0];
       await press('#bag [data-choose="0"]', tag, 'the first seal');
       const after = await page.evaluate(sl => ({ pending: window.ACCESSION.vm().pending, known: window.ACCESSION.state.run.knownSeals.includes(sl), open: document.getElementById('bag').classList.contains('open') }), seal);
@@ -404,34 +607,74 @@ async function run(W, H) {
     await press('#bag [data-action="use"]', tag, 'Read');
     await press('#bar [data-act="map"]', tag, 'the Map button');
     const mp2 = await page.evaluate(() => ({ plan: window.ACCESSION.vm().plan, say: (document.querySelector('#bag .map-say') || {}).textContent || '' }));
+    if (!await page.evaluate(() => window.__t.door())) bad(`${tag}: no archway to make a door of for the map`);
     if (!mp2.plan || !mp2.plan.length || !mp2.plan.every(r => mp2.say.includes('Room ' + r.number))) bad(`${tag}: after a Floor Plan, the map does not name the rooms holding a Highlight (${JSON.stringify(mp2)})`);
     else did.push(`the map: before and after a Floor Plan (${mp2.plan.map(r => r.number).join(', ')})`);
+    // Shape carries the meaning too, not colour alone (§7.2): a door, a staff door and a case
+    // are each drawn with a shape in their tile; a door's band runs unbroken through its
+    // centre, and a staff door's has a dot there.
+    const sh = await page.evaluate(() => window.__t.mapShapes());
+    if (!sh || !sh.door || !sh.staff || !sh.case) bad(`${tag}: the map shows no door, staff door or case to look at (${JSON.stringify(sh)})`);
+    else if (['door', 'staff', 'case'].some(k => sh[k].colours < 2)) bad(`${tag}: the map draws ${['door', 'staff', 'case'].filter(k => sh[k].colours < 2).join(', ')} as a flat square, by colour alone`);
+    else if (sh.door.centre !== sh.door.side || sh.staff.centre === sh.staff.side) bad(`${tag}: the map does not tell a door (a band) from a staff door (a band with a dot) by shape (${JSON.stringify(sh)})`);
+    else did.push('the map\'s doors, staff doors and cases drawn with shapes');
     await press('#bag [data-close]', tag, 'the map\'s Close');
 
-    // ---- At the largest text: the Bag, an item's label, and the aim strip with its longest
-    // words (the pole's, and a refusal) still fit.
-    await page.evaluate(() => { window.__t.calm(); window.ACCESSION.setting('text', '1.3'); });
-    await press('#bar [data-act="bag"]', tag, 'the Bag button');
-    await sized(`${tag} the Bag at text 1.3`);
-    await press(`#bag [data-item="${PL}"]`, tag, 'the Window Pole');
-    await sized(`${tag} an item's label at text 1.3`);
-    await press('#bag [data-close]', tag, 'Close');
-    const fits = async what => {
-      await sized(`${tag} ${what} at text 1.3`);
-      if (!await page.evaluate(() => { const e = document.querySelector('#bagaim.open .in'); return !!e && e.scrollHeight <= e.clientHeight + 1; })) bad(`${tag}: at text 1.3 the aim strip's words do not fit it (${what})`);
-    };
+    // ---- Time passing ends an aim: what the strip said no longer holds, and a phone's strip,
+    // which the aim strip stands in for, shows what happened. A Wait while the pole is aimed
+    // (the bar's on a phone; ".", on a laptop, where the aim strip lies over the bar).
+    await page.evaluate(() => { window.__t.calm(); window.ACCESSION.redraw(); });
     await press(`${slotSel} [data-act="q1"]`, tag, 'quickslot 1');
-    await fits('aiming the pole');
-    await press('#bagaim [data-aim-cancel]', tag, 'Cancel');
-    const qU2 = await page.evaluate(([sel, uid]) => { const b = document.querySelector(`${sel} [data-uid="${uid}"]`); return b ? b.dataset.act : null; }, [slotSel, U.uid]);
-    if (qU2) {
-      await press(`${slotSel} [data-act="${qU2}"]`, tag, 'the Fixative\'s quickslot');
-      await press('#bag [data-action="throw"]', tag, 'Throw…');
-      const near = await nearTile(U.uid);
-      if (near) { await tapTile(near, tag, 'a tile too near'); await fits('a refusal'); }
-      await press('#bagaim [data-aim-cancel]', tag, 'Cancel');
+    t0 = await now();
+    if (!t0.aiming) bad(`${tag}: quickslot 1 did not aim the pole`);
+    else {
+      if (W < 900) await press('#bar [data-act="wait"]', tag, 'Wait'); else await key('Period');
+      t1 = await now();
+      if (t1.tick === t0.tick || t1.aiming || await page.evaluate(seenAt, '#bagaim.open') || (W < 900 && !await page.evaluate(seenAt, '#strip'))) bad(`${tag}: a Wait while aiming did not end the aim and show the strip (tick ${t0.tick} → ${t1.tick}, ${JSON.stringify(t1.aiming)})`);
+      else did.push('a Wait ended the aim');
     }
-    await page.evaluate(() => window.ACCESSION.setting('text', '1'));
+
+    // ---- At every text size (set by clicks in Settings): the Bag and an item's label fit,
+    // and the aim strip holds its longest words: an unknown Solution with the longest local
+    // name of any pack, previewed at a tile it may be thrown at and at one too near (the
+    // refusal), and the pole's first words. On a laptop, on the narrowest laptop board too
+    // (900×675).
+    const LG = await page.evaluate(() => window.__t.longest());
+    if (!LG) bad(`${tag}: no unknown Solution left to give the longest name`);
+    const fits = async what => {
+      await sized(`${tag} ${what}`);
+      if (!await page.evaluate(() => { const e = document.querySelector('#bagaim.open .in'); return !!e && e.scrollHeight <= e.clientHeight + 1; })) bad(`${tag}: the aim strip's words do not fit it (${what})`);
+    };
+    for (const size of ['1', '1.15', '1.3']) {
+      await textSize(size, tag);
+      await press('#bar [data-act="bag"]', tag, 'the Bag button');
+      await sized(`${tag} the Bag at text ${size}`);
+      await press(`#bag [data-item="${PL}"]`, tag, 'the Window Pole');
+      await sized(`${tag} an item's label at text ${size}`);
+      await press('#bag [data-close]', tag, 'Close');
+      for (const [vw, vh] of W >= 900 ? [[W, H], [900, 675]] : [[W, H]]) {
+        const at = `at ${vw}×${vh}, text ${size}`;
+        if (vw !== W) { await page.setViewportSize({ width: vw, height: vh }); await settle(); }
+        await press(`${slotSel} [data-act="q1"]`, tag, 'quickslot 1');
+        await fits(`aiming the pole ${at}`);
+        await press('#bagaim [data-aim-cancel]', tag, 'Cancel');
+        if (LG) {
+          await press('#bar [data-act="bag"]', tag, 'the Bag button');
+          // A long Bag scrolls (by touch, or its scroll bar): its row is brought into view.
+          await page.evaluate(uid => { const e = document.querySelector(`#bag [data-item="${uid}"]`); if (e) e.scrollIntoView({ block: 'center' }); }, LG.uid);
+          await press(`#bag [data-item="${LG.uid}"]`, tag, `${LG.name}`);
+          await press('#bag [data-action="throw"]', tag, 'Throw…');
+          const far = await page.evaluate(uid => window.__t.tileIn(Consumables.targets(window.ACCESSION.state, uid), 3, 5), LG.uid);
+          if (far) { await tapTile(far, tag, 'a tile to throw at'); await fits(`the preview of ${LG.name} ${at}`); }
+          const near = await nearTile(LG.uid);
+          if (near) { await tapTile(near, tag, 'a tile too near'); await fits(`the refusal for ${LG.name} ${at}`); }
+          if (!far || !near) bad(`${tag}: no tiles to preview ${LG.name} at (${at})`);
+          await press('#bagaim [data-aim-cancel]', tag, 'Cancel');
+        }
+        if (vw !== W) { await page.setViewportSize({ width: W, height: H }); await settle(); }
+      }
+    }
+    await textSize('1', tag);
     lines.push(`${tag}: ${did.join('; ')}`);
   }
   // Nothing the player sees says "undefined", "NaN" or "[object".
@@ -444,5 +687,5 @@ async function run(W, H) {
 for (const [W, H] of SIZES) await run(W, H);
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `bag: ${problems.length} problem(s)` : 'bag: left clicks only, phone and laptop, every view: the Bag opened and inert under a confirmation; equipped, drank, threw aimed (preview, then throw), an unknown throw too near refused naming no kind, the fork struck, the pole pushed and pulled through its sheet, a kit used on a worn item, the quickslots, the Card\'s choice, the floor plan before and after a Floor Plan; no problems');
+console.log(problems.length ? `bag: ${problems.length} problem(s)` : 'bag: left clicks only, phone and laptop, every view: the Bag opened and inert under a confirmation; equipped, drank, a drink and a throw on a beam asked first; threw aimed (preview, then throw), an unknown Solution named by no kind anywhere, its throw too near refused; the fork struck, by a click and by Enter, Escape ended an aim; the pole pushed and pulled through its sheet, keys idle behind it; a kit used on a worn item, the quickslots, the Card\'s choice (closed, it came back), the floor plan with its shapes before and after a Floor Plan; a Wait ended an aim; the aim strip held its longest words at every text size; no problems');
 process.exit(problems.length ? 1 : 0);

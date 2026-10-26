@@ -28,7 +28,9 @@
 //                            a tap on tile t while aiming: the first tap on a tile previews it,
 //                            a second commits: the action, or for the Window Pole with more than
 //                            one way to use it there, its sheet (null until one is chosen); on a
-//                            tile where it cannot be used, the action step() refuses, saying why
+//                            tile where it cannot be used, the action step() refuses, saying why.
+//                            An aim lasts until time passes (its action taken, or another), or
+//                            until Cancel, Escape, the Bag or the map ends it
 // Bag is a plain object whose methods main.js calls by name (check-play puts recorders in
 // their place for a while, so they stay writable); the Bag's own handlers call its inner
 // functions.
@@ -38,8 +40,9 @@ const Bag = (() => {
   // mode: null (shut), 'bag' or 'map'. view, in the Bag: the list; an item's label; or a
   // Restoration kit's items to choose from (on: the one previewed).
   let mode = null, view = { k: 'list' }, focusBack = null, focusIn = false;
-  // aim: a throw or an instrument being aimed, {kind, uid, tile}; pick: the Window Pole's
-  // actions at the aimed tile while its sheet asks which.
+  // aim: a throw or an instrument being aimed, {kind, uid, tile, tick} (tick: the state's when
+  // the aim began; once time passes the aim is over); pick: the Window Pole's actions at the
+  // aimed tile while its sheet asks which.
   let aim = null, pick = null, seenPending = null, redrawSoon = false;
   const shown = { slots: ['', ''], panel: '', aim: '', pick: '' };
   const POLE_SAYS = { push: 'Push it one tile away', pull: 'Pull it one tile toward you', take: 'Take what the case holds' };
@@ -81,15 +84,21 @@ const Bag = (() => {
     el.app = app;
     el.panel = make('bag', 'overlay', [['role', 'dialog'], ['aria-labelledby', 'bag-title'], ['tabindex', '-1']]);
     // What you aim, and what a tap does: in place of the strip on a phone, over the bar on a
-    // laptop, never over the board.
+    // laptop, never over the board. Its words change in one element that stays, so a screen
+    // reader hears each change (a live region put in afresh is not reliably heard).
     el.aim = make('bagaim', '', [['role', 'region'], ['aria-label', 'Aiming']]);
-    // The Window Pole's choice: a sheet like a confirmation's.
-    el.pick = make('bagpick', '', [['role', 'dialog'], ['aria-modal', 'true'], ['aria-labelledby', 'bagpick-title']]);
+    el.aim.innerHTML = '<div class="in"><button class="btn" data-aim-cancel>Cancel</button><p class="aim-text" aria-live="polite"></p></div>';
+    el.aimText = el.aim.querySelector('.aim-text');
+    // The Window Pole's choice: a sheet like a confirmation's. It is an overlay, so while it
+    // asks the keys leave the game alone (a key cannot move you or pass a turn behind it).
+    el.pick = make('bagpick', 'overlay', [['role', 'dialog'], ['aria-modal', 'true'], ['aria-labelledby', 'bagpick-title']]);
     el.panel.addEventListener('click', onPanel);
     el.aim.addEventListener('click', e => { if (e.target.closest('[data-aim-cancel]')) { endAim(); redraw(); } });
     el.pick.addEventListener('click', e => {
       const b = e.target.closest('[data-pick]');
-      if (b && pick) { const a = pick[Number(b.dataset.pick)]; endAim(); ask(a); return; }
+      // The aim ends once the chosen action has taken its time (render), so a confirmation it
+      // asks, cancelled, leaves the aim for another tile.
+      if (b && pick) { const a = pick[Number(b.dataset.pick)]; pick = null; ask(a); return; }
       if (e.target.closest('[data-pick-cancel]') || !e.target.closest('.box')) { pick = null; redraw(); }
     });
   }
@@ -139,7 +148,9 @@ const Bag = (() => {
     } else {
       icon = q.cons.shape ? 'seal_' + q.cons.shape : 'seal'; count = '×' + q.cons.n; name = q.cons.local; words = q.cons.n === 1 ? 'one' : `${q.cons.n} of them`;
     }
-    return `<button class="btn slot bag-slot${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}" aria-pressed="${aimed}" aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}">${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
+    // Only an instrument's slot is a toggle (pressed while it is aimed); a consumable's opens
+    // the Bag, so it says nothing of being pressed.
+    return `<button class="btn slot bag-slot${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}"${q.inst ? ` aria-pressed="${aimed}"` : ''} aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}">${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
   }
   function drawSlots(vm) {
     const list = quickList(vm);
@@ -170,7 +181,7 @@ const Bag = (() => {
     const it = itemOf(s, uid);
     if (mode) close();
     pick = null;
-    aim = { kind: it.kind === 'consumable' ? 'throw' : 'tile', uid, tile: null };
+    aim = { kind: it.kind === 'consumable' ? 'throw' : 'tile', uid, tile: null, tick: s.tick };
     if (UI.labelShown() && UI.sheetCover() > 0) UI.closeLabel();
   }
   function endAim() { aim = null; pick = null; }
@@ -201,8 +212,10 @@ const Bag = (() => {
     const s = st();
     if (!aim || !t || !s || s.over || pick || !Number.isInteger(t.x) || !Number.isInteger(t.y)) return null;
     if (!aim.tile || aim.tile.x !== t.x || aim.tile.y !== t.y) { aim.tile = { x: t.x, y: t.y }; return null; }
+    // The one action there; the aim ends once it has taken its time (render), so a
+    // confirmation it asks, cancelled, leaves the aim for another tile.
     const legal = legalAt(s, t.x, t.y);
-    if (legal.length === 1) { endAim(); return legal[0]; }
+    if (legal.length === 1) return legal[0];
     if (legal.length > 1) { pick = legal; return null; }
     // Refused there: step() says why, in the log, and the aim stays for another tile.
     return refusal(s, t.x, t.y).action;
@@ -246,12 +259,9 @@ const Bag = (() => {
     const on = !!aim && !!s && !s.over;
     el.aim.classList.toggle('open', on);
     if (el.app) el.app.classList.toggle('bag-aiming', on);
-    let html = '';
-    if (on) {
-      const w = aimWords(s);
-      html = `<div class="in"><button class="btn" data-aim-cancel>Cancel</button><p class="aim-text${w.refused ? ' refused' : ''}" aria-live="polite"><b>${esc(w.head)}</b> ${esc(w.text)}</p></div>`;
-    }
-    if (html !== shown.aim) { el.aim.innerHTML = html; shown.aim = html; }
+    const w = on ? aimWords(s) : null, html = w ? `<b>${esc(w.head)}</b> ${esc(w.text)}` : '';
+    el.aimText.classList.toggle('refused', !!w && !!w.refused);
+    if (html !== shown.aim) { el.aimText.innerHTML = html; shown.aim = html; }
   }
   function drawPick(s) {
     const on = !!pick && !!aim && !!s && !s.over;
@@ -368,19 +378,27 @@ const Bag = (() => {
     else if (!rooms.length) say = `You have read a Floor Plan here, so all of the department is drawn; every Highlight has been taken.${here}`;
     else say = `You have read a Floor Plan here, so all of the department is drawn. The ${rooms.length === 1 ? 'room whose Highlight has' : 'rooms whose Highlights have'} not been taken ${rooms.length === 1 ? 'is' : 'are'} outlined: ${and}.${here}`;
     return `<p class="bag-where map-say">${esc(say)}</p><div class="map-box"><canvas class="bag-map" role="img" aria-label="${esc(say)}"></canvas></div>
-      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: brown; staff doors: purple; cases: glass blue.${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
+      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: a band across the tile, with a dot on a staff door. Cases: a framed square, filled while shut.${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
   }
-  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#9db6c0', pool: '#6f93bd', thing: '#8f8573' };
-  function tileColour(ch) {
+  // Each tile's tint, and for a door, a staff door or a case a shape too, so colour is never
+  // the only sign (§7.2): a door is a band across its tile, a staff door's band has a dark dot,
+  // a shut case is a filled frame and an opened or broken one an empty frame (the exits'
+  // crosses and the entrance's slash are drawn in drawMap). null: nothing is drawn there.
+  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#7d8f96', pool: '#6f93bd', thing: '#8f8573', dark: '#15131a' };
+  function tileLook(ch) {
     const t = Grid.TILES[ch];
     if (!t) return null;
-    if ('+\''.includes(ch)) return MAP.door;
-    if ('Ss'.includes(ch)) return MAP.staff;
-    if (ch === 'v') return MAP.glass;
-    if ('uk'.includes(ch)) return MAP.open;
-    if (ch === 'w') return MAP.pool;
-    if (t.walk) return MAP.floor;
-    return t.see ? MAP.thing : MAP.wall;
+    if ('+\''.includes(ch)) return { fill: MAP.floor, shape: 'band', ink: MAP.door };
+    if ('Ss'.includes(ch)) return { fill: MAP.floor, shape: 'band dot', ink: MAP.staff };
+    if (ch === 'v') return { fill: MAP.glass, shape: 'frame', ink: MAP.dark };
+    if ('uk'.includes(ch)) return { fill: MAP.floor, shape: 'frame', ink: MAP.open };
+    if (ch === 'w') return { fill: MAP.pool, shape: '' };
+    return { fill: t.walk ? MAP.floor : t.see ? MAP.thing : MAP.wall, shape: '' };
+  }
+  function drawShape(x, look, X, Y, px) {
+    if (look.shape.includes('band')) { const b = Math.max(1, Math.round(px * 0.4)); x.fillStyle = look.ink; x.fillRect(X, Y + Math.floor((px - b) / 2), px, b); }
+    if (look.shape.includes('dot')) { const d = Math.max(1, Math.round(px * 0.3)), o = Math.floor((px - d) / 2); x.fillStyle = MAP.dark; x.fillRect(X + o, Y + o, d, d); }
+    if (look.shape === 'frame') { const w = Math.max(1, Math.round(px / 5)); x.strokeStyle = look.ink; x.lineWidth = w; x.strokeRect(X + w / 2, Y + w / 2, px - w, px - w); }
   }
   function drawMap(vm) {
     const c = el.panel.querySelector('canvas.bag-map');
@@ -392,9 +410,10 @@ const Bag = (() => {
     const x = c.getContext('2d'), S = ART.palettes.semantic;
     x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
     for (let ty = 0; ty < vm.h; ty++) for (let tx = 0; tx < vm.w; tx++) {
-      const v = vm.vis[ty * vm.w + tx], ch = vm.tiles[ty][tx], col = v ? tileColour(ch) : null;
-      if (!col) continue;
-      x.globalAlpha = v === 2 ? 1 : 0.72; x.fillStyle = col; x.fillRect(tx * px, ty * px, px, px);
+      const v = vm.vis[ty * vm.w + tx], ch = vm.tiles[ty][tx], look = v ? tileLook(ch) : null;
+      if (!look) continue;
+      x.globalAlpha = v === 2 ? 1 : 0.72; x.fillStyle = look.fill; x.fillRect(tx * px, ty * px, px, px);
+      if (look.shape) drawShape(x, look, tx * px, ty * px, px);
       if (ch === 'X' || ch === 'E') {
         x.globalAlpha = 1; x.strokeStyle = ch === 'X' ? S.readable : '#ece6d8'; x.lineWidth = Math.max(1, px / 6);
         x.beginPath(); x.moveTo(tx * px + 1, ty * px + 1); x.lineTo(tx * px + px - 1, ty * px + px - 1);
@@ -484,9 +503,12 @@ const Bag = (() => {
     const pending = vm.pending ? JSON.stringify(vm.pending) : null;
     if (pending && pending !== seenPending && s && !s.over) show('bag');
     seenPending = pending;
-    // An aim ends when what it aims is no longer yours to use (thrown, used up, taken off),
-    // or the visit is over; the board then loses its marks at the next draw.
-    if (aim && (!s || s.over || !carried(s, aim.uid) || (aim.kind === 'tile' && s.you.kit.instrument !== aim.uid))) {
+    // An aim ends once time has passed: its own action was taken (whatever is left of a stack
+    // too), or another was (Wait, a key), after which what the strip said no longer holds and
+    // a phone's strip must show what happened; also when what it aims is no longer yours to
+    // use, or the visit is over. The board loses its marks at the next draw. (A refusal, or a
+    // confirmation cancelled, takes no time, so the aim stays for another tile.)
+    if (aim && (!s || s.over || s.tick !== aim.tick || !carried(s, aim.uid) || (aim.kind === 'tile' && s.you.kit.instrument !== aim.uid))) {
       endAim();
       if (!redrawSoon) { redrawSoon = true; setTimeout(() => { redrawSoon = false; redraw(); }, 0); }
     }
