@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="accession-core-hash" content="d862c539">
+<meta name="accession-core-hash" content="e2671457">
 <meta name="accession-vm-hash" content="d50dd3e2">
 <meta name="accession-build" content="dev">
 <meta charset="utf-8">
@@ -10,8 +10,10 @@
 <style>
 /* ACCESSION — layout and type. The board draws itself on a canvas; everything else is DOM.
    Meaning-carrying colours are the reserved semantic tokens (BUILD.md §7.2, §9.1).
-   Phone: top bar, board, strip, bottom bar, with the label as a bottom sheet.
-   Laptop: the board on the left; the strip and log, the label and six quickslots on the right. */
+   Phone: top bar (with the stage chip and your statuses on a second row), board, strip,
+   bottom bar, with the label as a bottom sheet.
+   Laptop: the board on the left; the strip and log, the label and six quickslots on the right.
+   Over either: the confirmation sheet (§7.1) and the end of a visit. */
 :root {
   --bg: #15131a; --panel: #1f1c25; --panel2: #2a2631; --line: #3b3644; --ink: #ece6d8; --muted: #a39d90;
   --paper: #f3ecdc; --paper-ink: #231f1a; --paper-muted: #4a4238; --paper-line: #d9cfb9;
@@ -32,7 +34,7 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
   grid-template-areas: "top top" "board board" "strip zoom" "bar bar"; padding-top: env(safe-area-inset-top); }
 
 /* The top bar. */
-#top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+#top { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 4px max(8px, env(safe-area-inset-right)) 2px max(8px, env(safe-area-inset-left));
   min-width: 0; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 52px; }
 .hp { flex: 1; min-width: 0; }
 .hp .barbg { height: 10px; background: #2b2a3a; border-radius: 5px; overflow: hidden; }
@@ -49,6 +51,25 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 @media (max-width: 389px) { :root[data-text="1.3"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #top .btn { min-height: 44px; }
+/* The stage chip and your statuses: a row of their own on a phone, beside health on a laptop.
+   Each stage has its own colour and its words; each status its pictogram and turns left.
+   The row is a whole number of pixels high at every text size, so the board below it starts
+   on a whole pixel and its canvases are never resampled (§6.2). */
+#chips { display: none; order: 9; flex: 1 1 100%; min-width: 0; align-items: center; gap: 6px; height: 16px; overflow: hidden; }
+:root[data-text="1.15"] #chips { height: 18px; }
+:root[data-text="1.3"] #chips { height: 20px; }
+#chips.has { display: flex; }
+.stage { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; font-size: 0.72em; line-height: 1.1; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; padding: 0 7px; }
+.stage:empty { display: none; }
+.stage span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* Short of room, the stage's name gives way, so what comes next (the turns) stays whole. */
+.stage .snext { flex: none; }
+.stage.s1 { border-color: var(--hazard); }
+.stage.s2 { border-color: var(--hostile); border-width: 2px; }
+.statuses { display: inline-flex; gap: 4px; flex: none; }
+.statuses .st { display: inline-flex; align-items: center; gap: 2px; font-size: 0.72em; line-height: 1.1; background: var(--panel2);
+  border-radius: 6px; padding: 0 5px; font-variant-numeric: tabular-nums; }
 
 /* The board, with Zoom beside the strip, off the board, so it never covers a tile. */
 #board { grid-area: board; position: relative; min-height: 0; touch-action: none; overflow: hidden; }
@@ -70,11 +91,18 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .log .line { display: none; }
 .log .line:last-child { display: block; }
 #strip.has-summary:not(.fresh) .log, #strip.fresh .summary { display: none; }
+/* A stage's announcement in the log: a plain banner (§8.4). On a phone it runs on in the
+   line, set off by its rule, icon and weight, so it takes the strip no more lines than its
+   words do and the board keeps its height; in the laptop's log it is a box of its own. */
+.log .banner { color: var(--ink); font-weight: 600; border-left: 3px solid var(--hazard); padding-left: 5px; }
+.log .banner .picto { margin-right: 4px; vertical-align: -2px; }
 
-/* The quickslots: three in the phone's bottom bar, six in the laptop's column. */
+/* The quickslots: three in the phone's bottom bar, six in the laptop's column. Each is a
+   container the Bag fills (js/ui/bag.js). */
 #slots { display: none; }
 #bar { grid-area: bar; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px;
   padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: var(--panel); }
+#barslots { grid-column: span 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; min-width: 0; }
 .btn { min-width: 44px; min-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
 .btn:active { background: #3a3542; }
 .btn.small { font-size: 0.85em; }
@@ -103,6 +131,24 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
   background: var(--paper); border-top: 1px solid var(--paper-line); box-shadow: -16px 0 0 var(--paper), 16px 0 0 var(--paper); }
 .label .acts .btn { background: var(--panel2); color: var(--ink); }
 
+/* The confirmation sheet (§7.1): over everything, its buttons 44 px or more; a tap beside
+   it cancels. */
+#confirm { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; justify-content: center; background: rgba(10,9,13,0.55); }
+#confirm.open { display: flex; }
+#confirm .box { width: 100%; max-width: 520px; max-height: 80%; overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere; background: var(--paper); color: var(--paper-ink);
+  border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5); padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+#confirm h2 { font: 600 1.15em/1.25 var(--label-font); margin: 0 0 6px; }
+#confirm .why p { margin: 4px 0; }
+#confirm .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+#confirm .acts .btn { flex: 1 1 140px; background: var(--panel2); color: var(--ink); white-space: normal; }
+#confirm .acts .yes { border-color: var(--hazard); }
+
+/* The end of a visit: the recap of a death, or the sentence of leaving. */
+#end .recap { max-width: 640px; }
+#end .recap p { margin: 10px 0; }
+#end .acts { margin: 18px 0; }
+#end .another { min-width: 200px; font-weight: 600; border-color: var(--readable); }
+
 /* Overlays: Settings and "How the museum works". */
 .overlay { position: fixed; inset: 0; background: rgba(10,9,13,0.96); z-index: 20; overflow-y: auto; overflow-x: hidden;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left)); display: none; overflow-wrap: anywhere; }
@@ -128,17 +174,110 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
   #strip .log { margin-top: 6px; }
   #strip .log .line { display: block; padding: 2px 0; border-top: 1px solid var(--line); }
   #strip .log .line:last-child { color: var(--ink); }
+  #strip .log .banner { display: flex; gap: 6px; align-items: flex-start; margin: 2px 0; padding: 3px 6px; background: var(--panel2); border-radius: 4px; }
+  #strip .log .banner .picto { margin: 2px 0 0; vertical-align: baseline; }
   .strip-title span { white-space: normal; }
   #sheet { position: static; grid-area: side; transform: none; max-height: none; border-radius: 0; box-shadow: none; border-left: 1px solid var(--line); min-height: 0; }
   .label .acts { bottom: calc(-1 * max(16px, env(safe-area-inset-bottom))); }
   #slots { display: grid; grid-area: slots; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; background: var(--panel); border-left: 1px solid var(--line); align-content: end; }
   #bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  #bar .slot { display: none; }
+  #barslots { display: none; }
+  #top { padding-bottom: 4px; }
+  #chips { order: 1; flex: 0 1 auto; }
+  #top > .dial, #top > .badge, #top > .btn { order: 2; }
+  #confirm { align-items: center; }
+  #confirm .box { border-radius: 14px; }
 }
 
 </style>
 <style>
-/* ACCESSION — the Bag's styles (BUILD.md §7.2). [stub → W2b-UI-BAG]: empty until the Bag is built. */
+/* ACCESSION — the Bag's styles (BUILD.md §7.2): the Bag and the floor plan (an overlay under
+   "How the museum works", so it opens over them), the quickslots the Bag fills, the strip
+   that says what you aim (in place of the strip on a phone, over the bar on a laptop, never
+   over the board), and the Window Pole's sheet. Every button is at least 44 px. */
+
+/* The Bag and the floor plan. */
+#bag { z-index: 19; }
+#bag:focus { outline: none; }
+#bag h3 { margin: 14px 0 6px; font-size: 0.95em; color: var(--muted); font-weight: 600; }
+#bag .ohead + * { margin-top: 12px; }
+#bag > :not(.ohead) { max-width: 640px; margin-left: auto; margin-right: auto; }
+.bag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bag-empty { color: var(--muted); font-size: 0.9em; min-height: 32px; display: flex; align-items: center; padding: 0 10px; border: 1px dashed var(--line); border-radius: 8px; }
+.btn.bag-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; white-space: normal; padding: 6px 10px; }
+.btn.bag-row .picto { flex: none; }
+.bag-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.bag-name { font-weight: 600; overflow-wrap: anywhere; }
+.bag-note { color: var(--muted); font-size: 0.85em; overflow-wrap: anywhere; }
+.bag-gain { color: var(--ink); font-size: 0.9em; margin-top: 2px; overflow-wrap: anywhere; }
+.btn.bag-row.chosen { border-color: var(--readable); border-width: 2px; }
+.btn.bag-back { margin: 12px 0 8px; }
+/* An item's label, and the Catalogue Card's choice, on a card of label paper. */
+.bag-card { background: var(--paper); color: var(--paper-ink); border-radius: 12px; padding: 12px 14px; margin: 8px 0 12px; overflow-wrap: anywhere; }
+.bag-card h2 { font: 600 1.15em/1.25 var(--label-font); margin: 0 0 6px; }
+#bag .bag-card h3 { color: var(--paper-muted); }
+.bag-card p { margin: 6px 0; }
+.bag-card .bag-note { color: var(--muted); }
+.bag-card .btn.bag-row .bag-note { color: var(--muted); }
+.bag-card .acts { position: static; box-shadow: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 8px 0 0; border-top: 1px solid var(--paper-line); background: none; }
+.bag-card .acts .btn { background: var(--panel2); color: var(--ink); }
+.bag-where, .bag-none { font-size: 0.9em; color: var(--paper-muted); }
+.bag-choice .bag-opts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.bag-choice .btn.bag-row { background: var(--panel2); color: var(--ink); }
+/* The floor plan. */
+#bag .map-say { color: var(--ink); }
+.map-box { width: 100%; overflow: hidden; margin: 10px 0; }
+.bag-map { display: block; image-rendering: pixelated; background: #0d0c10; border: 1px solid var(--line); }
+.map-key { color: var(--muted); font-size: 0.85em; }
+
+/* The quickslots: a pictogram and the count (or charges) on a phone; the name too in the
+   laptop's column. Long names end in an ellipsis. */
+.btn.bag-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 3px 2px; min-width: 0; line-height: 1.1; }
+.btn.bag-slot .q-n { font-size: 0.75em; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.bag-slot.empty .q-n { color: var(--muted); font-size: 0.85em; }
+.btn.bag-slot .q-name { display: none; }
+.btn.bag-slot.aimed { border-color: var(--readable); border-width: 2px; }
+#slots .btn.bag-slot .q-name { display: block; font-size: 0.72em; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Aiming: on a phone the strip's place (the strip itself steps aside, and Zoom stays), at a
+   height set by the text size alone (four lines, five at the larger size and six at the
+   largest: the longest words, an unknown Solution's preview with the longest local name,
+   need them at 390 px), so a preview never moves the board between taps. Cancel stands at
+   the top right, the words round it. */
+#bagaim { display: none; grid-area: strip; min-width: 0; position: relative; z-index: 5; background: var(--panel); border-top: 1px solid var(--line);
+  font-size: 0.85em; line-height: 1.3; height: calc(5.2em + 12px); }
+:root[data-text="1.15"] #bagaim { height: calc(6.5em + 12px); }
+:root[data-text="1.3"] #bagaim { height: calc(7.8em + 12px); }
+#bagaim.open { display: block; }
+#app.bag-aiming #strip { display: none; }
+#bagaim .in { position: absolute; inset: 0; padding: 6px max(8px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); overflow-y: auto; }
+#bagaim .aim-text { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#bagaim .aim-text.refused::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: var(--hazard); transform: rotate(45deg); vertical-align: 1px; }
+#bagaim .btn { float: right; margin: 0 0 4px 8px; font-size: 1.1em; }
+
+/* The Window Pole's choice: a sheet like the confirmation's; a tap beside it cancels. It is
+   an .overlay (so the keys leave the game alone while it asks), without an overlay's look. */
+#bagpick { position: fixed; inset: 0; z-index: 25; display: none; align-items: flex-end; justify-content: center; background: rgba(10,9,13,0.55); padding: 0; overflow: hidden; }
+#bagpick.open { display: flex; }
+#bagpick .box { width: 100%; max-width: 520px; max-height: 80%; overflow-y: auto; overflow-x: hidden; overflow-wrap: anywhere; background: var(--paper); color: var(--paper-ink);
+  border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5); padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+#bagpick h2 { font: 600 1.15em/1.25 var(--label-font); margin: 0 0 6px; }
+#bagpick p { margin: 4px 0; }
+#bagpick .acts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+#bagpick .acts .btn { background: var(--panel2); color: var(--ink); white-space: normal; text-align: left; }
+#bagpick .acts [data-pick-cancel] { text-align: center; }
+
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  /* On a laptop the aim strip lies over Wait · Bag · Map under the board; the strip and log
+     stay in the column. At least the bar's height, and at least three lines (four at the
+     larger sizes), so the longest words fit on the narrowest laptop board (900 px wide). */
+  #bagaim { grid-area: bar; height: auto; min-height: calc(3.9em + 9px); border-top: none; }
+  :root[data-text="1.15"] #bagaim, :root[data-text="1.3"] #bagaim { grid-area: bar; height: auto; min-height: calc(5.2em + 9px); border-top: none; }
+  #bagaim .in { padding-top: 5px; padding-bottom: 4px; }
+  #app.bag-aiming #strip { display: block; }
+  #bagpick { align-items: center; }
+  #bagpick .box { border-radius: 14px; }
+}
 
 </style>
 </head>
@@ -8481,14 +8620,17 @@ const Setup = (() => {
   // The parts of a department every state has, beyond its map (§4.1).
   const deptParts = grade => ({ clock: null, fixtures: [], surfaces: [], highlights: [], planRead: null, entryGrade: grade, modules: [] });
 
-  // A state with every top-level field, around the department `dept` and you at (x, y).
+  // A state with every top-level field, around the department `dept` and you at (x, y), with
+  // your grade's health (§8.1: Health.maxHp, PLAYER_HP and HP_PER_GRADE more a grade above I).
   function base(seed, dept, x, y, options, grade) {
+    const me = you(x, y);
+    me.hp = me.maxHp = Health.maxHp(grade || N.GRADE_START);
     return {
       v: SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0,
       options: Options.make(options),
       run: run(dept.depth, grade),
       dept,
-      actors: [you(x, y)],
+      actors: [me],
       items: [],
       you: kit(),
       causes: [], over: null,
@@ -8533,7 +8675,7 @@ const Setup = (() => {
   //   which goes {at: 'gone'}; kit ({weapon: {form, tier, level}, garment: {form, tier,
   //   level}}: your starting kit, else the usual one); youStatuses (your statuses, as an
   //   exhibit's); clock ({ltour} or {B, G, count}: Clock.init's; none if absent); entrance
-  //   [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  //   [x, y], exits [[x, y]…], grade (your grade, I if absent, and your health with it).
   // A field it does not know, a slot given twice, an item of the wrong kind for its slot, a
   // tote past TOTE_SLOTS, an item uid given twice or a status not in the registry is refused
   // with an error, so nothing a test gives is silently left out.
@@ -15891,24 +16033,27 @@ const Board3D = (() => {
 </script>
 <script>
 // ACCESSION — the interface around the board (BUILD.md §7.2): top bar, strip and log, label
-// panel, quickslots, bottom bar and overlays. It renders what it is given; sentences come
-// from text.js. On a phone the label is a bottom sheet; on a laptop the strip and log, the
-// label and six quickslots stand in a right column.
+// panel, quickslot containers, bottom bar, the confirmation sheet and overlays. It renders
+// what it is given; sentences come from text.js and labels.js through main.js. On a phone
+// the label is a bottom sheet; on a laptop the strip and log, the label and six quickslots
+// stand in a right column. The Bag (js/ui/bag.js) fills the quickslot containers.
 'use strict';
 const UI = (() => {
-  let els = {}, handlers = {}, shown = null;
+  let els = {}, handlers = {}, shown = null, current = null;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const P = (id, px) => Pictograms.svg(id, px || 16);
-  const EMPTY = '<p class="hint">Tap an exhibit to read its label.</p>';
+  const EMPTY = '<p class="hint">Tap an exhibit, a case or yourself to read its label.</p>';
 
   function build(app, h) {
     handlers = h;
     // The reserved colours have one source, art/palettes.json; CSS reads them from here.
     for (const [k, v] of Object.entries(ART.palettes.semantic)) document.documentElement.style.setProperty('--' + k, v);
+    // A quickslot is a button the Bag fills (Bag.render); main.js routes its press, q<n>.
     const slot = n => `<button class="btn slot" data-act="q${n}" aria-label="Quickslot ${n}">Q${n}</button>`;
     app.innerHTML = `
       <div id="top">
         <div class="hp"><div class="barbg"><div class="barfg" id="hpbar"></div></div><div class="num" id="hpnum"></div></div>
+        <div id="chips"><span id="stage" class="stage"></span><span id="statuses" class="statuses"></span></div>
         <canvas class="dial" id="dial" width="80" height="80" role="img"></canvas>
         <span class="badge" id="badge"></span>
         <button class="btn small" id="howbtn" aria-label="How the museum works">?</button>
@@ -15918,25 +16063,43 @@ const UI = (() => {
       <button class="btn zoom" id="zoombtn" data-act="zoom" aria-label="Zoom">Zoom</button>
       <div id="strip" role="button" aria-label="Open the label"></div>
       <div id="sheet" aria-live="polite">${EMPTY}</div>
-      <div id="slots">${[1, 2, 3, 4, 5, 6].map(slot).join('')}</div>
+      <div id="slots" class="qslots">${[1, 2, 3, 4, 5, 6].map(slot).join('')}</div>
       <div id="bar">
         <button class="btn" data-act="wait">Wait</button>
         <button class="btn" data-act="bag">Bag</button>
-        ${[1, 2, 3].map(slot).join('')}
+        <div id="barslots" class="qslots">${[1, 2, 3].map(slot).join('')}</div>
         <button class="btn" data-act="map">Map</button>
       </div>
+      <div id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-why"><div class="box">
+        <h2 id="confirm-title"></h2><div class="why" id="confirm-why"></div>
+        <div class="acts"><button class="btn yes" data-confirm="yes"></button><button class="btn" data-confirm="no">Cancel</button></div>
+      </div></div>
+      <div class="overlay" id="end"></div>
       <div class="overlay" id="how"></div>
       <div class="overlay" id="settings"></div>`;
-    for (const id of ['hpbar', 'hpnum', 'dial', 'badge', 'board', 'strip', 'bar', 'slots', 'sheet', 'how', 'settings', 'zoombtn']) els[id] = document.getElementById(id);
+    for (const id of ['hpbar', 'hpnum', 'chips', 'stage', 'statuses', 'dial', 'badge', 'board', 'strip', 'bar', 'slots', 'barslots', 'sheet', 'confirm', 'end', 'how', 'settings', 'zoombtn']) els[id] = document.getElementById(id);
     const act = e => { const b = e.target.closest('[data-act]'); if (b) handlers.bar(b.dataset.act); };
     els.bar.addEventListener('click', act); els.slots.addEventListener('click', act); els.zoombtn.addEventListener('click', act);
     els.strip.addEventListener('click', () => handlers.openLabel());
     document.getElementById('howbtn').onclick = () => { toggle('settings', false); toggle('how', true); };
     document.getElementById('setbtn').onclick = () => { toggle('how', false); toggle('settings', true); };
+    // A label's button names its action by its place in the label shown, so two buttons with
+    // one id (a Leave for each exit) stay apart.
     els.sheet.addEventListener('click', e => {
-      const b = e.target.closest('[data-label-act]');
-      if (b) handlers.labelAction(b.dataset.labelAct);
+      const b = e.target.closest('[data-label-index]');
+      if (b && current) { const a = current.actions[Number(b.dataset.labelIndex)]; if (a) handlers.labelAction(a, current.uid); }
       if (e.target.closest('[data-close]')) closeLabel();
+    });
+    // The confirmation: its buttons, or a tap beside its box, which cancels.
+    els.confirm.addEventListener('click', e => {
+      const b = e.target.closest('[data-confirm]');
+      if (b) handlers.confirmed(b.dataset.confirm === 'yes');
+      else if (!e.target.closest('.box')) handlers.confirmed(false);
+    });
+    els.end.addEventListener('click', e => {
+      if (e.target.closest('[data-another]')) handlers.another();
+      else if (e.target.closest('[data-close]')) toggle('end', false);
+      else if (e.target.closest('[data-how]')) toggle('how', true);
     });
     for (const o of ['how', 'settings']) els[o].addEventListener('click', e => {
       if (e.target.closest('[data-close]')) toggle(o, false);
@@ -15953,7 +16116,7 @@ const UI = (() => {
   const head = (title, how) => `<div class="ohead"><h2>${esc(title)}</h2><span class="ohead-btns">${how ? '<button class="btn" data-how aria-label="How the museum works">?</button>' : ''}<button class="btn" data-close>Close</button></span></div>`;
 
   function toggle(id, on) { els[id].classList.toggle('open', on); }
-  function closeOverlays() { toggle('how', false); toggle('settings', false); }
+  function closeOverlays() { toggle('how', false); toggle('settings', false); toggle('end', false); }
   const overlayOpen = () => !!document.querySelector('.overlay.open');
 
   function renderHow() {
@@ -15974,58 +16137,78 @@ const UI = (() => {
       <div class="row"><b>Motion</b> ${choice('motion', 'full', 'Full')} ${choice('motion', 'reduce', 'Reduced')}</div>`;
   }
 
-  // The top bar. The badge prints the grade's full name (§8.7).
+  // The top bar: health; the stage chip ("Open: bell in 238 turns"), from the clock's stage,
+  // whose name gives way before what comes next when the row is short of room (the chip's
+  // colour still tells the stage); your statuses, each its pictogram
+  // (Registry.STATUSES[id].icon) and the turns it still covers, its words for screen readers
+  // (your own label says them in full); the dial, labelled with Text.clock's sentence; the
+  // badge with the grade's full name (§8.7). m = {hp, maxHp, grade, clock (vm.clock), dial
+  // (its sentence), stage: {n, name, next} | null, statuses: [{icon, words, left}]}.
   function top(m) {
     const pct = m.maxHp ? Math.max(0, Math.round(100 * m.hp / m.maxHp)) : 0;
     els.hpbar.style.width = pct + '%';
     els.hpnum.innerHTML = `${P('heart', 12)}<span><span class="sr">Health </span>${m.hp} / ${m.maxHp}</span>`;
     els.badge.innerHTML = `<span class="badge-name">Handling Clearance<span class="sr">,</span></span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
-    dial(m.clock);
+    els.stage.className = 'stage' + (m.stage ? ' s' + m.stage.n : '');
+    els.stage.innerHTML = m.stage ? `${P('clock', 12)}<span class="sname">${esc(m.stage.name)}</span> <span class="snext">${esc(m.stage.next)}</span>` : '';
+    const sts = m.statuses || [];
+    els.statuses.innerHTML = sts.map(s => `<span class="st" data-status="${esc(s.icon)}">${P(s.icon, 14)}<span aria-hidden="true">${s.left}</span><span class="sr">You are ${esc(s.words)}, ${s.left === 1 ? '1 turn' : s.left + ' turns'} left.</span></span>`).join('');
+    els.chips.classList.toggle('has', !!m.stage || sts.length > 0);
+    dial(m.clock, m.dial);
   }
   const roman = n => ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][n] || String(n);
 
   // The clock face, read clockwise from the top: open hours as a thin ring, the bell's
   // stage as a thicker hazard band, the night watch as a solid hostile wedge, with a tick
-  // at each boundary, so the stages differ in shape as well as colour (§7.2).
-  function dial(c) {
+  // at each boundary, so the stages differ in shape as well as colour (§7.2). The hand is
+  // the clock's count (vm.clock.count); the label is Text.clock's sentence.
+  function dial(c, sentence) {
     const x = els.dial.getContext('2d'), r = 36, S = ART.palettes.semantic;
     x.clearRect(0, 0, 80, 80);
     x.save(); x.translate(40, 40);
     x.fillStyle = '#2a2631'; x.beginPath(); x.arc(0, 0, r, 0, Math.PI * 2); x.fill();
-    let label = 'The clock';
     if (c && c.B) {
       const end = c.B + 2 * c.G, a = t => -Math.PI / 2 + Math.PI * 2 * Math.min(1, t / end);
       const band = (from, to, col, inner) => { x.fillStyle = col; x.beginPath(); x.arc(0, 0, r, a(from), a(to)); x.arc(0, 0, inner, a(to), a(from), true); x.closePath(); x.fill(); };
       band(0, c.B, '#6b6676', r - 6); band(c.B, c.B + c.G, S.hazard, r - 14); band(c.B + c.G, end, S.hostile, 0);
       x.strokeStyle = '#ece6d8'; x.lineWidth = 2;
       for (const t of [0, c.B, c.B + c.G]) { x.beginPath(); x.moveTo(Math.cos(a(t)) * (r - 18), Math.sin(a(t)) * (r - 18)); x.lineTo(Math.cos(a(t)) * r, Math.sin(a(t)) * r); x.stroke(); }
-      x.strokeStyle = '#ffffff'; x.lineWidth = 4; x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(a(c.turn)) * (r - 4), Math.sin(a(c.turn)) * (r - 4)); x.stroke();
-      const stage = c.turn < c.B ? `open hours, the bell in ${c.B - c.turn} turns` : c.turn < c.B + c.G ? `after the bell, the night watch in ${c.B + c.G - c.turn} turns` : 'the night watch';
-      label = `The clock: turn ${c.turn}, ${stage}`;
+      x.strokeStyle = '#ffffff'; x.lineWidth = 4; x.beginPath(); x.moveTo(0, 0); x.lineTo(Math.cos(a(c.count)) * (r - 4), Math.sin(a(c.count)) * (r - 4)); x.stroke();
     }
-    els.dial.setAttribute('aria-label', label);
+    els.dial.setAttribute('aria-label', sentence || 'The clock');
     x.restore();
   }
 
   // The strip: the nearest readable thing and the log. On a phone it shows the newest
-  // sentence until the next action, then the nearest label; on a laptop it shows both.
-  function strip(s, lines, fresh) {
+  // sentence until the next action, then the nearest label; on a laptop it shows both. A
+  // stage's announcement (the bell, the night watch, a night-watch bell) is set off in the
+  // log as a banner wherever it appears (§8.4, D4.10): banners lists those sentences.
+  function strip(s, lines, fresh, banners) {
     els.strip.classList.toggle('fresh', !!fresh);
     els.strip.classList.toggle('has-summary', !!s);
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
-    els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${esc(l)}</div>`).join('')}</div>`;
+    els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${withBanner(l, banners || [])}</div>`).join('')}</div>`;
     // The laptop's log scrolls inside its own box: keep the newest entry in view from its
     // first sentence, even when it is taller than the box.
     const log = els.strip.querySelector('.log'), last = log && log.lastElementChild;
     if (last) log.scrollTop = Math.min(log.scrollHeight - log.clientHeight, last.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop);
   }
+  // A log entry with any stage announcement in it set off as a banner; its text is the
+  // entry's, unchanged.
+  function withBanner(line, banners) {
+    const b = banners.find(t => t && line.includes(t));
+    if (!b) return esc(line);
+    const i = line.indexOf(b);
+    return esc(line.slice(0, i)) + `<span class="banner">${P('clock', 16)}${esc(b)}</span>` + esc(line.slice(i + b.length));
+  }
 
   // The full label. Its state icons sit on a dark chip, as the pictograms do, so every
-  // reserved colour stays legible on the cream panel.
+  // reserved colour stays legible on the cream panel. Each button is one of the label's
+  // actions (Labels.*): main.js dispatches the one pressed.
   function label(l) {
     if (!l) { closeLabel(); return; }
-    shown = l.uid;
+    shown = l.uid; current = l;
     const tomb = l.tomb ? [l.tomb.maker, l.tomb.date, l.tomb.medium, l.tomb.dims, l.tomb.credit, l.number].filter(Boolean).map(esc).join(' · ') : '';
     els.sheet.innerHTML = `<div class="label">
       ${l.closeup ? '<canvas class="closeup" width="64" height="64"></canvas>' : ''}
@@ -16035,7 +16218,7 @@ const UI = (() => {
       ${l.behaviour ? `<div class="beh">${esc(l.behaviour)}</div>` : ''}
       ${l.odds && l.odds.length ? `<div class="odds">${l.odds.map(esc).join('<br>')}</div>` : ''}
       ${l.paragraph ? `<div class="para">${esc(l.paragraph)}</div>` : (l.far ? `<div class="para"><i>${esc(l.far)}</i></div>` : '')}
-      <div class="acts">${(l.actions || []).map(a => `<button class="btn" data-label-act="${esc(a.id)}">${esc(a.text)}</button>`).join('')}<button class="btn" data-close>Close</button></div>
+      <div class="acts">${(l.actions || []).map((a, i) => `<button class="btn" data-label-act="${esc(a.id)}" data-label-index="${i}">${esc(a.text)}</button>`).join('')}<button class="btn" data-close>Close</button></div>
     </div>`;
     if (l.closeup) {
       const c = els.sheet.querySelector('.closeup'), img = Sprites.closeup(l.closeup.sprite, l.closeup.dept);
@@ -16047,7 +16230,7 @@ const UI = (() => {
   // dead buttons is left behind.
   function closeLabel() {
     const was = shown;
-    shown = null;
+    shown = null; current = null;
     els.sheet.classList.remove('open');
     els.sheet.innerHTML = EMPTY;
     if (was && handlers.closedLabel) handlers.closedLabel();
@@ -16061,39 +16244,587 @@ const UI = (() => {
     return Math.max(0, b.bottom - (window.innerHeight - els.sheet.offsetHeight));
   }
 
-  return { build, top, strip, label, closeLabel, labelShown, sheetCover, closeOverlays, overlayOpen, renderSettings, toggle };
+  // The confirmation sheet (§7.1): what the action would do, as sentences, with a 44-px
+  // button that does it and one that cancels. c = {title, lines, yes}. The button that does
+  // it takes the focus, so Enter confirms. While it asks, the rest of the page is inert: a tap
+  // cannot reach it (the sheet covers it), nor can Tab or a screen reader, so nothing else is
+  // done before it is answered. Closing it gives the focus back where it was, if that is
+  // still on the page.
+  let madeInert = [], focusBack = null;
+  function confirm(c) {
+    els.confirm.querySelector('h2').textContent = c.title;
+    els.confirm.querySelector('.why').innerHTML = c.lines.map(l => `<p>${esc(l)}</p>`).join('');
+    const yes = els.confirm.querySelector('.yes');
+    yes.textContent = c.yes;
+    if (!confirmOpen()) {
+      focusBack = document.activeElement;
+      for (const e of els.confirm.parentElement.children) if (e !== els.confirm && !e.inert) { e.inert = true; madeInert.push(e); }
+    }
+    els.confirm.classList.add('open');
+    yes.focus({ preventScroll: true });
+  }
+  function closeConfirm() {
+    if (!confirmOpen()) return;
+    for (const e of madeInert) e.inert = false;
+    madeInert = [];
+    const had = els.confirm.contains(document.activeElement), back = focusBack;
+    focusBack = null;
+    els.confirm.classList.remove('open');
+    if (back && back !== document.body && back.isConnected && typeof back.focus === 'function' && back.getClientRects().length) back.focus({ preventScroll: true });
+    else if (had) document.activeElement.blur();
+  }
+  const confirmOpen = () => els.confirm.classList.contains('open');
+
+  // The end of a visit: the recap of a death, or the sentence of leaving, with "Another
+  // visit", which takes the focus. A screen reader hears it as a dialog named by its title and
+  // described by its sentences. e = {title, lines}.
+  function end(e) {
+    els.end.innerHTML = head(e.title, true) + `<div class="recap" id="end-why">${e.lines.map(l => `<p>${esc(l)}</p>`).join('')}</div>
+      <div class="acts"><button class="btn another" data-another>Another visit</button></div>`;
+    els.end.querySelector('.ohead h2').id = 'end-title';
+    for (const [k, v] of [['role', 'dialog'], ['aria-labelledby', 'end-title'], ['aria-describedby', 'end-why']]) els.end.setAttribute(k, v);
+    toggle('end', true);
+    els.end.querySelector('[data-another]').focus({ preventScroll: true });
+  }
+  const endOpen = () => els.end.classList.contains('open');
+
+  // The containers the Bag fills: the phone bar's three quickslots and the laptop column's six.
+  const slots = () => ({ bar: els.barslots, column: els.slots });
+
+  return { build, top, strip, label, closeLabel, labelShown, sheetCover, closeOverlays, overlayOpen, renderSettings, toggle,
+    confirm, closeConfirm, confirmOpen, end, endOpen, slots };
 })();
 
 </script>
 <script>
-// ACCESSION — the Bag (BUILD.md §7.2): your kit and tote, the quickslots, aiming a throw or
-// an instrument, and the floor plan. [stub → W2b-UI-BAG]: the interface is named here with
-// nothing behind it, and main.js does not attach it yet.
-//   Bag.attach(app, handlers)   build its DOM inside app; handlers are main.js's callbacks
-//   Bag.render(vm, labels)      show the view model's kit, tote and charges
-//   Bag.open(), Bag.close()     the Bag panel
-//   Bag.quick(n)                use quickslot n
-//   Bag.map()                   the floor plan, once read
-//   Bag.aiming() → null         the item being aimed, if any
-//   Bag.tapAim(t) → null        a tap on tile t while aiming: the action it makes, if any
+// ACCESSION — the Bag (BUILD.md §7.1, §7.2, §8.5, §8.6): what you wear and carry, each
+// item's label and buttons, the Catalogue Card's choice, the quickslots, aiming a throw or
+// an instrument at a tile, choosing a Restoration kit's item, the Window Pole's choice, and
+// the floor plan. It decides nothing: every button is an action a label offers (Labels.*,
+// the actions step() takes now), or the answer to a choice the state holds, and each goes
+// through main.js's act (request), so it is asked about as any other action is (§7.1).
+//
+//   Bag.attach(app, {bar, column, act, state, draw})
+//       builds its panel, aim strip and pole sheet inside app (#app, so they go inert while a
+//       confirmation asks); bar and column are UI's quickslot containers (3 on a phone, 6 in
+//       the laptop's column); act(action) asks for an action; state() is the state; draw()
+//       redraws the page (which calls render)
+//   Bag.render(vm, labels)   on every draw: fills the quickslots (your instrument first, then
+//                            your consumables in tote order), and shows what is open; a new
+//                            pending choice (vm.pending, the Catalogue Card's) opens the Bag
+//   Bag.open(uid?)           the Bag; with the uid of an item you carry that is aimed (an item
+//                            label's Throw…, Use at a tile… or Use on an item…), its aim
+//   Bag.close()              closes the Bag or the map, and ends any aim
+//   Bag.quick(n)             quickslot n: your instrument is aimed (pressed again while it is
+//                            aimed, the aim ends); a consumable is shown in the Bag with its
+//                            buttons; an empty slot opens the Bag
+//   Bag.map()                the floor plan: what you have seen (vm.tiles), and once a Floor
+//                            Plan is read here, the rooms that still hold a Highlight (vm.plan)
+//   Bag.aiming() → null | {kind, uid, x?, y?}
+//                            kind 'throw' (a Solution) or 'tile' (an instrument), with the tile
+//                            previewed, if any; 'item' while a Restoration kit's item is chosen
+//   Bag.tapAim(t) → action | null
+//                            a tap on tile t while aiming: the first tap on a tile previews it,
+//                            a second commits: the action, or for the Window Pole with more than
+//                            one way to use it there, its sheet (null until one is chosen); on a
+//                            tile where it cannot be used, the action step() refuses, saying why.
+//                            An aim lasts until time passes (its action taken, or another), or
+//                            until Cancel, Escape, the Bag or the map ends it
+// Bag is a plain object whose methods main.js calls by name (check-play puts recorders in
+// their place for a while, so they stay writable); the Bag's own handlers call its inner
+// functions.
 'use strict';
-const Bag = {
-  attach(app, handlers) {},
-  render(vm, labels) {},
-  open() {},
-  close() {},
-  quick(n) {},
-  map() {},
-  aiming() { return null; },
-  tapAim(t) { return null; },
-};
+const Bag = (() => {
+  let h = {}, el = {}, lastVm = null, lastLabels = null;
+  // mode: null (shut), 'bag' or 'map'. view, in the Bag: the list; an item's label; or a
+  // Restoration kit's items to choose from (on: the one previewed).
+  let mode = null, view = { k: 'list' }, focusBack = null, focusIn = false;
+  // aim: a throw or an instrument being aimed, {kind, uid, tile, tick} (tick: the state's when
+  // the aim began; once time passes the aim is over); pick: the Window Pole's actions at the
+  // aimed tile while its sheet asks which.
+  let aim = null, pick = null, seenPending = null, redrawSoon = false;
+  const shown = { slots: ['', ''], panel: '', aim: '', pick: '' };
+  const POLE_SAYS = { push: 'Push it one tile away', pull: 'Pull it one tile toward you', take: 'Take what the case holds' };
+  const SLOT_NAMES = { weapon: 'Weapon slot', garment: 'Garment slot', curio0: 'Curio slot', curio1: 'Curio slot', instrument: 'Instrument slot' };
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const P = (id, px) => Pictograms.svg(id, px || 16);
+  const own = (o, k) => typeof k === 'string' && o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const st = () => typeof h.state === 'function' ? h.state() : (window.ACCESSION ? window.ACCESSION.state : null);
+  const itemOf = (s, uid) => (s && s.items || []).find(i => i.uid === uid) || null;
+  const carried = (s, uid) => { const it = itemOf(s, uid); return !!it && (it.where.at === 'tote' || it.where.at === 'kit'); };
+  const labelOf = uid => lastLabels && typeof lastLabels.ofItem === 'function' ? lastLabels.ofItem(uid) : Labels.ofItem(st(), uid);
+  const same = (p, q) => { const a = Object.keys(p), b = Object.keys(q); return a.length === b.length && a.every(k => own(q, k) && p[k] === q[k]); };
+  function redraw() { if (typeof h.draw === 'function') h.draw(); else if (lastVm) render(lastVm, lastLabels); }
+  // Ask for an action through main.js's act, which draws after it; when it does nothing (a
+  // confirmation already asks), draw anyway, since the Bag has changed.
+  function ask(a) { if (!a || !h.act(a)) redraw(); }
+  // An item's name: a consumable's local name, a pack item's own, else the instrument's or
+  // what it is (the label's title, without building the label's buttons).
+  function nameOf(s, uid) {
+    const it = itemOf(s, uid);
+    if (!it) return 'it';
+    if (it.kind === 'consumable') return Consumables.name(s, it).local;
+    const d = Kit.describe(s, uid);
+    if (d && d.title) return d.title;
+    if (it.kind === 'instrument' && own(Registry.INSTRUMENTS, it.form)) return 'The ' + Registry.INSTRUMENTS[it.form].name;
+    const l = Labels.ofItem(s, uid);
+    return l ? l.title : 'it';
+  }
+
+  // ---- Building ----
+
+  function attach(app, handlers) {
+    h = handlers || {};
+    const make = (id, cls, attrs) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; for (const [k, v] of attrs || []) e.setAttribute(k, v); app.appendChild(e); return e; };
+    // The Bag and the floor plan: an overlay, so keys leave the game alone while it is open.
+    el.app = app;
+    el.panel = make('bag', 'overlay', [['role', 'dialog'], ['aria-labelledby', 'bag-title'], ['tabindex', '-1']]);
+    // What you aim, and what a tap does: in place of the strip on a phone, over the bar on a
+    // laptop, never over the board. Its words change in one element that stays, so a screen
+    // reader hears each change (a live region put in afresh is not reliably heard).
+    el.aim = make('bagaim', '', [['role', 'region'], ['aria-label', 'Aiming']]);
+    el.aim.innerHTML = '<div class="in"><button class="btn" data-aim-cancel>Cancel</button><p class="aim-text" aria-live="polite"></p></div>';
+    el.aimText = el.aim.querySelector('.aim-text');
+    // The Window Pole's choice: a sheet like a confirmation's. It is an overlay, so while it
+    // asks the keys leave the game alone (a key cannot move you or pass a turn behind it).
+    el.pick = make('bagpick', 'overlay', [['role', 'dialog'], ['aria-modal', 'true'], ['aria-labelledby', 'bagpick-title']]);
+    el.panel.addEventListener('click', onPanel);
+    el.aim.addEventListener('click', e => { if (e.target.closest('[data-aim-cancel]')) { endAim(); redraw(); } });
+    el.pick.addEventListener('click', e => {
+      const b = e.target.closest('[data-pick]');
+      // The aim ends once the chosen action has taken its time (render), so a confirmation it
+      // asks, cancelled, leaves the aim for another tile.
+      if (b && pick) { const a = pick[Number(b.dataset.pick)]; pick = null; ask(a); return; }
+      if (e.target.closest('[data-pick-cancel]') || !e.target.closest('.box')) { pick = null; redraw(); }
+    });
+  }
+
+  // ---- Opening and closing ----
+
+  function show(m, v) {
+    if (!mode) { focusBack = document.activeElement; focusIn = true; }
+    mode = m; view = v || { k: 'list' }; pick = null; aim = null;
+  }
+  function open(uid) {
+    const s = st();
+    if (!s || s.over) return;
+    if (typeof uid === 'string' && carried(s, uid)) {
+      const l = Labels.ofItem(s, uid), a = l && l.actions.find(q => q.aim);
+      if (a && a.aim === 'tile') { startAim(s, uid); return; }
+      show('bag', a && a.aim === 'item' ? { k: 'restore', uid, on: null } : { k: 'item', uid });
+      return;
+    }
+    show('bag');
+  }
+  function map() { const s = st(); if (s && !s.over) show('map'); }
+  function close() {
+    const was = mode;
+    mode = null; view = { k: 'list' }; pick = null; aim = null;
+    if (was && focusBack && focusBack.isConnected && el.panel.contains(document.activeElement) && focusBack.getClientRects().length) focusBack.focus({ preventScroll: true });
+    focusBack = null;
+  }
+
+  // ---- Quickslots ----
+
+  // What the quickslots hold, in order: your instrument, then each consumable you carry, in
+  // the order of your tote (vm.you.consumables), at most six.
+  function quickList(vm) {
+    const out = [];
+    if (vm.you.charges) out.push({ uid: vm.you.charges.uid, inst: vm.you.charges });
+    for (const c of vm.you.consumables || []) out.push({ uid: c.uid, cons: c });
+    return out.slice(0, 6);
+  }
+  function slotHtml(n, q) {
+    if (!q) return `<button class="btn slot bag-slot empty" data-act="q${n}" aria-label="Quickslot ${n}, empty: opens the Bag"><span class="q-n">Q${n}</span></button>`;
+    const s = st(), aimed = !!aim && aim.uid === q.uid;
+    let icon, count, name, words;
+    if (q.inst) {
+      icon = 'instrument'; count = `${q.inst.charges}/${q.inst.max}`; name = nameOf(s, q.uid);
+      words = `${plural(q.inst.charges, 'charge', 'charges')} of ${q.inst.max}`;
+    } else {
+      icon = q.cons.shape ? 'seal_' + q.cons.shape : 'seal'; count = '×' + q.cons.n; name = q.cons.local; words = q.cons.n === 1 ? 'one' : `${q.cons.n} of them`;
+    }
+    // Only an instrument's slot is a toggle (pressed while it is aimed); a consumable's opens
+    // the Bag, so it says nothing of being pressed.
+    return `<button class="btn slot bag-slot${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}"${q.inst ? ` aria-pressed="${aimed}"` : ''} aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}">${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
+  }
+  function drawSlots(vm) {
+    const list = quickList(vm);
+    [[h.bar, 3], [h.column, 6]].forEach(([box, n], i) => {
+      if (!box) return;
+      let html = '';
+      for (let k = 0; k < n; k++) html += slotHtml(k + 1, list[k]);
+      if (html !== shown.slots[i]) { box.innerHTML = html; shown.slots[i] = html; }
+    });
+  }
+  // A quickslot: your instrument is aimed (pressed again while aimed, the aim ends); a
+  // consumable is shown in the Bag with its buttons (Drink, Throw…, Read); an empty one opens
+  // the Bag.
+  function quick(n) {
+    const s = st();
+    if (!s || s.over) return;
+    const q = quickList(ViewModel.derive(s, {}))[n - 1];
+    if (!q) { show('bag'); return; }
+    if (q.inst) { if (aim && aim.uid === q.uid) endAim(); else startAim(s, q.uid); return; }
+    show('bag', { k: 'item', uid: q.uid });
+  }
+
+  // ---- Aiming at a tile ----
+
+  // Aim item uid: a Solution's throw, or your instrument. The Bag shuts, and on a phone the
+  // label sheet too, so the whole board can be tapped.
+  function startAim(s, uid) {
+    const it = itemOf(s, uid);
+    if (mode) close();
+    pick = null;
+    aim = { kind: it.kind === 'consumable' ? 'throw' : 'tile', uid, tile: null, tick: s.tick };
+    if (UI.labelShown() && UI.sheetCover() > 0) UI.closeLabel();
+  }
+  function endAim() { aim = null; pick = null; }
+  // The actions the aim makes at (x, y): a throw there; the instrument there (the pole's
+  // push, pull and take, in that order).
+  function candidates(s, x, y) {
+    if (aim.kind === 'throw') return [{ a: 'throw', uid: aim.uid, x, y }];
+    const it = itemOf(s, aim.uid);
+    return it && it.form === 'pole' ? ['push', 'pull', 'take'].map(how => ({ a: 'use', uid: aim.uid, x, y, how })) : [{ a: 'use', uid: aim.uid, x, y }];
+  }
+  // Those step() takes now (Labels.allowed, the test every button passes).
+  const legalAt = (s, x, y) => candidates(s, x, y).filter(a => Labels.allowed(s, a));
+  // Why none is taken at (x, y): the refusal step() gives, tried on a copy of the state, so
+  // the sentence is the game's own; for the pole, the most telling of its three (that there
+  // is no exhibit or nothing to take only when nothing more is wrong). {action, sentence}.
+  const VAGUE = ['no_exhibit', 'nothing_to_take'];
+  let why = { state: null, key: '', out: null };
+  function refusal(s, x, y) {
+    const key = `${s.tick}|${s.turn}|${aim.uid}|${x},${y}|${s.you.tote.join()}|${s.run.knownSeals.join()}`;
+    if (why.state === s && why.key === key) return why.out;
+    const names = Labels.nameOf(s), tries = candidates(s, x, y).map(action => ({ action, e: Step.step(State.clone(s), action).find(e => e.k === 'refused') || null }));
+    const best = tries.find(t => t.e && !VAGUE.includes(t.e.reason)) || tries.find(t => t.e) || tries[0];
+    const out = { action: best.action, reason: best.e ? best.e.reason : null, sentence: best.e ? Text.event(best.e, names) : 'It cannot be used there now.' };
+    why = { state: s, key, out };
+    return out;
+  }
+  function tapAim(t) {
+    const s = st();
+    if (!aim || !t || !s || s.over || pick || !Number.isInteger(t.x) || !Number.isInteger(t.y)) return null;
+    if (!aim.tile || aim.tile.x !== t.x || aim.tile.y !== t.y) { aim.tile = { x: t.x, y: t.y }; return null; }
+    // The one action there; the aim ends once it has taken its time (render), so a
+    // confirmation it asks, cancelled, leaves the aim for another tile.
+    const legal = legalAt(s, t.x, t.y);
+    if (legal.length === 1) return legal[0];
+    if (legal.length > 1) { pick = legal; return null; }
+    // Refused there: step() says why, in the log, and the aim stays for another tile.
+    return refusal(s, t.x, t.y).action;
+  }
+  function aiming() {
+    if (aim) return aim.tile ? { kind: aim.kind, uid: aim.uid, x: aim.tile.x, y: aim.tile.y } : { kind: aim.kind, uid: aim.uid };
+    if (mode === 'bag' && view.k === 'restore') return { kind: 'item', uid: view.uid };
+    return null;
+  }
+
+  // What the aim strip says: what you aim, then what a tap does there, or why it cannot be
+  // used there (the game's refusal), or, before a tap, how to aim (or that nothing is in
+  // reach now). Short, so that it fits the strip at every text size.
+  function aimWords(s) {
+    const it = itemOf(s, aim.uid), name = nameOf(s, aim.uid);
+    const names = Labels.nameOf(s), who = (x, y) => { const a = Actors.at(s, x, y); return (a && names(a.uid)) || 'the exhibit'; };
+    const I = aim.kind === 'tile' && own(Registry.INSTRUMENTS, it.form) ? Registry.INSTRUMENTS[it.form] : null, range = I ? N[I.row][2] : 0;
+    const head = aim.kind === 'throw' ? `Throwing ${name}.` : `${I ? I.name : name}, ${it.charges} of ${plural(it.max, 'charge', 'charges')}.`;
+    if (!aim.tile) {
+      if (aim.kind === 'throw') return { head, text: Consumables.targets(s, aim.uid).length ? `Tap a tile within ${N.THROW_RANGE} tiles, then tap it again to throw.` : 'There is no tile you can throw it at from here.' };
+      if (!Kit.targets(s, aim.uid).length) return { head, text: it.charges < 1 ? Text.refusal('no_charges') : 'There is no tile it can be used at from here.' };
+      return { head, text: it.form === 'pin_driver' ? `Tap an exhibit within ${range} tiles, then tap it again to fire.`
+        : it.form === 'pole' ? `Tap an exhibit, or an opened or broken case, within ${range} tiles, then tap it again.`
+          : `Tap a tile within ${range} tiles, then tap it again to strike.` };
+    }
+    const { x, y } = aim.tile, legal = legalAt(s, x, y);
+    if (!legal.length) return { head, text: refusal(s, x, y).sentence, refused: true };
+    if (legal.length > 1) return { head, text: 'Tap it again to choose what the pole does here.' };
+    const a = legal[0];
+    if (a.a === 'throw') {
+      const ck = it.ck, known = Consumables.known(s, ck), side = known ? N[Registry.CONSUMABLES[ck].area] : Consumables.AREA;
+      return { head, text: known ? `Tap it again to throw it here; it covers the marked ${side}×${side}.`
+        : `Tap it again to throw it here. Its kind unknown, the mark is the largest any Solution covers: ${side}×${side}.` };
+    }
+    if (a.how === 'push' || a.how === 'pull') return { head, text: `Tap it again to ${a.how} ${who(x, y)} one tile ${a.how === 'push' ? 'away' : 'toward you'}.` };
+    if (a.how === 'take') return { head, text: 'Tap it again to take what the case holds.' };
+    if (it.form === 'pin_driver') return { head, text: `Tap it again to fire a bolt at ${who(x, y)}.` };
+    return { head, text: 'Tap it again to strike the fork here: a soft noise, as if you made it.' };
+  }
+  function drawAim(s) {
+    const on = !!aim && !!s && !s.over;
+    el.aim.classList.toggle('open', on);
+    if (el.app) el.app.classList.toggle('bag-aiming', on);
+    const w = on ? aimWords(s) : null, html = w ? `<b>${esc(w.head)}</b> ${esc(w.text)}` : '';
+    el.aimText.classList.toggle('refused', !!w && !!w.refused);
+    if (html !== shown.aim) { el.aimText.innerHTML = html; shown.aim = html; }
+  }
+  function drawPick(s) {
+    const on = !!pick && !!aim && !!s && !s.over;
+    el.pick.classList.toggle('open', on);
+    const html = on ? `<div class="box"><h2 id="bagpick-title">The Window Pole</h2><p>What should it do at this tile?</p><div class="acts">${
+      pick.map((a, i) => `<button class="btn" data-pick="${i}" data-how="${a.how}">${esc(POLE_SAYS[a.how])}</button>`).join('')}<button class="btn" data-pick-cancel>Cancel</button></div></div>` : '';
+    if (html !== shown.pick) { el.pick.innerHTML = html; shown.pick = html; if (on) { const b = el.pick.querySelector('[data-pick]'); if (b) b.focus({ preventScroll: true }); } }
+  }
+
+  // ---- The panel ----
+
+  function head(title) {
+    return `<div class="ohead"><h2 id="bag-title">${esc(title)}</h2><span class="ohead-btns"><button class="btn" data-how aria-label="How the museum works">?</button><button class="btn" data-close>Close</button></span></div>`;
+  }
+  // A row for an item you carry: its pictogram, name and what it is (its slot when worn).
+  function row(uid, note) {
+    const l = labelOf(uid);
+    if (!l) return '';
+    const p = l.pictos[0], c = lastVm && (lastVm.you.consumables || []).find(q => q.uid === uid);
+    const kind = c ? (c.kind && own(Registry.CONSUMABLES, c.kind) ? 'it is ' + Registry.CONSUMABLES[c.kind].name : 'not identified') : '';
+    // What it is, unless its name already says so ("A Heavy weapon, tier 1").
+    const is = p && !l.title.toLowerCase().includes(p.text.toLowerCase()) ? p.text : '';
+    const what = [note, is, kind].filter(Boolean).join(' · ');
+    return `<li><button class="btn bag-row" data-item="${esc(uid)}">${P(p ? p.icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(l.title)}</span>${what ? `<span class="bag-note">${esc(what)}</span>` : ''}</span></button></li>`;
+  }
+  // The Catalogue Card's choice (vm.pending): one button for each seal you do not know, with
+  // what you carry under it.
+  function choice(vm) {
+    const p = vm.pending;
+    if (!p || p.k !== 'seal' || !Array.isArray(p.options)) return '';
+    const opts = p.options.map((seal, i) => {
+      const S = own(Registry.SEALS, seal) ? Registry.SEALS[seal] : null, mine = (vm.you.consumables || []).filter(c => c.seal === seal);
+      const note = mine.length ? 'You carry ' + mine.map(c => c.local + (c.n > 1 ? ` (${c.n})` : '')).join(', ') + '.' : 'You carry none.';
+      return `<button class="btn bag-row" data-choose="${i}">${P(S && S.shape ? 'seal_' + S.shape : 'seal', 20)}<span class="bag-text"><span class="bag-name">${esc(S ? cap(S.name) : seal)}</span><span class="bag-note">${esc(note)}</span></span></button>`;
+    }).join('');
+    return `<section class="bag-card bag-choice"><h2>Catalogue Card</h2><p>Choose a seal to identify: you will know its kind for the rest of the run. Nothing else can be done until you choose.</p><div class="bag-opts">${opts}</div></section>`;
+  }
+  function list(vm) {
+    const k = vm.you.kit, worn = [['weapon', k.weapon], ['garment', k.garment], ['curio0', k.curio[0]], ['curio1', k.curio[1]], ['instrument', k.instrument]];
+    let html = `<h3>Worn</h3><ul class="bag-list">`;
+    for (const [slot, uid] of worn) html += uid ? row(uid, SLOT_NAMES[slot]) : `<li class="bag-empty">${SLOT_NAMES[slot]}: empty</li>`;
+    html += `</ul><h3>Tote: ${vm.you.tote.length} of ${N.TOTE_SLOTS} slots</h3><ul class="bag-list">`;
+    html += vm.you.tote.length ? vm.you.tote.map(uid => row(uid, '')).join('') : '<li class="bag-empty">Nothing in your tote.</li>';
+    return html + '</ul>';
+  }
+  // An item's label, as the label panel shows it (§8.8), on a card, with its buttons.
+  function card(l, body) {
+    const tomb = l.tomb ? [l.tomb.maker, l.tomb.date, l.tomb.medium, l.tomb.dims, l.tomb.credit, l.number].filter(Boolean).map(esc).join(' · ') : '';
+    return `<section class="bag-card label"><h2><span>${esc(l.title)}</span></h2>${tomb ? `<div class="tomb">${tomb}</div>` : ''}
+      ${l.pictos.length ? `<div class="pictos">${l.pictos.map(p => `<span>${P(p.icon, 14)}${esc(p.text)}</span>`).join('')}</div>` : ''}
+      ${l.behaviour ? `<div class="beh">${esc(l.behaviour)}</div>` : ''}
+      ${l.odds && l.odds.length ? `<div class="odds">${l.odds.map(esc).join('<br>')}</div>` : ''}
+      ${l.paragraph ? `<div class="para">${esc(l.paragraph)}</div>` : ''}${body}</section>`;
+  }
+  function itemView(s, uid) {
+    const l = labelOf(uid), it = itemOf(s, uid);
+    if (!l || !carried(s, uid)) return null;
+    const where = it.where.at === 'kit' ? `You wear it, in your ${SLOT_NAMES[it.where.slot].toLowerCase()}.` : 'It is in your tote.';
+    const acts = l.actions.length ? `<div class="acts">${l.actions.map((a, i) => `<button class="btn" data-do="${i}" data-action="${esc(a.id)}">${esc(a.text)}</button>`).join('')}</div>`
+      : `<p class="bag-none">${s.ui && s.ui.pendingChoice ? 'Answer the Catalogue Card first.' : 'There is nothing to do with it now.'}</p>`;
+    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<p class="bag-where">${esc(where)}</p>${acts}`);
+  }
+  // A Restoration kit's items: those its legal uses name, in Kit.useLegal's order (what you
+  // wear in slot order, then your tote). A first tap on one shows what it would gain; a
+  // second uses the kit on it.
+  function restoreTargets(s, kit) {
+    const legal = Step.legal(s);
+    return Kit.useLegal(s).filter(a => a.uid === kit && typeof a.on === 'string' && legal.some(q => same(q, a)));
+  }
+  function restoreView(s) {
+    const l = labelOf(view.uid);
+    if (!l || !carried(s, view.uid)) return null;
+    const acts = restoreTargets(s, view.uid);
+    const rows = acts.map(a => {
+      const t = labelOf(a.on), it = itemOf(s, a.on), sel = view.on === a.on;
+      if (!t) return '';
+      const where = it.where.at === 'kit' ? SLOT_NAMES[it.where.slot] : 'In your tote';
+      const gain = sel ? preview(s, view.uid, a.on) : '';
+      return `<li><button class="btn bag-row${sel ? ' chosen' : ''}" data-on="${esc(a.on)}" aria-pressed="${sel}">${P(t.pictos[0] ? t.pictos[0].icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(t.title)}</span><span class="bag-note">${esc(where)}</span>${gain ? `<span class="bag-gain">${esc(gain)}</span>` : ''}</span></button></li>`;
+    }).join('');
+    const say = acts.length ? 'Tap an item to see what it would gain, then tap it again to use the kit on it.' : 'There is nothing you wear or carry that it can be used on now.';
+    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
+  }
+  // What one level gives the item: Kit.restore on a copy of the state, read back through
+  // Kit.describe (its own numbers at your grade before any bonus, its rank, bonuses and
+  // charges), so the preview is what the rule does.
+  function preview(s, kit, on) {
+    const c = State.clone(s);
+    if (typeof Kit.restore(c, kit, on, []) === 'string') return '';
+    const b = Kit.describe(s, on), a = Kit.describe(c, on), out = [`level ${b.level} → ${a.level}`];
+    const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+    if (b.stats && a.stats) {
+      if (b.stats.dmin !== a.stats.dmin || b.stats.dmax !== a.stats.dmax) out.push(`damage ${b.stats.dmin}–${b.stats.dmax} → ${a.stats.dmin}–${a.stats.dmax}`);
+      if (b.stats.acc !== a.stats.acc) out.push(`Acc ${sign(b.stats.acc)} → ${sign(a.stats.acc)}`);
+      if (b.stats.pad !== a.stats.pad) out.push(`Padding ${b.stats.pad} → ${a.stats.pad}`);
+    }
+    if (b.rank !== a.rank) out.push(`rank ${b.rank} → ${a.rank}`);
+    const NAME = { dmg: 'damage', acc: 'Acc', eva: 'Eva', pad: 'Padding' };
+    b.bonuses.forEach((x, i) => { const y = a.bonuses[i]; if (y && Number.isInteger(x.n) && x.n !== y.n && own(NAME, x.id)) out.push(`its ${NAME[x.id]} bonus ${sign(x.n)} → ${sign(y.n)}`); });
+    if (b.instrument && a.instrument && (b.instrument.max !== a.instrument.max || b.instrument.charges !== a.instrument.charges)) out.push(`charges ${b.instrument.charges} of ${b.instrument.max} → ${a.instrument.charges} of ${a.instrument.max}`);
+    return cap(out.join('; ')) + (b.stats ? ' (before any bonus).' : '.');
+  }
+
+  // The floor plan: the department as you know it (vm.tiles: what you see and remember;
+  // all of it once a Floor Plan is read here), you, the exits, and the rooms that still hold
+  // a Highlight (vm.plan), each drawn with its own shape, so colour is never the only sign.
+  function mapView(s, vm) {
+    const room = s.dept.roomOf && s.dept.roomOf[vm.you.y] ? (s.dept.rooms || []).find(r => r.id === s.dept.roomOf[vm.you.y][vm.you.x]) : null;
+    const here = room && room.number ? ` You are in Room ${room.number}.` : '';
+    let say;
+    const rooms = (vm.plan || []).map(r => 'Room ' + (r.number === null ? r.key : r.number));
+    const and = rooms.length > 1 ? rooms.slice(0, -1).join(', ') + ' and ' + rooms[rooms.length - 1] : rooms.join('');
+    if (vm.plan === null) say = `This is what you have seen of the department.${here} A Floor Plan, read here, shows all of it and the rooms whose Highlights have not been taken.`;
+    else if (!rooms.length) say = `You have read a Floor Plan here, so all of the department is drawn; every Highlight has been taken.${here}`;
+    else say = `You have read a Floor Plan here, so all of the department is drawn. The ${rooms.length === 1 ? 'room whose Highlight has' : 'rooms whose Highlights have'} not been taken ${rooms.length === 1 ? 'is' : 'are'} outlined: ${and}.${here}`;
+    return `<p class="bag-where map-say">${esc(say)}</p><div class="map-box"><canvas class="bag-map" role="img" aria-label="${esc(say)}"></canvas></div>
+      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: a band across the tile, with a dot on a staff door. Cases: a framed square, filled while shut.${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
+  }
+  // Each tile's tint, and for a door, a staff door or a case a shape too, so colour is never
+  // the only sign (§7.2): a door is a band across its tile, a staff door's band has a dark dot,
+  // a shut case is a filled frame and an opened or broken one an empty frame (the exits'
+  // crosses and the entrance's slash are drawn in drawMap). null: nothing is drawn there.
+  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#7d8f96', pool: '#6f93bd', thing: '#8f8573', dark: '#15131a' };
+  function tileLook(ch) {
+    const t = Grid.TILES[ch];
+    if (!t) return null;
+    if ('+\''.includes(ch)) return { fill: MAP.floor, shape: 'band', ink: MAP.door };
+    if ('Ss'.includes(ch)) return { fill: MAP.floor, shape: 'band dot', ink: MAP.staff };
+    if (ch === 'v') return { fill: MAP.glass, shape: 'frame', ink: MAP.dark };
+    if ('uk'.includes(ch)) return { fill: MAP.floor, shape: 'frame', ink: MAP.open };
+    if (ch === 'w') return { fill: MAP.pool, shape: '' };
+    return { fill: t.walk ? MAP.floor : t.see ? MAP.thing : MAP.wall, shape: '' };
+  }
+  function drawShape(x, look, X, Y, px) {
+    if (look.shape.includes('band')) { const b = Math.max(1, Math.round(px * 0.4)); x.fillStyle = look.ink; x.fillRect(X, Y + Math.floor((px - b) / 2), px, b); }
+    if (look.shape.includes('dot')) { const d = Math.max(1, Math.round(px * 0.3)), o = Math.floor((px - d) / 2); x.fillStyle = MAP.dark; x.fillRect(X + o, Y + o, d, d); }
+    if (look.shape === 'frame') { const w = Math.max(1, Math.round(px / 5)); x.strokeStyle = look.ink; x.lineWidth = w; x.strokeRect(X + w / 2, Y + w / 2, px - w, px - w); }
+  }
+  function drawMap(vm) {
+    const c = el.panel.querySelector('canvas.bag-map');
+    if (!c) return;
+    const box = c.parentElement.getBoundingClientRect(), maxH = Math.max(120, Math.floor(window.innerHeight * 0.55));
+    const px = Math.max(3, Math.min(24, Math.floor(Math.min(box.width / vm.w, maxH / vm.h))));
+    const W = vm.w * px, H = vm.h * px, dpr = window.devicePixelRatio || 1;
+    c.style.width = W + 'px'; c.style.height = H + 'px'; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    const x = c.getContext('2d'), S = ART.palettes.semantic;
+    x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+    for (let ty = 0; ty < vm.h; ty++) for (let tx = 0; tx < vm.w; tx++) {
+      const v = vm.vis[ty * vm.w + tx], ch = vm.tiles[ty][tx], look = v ? tileLook(ch) : null;
+      if (!look) continue;
+      x.globalAlpha = v === 2 ? 1 : 0.72; x.fillStyle = look.fill; x.fillRect(tx * px, ty * px, px, px);
+      if (look.shape) drawShape(x, look, tx * px, ty * px, px);
+      if (ch === 'X' || ch === 'E') {
+        x.globalAlpha = 1; x.strokeStyle = ch === 'X' ? S.readable : '#ece6d8'; x.lineWidth = Math.max(1, px / 6);
+        x.beginPath(); x.moveTo(tx * px + 1, ty * px + 1); x.lineTo(tx * px + px - 1, ty * px + px - 1);
+        if (ch === 'X') { x.moveTo(tx * px + px - 1, ty * px + 1); x.lineTo(tx * px + 1, ty * px + px - 1); }
+        x.stroke();
+      }
+    }
+    x.globalAlpha = 1;
+    for (const r of vm.plan || []) {
+      if (!Number.isInteger(r.x0)) continue;
+      x.setLineDash([Math.max(2, px / 2), Math.max(2, px / 3)]); x.strokeStyle = S.item; x.lineWidth = Math.max(2, px / 4);
+      x.strokeRect(r.x0 * px + 1, r.y0 * px + 1, (r.x1 - r.x0 + 1) * px - 2, (r.y1 - r.y0 + 1) * px - 2);
+      x.setLineDash([]);
+      const label = String(r.number === null ? r.key : r.number), fs = Math.max(9, Math.min(16, px));
+      x.font = `600 ${fs}px system-ui, sans-serif`; x.textBaseline = 'top';
+      const tw = x.measureText(label).width;
+      x.fillStyle = 'rgba(10,9,13,0.85)'; x.fillRect(r.x0 * px + 3, r.y0 * px + 3, tw + 6, fs + 4);
+      x.fillStyle = S.item; x.fillText(label, r.x0 * px + 6, r.y0 * px + 5);
+    }
+    const ux = vm.you.x * px + px / 2, uy = vm.you.y * px + px / 2, rr = Math.max(3, px * 0.9);
+    x.fillStyle = S.player; x.fillRect(vm.you.x * px, vm.you.y * px, px, px);
+    x.strokeStyle = S.player; x.lineWidth = Math.max(1.5, px / 5); x.beginPath(); x.arc(ux, uy, rr, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = '#15131a'; x.lineWidth = 1; x.strokeRect(vm.you.x * px + 0.5, vm.you.y * px + 0.5, px - 1, px - 1);
+  }
+
+  function drawPanel(s, vm) {
+    const on = !!mode && !!s && !s.over && !!vm;
+    if (!on) {
+      if (mode && (!s || s.over)) close();
+      el.panel.classList.remove('open');
+      if (shown.panel) { el.panel.innerHTML = ''; shown.panel = ''; }
+      return;
+    }
+    let html;
+    if (mode === 'map') html = head('Floor plan') + mapView(s, vm);
+    else {
+      let body = null;
+      if (view.k === 'item') body = itemView(s, view.uid);
+      else if (view.k === 'restore') body = restoreView(s);
+      if (body === null) { view = { k: 'list' }; body = list(vm); }
+      html = head('Bag') + choice(vm) + body;
+    }
+    el.panel.classList.add('open');
+    if (html !== shown.panel) {
+      // Rebuilt, it keeps its scroll, and a keyboard's focus stays on the same button (a
+      // chosen item, the same action) or else on the panel, so Tab goes on inside it.
+      const top = el.panel.scrollTop, had = el.panel.contains(document.activeElement) ? document.activeElement : null;
+      const key = had && had !== el.panel ? ['on', 'item', 'action', 'choose'].filter(k => had.dataset[k] !== undefined).map(k => `[data-${k}="${had.dataset[k]}"]`)[0] : null;
+      el.panel.innerHTML = html; shown.panel = html;
+      el.panel.scrollTop = top;
+      if (had) (key && el.panel.querySelector(key) || el.panel).focus({ preventScroll: true });
+    }
+    if (mode === 'map') drawMap(vm);
+    if (focusIn) { focusIn = false; el.panel.focus({ preventScroll: true }); }
+  }
+  function onPanel(e) {
+    const s = st(), b = e.target.closest('button');
+    if (!b || !s) return;
+    if (b.matches('[data-close]')) { close(); redraw(); return; }
+    if (b.matches('[data-how]')) { UI.toggle('how', true); return; }
+    if (b.matches('[data-back]')) { view = view.k === 'restore' && view.from ? { k: 'item', uid: view.uid } : { k: 'list' }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.dataset.choose !== undefined) { close(); ask({ a: 'choose', index: Number(b.dataset.choose) }); return; }
+    if (b.dataset.item !== undefined) { view = { k: 'item', uid: b.dataset.item }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.dataset.on !== undefined && view.k === 'restore') {
+      if (view.on !== b.dataset.on) { view.on = b.dataset.on; redraw(); return; }
+      const a = restoreTargets(s, view.uid).find(q => q.on === view.on);
+      close(); ask(a);
+      return;
+    }
+    if (b.dataset.do !== undefined && view.k === 'item') {
+      const l = labelOf(view.uid), a = l && l.actions[Number(b.dataset.do)];
+      if (!a) return;
+      if (a.aim === 'tile') { startAim(s, view.uid); redraw(); return; }
+      if (a.aim === 'item') { view = { k: 'restore', uid: view.uid, on: null, from: 'item' }; el.panel.scrollTop = 0; redraw(); return; }
+      if (a.act) { close(); ask(a.act); }
+    }
+  }
+
+  // ---- Every draw ----
+
+  function render(vm, labels) {
+    lastVm = vm; lastLabels = labels || null;
+    const s = st();
+    if (!el.panel || !vm || !vm.you) return;
+    drawSlots(vm);
+    // A new choice waiting (the Catalogue Card's) opens the Bag on it, once.
+    const pending = vm.pending ? JSON.stringify(vm.pending) : null;
+    if (pending && pending !== seenPending && s && !s.over) show('bag');
+    seenPending = pending;
+    // An aim ends once time has passed: its own action was taken (whatever is left of a stack
+    // too), or another was (Wait, a key), after which what the strip said no longer holds and
+    // a phone's strip must show what happened; also when what it aims is no longer yours to
+    // use, or the visit is over. The board loses its marks at the next draw. (A refusal, or a
+    // confirmation cancelled, takes no time, so the aim stays for another tile.)
+    if (aim && (!s || s.over || s.tick !== aim.tick || !carried(s, aim.uid) || (aim.kind === 'tile' && s.you.kit.instrument !== aim.uid))) {
+      endAim();
+      if (!redrawSoon) { redrawSoon = true; setTimeout(() => { redrawSoon = false; redraw(); }, 0); }
+    }
+    drawAim(s);
+    drawPick(s);
+    drawPanel(s, vm);
+  }
+
+  return { attach, render, open, close, quick, map, aiming, tapAim };
+})();
 
 </script>
 <script>
 // ACCESSION — input: one button and optional keys become intents (BUILD.md §7.1). A tap
 // is resolved to a tile by the active renderer; main.js decides what the tap means. Keys:
-// arrows, vi-keys or numpad move; . waits; x examines; r reads; Enter confirms; i, m and
-// 1–6 are the bag, the floor plan and the quickslots.
+// arrows, vi-keys or numpad move; . waits; x examines; r reads; Enter confirms; Escape
+// cancels; i opens the Bag, m the floor plan, and 1–6 use the quickslots.
 'use strict';
 const Input = (() => {
   const KEYS = { ArrowUp: 0, ArrowRight: 2, ArrowDown: 4, ArrowLeft: 6, k: 0, l: 2, j: 4, h: 6, y: 7, u: 1, b: 5, n: 3,
@@ -16104,20 +16835,32 @@ const Input = (() => {
       const t = getRenderer().pick(e.clientX, e.clientY);
       if (t) on.tap(t);
     });
+    // A finger's tap is done at pointerup. The browser would then send the same tap again as
+    // mouse events and a click, aimed at whatever lies under the finger by then: a sheet the
+    // tap has just opened (a confirmation, a label), whose button or backdrop would answer it
+    // at once. So a touch that began on the board ends there.
+    board.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
     board.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'Escape') { on.escape(); return; }
-      // While an overlay covers the board, keys do nothing to the game.
+      // A held Enter or Space answers nothing more: each confirmation asks for a press of its
+      // own, so key repeat cannot ask and answer, then ask and answer again.
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); return; }
+      // Enter on a focused button presses it; otherwise it confirms what waits for it (a
+      // confirmation, a previewed walk, the selected thing's first action).
+      if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
+      // While an overlay or a confirmation covers the board, keys do nothing to the game.
       if (on.blocked()) return;
       // The numpad moves whether NumLock is on (key '1'–'9') or off (arrows).
       if (e.code && e.code.startsWith('Numpad') && e.code in KEYS) { on.key({ a: 'move', dir: KEYS[e.code] }); e.preventDefault(); return; }
       if (e.key === '.' || e.code === 'Numpad5' || e.code === 'NumpadDecimal') { on.key({ a: 'wait' }); e.preventDefault(); return; }
       if (e.key === 'x') { on.examine(); e.preventDefault(); return; }
       if (e.key === 'r') { on.read(); e.preventDefault(); return; }
-      if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
-      if (e.key === 'i' || e.key === 'm' || /^[1-6]$/.test(e.key)) { on.later(e.key); e.preventDefault(); return; }
+      if (e.key === 'i') { on.bag(); e.preventDefault(); return; }
+      if (e.key === 'm') { on.map(); e.preventDefault(); return; }
+      if (/^[1-6]$/.test(e.key)) { on.quick(Number(e.key)); e.preventDefault(); return; }
       const d = e.key in KEYS ? KEYS[e.key] : -1;
       if (d >= 0) { on.key({ a: 'move', dir: d }); e.preventDefault(); }
     });
@@ -16127,8 +16870,10 @@ const Input = (() => {
 
 </script>
 <script>
-// ACCESSION — boot and wiring (BUILD.md §2): the state, the active board view, the
-// interface and input. Only main.js and input.js reach step(), and only through act().
+// ACCESSION — boot and wiring (BUILD.md §2, §7): the state, the active board view, the
+// interface, the Bag and input. Only main.js and input.js reach step(), and only through
+// act_(); everything the player asks for reaches act_() through request(), which first asks
+// §7.1's confirmations.
 'use strict';
 const Main = (() => {
   const params = new URLSearchParams(location.search);
@@ -16144,14 +16889,20 @@ const Main = (() => {
     board: params.get('board') || store.get('board', 'topdown'), walk: store.get('walk', 'one'), zoom: store.get('zoom', '0'),
     text: store.get('text', '1'), font: store.get('font', 'book'), motion: store.get('motion', 'full'), boardNote: '',
   };
-  // ui: what the view model needs from the interface (the selection, the path preview and
-  // the events of your last action that took time, for the noise rings and one-turn cues).
+  // ui: what the view model needs from the interface: the selection (an exhibit's uid, 'you',
+  // or a thing's id: 'case:x,y', 'item:<uid>', 'plaque:x,y', 'staff:x,y'), the selected tile
+  // (a previewed walk's, or the selected thing's), the path preview, the aim (the Bag's), and
+  // the events of your last action that took time, for the noise rings and one-turn cues.
   // last: the last step's events, whatever it took. history: the log's recent sentences.
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null, last = [];
-  const history = [], HISTORY = 6;
+  const blank = () => ({ path: null, selection: null, selectedTile: null, events: null, aim: null });
+  let seed = Number(params.get('seed')) || 1;
+  let state, renderer, ui = blank(), runner = null, stopWhy = null, fresh = false, shown = null, last = [];
+  // preview: the tile a "tap twice" walk previews. asking: the action a confirmation waits on.
+  // ended: what the end-of-visit overlay says.
+  let preview = null, asking = null, ended = null;
+  const history = [], HISTORY = 6, banners = new Set();
 
   function newVisit() {
-    const seed = Number(params.get('seed')) || 1;
     if (params.get('room') === 'test') return TestRoom.create(seed);
     const acc = (params.get('dept') || 'S9').toUpperCase(), depth = Number(params.get('depth')) || 1;
     return Dept.create(seed, Packs.get(acc) ? acc : 'S9', depth);
@@ -16159,18 +16910,23 @@ const Main = (() => {
 
   const app = document.getElementById('app');
   const board = UI.build(app, {
-    bar(act) {
-      stopWalking();
-      if (act === 'wait') act_({ a: 'wait' });
-      else if (act === 'zoom') setZoom((renderer.zoom + 1) % renderer.zooms.length);
-      else { say('Not in this build yet.'); draw(); }
+    bar(id) {
+      stop();
+      const q = /^q([1-6])$/.exec(id);
+      if (id === 'wait') request({ a: 'wait' });
+      else if (id === 'zoom') setZoom((renderer.zoom + 1) % renderer.zooms.length);
+      else if (id === 'bag') { Bag.open(); draw(); }
+      else if (id === 'map') { Bag.map(); draw(); }
+      else if (q) { Bag.quick(Number(q[1])); draw(); }
     },
-    openLabel() { stopWalking(); const s = Labels.strip(state); if (s) select(s.uid, true); },
-    labelAction(id) { stopWalking(); if (id === 'attack' && ui.selection) attackSelected(); },
-    // Closing the label keeps the selection, so tapping the exhibit again still acts (§7.1).
+    openLabel() { stop(); const s = Labels.strip(state); if (s) select(s.uid, true); },
+    labelAction(a, id) { stop(); perform(a, id); },
+    // Closing the label keeps the selection, so tapping the thing again still acts (§7.1).
     closedLabel() { draw(); },
+    confirmed(yes) { answer(yes); },
+    another() { anotherVisit(); },
     setting(key, value) {
-      stopWalking();
+      stop();
       settings[key] = value; store.set(key, value);
       if (key === 'board') makeView();
       applySettings(); draw();
@@ -16201,22 +16957,23 @@ const Main = (() => {
   function setZoom(i) { settings.zoom = String(i); store.set('zoom', settings.zoom); renderer.setZoom(i); draw(); }
 
   // The log: the newest entry shows on a phone's strip until the next action. Once the
-  // death is logged, nothing else is, so the cause stays in view.
-  let deathLogged = false;
+  // visit is over, nothing else is logged, so its last sentence stays in view.
+  let overLogged = false;
   function say(s) {
-    if (deathLogged) return;
+    if (overLogged) return;
     history.push(s); while (history.length > HISTORY) history.shift(); fresh = true;
-    if (state && state.over) deathLogged = true;
+    if (state && state.over) overLogged = true;
   }
 
-  // Everything the player does goes through here. An action from anywhere but a walk stops
-  // the walk and drops the path preview; afterwards the open label is brought up to date
-  // while what it names is in view (ViewModel.shows), or else closed, and the selection
-  // dropped: a label shows only what sight gives, so it never follows an exhibit out of
-  // sight (§7.2, §8.8).
-  function act_(action, fromWalk) {
-    if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
-    // After death nothing more happens, and nothing pushes the cause out of the log.
+  // ---- Acting ----
+
+  // One step. An action from anywhere but a walk or a rest stops it and drops the path
+  // preview; afterwards the open label is brought up to date while what it names is in view
+  // (ViewModel.shows), or else closed and the selection dropped: a label shows only what
+  // sight gives, so it never follows an exhibit out of sight (§7.2, §8.8).
+  function act_(action, fromRun) {
+    if (!fromRun) { stop(); preview = null; ui.path = null; }
+    // After the visit nothing more happens, and nothing pushes its end out of the log.
     if (state.over) { draw(); return []; }
     fresh = false;
     const tick = state.tick, ev = Step.step(state, action);
@@ -16226,45 +16983,227 @@ const Main = (() => {
     last = ev;
     if (state.tick !== tick) ui.events = ev;
     // The log's sentences (Text.log): an event about an exhibit out of view is left out
-    // where its kind says so.
+    // where its kind says so. A stage's announcement is also set off as a banner (§8.4).
     const nameOf = Labels.nameOf(state), vm = ViewModel.derive(state, ui), inView = new Set(vm.actors.map(a => a.uid));
+    for (const e of ev) if (e.k === 'stage') { const s = Text.event(e, nameOf); if (s) banners.add(s); }
     const lines = Text.log(ev, nameOf, uid => inView.has(uid));
     if (lines.length) say(lines.join(' '));
-    if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
+    if (state.over && state.over.k === 'died' && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {
-      const l = ViewModel.shows(vm, ui.selection) ? Labels.of(state, ui.selection) : null;
+      const l = ViewModel.shows(vm, ui.selection) ? labelOf(ui.selection) : null;
       if (!l) { ui.selection = null; UI.closeLabel(); }
       else if (UI.labelShown() === ui.selection) UI.label(l);
     }
+    if (state.over) finish(ev, nameOf);
+    // Anything tried while a choice waits (a Catalogue Card's, closed in the Bag) is refused,
+    // and the Bag opens again with the choice at its top.
+    if (ev.some(e => e.k === 'refused' && e.reason === 'choice_pending')) Bag.open();
     draw();
     return ev;
   }
 
-  function select(uid, open) {
-    ui.selection = uid; ui.selectedTile = null; ui.path = null;
-    const l = Labels.of(state, uid);
+  // Everything the player asks for comes here: an action that needs a confirmation (§7.1)
+  // waits for it on the sheet; any other goes at once. While the sheet asks, nothing else is
+  // done: it is answered first (the page behind it is inert, ui.js).
+  function request(action) {
+    if (asking) return null;
+    const c = askFor(action);
+    if (!c) return act_(action);
+    stop(); asking = { action }; UI.confirm(c); draw();
+    return null;
+  }
+  function answer(yes) {
+    const a = asking;
+    asking = null; UI.closeConfirm();
+    if (a && yes) act_(a.action); else draw();
+  }
+
+  // A label's button: a step() action through request() (Rest repeats, below); an action that
+  // needs a target (a throw, an instrument's tile, a Restoration kit's item) is aimed in the
+  // Bag, which is opened on that item.
+  function perform(entry, id) {
+    if (entry.aim) { Bag.open(typeof id === 'string' && id.startsWith('item:') ? id.slice(5) : null); draw(); }
+    else if (entry.act && entry.act.a === 'rest') rest();
+    else if (entry.act) request(entry.act);
+  }
+
+  // ---- Confirmations (§7.1) ----
+
+  const SHARDS = 'xk'; // shards, and a broken case's tile, which holds its glass
+  const SPECIAL = { line: 'beam', ring: 'ring of blows' };
+  const turns = n => n === 1 ? '1 turn' : `${n} turns`;
+  // What a confirmation says before an action, or null when it needs none. It asks before:
+  // stepping onto shards from a tile without them; every blow at a case's glass; leaving by
+  // an exit (a minimal confirmation, D4.9); and any action that would leave you on a tile
+  // marked for damage by a special that goes off before your next decision (Specials.threat).
+  // An action step() would refuse is never asked about: its refusal says why.
+  function askFor(action) {
+    if (!action || state.over || !Labels.allowed(state, action)) return null;
+    const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), why = [];
+    let title = null, yes = null;
+    const say_ = (t, y, ...lines) => { if (!title) { title = t; yes = y; } why.push(...lines); };
+    if (action.a === 'move') {
+      const x = you.x + Grid.DX[action.dir], y = you.y + Grid.DY[action.dir];
+      if (SHARDS.includes(Grid.ch(m, x, y)) && !SHARDS.includes(Grid.ch(m, you.x, you.y)) && !Actors.at(state, x, y))
+        say_('Step onto the shards?', 'Step onto the shards', `Broken glass is loud underfoot: while you stand on it, your ring reaches ${N.RING_LOUD_FLOOR} tiles farther.`);
+    }
+    if (action.a === 'bash') {
+      const d = Cases.describe(state, Cases.at(state, action.x, action.y));
+      if (d && d.canBreak) say_('Break the glass?', 'Strike the glass', d.blows === 1
+        ? `This blow breaks its ${d.glassName} glass, with a crash.`
+        : `This blow is loud and cracks its ${d.glassName} glass; ${d.blows - 1 === 1 ? '1 more breaks it' : `${d.blows - 1} more break it`}, the last with a crash.`);
+    }
+    if (action.a === 'leave') say_('Leave the department?', 'Leave', 'Your visit ends when you go through this door.');
+    const t = Specials.threat(state, action);
+    if (t) {
+      const owner = Actors.byUid(state, t.by), sp = owner && owner.telegraph ? owner.telegraph.sp : null;
+      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null, what = SPECIAL[shape] || 'special';
+      const who = nameOf(t.by) || 'an exhibit', stay = t.x === you.x && t.y === you.y;
+      say_(stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', stay ? 'Stay' : 'Step onto it',
+        `${who.charAt(0).toUpperCase() + who.slice(1)}’s ${what} goes off on that tile before your next turn: it would deal you ${t.dmg}, with no roll.`);
+    }
+    return title ? { title, lines: why, yes } : null;
+  }
+
+  // ---- Walking and resting ----
+
+  // A walk or a rest: one action at a time, each through the confirmations, until it is done
+  // or something stops it (§7.1). next() gives the next action, or null when done. An action
+  // that needs a confirmation ends the run: the sheet asks, and its answer does that one
+  // action or nothing. stopWhy says why the last run stopped.
+  //   A run stops after an action whose events the log tells you of and that §7.1 lists
+  //   (STOPS; status only when it is yours), when an exhibit comes into view or changes its
+  //   mode or pips, when a new telegraph or call is marked, on the first loud tile you step
+  //   onto, and when the visit ends.
+  const STOPS = new Set(['refused', 'opened', 'hunting', 'damaged', 'missed', 'died', 'telegraphed', 'woke', 'alerted', 'stage', 'entered',
+    'case_opened', 'glass_cracked', 'glass_broke', 'took', 'used', 'identified', 'status', 'left']);
+  const loudHere = () => { const you = state.actors[0], t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)]; return !!(t && t.loud); };
+  const watch = () => {
+    const vm = ViewModel.derive(state, {});
+    return { sights: vm.actors.map(a => a.uid + a.mode + a.pips).join(), marks: vm.marks.filter(k => k.kind === 'telegraph' || k.kind === 'call').map(k => k.kind + k.x + ',' + k.y + k.by), inView: new Set(vm.actors.map(a => a.uid)) };
+  };
+  function stopFor(ev, before, wasLoud) {
+    if (state.over) return 'over';
+    const now = watch(), nameOf = Labels.nameOf(state);
+    for (const e of ev) {
+      if (!STOPS.has(e.k)) continue;
+      if (e.k === 'status' ? e.who === 'you' : Text.log([e], nameOf, uid => now.inView.has(uid)).length) return e.k;
+    }
+    if (now.sights !== before.sights) return 'sight';
+    if (now.marks.some(k => !before.marks.includes(k))) return 'mark';
+    if (!wasLoud && loudHere()) return 'loud';
+    return null;
+  }
+  function run(next) {
+    stop(); stopWhy = null;
+    let before = watch();
+    const once = () => {
+      runner = null;
+      if (state.over) { stopWhy = 'over'; return; }
+      const action = next();
+      if (!action) { draw(); return; }
+      const c = askFor(action);
+      if (c) { stopWhy = 'confirm'; asking = { action }; UI.confirm(c); draw(); return; }
+      const wasLoud = loudHere(), ev = act_(action, true), why = stopFor(ev, before, wasLoud);
+      if (why) { stopWhy = why; return; }
+      before = watch();
+      runner = setTimeout(once, settings.motion === 'reduce' ? 0 : 70);
+    };
+    runner = setTimeout(once, 0);
+  }
+  function stop() { clearTimeout(runner); runner = null; }
+
+  // Walk a path one move at a time; it also stops where the next tile is taken (a walk
+  // never turns into an attack).
+  function walk(path) {
+    let i = 0;
+    run(() => {
+      if (i >= path.length) return null;
+      const you = state.actors[0], d = Path.dirTo([you.x, you.y], path[i]);
+      if (d < 0 || Actors.at(state, path[i][0], path[i][1])) { stopWhy = 'blocked'; return null; }
+      i++;
+      return { a: 'move', dir: d };
+    });
+  }
+  // Rest (§8.1: a wait under its own name, which the interface repeats): once, then again
+  // while you are below your maximum health and can recover it (not in the night watch,
+  // Clock.regenRate), under the walk's stop rules.
+  function rest() {
+    let n = 0;
+    run(() => {
+      const you = state.actors[0];
+      if (n > 0 && you.hp >= you.maxHp) { stopWhy = 'rested'; return null; }
+      if (n > 0 && Clock.regenRate(state) === 0) { stopWhy = 'no_recovery'; return null; }
+      n++;
+      return { a: 'rest' };
+    });
+  }
+
+  // ---- Selecting and tapping ----
+
+  // A selection's label: yours (Labels.you), or an exhibit's or a thing's (Labels.of).
+  const labelOf = id => id === 'you' ? Labels.you(state) : Labels.of(state, id);
+  // The tile a thing's selection id names: a case, plaque or staff door's, or an item's lying
+  // on the floor or in a case (null for one you carry). A selection is kept only while the
+  // view model shows it (act_), so this names a tile in view.
+  function tileOf(id) {
+    const f = /^(case|plaque|staff):(-?\d+),(-?\d+)$/.exec(id || '');
+    if (f) return { x: Number(f[2]), y: Number(f[3]) };
+    if (id && id.startsWith('item:')) {
+      const it = (state.items || []).find(i => i.uid === id.slice(5)), w = it && it.where;
+      return w && (w.at === 'floor' || w.at === 'case') ? { x: w.x, y: w.y } : null;
+    }
+    return null;
+  }
+  // What a tap on tile t can select, in order: an exhibit standing there, a case, an item on
+  // the floor, a plaque, a staff door. On your own tile, an item lying there (on the floor, or
+  // in the opened case you stand in) comes before you, and you before the fixture you stand
+  // on, so tapping yourself shows your label and a second tap waits (§7.1).
+  function thingsAt(vm, t) {
+    const out = [], under = [], on = q => t.x >= q.x && t.y >= q.y && t.x < q.x + q.size && t.y < q.y + q.size;
+    const mine = vm.you.x === t.x && vm.you.y === t.y, c = vm.cases.find(q => q.x === t.x && q.y === t.y);
+    for (const a of vm.actors) if (a.uid !== 'you' && on(a)) out.push(a.uid);
+    if (c) (mine && !c.holds ? under : out).push(`case:${t.x},${t.y}`);
+    for (const i of vm.items) if (i.x === t.x && i.y === t.y && !i.inCase) out.push('item:' + i.uid);
+    if (vm.plaques.some(p => p.x === t.x && p.y === t.y)) (mine ? under : out).push(`plaque:${t.x},${t.y}`);
+    if (vm.staff.some(s => s.x === t.x && s.y === t.y)) (mine ? under : out).push(`staff:${t.x},${t.y}`);
+    if (mine) out.push('you');
+    return out.concat(under);
+  }
+
+  function select(id, open) {
+    ui.selection = id; preview = null; ui.path = null;
+    const l = labelOf(id);
     if (open && l) UI.label(l);
     draw();
   }
 
-  function attackSelected() {
-    const a = Actors.byUid(state, ui.selection), you = state.actors[0];
-    if (a && !a.gone && Step.adjacent(state, you, a)) act_({ a: 'attack', uid: a.uid });
-  }
-
-  // A tap: on an exhibit, examine it (a second tap on a selected adjacent exhibit attacks);
-  // on yourself, wait; on a tile, walk there. With "Walk: tap twice" the first tap on a
-  // tile previews the path and a second tap on the same tile goes.
+  // A tap (§7.1). While the Bag aims, the tap is its target. On something (an exhibit, a case,
+  // an item, a plaque, a staff door, yourself): examine and select it; a tap on what is
+  // selected does its first action (Attack; Open, or Break the glass, which asks first; Take;
+  // Read; Wait); with none, the next thing on that tile is selected, or you walk onto a tile
+  // you can stand on (an item's, an opened case's, a staff door's), or the first thing there
+  // is selected again (so on your own tile you come round, whatever was selected).
+  // On a tile: walk there; with "Walk: tap twice" the first tap previews the path and a
+  // second tap on the same tile goes.
   function tap(t) {
-    if (walking) { stopWalking(); return; }
-    if (state.over) { draw(); return; }
-    const you = state.actors[0], vm = ViewModel.derive(state, ui);
-    const hit = vm.actors.find(a => t.x >= a.x && t.y >= a.y && t.x < a.x + a.size && t.y < a.y + a.size);
-    if (hit && hit.uid === 'you') { act_({ a: 'wait' }); return; }
-    if (hit) {
-      const a = Actors.byUid(state, hit.uid);
-      if (ui.selection === hit.uid && Step.adjacent(state, you, a)) attackSelected();
-      else select(hit.uid, true);
+    if (runner) { stop(); return; }
+    if (asking) return;
+    if (state.over) { if (ended) UI.end(ended); draw(); return; }
+    if (Bag.aiming()) { const a = Bag.tapAim(t); if (a) request(a); else draw(); return; }
+    const vm = ViewModel.derive(state, ui), things = thingsAt(vm, t);
+    if (things.length) {
+      const k = things.indexOf(ui.selection);
+      if (k < 0) { select(things[0], true); return; }
+      const l = labelOf(ui.selection), first = l && l.actions.find(a => a.act);
+      if (first) { perform(first, ui.selection); return; }
+      if (k + 1 < things.length) { select(things[k + 1], true); return; }
+      const you = state.actors[0], here = t.x === you.x && t.y === you.y;
+      if (!vm.actors.some(a => a.uid === ui.selection) && !here && Grid.walkable(state.dept, t.x, t.y)) {
+        const path = Path.to(state, t.x, t.y);
+        if (path.length) { UI.closeLabel(); walk(path); return; }
+      }
+      select(things[0], true);
       return;
     }
     if (!vm.vis[t.y * vm.w + t.x]) { say('You have not seen that part of the room.'); draw(); return; }
@@ -16272,50 +17211,87 @@ const Main = (() => {
     if (!path.length) { say('There is no way there from here.'); draw(); return; }
     // The preview leaves an open label (and so the camera) where it is, so the second tap
     // lands on the same tile; the walk closes it.
-    if (settings.walk === 'two' && !(ui.selectedTile && ui.selectedTile.x === t.x && ui.selectedTile.y === t.y)) {
-      ui.selectedTile = t; ui.path = path; draw(); return;
+    if (settings.walk === 'two' && !(preview && preview.x === t.x && preview.y === t.y)) {
+      preview = { x: t.x, y: t.y }; ui.path = path; draw(); return;
     }
-    ui.selectedTile = null; ui.path = null; ui.selection = null; UI.closeLabel();
+    preview = null; ui.path = null; ui.selection = null; UI.closeLabel();
     walk(path);
   }
 
-  // Walk a path one move at a time. Stop when anything new appears in sight, a pip or state
-  // changes, the next tile is taken (a walk never turns into an attack), or an event is
-  // about you: a blow, a miss, a wake, a door, a refusal.
-  const STOPS = new Set(['refused', 'opened', 'hunting', 'damaged', 'missed', 'died']);
-  function walk(path) {
-    const seen = () => ViewModel.derive(state, {}).actors.map(a => a.uid + a.mode + a.pips).join();
-    let before = seen(), i = 0;
-    const stepOnce = () => {
-      walking = null;
-      if (i >= path.length || state.over) return;
-      const here = [state.actors[0].x, state.actors[0].y], d = Path.dirTo(here, path[i]);
-      if (d < 0 || Actors.at(state, path[i][0], path[i][1])) { draw(); return; }
-      const ev = act_({ a: 'move', dir: d }, true);
-      i++;
-      const after = seen();
-      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status' && e.on === false && e.who === 'you')) || after !== before) return;
-      before = after;
-      walking = setTimeout(stepOnce, settings.motion === 'reduce' ? 0 : 70);
-    };
-    walking = setTimeout(stepOnce, 0);
+  // ---- The end of a visit ----
+
+  // Death opens the recap (Text.recap: who defeated you, the blow, and the killer's own
+  // story); leaving, the sentence of the `left` event. Both offer "Another visit".
+  function finish(ev, nameOf) {
+    stop(); UI.closeLabel(); ui.selection = null;
+    if (state.over.k === 'died') {
+      const r = Text.recap(state, nameOf);
+      ended = { title: 'You were defeated', lines: r && r.lines.length ? r.lines : [history[history.length - 1] || 'You fell.'] };
+    } else {
+      const e = ev.find(q => q.k === 'left'), s = e ? Text.event(e, nameOf) : null;
+      ended = { title: 'The visit is over', lines: [s || 'You left the department.'] };
+    }
+    UI.end(ended);
   }
-  function stopWalking() { clearTimeout(walking); walking = null; }
+  // Another visit: the same department at the same depth, with the next seed (M5's run
+  // replaces this with the next department).
+  function anotherVisit() {
+    stop(); asking = null; UI.closeConfirm(); UI.closeOverlays(); UI.closeLabel();
+    seed += 1; state = newVisit();
+    ui = blank(); preview = null; ended = null; last = []; shown = null; stopWhy = null; overLogged = false;
+    history.length = 0; banners.clear(); Bag.close();
+    say(welcome());
+    draw();
+  }
+  const welcome = () => `Room ${state.dept.rooms ? state.dept.rooms.find(r => r.role === 'intro').number : ''}. Tap a tile to walk; tap an exhibit, a case or yourself to read its label.`;
+
+  // ---- Drawing ----
 
   // The interface first, then the board, so the board is measured at its final size; the
-  // label sheet's cover is passed on so the camera keeps you and the exhibit above it.
+  // label sheet's cover is passed on so the camera keeps you and the thing above it.
   function draw() {
+    const aim = Bag.aiming();
+    ui.aim = aim && Number.isInteger(aim.x) && Number.isInteger(aim.y) ? { x: aim.x, y: aim.y, uid: aim.uid || null, size: Number.isInteger(aim.size) ? aim.size : null } : null;
+    // The selected tile is the previewed walk's, else the selected thing's (an exhibit and you
+    // carry the selection themselves).
+    ui.selectedTile = preview || tileOf(ui.selection);
     const vm = ViewModel.derive(state, ui);
-    // While a label is open the camera centres between you and its exhibit in the part of
+    // While a label is open the camera centres between you and what it names in the part of
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
-    // leans as far towards the exhibit as it can (the label shows the exhibit's picture).
-    const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
-    if (open) vm.camera = focus(vm.you, open, shown);
-    UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
-    UI.strip(Labels.strip(state), history, fresh);
+    // leans as far towards it as it can.
+    const open = UI.labelShown(), target = open && targetOf(open, vm);
+    if (target) vm.camera = focus(vm.you, target, shown);
+    UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock, dial: Text.clock(vm.clock), stage: stageChip(vm.clock), statuses: statusChips() });
+    UI.strip(Labels.strip(state), history, fresh, [...banners]);
+    Bag.render(vm, { of: id => labelOf(id), ofItem: uid => Labels.ofItem(state, uid) });
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
     shown = vm.camera;
+  }
+  // The stage chip: the clock's stage (name) and what comes next (next), as one sentence
+  // (§7.2, §8.4), or null with no clock.
+  function stageChip(c) {
+    if (!c) return null;
+    if (c.stage === 0) return { n: 0, name: 'Open:', next: `bell in ${turns(c.toBell)}` };
+    if (c.stage === 1) return { n: 1, name: 'After the bell:', next: `night watch in ${turns(c.toWatch)}` };
+    return { n: 2, name: 'Night watch:', next: `next bell in ${turns(c.toNightBell)}` };
+  }
+  // Your statuses for the top bar: each by its registry pictogram, with its words and the
+  // turns it still covers (Status.left), as your label says them.
+  function statusChips() {
+    const you = state.actors[0], out = [];
+    for (const s of you.statuses || []) {
+      const S = Object.prototype.hasOwnProperty.call(Registry.STATUSES, s.id) ? Registry.STATUSES[s.id] : null;
+      if (S) out.push({ icon: S.icon, words: S.words, left: Status.left(state, you, s.id) });
+    }
+    return out;
+  }
+  // Where on the board an open label's subject is: an actor's square, or a thing's tile.
+  function targetOf(id, vm) {
+    const a = vm.actors.find(q => q.uid === id);
+    if (a) return { uid: a.uid, x: a.x, y: a.y, size: a.size };
+    const t = tileOf(id);
+    return t ? { uid: null, x: t.x, y: t.y, size: 1 } : null;
   }
 
   // A camera centred on a tile shows half whole tiles either side of it, where half comes
@@ -16326,10 +17302,11 @@ const Main = (() => {
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
     const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
-    // Beside the exhibit, if both already fit round the camera the last frame used (or else
-    // round you) the board stays put, so a second tap on any of its tiles still lands on it
-    // (§7.1), whichever label was open before.
-    const near = Step.adjacent(state, state.actors[0], Actors.byUid(state, a.uid));
+    // Beside the exhibit (or within reading distance of a thing), if both already fit round
+    // the camera the last frame used (or else round you) the board stays put, so a second tap
+    // on any of its tiles still lands on it (§7.1), whichever label was open before.
+    const me = state.actors[0];
+    const near = a.uid ? Step.adjacent(state, me, Actors.byUid(state, a.uid)) : Math.max(Math.abs(a.x - me.x), Math.abs(a.y - me.y)) <= N.READ_RANGE;
     const axis = (p, q, n, h, c) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
       if (near && c !== undefined && lo >= c - h && hi - 1 <= c + h) return c;
@@ -16351,13 +17328,13 @@ const Main = (() => {
     return seen.length ? seen[0].uid : null;
   }
   function examine() {
-    stopWalking();
+    stop();
     const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you').map(a => a.uid), at = seen.indexOf(ui.selection);
     if (!seen.length) { say('Nothing here to examine.'); draw(); return; }
     select(ui.selection && at >= 0 && UI.labelShown() ? seen[(at + 1) % seen.length] : nearestSeen(), true);
   }
   function read() {
-    stopWalking();
+    stop();
     const uid = nearestSeen();
     if (uid) select(uid, true); else { say('Nothing in sight to read.'); draw(); }
   }
@@ -16365,15 +17342,37 @@ const Main = (() => {
   state = newVisit();
   makeView();
   applySettings();
+  // The Bag (js/ui/bag.js) builds into the quickslot containers and acts through request(),
+  // so its actions are asked about as any other is. window.ACCESSION.bag is what it was given
+  // (check-play checks the wiring).
+  const bagWiring = Object.assign(UI.slots(), { act: request, state: () => state, draw: () => draw() });
+  Bag.attach(app, bagWiring);
   Input.attach(board, () => renderer, {
-    tap, key(a) { act_(a); }, examine, read,
-    blocked: () => UI.overlayOpen(),
+    tap, key(a) { request(a); }, examine, read,
+    blocked: () => UI.overlayOpen() || UI.confirmOpen(),
+    bag() { stop(); Bag.open(); draw(); },
+    map() { stop(); Bag.map(); draw(); },
+    quick(n) { stop(); Bag.quick(n); draw(); },
+    // Enter: yes to a waiting confirmation; else, while the Bag aims, a second tap on the tile
+    // it previews (nothing before a tile is previewed); else go on a previewed walk; else the
+    // selected thing's first action, as a second tap on it would do: so only for something a
+    // tap can reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
     confirm() {
-      if (ui.selectedTile && ui.path) tap(ui.selectedTile);
-      else if (ui.selection) attackSelected();
+      if (asking) { answer(true); return; }
+      if (UI.overlayOpen() || state.over) return;
+      const aim = Bag.aiming();
+      if (aim) { if (Number.isInteger(aim.x) && Number.isInteger(aim.y)) tap({ x: aim.x, y: aim.y }); return; }
+      if (preview && ui.path) { tap(preview); return; }
+      if (ui.selection && (ui.selection === 'you' || Actors.byUid(state, ui.selection) || tileOf(ui.selection))) {
+        const l = labelOf(ui.selection), first = l && l.actions.find(a => a.act);
+        if (first) perform(first, ui.selection);
+      }
     },
-    later() { say('Not in this build yet.'); draw(); },
-    escape() { stopWalking(); UI.closeOverlays(); ui.selection = null; ui.path = null; ui.selectedTile = null; UI.closeLabel(); draw(); },
+    escape() {
+      stop();
+      if (asking) { answer(false); return; }
+      UI.closeOverlays(); Bag.close(); ui.selection = null; ui.path = null; preview = null; UI.closeLabel(); draw();
+    },
   });
   // Any change to the board's size redraws it, not only a window resize: the strip grows
   // and shrinks with what it says.
@@ -16381,12 +17380,13 @@ const Main = (() => {
   const redraw = () => { if (!pending) pending = requestAnimationFrame(() => { pending = 0; draw(); }); };
   window.addEventListener('resize', redraw);
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(redraw).observe(board);
-  say(`Room ${state.dept.rooms ? state.dept.rooms.find(r => r.role === 'intro').number : ''}. Tap a tile to walk; tap an exhibit to read its label.`);
+  say(welcome());
   draw();
   window.ACCESSION = {
-    get state() { return state; }, act: act_, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
-    get events() { return last.slice(); }, stops: [...STOPS],
-    views: Views, setZoom, busy: () => !!walking, get history() { return history.slice(); },
+    get state() { return state; }, act: act_, request, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
+    get events() { return last.slice(); }, stops: [...STOPS], get stopWhy() { return stopWhy; }, get asking() { return asking ? asking.action : null; },
+    get seed() { return seed; }, redraw: () => draw(), bag: bagWiring,
+    views: Views, setZoom, busy: () => !!runner, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };
   return {};
