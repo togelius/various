@@ -80,8 +80,10 @@ const Main = (() => {
   }
 
   // Everything the player does goes through here. An action from anywhere but a walk stops
-  // the walk and drops the path preview; afterwards the open label is brought up to date,
-  // or closed if its exhibit is gone.
+  // the walk and drops the path preview; afterwards the open label is brought up to date
+  // while what it names is in view (ViewModel.shows), or else closed, and the selection
+  // dropped: a label shows only what sight gives, so it never follows an exhibit out of
+  // sight (§7.2, §8.8).
   function act_(action, fromWalk) {
     if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
     // After death nothing more happens, and nothing pushes the cause out of the log.
@@ -91,12 +93,12 @@ const Main = (() => {
     ui.events = ev;
     // The log's sentences (Text.log): an event about an exhibit out of view is left out
     // where its kind says so.
-    const nameOf = Labels.nameOf(state), inView = new Set(ViewModel.derive(state, ui).actors.map(a => a.uid));
+    const nameOf = Labels.nameOf(state), vm = ViewModel.derive(state, ui), inView = new Set(vm.actors.map(a => a.uid));
     const lines = Text.log(ev, nameOf, uid => inView.has(uid));
     if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {
-      const l = Labels.of(state, ui.selection);
+      const l = ViewModel.shows(vm, ui.selection) ? Labels.of(state, ui.selection) : null;
       if (!l) { ui.selection = null; UI.closeLabel(); }
       else if (UI.labelShown() === ui.selection) UI.label(l);
     }

@@ -149,6 +149,44 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     same([v3.vis[door], v3.tiles[2][5]], [1, '+'], 'a door the plan showed shut, opened out of sight, still shows shut');
   });
 
+  // §7.2, §8.8: a label shows only what sight gives, so the interface keeps a label open only
+  // while ViewModel.shows says what it names is in view: an actor the view model lists; a
+  // case, staff door or identifying label on a tile in view; an item you carry, or one on a
+  // tile in view. Checked against the view model's own lists on walks through every
+  // department, and for a thing that leaves sight.
+  test('ViewModel.shows: a label\'s selection is in view exactly when the view model shows what it names', () => {
+    let yes = 0, no = 0;
+    for (const acc of DEPTS) {
+      const s = Dept.create(4, acc, 3);
+      walk(s, 40, vm => {
+        const inView = (x, y) => vm.vis[y * vm.w + x] === 2;
+        for (const a of s.actors) {
+          const want = vm.actors.some(v => v.uid === a.uid);
+          assert.equal(ViewModel.shows(vm, a.uid), want, `${acc} ${a.uid}`);
+          want ? yes++ : no++;
+        }
+        for (const f of s.dept.fixtures) {
+          const want = inView(f.x, f.y);
+          assert.equal(ViewModel.shows(vm, `${f.k}:${f.x},${f.y}`), want, `${acc} ${f.k} at ${f.x},${f.y}`);
+          want ? yes++ : no++;
+        }
+        for (const it of s.items) {
+          const w = it.where, want = w.at === 'tote' || w.at === 'kit' || ((w.at === 'floor' || w.at === 'case') && inView(w.x, w.y));
+          assert.equal(ViewModel.shows(vm, 'item:' + it.uid), want, `${acc} ${it.uid} ${json(w)}`);
+          want ? yes++ : no++;
+        }
+        for (const id of [null, '', 'nobody', 'case:-1,-1', 'item:nothing', 'plaque:x,y']) assert.equal(ViewModel.shows(vm, id), false, json(id));
+      });
+    }
+    assert.ok(yes > 500 && no > 500, `${yes} in view, ${no} not`);
+    // An exhibit that steps out of sight: shown, then not.
+    const t = Setup.room(1, { acc: 'S9', depth: 1, map: ['#########', '#...#...#', '#...#...#', '#.......#', '#########'], you: [2, 3], exhibits: [{ sp: 'S9.6', at: [5, 3], mode: 'dormant', stats: Roles.stats(C.Packs.species('S9', 'S9.6').role, 1) }] });
+    const uid = t.actors[1].uid;
+    assert.equal(ViewModel.shows(ViewModel.derive(t, {}), uid), true, 'in view');
+    t.actors[1].x = 6; t.actors[1].y = 1;
+    assert.equal(ViewModel.shows(ViewModel.derive(t, {}), uid), false, 'behind the wall');
+  });
+
   // The tiles a noise from (x, y) reaches within range, found independently: walking steps
   // of one tile in eight directions, a diagonal only past two open tiles, entering a closed
   // door costs NOISE_DOOR more; and a tile an exhibit can stand on but not walk onto (a case)

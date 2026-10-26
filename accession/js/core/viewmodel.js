@@ -3,6 +3,9 @@
 // it shows what a player sees and no more: unseen tiles are masked, and what lies on a tile
 // (an exhibit, a case, an item, a mark) is listed only where the tile is in view.
 //
+// ViewModel.shows(vm, id) → bool: whether the thing a label's selection id names is in view in
+// vm, so its label may stay open (§7.2, §8.8).
+//
 // ViewModel.derive(state, ui) → vm. ui is what the interface adds (all optional):
 //   events        the last step's events, for the one-turn cues and the noise rings;
 //   path          the path preview, [[x, y]…];  selection  an actor's uid;  selectedTile {x, y};
@@ -239,5 +242,25 @@ const ViewModel = (() => {
     return Consumables.known(state, it.ck) ? N[c.area] : Consumables.AREA;
   }
 
-  return { derive, LEAN };
+  // ViewModel.shows(vm, id): whether what a label's selection id names is in view, so that its
+  // label may be shown and kept up to date, since a label shows only what sight gives (§7.2,
+  // §8.8): an actor vm lists (you always); a case, staff door or identifying label
+  // ('case:x,y', 'staff:x,y', 'plaque:x,y') on a tile in view; an item ('item:<uid>') you
+  // carry, or one vm lists, which lies on a tile in view. Anything else is not.
+  const FIXTURE = /^(case|plaque|staff):(-?\d+),(-?\d+)$/;
+  function shows(vm, id) {
+    if (typeof id !== 'string' || !id) return false;
+    const f = FIXTURE.exec(id);
+    if (f) {
+      const x = Number(f[2]), y = Number(f[3]);
+      return x >= 0 && y >= 0 && x < vm.w && y < vm.h && vm.vis[y * vm.w + x] === 2;
+    }
+    if (id.startsWith('item:')) {
+      const uid = id.slice(5), k = vm.you.kit;
+      return vm.items.some(i => i.uid === uid) || vm.you.tote.includes(uid) || [k.weapon, k.garment, k.instrument].concat(k.curio).includes(uid);
+    }
+    return vm.actors.some(a => a.uid === id);
+  }
+
+  return { derive, shows, LEAN };
 })();

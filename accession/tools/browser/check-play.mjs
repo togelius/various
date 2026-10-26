@@ -2,7 +2,8 @@
 // in every board view, with nothing but left mouse clicks on what is on screen: walk to a
 // tile, approach an exhibit, examine it, read its label from close by, close the label,
 // open "How the museum works" from the top bar and from Settings, zoom, switch "Walk" to
-// tap twice and walk with two taps, and switch the board view from Settings.
+// tap twice and walk with two taps, and switch the board view from Settings. Then, staged:
+// an exhibit whose label is open leaves your sight, and its label closes.
 import { open } from './lib.mjs';
 import { nextStep, labelVisible, logVisible, freeTile as freeTileIn } from './measure.mjs';
 
@@ -203,6 +204,33 @@ for (const [W, Hh] of SIZES) {
       await walkedTo(t, before, s1, tag + ' (tap twice)');
     } else bad(`${tag}: no free tile nearby for the two-tap walk`);
     await clickEl('#setbtn'); await clickEl('[data-set="walk"][data-value="one"]'); await clickEl('#settings [data-close]');
+    // A label shows only what sight gives (§7.2, §8.8): with an exhibit's label open, the
+    // exhibit is moved (staged on the page) to a tile out of your sight, far from you, and its
+    // health is changed; then you wait a turn with the '.' key (on a phone the open sheet
+    // covers the bar's Wait). The label must close and the selection go, rather than show
+    // what you cannot see.
+    const staged = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, me = s.actors[0], vm = A.vm(), seen = vm.actors.find(q => q.uid !== 'you' && q.size === 1);
+      if (!seen) return { why: 'no exhibit in sight' };
+      A.tap({ x: seen.x, y: seen.y });
+      if (UI.labelShown() !== seen.uid) return { why: `tapping ${seen.uid} did not open its label` };
+      const a = Actors.byUid(s, seen.uid);
+      for (let y = 0; y < s.dept.h; y++) for (let x = 0; x < s.dept.w; x++) {
+        if (vm.vis[y * vm.w + x] === 2 || Math.max(Math.abs(x - me.x), Math.abs(y - me.y)) < 8 || !Grid.walkable(s.dept, x, y, 'exhibit') || Actors.at(s, x, y)) continue;
+        a.x = x; a.y = y; a.mode = 'dormant'; a.pips = 0; a.hp = Math.max(1, a.hp - 1);
+        return { uid: a.uid, hp: a.hp + '/' + a.maxHp, turn: s.turn };
+      }
+      return { why: 'no tile out of sight to move it to' };
+    });
+    if (staged.why) bad(`${tag}: could not stage an exhibit leaving sight: ${staged.why}`);
+    else {
+      await page.keyboard.press('.'); await settle();
+      const after = await page.evaluate(uid => ({ shown: UI.labelShown(), sel: window.ACCESSION.vm().selection, inView: window.ACCESSION.vm().actors.some(q => q.uid === uid), sheet: document.getElementById('sheet').textContent, turn: window.ACCESSION.state.turn }), staged.uid);
+      if (after.turn === staged.turn) bad(`${tag}: with ${staged.uid}'s label open, '.' did not wait`);
+      else if (after.inView) bad(`${tag}: the staged exhibit ${staged.uid} is still in view`);
+      else if (after.shown === staged.uid || after.sel === staged.uid) bad(`${tag}: ${staged.uid} left your sight, but its label is still ${after.shown === staged.uid ? 'open' : 'selected'}${after.sheet.includes(staged.hp) ? `, showing its health ${staged.hp}` : ''}`);
+      else lines.push(`${tag}: an exhibit that left your sight took its label with it`);
+    }
     lines.push(`${tag}: label closed, how-it-works from the top bar and from Settings, zoom stepped, two-tap walk done`);
   }
   await browser.close();
