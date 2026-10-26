@@ -244,7 +244,19 @@ module.exports = ({ test, assert, loadCore }) => {
     const u = make(C, sp, depth, { seed: 1, rulesOff: [] }, [{ sp: 'dummy', at: [4, 4], mode: 'hunting', stats: { hp: 99, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 } }]), o = mimic(u), d = u.actors[2], uv = [];
     Archetypes.onTouched(u, o, 'bashed', d.uid, uv);
     assert.equal(json([uv.map(e => [e.k, e.who, e.cause.k]), d.statuses.map(q => q.id), u.actors[0].statuses.length]), json([[['status', d.uid, 'grip']], ['rooted'], 0]));
-    assert.ok(/^You are held in the grip of .+: you cannot move for \d+ turns\.$/.test(C.Text.event(ev[0], () => 'the Tortoise')), C.Text.event(ev[0]));
+    // The grip is told in the status's own words and the event's turns, so it ends in the
+    // words it began with (reg/status.js): put on by the grip, ended by its timer.
+    const words = C.Registry.STATUSES.rooted.words, names = uid => uid === 'you' ? null : 'the Tortoise';
+    assert.equal(C.Text.event(ev[0], names), `The Tortoise grips you: you are now ${words} for ${ev[0].turns} turns.`);
+    assert.equal(C.Text.event(Object.assign({}, ev[0], { who: d.uid }), names), `The Tortoise grips the Tortoise: it is now ${words} for ${ev[0].turns} turns.`);
+    const g = make(X, sp, depth, { seed: 1, rulesOff: [] }), gm = mimic(g), gv = [];
+    X.Cases.touch(g, caseOf(g, gm), 'bashed', 'you', gv);
+    const gname = X.Labels.nameOf(g), put = gv.find(e => e.k === 'status' && e.cause.k === 'grip');
+    assert.equal(X.Text.event(put, gname), `${X.Text.event(put, gname).split(' grips ')[0]} grips you: you are now ${words} for ${N.MIMIC_GRIP_TURNS} turns.`);
+    let ended = null;
+    for (let i = 0; i < N.MIMIC_GRIP_TURNS + 2 && !ended && !g.over; i++) ended = X.Step.step(g, { a: 'wait' }).find(e => e.k === 'status' && e.who === 'you' && e.id === 'rooted' && !e.on) || null;
+    assert.ok(ended, 'the grip ended');
+    assert.equal(X.Text.event(ended, gname), `You are no longer ${words}.`);
   });
 
   test('its invariants catch a planted mimic that takes pips while a case, grips short, or acts at full speed', () => {

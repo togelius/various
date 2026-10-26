@@ -55,7 +55,9 @@ module.exports = (C) => {
     },
     {
       // §8.1: a beam marks its owner's row or column, and nothing beyond the first reflector
-      // on its way out toward you (where it turns back).
+      // on its way out toward you (where it turns back). It is checked when the beam is
+      // marked, since its tiles are fixed then: a reflector that comes onto them later does
+      // not turn it (arch_b_line_hits_marked_tiles holds the resolve to the mark).
       id: 'arch_b_line_stops_at_reflector',
       check(pre, events, post) {
         if (!pre) return null;

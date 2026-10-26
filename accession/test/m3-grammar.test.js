@@ -36,7 +36,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     assert.equal(new Set(R.EVENT_KINDS).size, R.EVENT_KINDS.length);
     same([...R.EVENT_KINDS].sort(), Object.keys(R.EVENTS).sort());
-    assert.equal(R.EVENT_KINDS.length, 38, '§4.3’s 32 kinds and the six M3 adds');
+    assert.equal(R.EVENT_KINDS.length, 39, '§4.3’s 32 kinds and the seven M3 adds (surface at the Wave 1 integration review)');
     for (const k of ['waited', 'regenerated', 'status', 'dropped', 'healed', 'alerted']) assert.ok(R.EVENTS[k], k);
   });
 
@@ -191,7 +191,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const mp = Clauses.of(mimic, { depth: 4 });
     same(ids(mp), ['archetype:mimic_vitrine', 'status:rooted', 'modifier:marble', 'wake:wake_pipless', 'trigger:touch_case']);
     assert.equal(mp[1].within, 'mimic_vitrine');
-    assert.equal(mp[1].text, `you cannot move for ${C.N.MIMIC_GRIP_TURNS} turns`);
+    assert.equal(mp[1].text, `${R.STATUSES.rooted.words}: you cannot move for ${C.N.MIMIC_GRIP_TURNS} turns`);
     assert.ok(mp[0].text.includes(`(${mp[1].text})`), 'the status is set inside the archetype’s clause');
     assert.ok(mp[0].text.includes(`strikes for ${Clauses.value('role:DMG', mimic, 4)}`), mp[0].text);
     const sniper = { id: 'T.s', archetype: 'axis_sniper', role: 'artillery', modifiers: ['glass'], trigger: 'axis' };
@@ -219,13 +219,20 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         assert.ok(clean(l.behaviour), l.behaviour);
       }
     }
-    // Every pack species: a part for each id it uses.
+    // Every pack species: a part for each id it uses, its role's own rule (a brute's) after
+    // its archetype's.
+    let roles = 0;
     for (const p of Packs.list()) for (const s of [...p.species, p.centrepiece]) {
-      const got = Clauses.of(s, { depth: 3 }).map(q => q.id), arch = R.ARCHETYPES[s.archetype];
-      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...(s.modifiers || []),
+      const got = Clauses.of(s, { depth: 3 }).map(q => q.id), arch = R.ARCHETYPES[s.archetype], role = R.CLAUSES['role_' + s.role] ? ['role_' + s.role] : [];
+      roles += role.length;
+      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...role, ...(s.modifiers || []),
         ...(s.trigger && R.TRIGGERS[s.trigger].replacesWake ? [] : [arch.wake || 'wake']), ...(s.trigger ? [s.trigger] : [])];
       same(got, want, s.id);
     }
+    assert.ok(roles >= 2, `${roles} species with a role's own rule`);
+    const brute = { id: 'T.b', archetype: 'plodder', role: 'brute', modifiers: ['marble'], trigger: null };
+    same(ids(Clauses.of(brute, { depth: 2 })), ['archetype:plodder', 'role:role_brute', 'modifier:marble', 'wake:wake']);
+    assert.ok(Clauses.line(brute, { depth: 2 }).includes(`Each of its blows takes ${C.N.COST_ATTACK_HEAVY} ticks, not ${C.N.COST_ATTACK}. Moves at half speed.`), Clauses.line(brute, { depth: 2 }));
   });
 
   test('lint-registry fails on a planted (kind, cause) pair with no sentence, and on other planted faults', () => {

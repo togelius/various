@@ -1,5 +1,5 @@
-// The mote swarm's Behaviour line (BUILD.md §5.3, §5.5; W1-ARCH-A): "Comes as several bodies
-// that each fall to a single hit; they move two tiles a turn and strike from beside you for
+// The mote swarm's Behaviour line (BUILD.md §5.3, §5.5; W1-ARCH-A): "Comes as {SWARM_BODIES}
+// bodies (SWARM_BODIES[0]) that each fall to a single hit; they move two tiles a turn and strike from beside you for
 // {dmg}." Each scenario is run for every pack species with the clause (A.4's Carbon Flimsies)
 // at depths 1–7, with the invariants checked and a clone after every step; the one-hit
 // scenario is shown to fail on a core where hits are not raised to a body's health, and the
@@ -94,12 +94,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     });
   }
 
-  test('mote_swarm: a department places a swarm as several bodies, SWARM_BODIES[0] of them, at every depth', () => {
+  test('mote_swarm: a department places a swarm as SWARM_BODIES[0] bodies at every depth, the number its line gives', () => {
     assert.ok(N.SWARM_BODIES[0] >= 2);
     for (const { sp, depth, acc } of list) {
       if (!acc) continue;
       const s = Dept.create(1, acc, depth), got = s.actors.filter(a => a.sp === sp.id && !a.gone);
       assert.equal(got.length, N.SWARM_BODIES[0], `${sp.id} at depth ${depth}`);
+      // The line names the number of record, as §5.3 asks of every clause ("Vague words are not allowed").
+      const line = C.Clauses.line(sp, { depth });
+      assert.ok(line.startsWith(`Comes as ${got.length} bodies that each fall to a single hit;`), `${sp.id} at depth ${depth}: ${line}`);
       assert.ok(got.every(a => a.arch === 'mote_swarm' && a.speed === 'fast'), `${sp.id} at depth ${depth}: fast bodies`);
     }
   });

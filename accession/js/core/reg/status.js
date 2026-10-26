@@ -18,7 +18,8 @@
   const define = (id, e) => R.define('STATUSES', id, Object.assign(e, { icon: id }));
   define('fixed', status(true, 'fixed in place', 'cannot move or act for {FIXATIVE_TURNS} turns, only wait, and blows against it have +{HIT_FIXED_TARGET} to hit',
     { FIXATIVE_TURNS: 'N:FIXATIVE_TURNS', HIT_FIXED_TARGET: 'N:HIT_FIXED_TARGET' }));
-  define('rooted', status(true, 'rooted to the spot', 'you cannot move for {MIMIC_GRIP_TURNS} turns', { MIMIC_GRIP_TURNS: 'N:MIMIC_GRIP_TURNS' }));
+  // The rooted clause names its words, so the label's line and the log's grip agree.
+  define('rooted', status(true, 'rooted to the spot', 'rooted to the spot: you cannot move for {MIMIC_GRIP_TURNS} turns', { MIMIC_GRIP_TURNS: 'N:MIMIC_GRIP_TURNS' }));
   define('coughing', status(true, 'coughing', 'coughs for {COUGH_TURNS} turns, each turn a soft noise heard {NOISE_SOFT} tiles away',
     { COUGH_TURNS: 'N:COUGH_TURNS', NOISE_SOFT: 'N:NOISE_SOFT' }, ['noise']));
   define('restoring', status(false, 'recovering health', 'heals {CONSOLIDANT_HOT_PCT}% of its maximum health over {CONSOLIDANT_HOT_TURNS} turns, a share each turn',
@@ -47,4 +48,10 @@
   R.defineCause('healed', 'status', { fields: { id: 'str' } });
   R.defineCause('pip', 'fumigant', { fields: { by: 'uid?' } });
   R.defineCause('noise', 'cough', { fields: { by: 'uid?', item: 'uid?' } });
+  // A surface laid (§4.3, §8.1), told in the log since it changes what you can see: its kind,
+  // centre, side and turns; its cause says why: a plaster cast destroyed (died, by the cast),
+  // or a thrown Solution (item, by who threw it and the consumable).
+  R.defineEvent('surface', { fields: { kind: 'str', x: 'int', y: 'int', size: 'int', turns: 'int' } });
+  R.defineCause('surface', 'died', { fields: { by: 'uid' } });
+  R.defineCause('surface', 'item', { fields: { by: 'uid', item: 'uid' } });
 })();

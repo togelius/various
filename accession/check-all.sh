@@ -17,7 +17,7 @@ run() {
 }
 
 run lint-core      node tools/lint-core.js
-run lint-tools     node tools/lint-core.js tools/arena.js tools/policies/*.js
+run lint-tools     node tools/lint-core.js tools/arena.js tools/monkey.js tools/replay.js tools/policies/*.js
 run lint-numbers   node tools/lint-numbers.js
 run lint-registry  node tools/lint-registry.js
 run art-up-to-date node tools/build-art.js --check

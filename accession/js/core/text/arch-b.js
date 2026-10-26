@@ -4,10 +4,9 @@
 // as a blow's sentence does, and says when an old repair doubled it.
 'use strict';
 (() => {
-  const POINT = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
   // The damage sum: raw less Padding, the minimum if it applied, and an old repair's doubling.
   const sum = c => `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}` +
-    (c.side ? `, doubled through its repaired ${POINT[c.side] || c.side} side` : '');
+    (c.side ? `, doubled through its repaired ${Clauses.COMPASS[c.side] || c.side} side` : '');
   const rolled = c => c.surprise ? 'a surprise shot, at full strength' : c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`;
   // Whose shot it was: "your" for you, "the Signal Lamp’s" for an exhibit.
   const whose = (w, uid) => uid === 'you' ? 'your' : `${w.name(uid)}’s`;
@@ -27,7 +26,7 @@
     `${w.Name(e.cause.by)} sent ${whose(w, e.cause.shooter)} shot back, and it missed ${into(w, e.at, e.cause.shooter)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   // A beam's damage: its gross less Padding, the minimum if it applied, and an old repair's doubling.
   const beamSum = c => `${c.gross} − ${c.pad} Padding${c.gross - c.pad < c.net ? `, at least ${c.net}` : ''}` +
-    (c.side ? `, doubled through its repaired ${POINT[c.side] || c.side} side` : '');
+    (c.side ? `, doubled through its repaired ${Clauses.COMPASS[c.side] || c.side} side` : '');
   const what = c => c.sp ? 'beam' : 'shot';
   Text.defineCause('damaged', 'reflected', (e, w) => {
     const c = e.cause;

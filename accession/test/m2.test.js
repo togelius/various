@@ -123,6 +123,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         if (disguised(s, a)) { assert.equal(Labels.of(s, a.uid), null, a.uid); continue; }
         const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
         assert.deepEqual(got, e.nums.concat(e.surprise ? nums(e.surprise) : []), `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
+        // An exhibit with no blow shows neither a blow's Acc nor its damage among its
+        // pictograms (§8.1, the odds readout; §8.8), since it never uses them; one with a blow shows both.
+        const icons = l.pictos.map(p => p.icon);
+        assert.equal(icons.includes('acc') && icons.includes('damage'), e.blow, `${a.uid}: pictograms ${JSON.stringify(icons)}`);
         if (!e.blow) { assert.ok(!/chance to hit you/.test(l.odds.join(' ')), `${a.uid} has no blow: ${l.odds.join(' ')}`); sniper++; }
         if (ANY_HIT.includes(a.arch)) { assert.ok(/typically need 1 hit to destroy it/.test(l.odds.join(' ')), `${a.uid} falls to any hit: ${l.odds.join(' ')}`); swarm++; }
         checked++;

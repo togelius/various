@@ -59,10 +59,9 @@
   // The Pin-Driver's bolt (§8.1): rolled as a blow is, with its own damage. Through an
   // old_repair exhibit's repaired side (cause.side, §5.5) the damage is doubled, and the sum
   // says so, as a blow's and a shot's do.
-  const POINT = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
   const repaired = (e, c) => {
     if (c.side === undefined || c.side === null) return '';
-    const net = c.floor ? c.floor : c.raw - c.pad, where = `through its repaired ${POINT[c.side] || c.side} side`;
+    const net = c.floor ? c.floor : c.raw - c.pad, where = `through its repaired ${Clauses.COMPASS[c.side] || c.side} side`;
     return e.amount === 2 * net ? `, doubled ${where}` : `, made ${e.amount} ${where}`;
   };
   const bolt = (e, w) => {

@@ -2,8 +2,9 @@
 // rules/archetypes.js), owned by W1-ARCH-A. Its Behaviour-line clause and registry entry are
 // in js/core/reg/arch-a.js.
 //
-// "Comes as several bodies that each fall to a single hit; they move two tiles a turn and
-// strike from beside you for {dmg}."
+// "Comes as {SWARM_BODIES} bodies that each fall to a single hit; they move two tiles a turn
+// and strike from beside you for {dmg}." ({SWARM_BODIES} is SWARM_BODIES[0], what the M3
+// stand-in places; when M4's population varies the count, the clause names both ends.)
 //   - A department places a swarm as SWARM_BODIES[0] bodies (Dept.create, §5.5), each its own
 //     exhibit, so they wake, move and strike one by one.
 //   - Any hit destroys a body: whatever damage reaches it (a blow, a shot, a beam, a ring,

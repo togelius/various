@@ -181,6 +181,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // The cost is your weapon's blow; Heavy and brutes strike at 150, and both rows agree (§8.10).
     assert.equal(N.FORM_REACH[3], N.COST_ATTACK);
     assert.equal(N.FORM_HEAVY[3], N.COST_ATTACK_HEAVY, 'a Heavy blow costs its form\'s cost');
+    // COST_ATTACK_HEAVY controls a brute's blow alone (a Heavy weapon's reads FORM_HEAVY[3]),
+    // and its §8.10 meaning says so, so whoever tunes the table edits the number they mean.
+    const meaning = require('node:fs').readFileSync(path.join(root, 'BUILD.md'), 'utf8').split('\n').find(l => l.startsWith('| COST_ATTACK_HEAVY |'));
+    assert.ok(/^\| COST_ATTACK_HEAVY \| \d+ \| a brute's blow; a Heavy weapon's blow costs FORM_HEAVY\[3\]/.test(meaning), meaning);
+    const brute = room(C, OPEN, you0, [ex([5, 3])]);
+    brute.actors[1].role = 'brute';
+    assert.equal(json([Actors.attackCost(brute, brute.actors[1]), Actors.attackCost(brute, Object.assign({}, brute.actors[1], { role: 'fodder' }))]), json([N.COST_ATTACK_HEAVY, N.COST_ATTACK]));
     const s = room(C, OPEN, you0, [ex([6, 3])], withForm('reach'));
     Step.step(s, { a: 'attack', uid: s.actors[1].uid });
     assert.equal(s.actors[0].next, N.FORM_REACH[3]);
@@ -333,6 +340,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(say(8, 10, { side: 'W' }), 'You hit the cast for 8 (rolled 30 against 80%; 6 − 2 Padding, doubled through its repaired west side).');
     assert.equal(say(2, 10, { raw: 1, floor: 1, side: 'N', how: { kind: 'reach' } }), 'You hit the cast with Reach for 2 (rolled 30 against 80%; 1 − 2 Padding, at least 1, doubled through its repaired north side).');
     assert.equal(say(8, 0, { side: 'E', surprise: 1, roll: undefined }), 'You caught the cast unawares: 8 damage (6 − 2 Padding, doubled through its repaired east side).');
+    // A repaired side is any of the eight compass points (§5.5), named in words in every
+    // sentence, as the Behaviour line names it (one map, Clauses.COMPASS): a blow's and a
+    // special's damage through a diagonal side included.
+    assert.equal(say(8, 10, { side: 'NW' }), 'You hit the cast for 8 (rolled 30 against 80%; 6 − 2 Padding, doubled through its repaired north-west side).');
+    const ringNW = { k: 'damaged', turn: 3, tick: 300, who: 'x.1', amount: 8, hp: 2, cause: { k: 'special', by: 'x.1', sp: 'ring', gross: 6, pad: 2, net: 4, x: 2, y: 2, from: [1, 1], side: 'NW' } };
+    assert.equal(Causes.check(ringNW), null);
+    assert.ok(/doubled through its repaired north-west side\)\.$/.test(Text.event(ringNW, names)), Text.event(ringNW, names));
+    for (const [code, word] of Object.entries(C.Clauses.COMPASS)) for (const cause of [{ k: 'attack', by: 'you', at: 'x.1', chance: 80, roll: 30, raw: 6, pad: 2, how: { kind: 'melee' }, from: [2, 2], side: code }, Object.assign({}, ringNW.cause, { side: code })]) {
+      const line = Text.event({ k: 'damaged', turn: 3, tick: 300, who: 'x.1', amount: 8, hp: 2, cause }, names);
+      assert.ok(line.includes(`repaired ${word} side`) && !new RegExp(`\\b${code}\\b`).test(line), `${code}: ${line}`);
+    }
+    assert.equal(Object.keys(C.Clauses.COMPASS).length, 8);
     assert.equal(say(5, 0, {}, 'x.2'), 'You hit the mote for 5 (rolled 30 against 80%; 6 − 2 Padding; it falls to any one blow: all 5 of its health).');
     assert.equal(say(3, 0, { raw: 9 }, 'x.2'), 'You hit the mote for 3 (rolled 30 against 80%; 9 − 2 Padding; it falls to any one blow: all 3 of its health).');
     assert.equal(say(6, 4), 'You hit the cast for 6 (rolled 30 against 80%; 6 − 2 Padding, which its Behaviour line makes 6).');

@@ -10,8 +10,8 @@
 //     fully and settles … beside you, at most one action in 3 since it woke, it marks the tiles
 //     round it for a turn, then strikes everything on them" (hunting takes in searching, §8.2:
 //     a ring already marked still strikes; no new blow or ring starts);
-//   mimic_vitrine: "Looks like a case … Opened or bashed, it grips you (you cannot move for 2
-//     turns) and strikes …; it does everything at half speed. Wakes only when it is opened,
+//   mimic_vitrine: "Looks like a case … Opened or bashed, it grips you (rooted to the spot: you
+//     cannot move for 2 turns) and strikes …; it does everything at half speed. Wakes only when it is opened,
 //     bashed, dissolved or struck";
 // and, for every exhibit, a pipless one is never woken by a call: a pipless sleeper hears
 // nothing (§8.2), so it is not one "that can hear", which is where herald_call's exemption

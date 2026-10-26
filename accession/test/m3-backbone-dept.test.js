@@ -439,25 +439,63 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   // Until the department golden runs of Wave 3 (§3.5), this is where a department's own
-  // code (cases, kit, consumables, surfaces, the clock) is held to §3.1 and §3.5 step by step.
+  // code (cases, kit, consumables, surfaces, the clock) is held to §3.1 and §3.5 step by step:
+  // a 300-action monkey (moves, waits and attacks) at depth d with seed d, your health 999,
+  // played once continuously and once with a clone after every step, their hashes compared
+  // every 10 steps (a difference, once there, stays) and plain data checked every step. A
+  // difference is played again step by step, so the report names the first step that
+  // differs, its action and events, and the first field of the state that differs.
+  // cloneCheck(K, acc, depth) → null, or that report.
+  const firstField = (a, b, at) => {
+    if (JSON.stringify(a) === JSON.stringify(b)) return null;
+    if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      const keys = Array.isArray(a) ? [...Array(Math.max(a.length, b.length)).keys()] : [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+      for (const k of keys) { const d = firstField(a[k], b[k], Array.isArray(a) ? `${at}[${k}]` : `${at}.${k}`); if (d) return d; }
+    }
+    return `${at}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`;
+  };
+  function cloneCheck(K, acc, depth) {
+    const make = seed => { const s = K.Dept.create(seed, acc, depth); s.actors[0].hp = s.actors[0].maxHp = 999; return s; };
+    const hashes = clone => {
+      const out = [];
+      K.Monkey.run(depth, 300, { make, cloneEachStep: clone, check(state, i) {
+        if (!clone) { const p = K.State.plainData(state); assert.equal(p, null, `${acc} d${depth} step ${i}: ${p}`); }
+        if (i % 10 === 0) out.push(K.State.hash(state));
+      } });
+      return out;
+    };
+    const a = hashes(false), b = hashes(true), at = a.findIndex((h, i) => h !== b[i]);
+    if (at < 0) return null;
+    // Both played again up to there, keeping each step's action, events and state.
+    const trace = clone => {
+      const out = [], real = K.Step.step;
+      K.Step.step = (state, action) => { const ev = real(state, action); out.push({ action, events: ev }); return ev; };
+      try { K.Monkey.run(depth, 10 * (at + 1), { make, cloneEachStep: clone, check(state, i) { out[i - 1].state = JSON.parse(K.State.canon(state)); } }); }
+      finally { K.Step.step = real; }
+      return out;
+    };
+    const p = trace(false), q = trace(true), k = p.findIndex((st, i) => JSON.stringify(st.state) !== JSON.stringify(q[i].state));
+    return `${acc} at depth ${depth}: a clone after every step differs first at step ${k + 1} of 300.\n` +
+      `Its action: ${JSON.stringify(p[k].action)}.\nIts events (${p[k].events.length}): ${p[k].events.map(e => e.k + (e.cause ? '.' + e.cause.k : '')).join(', ') || 'none'}.\n` +
+      `The first field that differs (continuous → cloned): ${firstField(p[k].state, q[k].state, 'state')}.`;
+  }
   test('a department is clone-stable and plain data after every step: a monkey with a clone each step gives the same hashes', () => {
     let runs = 0;
-    for (const acc of ACCS) for (const depth of [2, 5]) {
-      const make = seed => { const s = Dept.create(seed, acc, depth); s.actors[0].hp = s.actors[0].maxHp = 999; return s; };
-      // The hash every 10 steps (a difference, once there, stays) and plain data every step.
-      const hashes = clone => {
-        const out = [];
-        Monkey.run(depth, 300, { make, cloneEachStep: clone, check(state, i) {
-          if (!clone) { const p = State.plainData(state); assert.equal(p, null, `${acc} d${depth} step ${i}: ${p}`); }
-          if (i % 10 === 0) out.push(State.hash(state));
-        } });
-        return out;
-      };
-      const a = hashes(false), b = hashes(true);
-      const at = a.findIndex((h, i) => h !== b[i]);
-      assert.equal(at, -1, `${acc} at depth ${depth}: a clone after every step differs by step ${10 * (at + 1)}`);
-      runs++;
-    }
+    for (const acc of ACCS) for (const depth of [2, 5]) { assert.equal(cloneCheck(C, acc, depth), null); runs++; }
     assert.equal(runs, 6);
+  });
+
+  // A planted fault that shows only when the state is cloned (a field changed once for each
+  // new run object after turn 30, so once in a continuous play and at every step in a cloned
+  // one): the report names its first step, its action and events, and the field.
+  test('a clone fault in a department is reported at its first step, with its action, its events and the field that differs', () => {
+    const K = loadCore(['tools/monkey.js']), real = K.Health.regenerate, seen = new WeakSet();
+    K.Health.regenerate = (state, ev) => { if (state.turn > 30 && !seen.has(state.run)) { seen.add(state.run); state.run.items += 1; } return real(state, ev); };
+    const report = cloneCheck(K, 'A4', 2);
+    assert.ok(report, 'the planted fault was not found');
+    const m = /differs first at step (\d+) of 300\.\nIts action: (\{.*\})\.\nIts events \(\d+\): .*\.\nThe first field that differs \(continuous → cloned\): state\.run\.items: (\d+) → (\d+)\.$/.exec(report);
+    assert.ok(m, report);
+    console.log('  the planted clone fault, as reported:\n    ' + report.split('\n').join('\n    '));
+    assert.ok(+m[1] > 30 && +m[4] > +m[3], report);
   });
 };

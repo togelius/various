@@ -18,6 +18,25 @@ module.exports = ({ test, assert, root, fs, path }) => {
     for (const b of bad) assert.equal(lintSrc(b), 1, 'not caught: ' + b);
   });
 
+  // What the lint missed at the Wave 1 integration review: the locale's case members,
+  // parseFloat reached through Number, GC-timed callbacks, a sort whose comparator is left
+  // out by writing undefined or null or by toSorted, and the Function constructor reached
+  // through a function's .constructor.
+  test('lint-core fails on the equivalents of what it bans: locale case, Number.parseFloat, FinalizationRegistry, toSorted, a missing comparator, a constructor call', () => {
+    const bad = ["'i'.toLocaleUpperCase();", "'I'.toLocaleLowerCase();", 'd.toLocaleTimeString();', "Number.parseFloat('1.5');", 'const { parseFloat: p } = Number;',
+      'new FinalizationRegistry(() => {});', '[3, 1].toSorted();', '[3, 1].sort(undefined);', '[3, 1].toSorted(null);', "(() => {}).constructor('return 1')();",
+      "const f = function () {}; f.constructor('x');"];
+    for (const b of bad) assert.equal(lintSrc(b), 1, 'not caught: ' + b);
+    const ok = ['[3, 1].toSorted((a, b) => a - b);', 'const w = new WeakMap(); const v = new WeakSet();', 'const c = o.constructor === Object;', "const s = 'x'.toUpperCase();"];
+    for (const g of ok) assert.equal(lintSrc(g), 0, 'wrongly flagged: ' + g);
+  });
+
+  test('check-all lints every tool the hardened context and the hash page run: arena, monkey, replay and the policies', () => {
+    const sh = fs.readFileSync(path.join(root, 'check-all.sh'), 'utf8'), line = sh.split('\n').find(l => /^run lint-tools /.test(l));
+    for (const f of ['tools/arena.js', 'tools/monkey.js', 'tools/replay.js', 'tools/policies/*.js']) assert.ok(line && line.includes(f), `check-all's lint-tools step does not lint ${f}: ${line}`);
+    assert.equal(run('tools/lint-core.js', ['tools/arena.js', 'tools/monkey.js', 'tools/replay.js']).status, 0);
+  });
+
   test('lint-core ignores comments, strings, keys and the allowed Math functions', () => {
     const ok = ["// Math.random is banned\nconst s = 'Date.now';\n/* window */", "const o = { window: 'window', Date: 1 };", 'const k = o.Date;',
       'const m = Math.max(1, Math.floor(7 / 2), Math.ceil(1), Math.imul(3, 4), Math.abs(-1), Math.min(2, 3), Math.sign(-2), Math.trunc(2));',
@@ -32,6 +51,20 @@ module.exports = ({ test, assert, root, fs, path }) => {
     const r = run('tools/lint-numbers.js', [f]);
     assert.equal(r.status, 1);
     assert.match(r.stdout, /TICKS_PER_TURN/);
+  });
+
+  // A number's meaning is written twice, in §8.10 and beside it in numbers.js, and the two
+  // must say the same thing, so a reader tuning the table reads what the number controls.
+  test('lint-numbers fails on a planted difference between a number\'s meaning in BUILD.md and in numbers.js', () => {
+    const md = fs.readFileSync(path.join(root, 'BUILD.md'), 'utf8');
+    const row = md.split('\n').find(l => l.startsWith('| TICKS_PER_TURN |'));
+    assert.ok(row, 'the TICKS_PER_TURN row');
+    const f = path.join(tmp, 'BUILD-meaning.md');
+    fs.writeFileSync(f, md.replace(row, '| TICKS_PER_TURN | 100 | a planted meaning |'));
+    const r = run('tools/lint-numbers.js', [f]);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /TICKS_PER_TURN means "a planted meaning" in BUILD\.md but/);
+    assert.equal(run('tools/lint-numbers.js', []).status, 0);
   });
 
   test('lint-registry passes, and fails on an unledgered file or a ledger entry with no file', () => {

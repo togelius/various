@@ -244,7 +244,7 @@ There are 35 archetypes. A row is a verb, not a creature: the Escapement Hound a
 | `binder` | controller | Range 4, telegraphed: target rooted 2 turns. Keeps its distance. | prox(5) | Break line of sight; kill it first. |
 | `displacer` | controller | Range 3, telegraphed: pulls or pushes 2 tiles, into hazards or off balconies. | prox(5) | Back to a wall; stay away from edges. |
 | `dimmer` | controller | Darkens the 5×5 around itself by 2 lux classes; when adjacent, puts your lantern out for 3 turns. | light(lit) | Flash; fight it from outside its dark. |
-| `reflector` | controller | Moves 1; sends bolts and beams back along their line; shields allies behind it. Weak in melee. | prox(3) | Melee; blunt; lob over it; bank beams off it. |
+| `reflector` | controller | Moves 1; sends bolts and beams back along their line; shields allies behind it (from bolts, and from beams marked while it is in their way: a beam's tiles are fixed when marked, BUILD.md §8.1). Weak in melee. | prox(3) | Melee; blunt; lob over it; bank beams off it. |
 | `demonstrator` | controller | Runs a fixed track. Every p turns it performs the demonstration printed on its label (a sweep, ring or line). Never chases. | period(p) | Read the schedule; time crossings; lure enemies into it. |
 | `unobserved_mover` | ambusher | Moves 2 per turn, but only on turns it is not observed; strikes hard when adjacent. Frozen while observed. | unseen gate; prox(8) | Keep it in view; keep lamps on; back away facing it. |
 | `mimic_vitrine` | ambusher | Looks like a loot case. When touched it grabs: rooted 2 and a hit. Then a slow brute. | touch_case | Examine it (its label has no accession number); throw something at it first. |

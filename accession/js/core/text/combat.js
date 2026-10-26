@@ -24,8 +24,7 @@
   // (old_repair marks the side, cause.side) a blow, shot or beam is doubled; a body that falls
   // to any one blow (mote_swarm) loses all its health; any other change is the defender's
   // Behaviour line's.
-  const SIDE = { N: 'north', E: 'east', S: 'south', W: 'west' };
-  const sideName = v => typeof v === 'string' && Object.prototype.hasOwnProperty.call(SIDE, v) ? SIDE[v] : String(v);
+  const sideName = v => typeof v === 'string' && Object.prototype.hasOwnProperty.call(Clauses.COMPASS, v) ? Clauses.COMPASS[v] : String(v);
   const changed = (e, net) => {
     const c = e.cause;
     if (!isInt(net) || !isInt(e.amount) || e.amount === net) return '';

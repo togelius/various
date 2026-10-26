@@ -9,12 +9,12 @@
 //   - onDied: a dust surface (Registry.SURFACES.dust, which blocks sight) is laid on its tile,
 //     PLASTER_DUST_SIZE tiles a side, for PLASTER_DUST_TURNS turns (Surfaces.add: it lies
 //     through the next PLASTER_DUST_TURNS turn boundaries and is cleared at the one after),
-//     made by the cast itself (`by` its uid).
+//     made by the cast itself (`by` its uid), and told in the log (surface, cause died).
 'use strict';
 (() => {
   const cast = v => Math.max(1, Int.pct(v, N.PLASTER_HP_PCT));
   Archetypes.addModifier('plaster', {
     init(state, a) { a.maxHp = cast(a.maxHp); a.hp = cast(a.hp); },
-    onDied(state, a, cause, ev) { Surfaces.add(state, 'dust', a.x, a.y, N.PLASTER_DUST_SIZE, N.PLASTER_DUST_TURNS, a.uid, ev); },
+    onDied(state, a, cause, ev) { Surfaces.add(state, 'dust', a.x, a.y, N.PLASTER_DUST_SIZE, N.PLASTER_DUST_TURNS, a.uid, ev, { k: 'died', by: a.uid }); },
   });
 })();

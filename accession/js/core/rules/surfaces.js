@@ -11,9 +11,12 @@
 const Surfaces = (() => {
   // Lay a surface of `kind` centred on (x, y), size tiles a side, for `turns` turns, made by
   // `by` (a uid, or null). A surface of N turns acts at the next N turn boundaries and is
-  // cleared at the boundary after them (§8.1): until = the current turn + 1 + N. Laying one
-  // makes no event. Returns the surface.
-  function add(state, kind, x, y, size, turns, by, ev) {
+  // cleared at the boundary after them (§8.1): until = the current turn + 1 + N. With a
+  // cause (the rules always give one: died for a plaster cast's dust, item for a thrown
+  // Fumigant), laying it emits surface {kind, x, y, size, turns} with that cause, so the log
+  // says why sight is blocked; a room built for a test may lay one with none, silently.
+  // Returns the surface.
+  function add(state, kind, x, y, size, turns, by, ev, cause) {
     const S = Registry.SURFACES[kind];
     if (!S) throw new Error(`Surfaces.add: no surface ${kind}`);
     if (!Number.isInteger(size) || size < 1 || !Number.isInteger(turns) || turns < 1) throw new Error(`Surfaces.add: ${kind} of size ${size} for ${turns} turns`);
@@ -21,6 +24,7 @@ const Surfaces = (() => {
     if (!m.surfaces) m.surfaces = [];
     const s = { kind, x, y, size, until: state.turn + 1 + turns, by: by === undefined ? null : by };
     m.surfaces.push(s);
+    if (cause) Causes.emit(state, ev, 'surface', { kind, x, y, size, turns }, cause);
     return s;
   }
 

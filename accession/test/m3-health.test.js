@@ -26,7 +26,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     while (s.turn < opts.turns) for (const e of X.Step.step(s, { a: 'wait' })) {
       if (e.k !== 'regenerated') continue;
       assert.equal(Causes.check(e), null, json(e));
-      assert.equal(json([e.cause.need, e.cause.bench]), json([2 * Health.interval(opts.maxHp), !!opts.sit]));
+      assert.equal(json([e.cause.need, e.cause.bench]), json([X.N.REGEN_BELL_MULT * X.Health.interval(opts.maxHp), !!opts.sit]));
       out.push(e.turn);
     }
     return { turns: out, state: s };
@@ -70,6 +70,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Health.rate(s), 1);
     s.actors[0].x = 2; X.Step.step(s, { a: 'sit' });
     assert.equal(json([Health.rate(s), Health.onBench(s)]), json([2, true]));
+  });
+
+  // REGEN_BELL_MULT is the number the bell multiplies the interval by (§8.1, §8.10): the
+  // store gains that many units a turn while the department is open and needs that many
+  // times the interval, so the open rate stays 1 every interval and after the bell it is 1
+  // every REGEN_BELL_MULT intervals, whatever the number of record says.
+  test('the interval after the bell is REGEN_BELL_MULT times the open one, read from the number of record', () => {
+    for (const mult of [2, 3, 5]) {
+      const X = loadCore(null, { numbers: { REGEN_BELL_MULT: mult } }); X.ClockRules.boundary = () => {};
+      assert.equal(X.N.REGEN_BELL_MULT, mult);
+      const iv = X.Health.interval(20);
+      assert.equal(json(gaps(regenTurns(X, { maxHp: 20, clock: OPEN, turns: 4 * iv }).turns)), json([iv, iv, iv, iv]), `${mult}: open`);
+      assert.equal(json(gaps(regenTurns(X, { maxHp: 20, clock: BELL, turns: 3 * mult * iv }).turns)), json([mult * iv, mult * iv, mult * iv]), `${mult}: after the bell`);
+      assert.equal(json(gaps(regenTurns(X, { maxHp: 20, clock: OPEN, sit: true, turns: 2 * iv }).turns)), json([iv / 2, iv / 2, iv / 2, iv / 2]), `${mult}: on a bench`);
+      assert.equal(json(gaps(regenTurns(X, { maxHp: 20, clock: WATCH, turns: 3 * mult * iv }).turns)), json([]), `${mult}: the night watch`);
+    }
+    assert.throws(() => loadCore(null, { numbers: { NO_SUCH_NUMBER: 1 } }), /no NO_SUCH_NUMBER/);
   });
 
   test('regeneration is exact on odd intervals: 45 health every 8 turns, 30 every 13, and on a bench 6.5 on average (7, 6, 7, 6); 100 or more every 4', () => {

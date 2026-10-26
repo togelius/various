@@ -290,6 +290,26 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     refuses(t, { a: 'use', uid: 'p', x: 5, y: 3 }, 'not_equipped');
   });
 
+  // Spending every charge until a use is refused, waiting through the recharge, and using it
+  // again, with a twin cloned after every step: the charges and their timer are plain data.
+  test('an instrument spent until refused, recharged and used again is clone-stable after every step', () => {
+    const s = room({ items: [{ uid: 'f', kind: 'instrument', form: 'fork', tier: 1, where: { at: 'kit', slot: 'instrument' } }] });
+    const f = item(s, 'f'), [CH, RE] = N.TUNING_FORK, codes = [];
+    let twin = State.clone(s), steps = 0;
+    const go = a => {
+      const ev = step(s, a); Step.step(twin, a); twin = State.clone(twin); steps++;
+      assert.equal(State.plainData(s), null, json(a));
+      assert.equal(State.hash(twin), State.hash(s), `step ${steps}: ${json(a)}`);
+      if (reason(ev)) codes.push(reason(ev));
+    };
+    for (let i = 0; i <= CH; i++) go({ a: 'use', uid: 'f', x: 6, y: 3 });
+    assert.equal(json([f.charges, codes]), json([0, ['no_charges']]));
+    while (f.charges < CH && steps < 10 * RE) go({ a: 'wait' });
+    assert.equal(f.charges, CH, 'full again');
+    for (let i = 0; i < CH; i++) go({ a: 'use', uid: 'f', x: 6, y: 3 });
+    assert.equal(json([f.charges, codes.length]), json([0, 1]));
+  });
+
   test('the fork can be struck at any tile an exhibit could stand on within 8 tiles (the disc) in your line of sight, and its noise is soft and yours, at that tile', () => {
     const map = ['####################', '#..................#', '#.....#............#', '#.....#....v.......#', '#..................#', '#..........##......#', '#..................#', '#..................#', '#..................#', '####################'];
     const s = room({ map, you: [8, 4], items: [{ uid: 'f', kind: 'instrument', form: 'fork', tier: 1, where: { at: 'kit', slot: 'instrument' } }] });
@@ -824,6 +844,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const qp = State.clone(q), qe = Step.step(q, { a: 'move', dir: 2 });
     const keep = C.Kit.ringDelta; C.Kit.ringDelta = () => 0;
     try { assert.ok(check(qp, { a: 'move', dir: 2 }, qe, q).includes('kit.quiet')); } finally { C.Kit.ringDelta = keep; }
+  });
+
+  // Every code an instrument's use can be refused with (Kit.aimCode, with roomFor's for a
+  // take and Ranged.flight's for the Pin-Driver's bolt) is named in BUILD.md §8.5's
+  // Instruments bullet, so the contract says how each instrument is refused.
+  test('BUILD.md §8.5 names every code an instrument\'s use can be refused with', () => {
+    const fs = require('node:fs');
+    const body = (file, start) => { const src = fs.readFileSync(path.join(root, file), 'utf8'), i = src.indexOf(start); assert.ok(i >= 0, start); return src.slice(i, src.indexOf('\n  }\n', i)); };
+    const quoted = text => [...text.matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
+    const codes = new Set([...quoted(body('js/core/rules/kit.js', 'function aimCode(')), ...quoted(body('js/core/rules/ranged.js', 'function flight(')), 'tote_full']
+      .filter(c => C.Registry.REFUSALS[c]));
+    assert.ok(codes.size >= 20 && codes.has('out_of_range') && codes.has('behind_glass'), JSON.stringify([...codes]));
+    const build = fs.readFileSync(path.join(root, 'BUILD.md'), 'utf8'), bullet = build.split('\n').find(l => l.startsWith('- **Instruments** '));
+    assert.deepEqual([...codes].filter(c => !bullet.includes('`' + c + '`')), [], 'refusal codes §8.5 does not name');
   });
 
   test('every item event passes its schema, and every sentence and refusal of the kit is clean', () => {

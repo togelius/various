@@ -203,7 +203,7 @@ const Consumables = (() => {
     const sq = square(x, y, N[R.CONSUMABLES[ck].area]);
     if (ck === 'consolidant') for (const a of reached(state, sq)) Health.heal(state, a, Int.pct(a.maxHp, N.CONSOLIDANT_THROW_PCT), cause, ev);
     else if (ck === 'fixative') for (const a of reached(state, sq)) Status.apply(state, a, 'fixed', N.FIXATIVE_TURNS, cause, ev);
-    else if (ck === 'fumigant') Surfaces.add(state, 'fumigant', x, y, N.FUMIGANT_SIZE, N.FUMIGANT_TURNS, 'you', ev);
+    else if (ck === 'fumigant') Surfaces.add(state, 'fumigant', x, y, N.FUMIGANT_SIZE, N.FUMIGANT_TURNS, 'you', ev, cause);
     else if (ck === 'solvent') {
       // Silent (§8.3): no noise, no shards, no touch_case. Cases.dissolve emits glass_broke.
       for (const f of state.dept.fixtures.slice()) if (f.k === 'case' && f.st === 'shut' && Grid.covers(sq, f.x, f.y)) Cases.dissolve(state, f, { k: 'solvent', by: 'you', item: uid }, ev);

@@ -9,6 +9,12 @@
   // (test/behaviour/combat.inv.js).
   const tested = more => Object.assign({ ready: 'unit', tests: ['m3-combat.test.js', 'm3-health.test.js', 'behaviour/specials.test.js'], inv: 'combat' }, more);
 
+  // A role's own rule (§5.3): a role adds a part to a Behaviour line, after its archetype's,
+  // only when it has a rule of its own. The brute's blow costs COST_ATTACK_HEAVY, not
+  // COST_ATTACK (Actors.attackCost, §8.1); the invariant combat_brute_blow checks it.
+  R.define('CLAUSES', 'role_brute', { icon: null, clause: 'Each of its blows takes {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}.',
+    params: { COST_ATTACK_HEAVY: 'N:COST_ATTACK_HEAVY', COST_ATTACK: 'N:COST_ATTACK' }, covers: [], ready: 'unit', tests: ['behaviour/role_brute.test.js'], inv: 'combat' });
+
   // Refusals (§4.2): sit needs a bench under you, and you not seated on it already.
   R.define('REFUSALS', 'no_bench', tested({}));
   R.define('REFUSALS', 'seated', tested({}));
@@ -43,8 +49,8 @@
   R.defineCause('special', 'special', { fields: { by: 'uid', sp: 'str' } });
   R.defineCause('special', 'cancel', { fields: { by: 'uid', why: 'str' } });
   R.defineCause('waited', 'action', { fields: { how: 'str' } });
-  // Regeneration (§8.1): units is the store when it reached need (twice your interval);
-  // bench says you sat on a bench.
+  // Regeneration (§8.1): units is the store when it reached need (REGEN_BELL_MULT times your
+  // interval); bench says you sat on a bench.
   R.defineCause('regenerated', 'regen', { fields: { units: 'int', need: 'int', bench: 'bool' } });
   for (const k of ['attack', 'destroyed', 'special']) R.defineCause('noise', k, { fields: { by: 'uid?', item: 'uid?' } });
 

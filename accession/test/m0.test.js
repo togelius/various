@@ -171,4 +171,16 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(damaged > 0);
     assert.ok(s.causes.length > 0 && s.causes.length <= N.CAUSE_RECORDS);
   });
+
+  // The state keeps the last CAUSE_RECORDS records and no more (§3.4): a run that records
+  // more than that (you cannot die here) holds exactly the last CAUSE_RECORDS, in order.
+  test('the state keeps exactly the last CAUSE_RECORDS cause records, in order, once more were recorded', () => {
+    const { Registry } = C;
+    const s = TestRoom.create(5), recorded = [];
+    s.actors[0].hp = s.actors[0].maxHp = 100000;
+    for (let i = 0; i < 300 && !s.over; i++) for (const e of Step.step(s, { a: 'wait' })) if (Registry.EVENTS[e.k] && Registry.EVENTS[e.k].record) recorded.push(e);
+    assert.ok(recorded.length > N.CAUSE_RECORDS + 50, `${recorded.length} records`);
+    assert.equal(s.causes.length, N.CAUSE_RECORDS);
+    assert.equal(JSON.stringify(s.causes), JSON.stringify(recorded.slice(-N.CAUSE_RECORDS)));
+  });
 };

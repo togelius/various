@@ -13,7 +13,10 @@
 //   - line: a beam of AXIS_BEAM_RANGE tiles along a row or column, through glass, for its
 //     role curve's gross number, resolved at the owner's next action (Specials);
 //   - reflector, and a body with the glass modifier: a beam turns back along its line on its
-//     tile, and a bolt that meets it comes back into its shooter; nothing behind it is hit;
+//     tile, and a bolt that meets it comes back into its shooter; nothing behind it is hit.
+//     A beam's tiles are fixed when it is marked (Specials.mark), so one marked before the
+//     reflector stepped (or was moved) into its line goes on through it, striking it as it
+//     strikes everything on those tiles;
 //   - glass: shards where it is destroyed, by the one shard rule (Cases.shardTile);
 //   - old_repair: damage whose cause comes from its repaired side is doubled.
 // Each entry's scenarios are in test/behaviour/<id>.test.js (the line's with the
@@ -31,7 +34,7 @@
     clause: 'Moves to share your row or column with no reflector between you, then {special}. It never strikes.',
     params: {}, covers: ['telegraphed', 'special'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
   R.define('ARCHETYPES', 'reflector', { icon: null,
-    clause: 'Walks one tile at a time; sends beams back along their line, and shots back into whoever fired them, so nothing behind it is hit; strikes from beside you for only {dmg}.',
+    clause: 'Walks one tile at a time; sends beams back along their line, and shots back into whoever fired them, so nothing behind it is hit; a beam marked before it stepped into its line goes on through it; strikes from beside you for only {dmg}.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: 'unit', tests: tests('reflector'), inv: 'arch-b' });
 
   // A special: its shape, its effect, the §8.10 rows for its gross damage (a role curve),
@@ -41,7 +44,7 @@
     params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
 
   // A glass body sends shots back, and a shot it sends back that misses is its `missed`.
-  R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed, and sends beams and shots back along their line.',
+  R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed; sends shots back along their line, and beams marked while it is in their way.',
     params: {}, covers: ['missed'], ready: 'unit', tests: tests('glass'), inv: 'arch-b' });
   // The repaired side is a compass side from the species' modParams.old_repair.side.
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows, shots and beams from that side deal double damage.',

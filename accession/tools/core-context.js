@@ -23,14 +23,27 @@ function coreFiles() {
   return [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]).filter(f => f.startsWith('js/core/') || f.startsWith('content/'));
 }
 
+// A number of record set to another value in numbers.js's source, for a test that shows a
+// rule reads its number (opts.numbers = {KEY: value}); a key numbers.js lacks throws.
+function withNumbers(src, numbers) {
+  for (const [key, value] of Object.entries(numbers || {})) {
+    const re = new RegExp('^(\\s*' + key + ': )[^,\\n]+,', 'm');
+    if (!re.test(src)) throw new Error(`loadCore: numbers.js has no ${key}`);
+    src = src.replace(re, (m, head) => head + JSON.stringify(value) + ',');
+  }
+  return src;
+}
+
 // A fresh hardened context with the core loaded, then any extra files (paths relative to
-// accession/, or absolute); returns every top-level namespace by name.
-function loadCore(extraFiles) {
+// accession/, or absolute); returns every top-level namespace by name. opts.numbers sets
+// numbers of record to other values (tests only).
+function loadCore(extraFiles, opts) {
   const ctx = vm.createContext({});
   vm.runInContext(PRELUDE, ctx, { filename: 'prelude.js' });
   const names = [];
   for (const f of [...coreFiles(), ...(extraFiles || [])]) {
-    const src = fs.readFileSync(path.resolve(root, f), 'utf8');
+    let src = fs.readFileSync(path.resolve(root, f), 'utf8');
+    if (f === 'js/core/numbers.js' && opts && opts.numbers) src = withNumbers(src, opts.numbers);
     for (const m of src.matchAll(/^const ([A-Z][A-Za-z0-9]*) =/gm)) names.push(m[1]);
     vm.runInContext(src, ctx, { filename: f });
   }

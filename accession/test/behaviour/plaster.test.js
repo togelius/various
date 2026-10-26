@@ -40,6 +40,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     expect(r, params) {
       const uid = r.start.actors[1].uid, died = r.events.find(e => e.k === 'died' && e.who === uid);
       if (!died) return 'the blow did not destroy it';
+      // The dust is told in the log (a surface event, cause died, by the cast), after its death.
+      const laid = r.events.filter(e => e.k === 'surface');
+      if (laid.length !== 1 || json([laid[0].kind, laid[0].x, laid[0].y, laid[0].size, laid[0].turns, laid[0].cause]) !== json(['dust', 3, 3, N.PLASTER_DUST_SIZE, params.PLASTER_DUST_TURNS, { k: 'died', by: uid }])) return `the dust was told as ${json(laid)}`;
+      if (r.events.indexOf(laid[0]) < r.events.indexOf(died)) return 'the dust was told before the death';
+      const names = C.Labels.nameOf(r.state), said = C.Text.log(r.steps[0].events, names);
+      const want = `${C.Text.event(died, names).replace(/ broke apart\.$/, '')} crumbles into dust: it blocks sight, ${N.PLASTER_DUST_SIZE} tiles a side, for ${params.PLASTER_DUST_TURNS} turns.`;
+      if (!said.includes(want)) return `the log does not say "${want}": ${json(said)}`;
       const seen = sight(r), blocked = seen.filter(o => !o.across);
       if (seen.some(o => !o.past)) return 'the dust blocked sight along a row it does not reach';
       if (blocked.length !== params.PLASTER_DUST_TURNS) return `sight across its tile was blocked at ${blocked.length} of your decisions, not ${params.PLASTER_DUST_TURNS}`;

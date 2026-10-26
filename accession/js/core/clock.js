@@ -43,9 +43,11 @@ const Clock = (() => {
   const sealed = state => { const c = clock(state); return !!c && c.pausedSince !== null && c.pausedSince !== undefined; };
   // Do pips decay (§8.2)? Only before the bell. (M4 adds: and no alarm is running.)
   const pipsDecay = state => stage(state) === 0;
-  // Regeneration units a turn (§8.1): 2 open, 1 after the bell, 0 in the night watch or
-  // while a hall is sealed. A bench doubles it (BENCH_MULT), which regeneration applies.
-  const regenRate = state => sealed(state) ? 0 : [2, 1, 0][stage(state)];
+  // Regeneration units a turn (§8.1): REGEN_BELL_MULT (2) open, 1 after the bell, 0 in the
+  // night watch or while a hall is sealed; regeneration needs REGEN_BELL_MULT times your
+  // interval, so after the bell the interval is multiplied by REGEN_BELL_MULT. A bench
+  // doubles the rate (BENCH_MULT), which regeneration applies.
+  const regenRate = state => sealed(state) ? 0 : [N.REGEN_BELL_MULT, 1, 0][stage(state)];
 
   // The clock as the view model shows it (vm.clock), or null where there is no clock:
   //   count, B, G, stage  as in dept.clock;

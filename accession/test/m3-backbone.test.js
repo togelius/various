@@ -481,6 +481,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([loud.cls, loud.x, loud.y, loud.cause.k]), json(['loud', 3, 2, 'destroyed']));
     assert.equal(json([soft.cls, soft.x, soft.y, soft.cause.k, soft.cause.by]), json(['soft', 2, 2, 'attack', 'you']), 'the noise of the blow, at the attacker, last');
     assert.ok(!('ai/' + uid in s.rng) && !('combat/' + uid in s.rng), 'its streams are deleted at its death');
+    // The determinism contract says so (§3.2, Storage), since it changes state.rng's keys.
+    const storage = require('node:fs').readFileSync(path.join(root, 'BUILD.md'), 'utf8').split('\n').find(l => l.startsWith('- **Storage.**'));
+    assert.ok(/When an actor is destroyed, its own `combat\/` and `ai\/` streams are deleted/.test(storage), `§3.2 does not say a destroyed actor's streams are deleted: ${storage}`);
     // A miss: attacked, missed, noise.
     const m = room(C, OPEN, [2, 2], [ex([3, 2], { stats: { hp: 99, acc: 0, eva: 99, pad: 0, dmin: 1, dmax: 1 } })]);
     m.actors[1].next = 999;

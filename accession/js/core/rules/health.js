@@ -4,11 +4,12 @@
 //
 // Regeneration (§8.1, turn boundary step 3) is kept as a store, you.regen, so that a rate
 // that halves or doubles stays exact on an odd interval:
-//   - each turn below full health the store gains Health.rate units: Clock.regenRate (2 while
-//     the department is open, 1 after the bell, 0 in the night watch or while a hall is
-//     sealed), times BENCH_MULT while you sit on a bench;
-//   - each time it reaches twice your interval (Health.interval) you regain 1 health and the
-//     store gives up that much;
+//   - each turn below full health the store gains Health.rate units: Clock.regenRate
+//     (REGEN_BELL_MULT, 2, while the department is open, 1 after the bell, 0 in the night
+//     watch or while a hall is sealed), times BENCH_MULT while you sit on a bench;
+//   - each time it reaches REGEN_BELL_MULT times your interval (Health.interval) you regain 1
+//     health and the store gives up that much, so the open rate is 1 every interval and the
+//     bell multiplies the interval by REGEN_BELL_MULT;
 //   - at full health the store is empty, so nothing builds up to spend later.
 // So at 20 maximum health you regain 1 every 20 turns, 10 on a bench, 40 after the bell and
 // 20 on a bench after it; at 30, every 13 turns, or 6.5 on average on a bench.
@@ -28,16 +29,16 @@ const Health = (() => {
   // Health.rate(state) → the regeneration units you gain a turn now (see above).
   const rate = state => Clock.regenRate(state) * (onBench(state) ? N.BENCH_MULT : 1);
 
-  // Turn boundary step 3 (§8.1): the store gains its units; at twice your interval you regain
-  // 1 health (regenerated, with the store reached, the units needed and whether you sat on a
-  // bench). At full health the store is emptied instead.
+  // Turn boundary step 3 (§8.1): the store gains its units; at REGEN_BELL_MULT times your
+  // interval you regain 1 health (regenerated, with the store reached, the units needed and
+  // whether you sat on a bench). At full health the store is emptied instead.
   function regenerate(state, ev) {
     const you = state.actors[0];
     if (you.gone) return;
     if (you.hp >= you.maxHp) { you.regen = 0; return; }
     const units = rate(state);
     if (units <= 0) return;
-    const need = 2 * interval(you.maxHp);
+    const need = N.REGEN_BELL_MULT * interval(you.maxHp);
     you.regen += units;
     if (you.regen < need) return;
     const reached = you.regen;

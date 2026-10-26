@@ -1,6 +1,7 @@
 // The reflector's Behaviour-line clause (BUILD.md §5.3, §5.5, §8.1): "Walks one tile at a time;
 // sends beams back along their line, and shots back into whoever fired them, so nothing behind
-// it is hit; strikes from beside you for only {dmg}." Each scenario is a function of the
+// it is hit; a beam marked before it stepped into its line goes on through it; strikes from
+// beside you for only {dmg}." Each scenario is a function of the
 // clause's parameters, run for every species whose line has it (the Reflecting Dishes), at
 // every depth 1–7, with every invariant checked after every step and a clone check. Your
 // Pin-Driver is W1-KIT's; here, in this test's own core, a stand-in fires it through
@@ -134,6 +135,47 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     },
   })));
 
+  // A beam's tiles, its way back included, are fixed when it is marked (§8.1), so what the
+  // floor showed is what resolves: a dish pulled onto a beam already marked does not turn it,
+  // and you behind the dish are still struck, for the number the mark showed. Its Behaviour
+  // line says so ("a beam marked before it stepped into its line goes on through it"). This
+  // scenario uses its own core, with the real Window Pole, not the stand-in Pin-Driver.
+  const K = loadCore();
+  const pole = [{ uid: 'arch_b.pole', kind: 'instrument', form: 'pole', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.WINDOW_POLE[0], max: N.WINDOW_POLE[0] }];
+  test('a dish pulled onto a beam already marked does not turn it: you behind it are still struck, as the mark showed, and its line says so', () => {
+    const res = H.sweep(K, H.scenario({
+      name: 'a dish pulled onto a marked beam\'s line is struck with you behind it; nothing comes back', id: 'reflector', clone: true, seeds: [1, 2],
+      build: (params, sp, depth, opts) => K.Setup.room(opts.seed, { acc: K.Packs.list().find(p => p.species.includes(sp)).acc, depth, map: OPEN, you: [8, 3], items: pole,
+        exhibits: [sniper(depth, [1, 3]), body(sp, depth, [6, 4], { mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 999 }) })] }, { rulesOff: opts.rulesOff, invulnerable: true }),
+      actions(state, i) {
+        const sn = state.actors[1], dish = state.actors[2];
+        if (i === 0) return { a: 'wait' };
+        if (i === 1) return sn.telegraph ? { a: 'use', uid: 'arch_b.pole', x: dish.x, y: dish.y, how: 'pull' } : null;
+        return i < 4 ? { a: 'wait' } : null;
+      },
+      expect(r, params, sp, depth) {
+        const [, sn, dish] = r.start.actors;
+        const mark = r.steps[0].events.find(e => e.k === 'telegraphed' && e.who === sn.uid);
+        if (!mark) return 'the sniper did not aim';
+        if (!mark.tiles.some(t => t[0] === 7 && t[1] === 3) || !mark.tiles.some(t => t[0] === 8 && t[1] === 3)) return `its line was ${json(mark.tiles)}`;
+        const pulled = r.steps[1].events.find(e => e.k === 'moved' && e.who === dish.uid);
+        if (!pulled || json(pulled.to) !== json([7, 3])) return `the dish was not pulled onto the line: ${json(r.steps[1].events.map(e => e.k))}`;
+        const shown = Math.max(N.DMG_MIN_ON_HIT, mark.cause.gross - r.start.actors[0].pad);
+        const mine = hurt(r, 'you').filter(e => e.cause.sp === 'line');
+        if (mine.length !== 1 || mine[0].cause.k !== 'special' || mine[0].cause.by !== sn.uid) return `behind the dish you were struck ${json(mine.map(e => e.cause))}; once by the sniper's beam was expected`;
+        if (mine[0].amount !== shown) return `you took ${mine[0].amount}; the floor showed ${shown}`;
+        const struck = hurt(r, dish.uid).filter(e => e.cause.sp === 'line');
+        if (struck.length !== 1 || struck[0].cause.k !== 'special') return `the dish was struck ${json(struck.map(e => e.cause))}`;
+        if (r.events.some(e => (e.k === 'damaged' || e.k === 'died') && e.cause.k === 'reflected')) return 'the beam came back';
+        if (hurt(r, sn.uid).length) return 'the sniper was struck by its own beam';
+        const line = K.Clauses.line(sp, { depth });
+        return /a beam marked before it stepped into its line goes on through it/.test(line) ? null : `its Behaviour line does not say a beam already marked goes on through it: ${line}`;
+      },
+    }));
+    assert.ok(res.length >= 7, `${res.length} runs`);
+    assert.deepEqual(H.failures(res), []);
+  });
+
   // The rule itself, on small maps (BUILD.md §8.1).
   const tough = { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 2, dmax: 5 };
   const ex = (at, extra) => Object.assign({ sp: 'arch_b_target', at, mode: 'hunting', stats: tough }, extra || {});
@@ -211,7 +253,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // A beam a reflector sends back is the reflector's on the tiles it reaches only on its way
   // back (§8.1; D2.16): Ranged.beamVia names, for each tile of the beam, the reflector that
   // turned it before it entered that tile, or null on its way out. The cause, sentence and
-  // invariant for that beam (cause reflected with sp) are ready for Specials.resolve.
+  // invariant for that beam (cause reflected with sp) are those Specials.resolve uses, through
+  // the mark's via (telegraph.via).
   test('Ranged.beamVia names the reflector for each tile a beam reaches on its way back, and nothing on its way out', () => {
     const map = ['############', '#..........#', '############'];
     const s = Setup.room(1, { acc: 'T0', depth: 1, map, you: [4, 1], exhibits: [ex([2, 1], { arch: 'reflector', mode: 'dormant' }), { sp: 'arch_b_sniper', arch: 'axis_sniper', at: [6, 1], mode: 'hunting', stats: tough }] });

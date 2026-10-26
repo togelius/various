@@ -18,7 +18,7 @@
 //   no invariant file that exists (test/behaviour/<inv>.inv.js);
 //   a built: 'M3' id is referenced by no pack, scenario test or arena fixture (§5.1; refs,
 //   below): a pack uses it (a species' archetype, trigger or modifiers, its archetype's
-//   special, inflicted statuses and wake clause; an item's primitives, instrument and
+//   special, inflicted statuses and wake clause, its role's clause if it has one; an item's primitives, instrument and
 //   weapon or garment clause, and an instrument's charges; a consumable kind the pack
 //   labels), or one of the scenario files its entry names in `tests` names it in quotes,
 //   or an arena stamp (test/arena/*.txt) names it as a word;
@@ -170,6 +170,7 @@ for (const [, sp] of allSpecies) {
   use('SPECIALS', a.special);
   for (const st of a.inflicts || []) use('STATUSES', st);
   if (!(tr && tr.replacesWake)) use('CLAUSES', a.wake || 'wake');
+  if (typeof sp.role === 'string' && R.CLAUSES['role_' + sp.role]) use('CLAUSES', 'role_' + sp.role);
 }
 for (const p of packs) {
   for (const it of p.items || []) {

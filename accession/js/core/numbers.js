@@ -6,7 +6,7 @@ const N = Object.freeze({
   COST_STEP: 100, // step
   COST_WAIT: 100, // wait or one turn of rest
   COST_ATTACK: 100, // attack
-  COST_ATTACK_HEAVY: 150, // attack with a Heavy weapon
+  COST_ATTACK_HEAVY: 150, // a brute's blow; a Heavy weapon's blow costs FORM_HEAVY[3], and a test checks the two are equal
   COST_DOOR: 100, // open or close a door
   COST_OPEN_CASE: 200, // open a case
   COST_BASH: 100, // one bash (Heavy: 150 for two)
@@ -122,7 +122,7 @@ const N = Object.freeze({
   BONUS_PAD: [1, 2, 3], // Padding, likewise
   BONUS_DMG: [1, 2, 3], // min and max damage, likewise
   BREAKER_BASHES: 1, // extra bashes per swing with `breaker`
-  QUIET_RING: 1, // your ring is this much smaller when you move with `quiet`
+  QUIET_RING: 1, // your ring is this much smaller when you move or strike with `quiet`
   RESTORE_DMG: 1, // a weapon's min and max damage per level
   RESTORE_ACC_EVERY: 2, // a weapon gains 1 Acc at every this many levels
   RESTORE_PAD: 1, // a garment's Padding per level
@@ -175,7 +175,7 @@ const N = Object.freeze({
   ROLE_ARTILLERY_EVA: [1, 2, 3],
   ROLE_ARTILLERY_DMG: [[2, 5], [4, 11], [7, 16]],
   ROLE_ARTILLERY_PAD: [0, 0, 1],
-  ROLE_BRUTE_HP: [15, 35, 65], // attacks cost 150
+  ROLE_BRUTE_HP: [15, 35, 65], // attacks cost COST_ATTACK_HEAVY (150)
   ROLE_BRUTE_ACC: [1, 2, 3],
   ROLE_BRUTE_EVA: [0, 1, 2],
   ROLE_BRUTE_DMG: [[3, 7], [6, 14], [10, 22]],

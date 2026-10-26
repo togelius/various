@@ -8,7 +8,9 @@ const Clauses = (() => {
   const UNIVERSAL = ['moved', 'opened', 'closed', 'noise', 'pip', 'woke', 'hunting', 'alerted', 'lost', 'returned', 'damaged', 'died'];
 
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
-  const COMPASS = { N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' };
+  // The eight compass points in words: the one map every Behaviour line and sentence that
+  // names a side (an old repair's) reads (Clauses.COMPASS), so they cannot drift apart.
+  const COMPASS = Object.freeze({ N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west' });
   const range = (lo, hi) => lo === hi ? String(lo) : lo + '–' + hi;
 
   // One parameter reference, read for a species at a depth. `mod` is the modifier whose
@@ -71,7 +73,8 @@ const Clauses = (() => {
   // Clauses.of(sp, {depth, rulesOff}): one part per registry id the species uses (§5.3), in
   // the order the line reads: its archetype; the archetype's special and each status it
   // inflicts, whose texts the archetype's clause embeds at {special} and {status:<id>}
-  // (their parts say so in `within`); each modifier not switched off by rulesOff; the wake
+  // (their parts say so in `within`); its role's own rule, when the role has one (the
+  // clause CLAUSES.role_<role>: the brute's); each modifier not switched off by rulesOff; the wake
   // clause (the pipless one if the archetype says so), unless the trigger stands instead
   // of it; the special trigger. Ids the registry does not know give no part (lint-registry
   // fails on them).
@@ -84,6 +87,8 @@ const Clauses = (() => {
       for (const id of arch.inflicts || []) { const p = part('status', id, entry('STATUSES', id), sp, c, null); p.within = sp.archetype; extra['status:' + id] = p.text; inner.push(p); }
       parts.push(part('archetype', sp.archetype, arch, sp, c, null, extra), ...inner);
     }
+    const role = typeof sp.role === 'string' ? 'role_' + sp.role : null;
+    if (role && own(R.CLAUSES, role)) parts.push(part('role', role, R.CLAUSES[role], sp, c, null));
     for (const m of sp.modifiers || []) if (own(R.MODIFIERS, m) && !c.rulesOff.includes(m)) parts.push(part('modifier', m, R.MODIFIERS[m], sp, c, m));
     const trig = own(R.TRIGGERS, sp.trigger) ? R.TRIGGERS[sp.trigger] : null;
     if (!(trig && trig.replacesWake)) { const w = (arch && arch.wake) || 'wake'; parts.push(part('wake', w, entry('CLAUSES', w), sp, c, null)); }
@@ -102,5 +107,5 @@ const Clauses = (() => {
     return out.join(' ');
   }
 
-  return { UNIVERSAL, of, line, fill, params, value };
+  return { UNIVERSAL, COMPASS, of, line, fill, params, value };
 })();

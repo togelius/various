@@ -193,8 +193,8 @@ module.exports = C => {
     {
       // Health (§8.1): you never have more than your maximum; the regeneration store is a whole
       // number of units, never below 0; each regeneration is 1 health, below your maximum,
-      // when the store reached twice your interval; you sit only on a bench; and a
-      // regeneration counts the bench exactly when you are seated on one (standing on a
+      // when the store reached REGEN_BELL_MULT times your interval; you sit only on a bench;
+      // and a regeneration counts the bench exactly when you are seated on one (standing on a
       // bench is not sitting on it). Nothing in a step moves you or gets you up after your
       // action, so where you are after the step is where you were at its boundaries.
       id: 'combat_health',
@@ -211,8 +211,32 @@ module.exports = C => {
           if (last === e.turn) return `you regenerated twice on turn ${e.turn}`;
           last = e.turn;
           const c = e.cause;
-          if (c.need !== 2 * Health.interval(you.maxHp) || c.units < c.need) return `you regenerated with ${c.units} of ${c.need} units at maximum health ${you.maxHp}`;
+          if (c.need !== N.REGEN_BELL_MULT * Health.interval(you.maxHp) || c.units < c.need) return `you regenerated with ${c.units} of ${c.need} units at maximum health ${you.maxHp}`;
           if (e.hp > you.maxHp) return `you regenerated to ${e.hp}, past your maximum ${you.maxHp}`;
+        }
+        return null;
+      },
+    },
+    {
+      // The brute's clause (CLAUSES.role_brute; §8.1, Actors.attackCost): each of its blows
+      // takes COST_ATTACK_HEAVY ticks, at its speed and while slowed as any action does
+      // (Actors.cost). Its next action comes that long after its blow; checked when that is
+      // not before your next decision (so it took no other action in the step) and nothing
+      // changed whether it is slowed during the step.
+      id: 'combat_brute_blow',
+      check(pre, events, post) {
+        if (!pre) return null;
+        const yours = post.actors[0].next;
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i];
+          if (e.k !== 'attacked' || !e.how || e.how.kind !== 'melee') continue;
+          const a = byUid(post, e.by), b = byUid(pre, e.by);
+          if (!a || !b || a.role !== 'brute' || a.gone || a.uid === 'you') continue;
+          if (C.Status.has(a, 'slowed') !== C.Status.has(b, 'slowed')) continue;
+          const at = e.tick + Actors.cost(post, a, N.COST_ATTACK_HEAVY, 'act');
+          if (at < yours) continue;
+          if (events.slice(i + 1).some(x => x.k === 'attacked' && x.by === a.uid)) continue;
+          if (a.next !== at) return `${a.uid}, a brute, struck at tick ${e.tick} and acts next at ${a.next}, not ${at} (a blow of ${N.COST_ATTACK_HEAVY} ticks)`;
         }
         return null;
       },

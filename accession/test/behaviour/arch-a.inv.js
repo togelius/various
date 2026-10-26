@@ -252,7 +252,7 @@ module.exports = (C) => {
     },
   };
 
-  // "Comes as several bodies that each fall to a single hit." Any damage to a body of a swarm
+  // "Comes as {SWARM_BODIES} bodies that each fall to a single hit." Any damage to a body of a swarm
   // leaves it no health, and it is destroyed.
   const swarm = {
     id: 'swarm_single_hit',

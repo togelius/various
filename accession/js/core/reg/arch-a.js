@@ -15,13 +15,13 @@
     clause: 'Walks one tile at a time and strikes from beside you for {dmg}. Each hit it survives with 2 or more health splits it into two halves of that health, if there is room beside it; halves split again, up to {SPLIT_MAX} splits deep.',
     params: { dmg: 'role:DMG', SPLIT_MAX: 'N:SPLIT_MAX' }, covers: ['attacked', 'missed'] }, proved('splitter')));
   R.define('ARCHETYPES', 'mote_swarm', Object.assign({ icon: null, speed: 'fast',
-    clause: 'Comes as several bodies that each fall to a single hit; they move two tiles a turn and strike from beside you for {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'] }, proved('mote_swarm')));
+    clause: 'Comes as {SWARM_BODIES} bodies that each fall to a single hit; they move two tiles a turn and strike from beside you for {dmg}.',
+    params: { dmg: 'role:DMG', SWARM_BODIES: 'N:SWARM_BODIES[0]' }, covers: ['attacked', 'missed'] }, proved('mote_swarm')));
 
   R.define('MODIFIERS', 'marble', Object.assign({ icon: null, speed: 'slow', clause: 'Moves at half speed.', params: {}, covers: [] }, proved('marble')));
   R.define('MODIFIERS', 'plaster', Object.assign({ icon: null,
     clause: 'A cast: it has {PLASTER_HP_PCT}% of the usual health, and when destroyed it crumbles into dust that blocks sight round it for {PLASTER_DUST_TURNS} turns.',
-    params: { PLASTER_HP_PCT: 'N:PLASTER_HP_PCT', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, covers: [] }, proved('plaster')));
+    params: { PLASTER_HP_PCT: 'N:PLASTER_HP_PCT', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, covers: ['surface'] }, proved('plaster')));
 
   // A body made from another (a splitter's half) wakes in its parent's mode; its story
   // names how it was made (how: 'split'), its parent (from), who hit the parent (by), and a

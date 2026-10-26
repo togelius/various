@@ -53,10 +53,13 @@ const Labels = (() => {
     if (!a || a.gone || a.uid === 'you' || Archetypes.present(state, a) !== null) return null;
     const sp = speciesOf(state, a), you = state.actors[0];
     const near = Actors.dist(a, you.x, you.y) <= N.READ_RANGE;
+    // An exhibit with no blow (Archetypes.readout's noBlow, the axis_sniper) shows neither a
+    // blow's Acc nor its damage, which it never uses (§8.1, the odds readout).
+    const blow = !Archetypes.readout(state, a, you).some(r => r.k === 'noBlow');
     const pictos = [
       { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
       { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
-    ];
+    ].filter(p => blow || (p.icon !== 'acc' && p.icon !== 'damage'));
     if (sp && sp.trigger && Registry.TRIGGERS[sp.trigger]) pictos.unshift({ icon: Registry.TRIGGERS[sp.trigger].icon, text: 'wakes' });
     pictos.unshift({ icon: 'ring', text: 'ring' });
     const strike = Combat.canStrike(state, you, a, { kind: 'melee' }) === null;

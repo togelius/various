@@ -255,6 +255,11 @@ module.exports = ({ test, assert, loadCore }) => {
     s = mk('fumigant', [1, 3]); ev = checked(X, X.Step.step(s, { a: 'throw', uid: uidOf(s, 'fumigant'), x: 5, y: 3 }));
     assert.equal(json(s.dept.surfaces.map(f => [f.kind, f.x, f.y, f.size, f.by])), json([['fumigant', 5, 3, N.FUMIGANT_SIZE, 'you']]));
     assert.equal(own(X, ev, 'noise').length, 1);
+    // The cloud is told in the log, after the throw and before its noise (a surface event, cause item).
+    const cloud = own(X, ev, 'surface');
+    assert.equal(json(cloud.map(e => [e.kind, e.x, e.y, e.size, e.turns, e.cause])), json([['fumigant', 5, 3, N.FUMIGANT_SIZE, N.FUMIGANT_TURNS, { k: 'item', by: 'you', item: uidOf(mk('fumigant', [1, 3]), 'fumigant') }]]));
+    assert.ok(ev.indexOf(cloud[0]) > ev.findIndex(e => e.k === 'used') && ev.indexOf(cloud[0]) < ev.findIndex(e => e.k === 'noise'));
+    assert.ok(X.Text.log(ev, X.Labels.nameOf(s)).includes(`A Fumigant cloud rises, ${N.FUMIGANT_SIZE} tiles a side: it blocks sight for ${N.FUMIGANT_TURNS} turns, and every sleeping exhibit inside it with a pip loses one each turn.`), json(X.Text.log(ev, X.Labels.nameOf(s))));
     // A heal of a thrown Consolidant is CONSOLIDANT_THROW_PCT of each creature's own maximum.
     assert.ok(calls.filter(c => c.fn === 'heal').every(c => c.n === pct));
   });
@@ -808,6 +813,35 @@ module.exports = ({ test, assert, loadCore }) => {
       steps++;
     }
     assert.ok(steps >= 20 && s.items.filter(i => i.kind === 'consumable' && i.where.at === 'gone').length >= 4, `${steps} steps`);
+  });
+
+  // A second drink of a kind in one play is where something new happens (a harmful kind is no
+  // longer gentle; a second Consolidant heals on top of the restoring already on you), so each
+  // Solution is drunk twice, unknown then known, with a twin cloned after every step. Your
+  // health is set low before each drink, in both, so that no heal is cut off at your maximum.
+  test('drinking each Solution twice in one play, unknown then known, is plain data and clone-stable after every step', () => {
+    const { X } = core(), N = X.N, SOL = ['consolidant', 'solvent', 'fumigant', 'fixative'];
+    const s = room(X, { keepHp: true, tote: SOL.map(k => [k, 2]) });
+    s.actors[0].maxHp = 1000;
+    let twin = X.State.clone(s);
+    const all = [], step = act => {
+      const ev = checked(X, X.Step.step(s, act)); X.Step.step(twin, act); twin = X.State.clone(twin);
+      assert.equal(X.State.plainData(s), null, json(act));
+      assert.equal(X.State.hash(twin), X.State.hash(s), `${json(act)} at turn ${s.turn}`);
+      for (const e of ev) all.push(e);
+      return ev;
+    };
+    for (const ck of SOL.concat(SOL)) {
+      s.actors[0].hp = twin.actors[0].hp = 50;
+      const ev = step({ a: 'use', uid: uidOf(s, ck) });
+      assert.ok(own(X, ev, 'used').length === 1 && !own(X, ev, 'refused').length, `${ck}: ${json(ev.map(e => e.k))}`);
+    }
+    for (let i = 0; i < N.FIXATIVE_TURNS + 2; i++) step({ a: 'wait' });
+    const heals = all.filter(e => e.k === 'healed' && e.cause.k === 'item');
+    const full = X.Int.pct(1000, N.CONSOLIDANT_NOW_PCT);
+    assert.equal(json(heals.map(e => e.amount)), json([full, full]), 'two Consolidant heals, each in full');
+    const put = id => all.filter(e => e.k === 'status' && e.on && e.who === 'you' && e.id === id).length;
+    assert.equal(json([put('restoring'), put('coughing'), put('fixed')]), json([2, 1, 1]), 'the second drinks of the harmful kinds are not gentle');
   });
 };
 module.exports.contracts = contracts;
