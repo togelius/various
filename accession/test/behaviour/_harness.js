@@ -63,7 +63,7 @@ function play(C, state, actions, opts) {
       const wrong = C.Causes.check(e);
       if (wrong) violations.push({ id: 'cause', text: `${wrong}, at step ${i} (${JSON.stringify(action)}): ${JSON.stringify(e)}` });
       const said = C.Text.event(e, names);
-      if (typeof said !== 'string' || !said || /undefined|NaN|\[object/.test(said)) violations.push({ id: 'sentence', text: `the ${e.k}${e.cause && e.cause.k ? '.' + e.cause.k : ''} event reads ${JSON.stringify(said)}, at step ${i} (${JSON.stringify(action)})` });
+      if (typeof said !== 'string' || !said || /undefined|NaN|\[object|\bnull\b/.test(said)) violations.push({ id: 'sentence', text: `the ${e.k}${e.cause && e.cause.k ? '.' + e.cause.k : ''} event reads ${JSON.stringify(said)}, at step ${i} (${JSON.stringify(action)})` });
     }
     if (check) for (const v of check(pre, action, ev, state)) violations.push(v);
     if (twin) {

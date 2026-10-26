@@ -31,6 +31,16 @@ module.exports = ({ test, assert, root, fs, path }) => {
     for (const g of ok) assert.equal(lintSrc(g), 0, 'wrongly flagged: ' + g);
   });
 
+  // A comparator that returns a comparison (true or false) never returns a negative number,
+  // so engines sort with it differently: V8 leaves [3, 1, 2] as it is, SpiderMonkey sorts it
+  // (BUILD.md §3.3).
+  test('lint-core fails a sort whose comparator returns true or false rather than a number', () => {
+    const bad = ['[3, 1].sort((a, b) => a > b);', '[3, 1].sort(function (a, b) { return a < b; });', '[3, 1].toSorted((a, b) => a >= b);', 'xs.sort((p, q) => p.d <= q.d);'];
+    for (const b of bad) assert.equal(lintSrc(b), 1, 'not caught: ' + b);
+    const ok = ['[3, 1].sort((a, b) => (a > b) - (a < b));', '[3, 1].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));', '[3, 1].sort(function (a, b) { return a - b; });', 'const lt = (a, b) => a < b;'];
+    for (const g of ok) assert.equal(lintSrc(g), 0, 'wrongly flagged: ' + g);
+  });
+
   test('check-all lints every tool the hardened context and the hash page run: arena, monkey, replay and the policies', () => {
     const sh = fs.readFileSync(path.join(root, 'check-all.sh'), 'utf8'), line = sh.split('\n').find(l => /^run lint-tools /.test(l));
     for (const f of ['tools/arena.js', 'tools/monkey.js', 'tools/replay.js', 'tools/policies/*.js']) assert.ok(line && line.includes(f), `check-all's lint-tools step does not lint ${f}: ${line}`);

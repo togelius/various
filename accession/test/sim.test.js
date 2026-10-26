@@ -6,7 +6,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
   const C = Sim.load();
   const { spawnSync } = require('node:child_process');
   const J = v => JSON.parse(JSON.stringify(v)), eq = (a, b, m) => assert.deepEqual(J(a), J(b), m);
-  const clean = s => assert.doesNotMatch(String(s), /undefined|NaN|\[object/, `not a clean sentence: ${s}`);
+  const clean = s => assert.doesNotMatch(String(s), /undefined|NaN|\[object|\bnull\b/, `not a clean sentence: ${s}`);
   const DUMMY = C.Arena.parse(C.Arena.DUMMY);
   const dummy = (s, o) => C.Arena.build(DUMMY, s, { options: o }), judged = (s, ev) => C.Arena.outcome(DUMMY, s, ev);
   const cli = args => spawnSync(process.execPath, [path.join(root, 'tools/sim.js'), ...args], { encoding: 'utf8', cwd: root });

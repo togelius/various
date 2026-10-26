@@ -32,10 +32,15 @@
 //   depths: <d>…       the depths, in turn by seed (2 5)
 //   kit: <slot> [<form>] [key=value…]; …
 //                      what you wear and carry; slots weapon and garment change the kit you
-//                      start with (form, tier, level); curio0, curio1 and instrument put an
-//                      item in that slot; `tote <kind> …` puts one in the tote. key=value sets
-//                      any item field (ref, form, tier, level, charges, max, rechargeAt, ck,
-//                      seal, n; prims=dmg:M,quiet:S). The line may repeat.
+//                      start with (form, tier, level; tier 1 unless given, as you start);
+//                      curio0, curio1 and instrument put an item in that slot; `tote <kind> …`
+//                      puts one in the tote. key=value sets any item field (ref, form, tier,
+//                      level, charges, max, rechargeAt, ck, seal, n; prims=dmg:M,quiet:S). The
+//                      line may repeat. A tier is a whole number from 1 to 4; a weapon, garment
+//                      or instrument the stamp gives (in a slot, the tote, a case or on the
+//                      floor) with no tier gets the lower tier on offer at the depth
+//                      (TIER_LOW_BY_DEPTH), as a department places most, so its label and its
+//                      numbers (a Pin-Driver's bolt) name a tier the game has.
 //   clock: none | ltour=<n> | B=<b> G=<g> count=<c>     (none)
 //   seen: none | all   whether the whole map is remembered from the start, as it is built (none)
 //   grade: <1-7>       your grade (I), so that whether a case opens is the stamp's to say
@@ -51,7 +56,19 @@
 //                                                one exhibit on each such tile; a bare sp is the
 //                                                species in turn, sp=<id> a fixed one, and with
 //                                                neither, role=<r> makes an unnamed exhibit
-//                                                with that role's numbers at the depth
+//                                                with that role's numbers at the depth. An
+//                                                exhibit of a species keeps its archetype,
+//                                                role, trigger and modifiers: one that gives
+//                                                others is refused, since its label reads the
+//                                                species (BUILD.md §5.3) and would state rules
+//                                                it does not follow; use a pack species that
+//                                                has them (fodder M11.5 or A4.1, artillery
+//                                                M11.3). An unnamed (role-only) exhibit is
+//                                                titled training_dummy and has no Behaviour
+//                                                line, so it is for the tools' own tests. A
+//                                                swarm's species (mote_swarm) is placed as the
+//                                                SWARM_BODIES[0] bodies its line says, or the
+//                                                stamp is refused
 //                        case [glass=<1-3>] [lock=<1-7>] [loan] [num=<s>] [ + item … | + exhibit …]
 //                                                a case (on a vitrine), and what it holds: an
 //                                                item, or an exhibit encased in it (the + has a
@@ -95,6 +112,9 @@ const Arena = (() => {
   const METRICS = ['hpLost', 'woken', 'turns'];
   const MODES = ['dormant', 'awake', 'hunting', 'searching', 'returning', 'reinstalling'];
   const DEFAULT_DEPTHS = [2, 5], DEFAULT_CAP = 200;
+  // The highest tier there is (TIER_LOW_BY_DEPTH's last); the kinds that have a tier.
+  const TOP_TIER = () => N.TIER_LOW_BY_DEPTH[N.TIER_LOW_BY_DEPTH.length - 1];
+  const TIERED = ['weapon', 'garment', 'instrument'];
 
   const fail = (line, msg) => { throw new Error(`Arena.parse: ${line ? 'line ' + line + ': ' : ''}${msg}`); };
   const isTile = ch => Object.prototype.hasOwnProperty.call(Grid.TILES, ch);
@@ -137,6 +157,7 @@ const Arena = (() => {
       if (allowOn && k === 'on') continue;
       if (!ITEM_FIELDS.includes(k)) fail(line, `an item has no field ${k} (it takes ${ITEM_FIELDS.join(', ')})`);
       out[k] = k === 'prims' ? prims(v, line) : value(v);
+      if (k === 'tier' && !(Number.isInteger(out[k]) && out[k] >= 1 && out[k] <= TOP_TIER())) fail(line, `tier is a whole number from 1 to ${TOP_TIER()}, not ${v}`);
     }
     return out;
   }
@@ -426,6 +447,8 @@ const Arena = (() => {
     const out = { acc, depth, sp: sp ? sp.id : null, variant: v, room, exhibits: [], items: [], cases: [], marks: [], likes: [] };
     let items = 0, cases = 0;
     const itemUid = () => `${acc}.${depth}.room.i${++items}`;
+    // A weapon, garment or instrument given no tier gets the lower tier on offer at the depth.
+    const tiered = rec => { if (TIERED.includes(rec.kind) && rec.tier === undefined) rec.tier = N.TIER_LOW_BY_DEPTH[depth - 1]; return rec; };
     // The kit: the weapon and garment you start with, then the slots and the tote.
     const kit = {};
     for (const e of spec.kit) if (e.slot === 'weapon' || e.slot === 'garment') kit[e.slot] = Object.assign({}, e.fields);
@@ -435,13 +458,24 @@ const Arena = (() => {
     for (const e of spec.kit) {
       if (e.slot === 'weapon' || e.slot === 'garment') continue;
       const where = e.slot === 'tote' ? { at: 'tote' } : { at: 'kit', slot: e.slot };
-      room.items.push(Object.assign({ uid: itemUid(), kind: e.kind, where }, JSON.parse(JSON.stringify(e.fields))));
+      room.items.push(tiered(Object.assign({ uid: itemUid(), kind: e.kind, where }, JSON.parse(JSON.stringify(e.fields)))));
     }
-    // The map, row-major: on each cell its legend part, then what a case holds.
+    // The map, row-major: on each cell its legend part, then what a case holds. An exhibit of
+    // a species keeps the species' archetype, role, trigger and modifiers (its label reads the
+    // species, §5.3); swarm bodies are counted per species.
+    const swarms = {};
+    const OWN = [['arch', 'archetype', s => s.archetype || 'plodder'], ['role', 'role', s => s.role || null], ['trigger', 'trigger', s => s.trigger || null],
+      ['mods', 'modifiers', s => s.modifiers || []]];
+    const words = v => Array.isArray(v) ? v.join(',') || 'none' : v === null ? 'none' : String(v);
     const exhibit = (p, c) => {
       const s = p.rotate ? sp : p.sp ? Packs.speciesFor(null, { sp: p.sp }) : null;
       if (p.rotate && !s) throw new Error(`Arena: ${spec.arena}'s ${c.ch} is the species in turn, and the header names no species`);
       if (p.sp && !s) throw new Error(`Arena: ${spec.arena}'s ${c.ch} names the species ${p.sp}, which no pack has`);
+      if (s) for (const [k, field, own] of OWN) {
+        if (p[k] === undefined || JSON.stringify(p[k]) === JSON.stringify(own(s))) continue;
+        throw new Error(`Arena: ${spec.arena}'s ${c.ch} gives ${s.id}'s ${field} as ${words(p[k])}, not its own ${words(own(s))}: its label would not say so (BUILD.md §5.3); use a species whose own ${field} is ${words(p[k])}`);
+      }
+      if (s && s.archetype === 'mote_swarm') swarms[s.id] = (swarms[s.id] || 0) + 1;
       const role = p.role || (s ? s.role : null);
       if (!role) throw new Error(`Arena: ${spec.arena}'s ${c.ch} has no role`);
       const rec = { sp: s ? s.id : 'training_dummy', at: [c.x, c.y], stats: Roles.stats(role, depth) };
@@ -456,7 +490,7 @@ const Arena = (() => {
     };
     const item = (p, c, where) => {
       const uid = itemUid();
-      room.items.push(Object.assign({ uid, kind: p.kind, where }, JSON.parse(JSON.stringify(p.fields))));
+      room.items.push(tiered(Object.assign({ uid, kind: p.kind, where }, JSON.parse(JSON.stringify(p.fields)))));
       out.items.push({ ch: c.ch, uid });
       return uid;
     };
@@ -477,6 +511,8 @@ const Arena = (() => {
       }
       rows[c.y][c.x] = p0.on || (p0.what === 'case' ? 'v' : '.');
     }
+    for (const id of Object.keys(swarms).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) if (swarms[id] !== N.SWARM_BODIES[0])
+      throw new Error(`Arena: ${spec.arena} places ${swarms[id]} bodies of the swarm ${id}, but its Behaviour line says it comes as ${N.SWARM_BODIES[0]} (SWARM_BODIES[0]): place ${N.SWARM_BODIES[0]} (BUILD.md §5.3)`);
     room.map = rows.map(r => r.join(''));
     room.map.forEach((r, y) => { for (let x = 0; x < r.length; x++) { if (r[x] === 'E' && !room.entrance) room.entrance = [x, y]; if (r[x] === 'X') room.exits.push([x, y]); } });
     if (room.clock === undefined) delete room.clock;

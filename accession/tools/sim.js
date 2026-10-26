@@ -83,7 +83,7 @@ function parseSeeds(s) {
   return out;
 }
 
-const clean = s => typeof s === 'string' && s.trim() !== '' && !/undefined|NaN|\[object/.test(s);
+const clean = s => typeof s === 'string' && s.trim() !== '' && !/undefined|NaN|\[object|\bnull\b/.test(s);
 const plainCopy = v => v === null || v === undefined ? null : JSON.parse(JSON.stringify(v));
 const plainOptions = o => ({ rulesOff: ((o && o.rulesOff) || []).slice(), without: ((o && o.without) || []).slice(), invulnerable: !!(o && o.invulnerable) });
 
@@ -147,8 +147,9 @@ function run(o) {
   const cap = o.cap || 200, maxSteps = o.maxSteps || cap * 10;
   const checker = checkerOf(C, o.check, o.invDir);
   const outcomeOf = o.outcome || ((s, ev) => plainOutcome(C, s, ev));
-  // The policy's own stream, on a holder of its own: never in the state.
-  const rng = C.Rng.stream({ seed, rng: {} }, `policy/${name}/${seed}`);
+  // The policy's own stream, on a holder of its own, and its memory for this run, empty at
+  // its start: never in the state.
+  const rng = C.Rng.stream({ seed, rng: {} }, `policy/${name}/${seed}`), memory = {};
   const events = [], reasons = [], actions = [], reads = [], violations = [];
   // last: the last step's events, which the log tells; drawn: those of the last action that
   // took time, which the view model draws (a step that takes none leaves them, as main.js does).
@@ -162,7 +163,7 @@ function run(o) {
     if (now.done) { stopped = 'done'; break; }
     if (state.turn >= cap) { stopped = 'cap'; break; }
     if (steps >= maxSteps) { stopped = 'steps'; break; }
-    const obs = C.Obs.make(state, last, reads, rng, { drawn }), turn = state.turn, n = steps + 1;
+    const obs = C.Obs.make(state, last, reads, rng, { drawn, memory }), turn = state.turn, n = steps + 1;
     // The legal actions as they were shown, kept apart from what the policy is handed.
     const legal = obs.legal.map(l => C.State.canon(l));
     const before = checker ? C.State.canon(state) : null;

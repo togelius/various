@@ -3,7 +3,7 @@
 module.exports = ({ test, assert, loadCore, root, path, fs }) => {
   const C = loadCore([path.join(root, 'tools/arena.js')]);
   const A = C.Arena;
-  const clean = s => assert.doesNotMatch(String(s), /undefined|NaN|\[object/, `not a clean sentence: ${s}`);
+  const clean = s => assert.doesNotMatch(String(s), /undefined|NaN|\[object|\bnull\b/, `not a clean sentence: ${s}`);
   // Values made in the core's context have that context's prototypes, so compare as JSON.
   const J = v => JSON.parse(JSON.stringify(v)), eq = (a, b, m) => assert.deepEqual(J(a), J(b), m);
   const stamp = (head, map) => head.join('\n') + '\n\n' + map.join('\n') + '\n';
@@ -166,7 +166,7 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
       [[i(1), 'instrument', 'kit'], [i(2), 'consumable', 'tote'], [i(3), 'curio', 'case'], [i(4), 'weapon', 'floor']]);
     assert.equal(m.fixtures[0].holds, i(3)); assert.equal(m.fixtures[1].holds, null);
     const it = id => state.items.find(x => x.uid === id);
-    eq([it(i(1)).form, it(i(1)).charges, it(i(1)).max], ['fork', 3, 3]);
+    eq([it(i(1)).form, it(i(1)).charges, it(i(1)).max, it(i(1)).tier], ['fork', 3, 3, C.N.TIER_LOW_BY_DEPTH[3]], 'given no tier, the fork has the lower tier on offer at depth 4');
     eq([it(i(2)).ck, it(i(2)).n], ['fixative', 2]);
     eq(it(i(3)).prims, [{ id: 'dmg', cls: 'M' }]);
     eq([it(i(4)).form, it(i(4)).tier, it(i(4)).where.x, it(i(4)).where.y], ['light', 1, 2, 4]);
@@ -320,6 +320,60 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
     // A removed sleeper is not counted as one.
     const w = A.build(spec, 1, { options: { without: [Q] } });
     assert.equal(A.outcome(spec, w, []).sleepers, 1);
+  });
+
+  // A label reads its species (§5.3), so a stamp may not give an exhibit of a species another
+  // archetype, role, trigger or modifiers than the species' own: its label would state a rule
+  // the exhibit does not follow. A role-only exhibit (no species) has no Behaviour line.
+  test('an exhibit of a species keeps the species\' archetype, role, trigger and modifiers, so its label says what it does', () => {
+    const room = ['#######', '#@...P#', '#######'];
+    const refused = [['sp=M11.5 role=brute', /M11\.5's role .*brute.*its label would not say so/], ['sp=M11.5 arch=darter', /M11\.5's archetype .*darter/],
+      ['sp=M11.5 mods=glass', /M11\.5's modifiers .*glass/], ['sp=A4.1 trigger=awake', /A4\.1's trigger .*awake/], ['sp=A4.1 mods=marble,glass', /A4\.1's modifiers/]];
+    for (const [args, re] of refused) {
+      let msg = null;
+      try { A.build(A.parse(stamp(['arena: t', 'goal: kill', `legend: P exhibit ${args}`], room)), 1); } catch (e) { msg = e.message; }
+      assert.ok(msg, `accepted: ${args}`);
+      assert.match(msg, re); assert.match(msg, /BUILD\.md §5\.3/); clean(msg);
+    }
+    // The species in turn too.
+    assert.throws(() => A.build(A.parse(stamp(['arena: t', 'goal: kill', 'species: M11.5', 'legend: P exhibit sp role=brute'], room)), 1), /role .*brute/);
+    // The species' own values are not an override; a role-only exhibit may take any.
+    for (const args of ['sp=M11.5', 'sp=M11.5 role=fodder arch=plodder', 'sp=A4.1 mods=marble trigger=ally_hit', 'role=artillery arch=kiter']) {
+      const s = A.build(A.parse(stamp(['arena: t', 'goal: kill', `legend: P exhibit ${args}`], room)), 1), a = s.actors[1], l = C.Labels.of(s, a.uid);
+      const sp = C.Packs.speciesFor(s, a);
+      if (sp) {
+        assert.equal(l.behaviour, C.Clauses.line(sp, { depth: s.dept.depth }), args);
+        eq([a.arch, a.role, a.trigger, a.mods], [sp.archetype, sp.role, sp.trigger || null, sp.modifiers || []]);
+      } else assert.equal(l.behaviour, '', `${args}: no species, no Behaviour line`);
+    }
+  });
+
+  test('a swarm is stamped as the number of bodies its Behaviour line says (SWARM_BODIES[0]), or refused', () => {
+    const n = C.N.SWARM_BODIES[0], line = k => ['#########', '#@' + 'm'.repeat(k) + '.'.repeat(6 - k) + '#', '#########'];
+    const head = ['arena: swarm', 'goal: kill', 'species: mote_swarm', 'legend: m exhibit sp'];
+    for (const k of [n - 1, n + 1, 6]) assert.throws(() => A.build(A.parse(stamp(head, line(k))), 1), new RegExp(`places ${k} bodies of the swarm A4\\.2, but its Behaviour line says it comes as ${n}`), `${k} bodies`);
+    const s = A.build(A.parse(stamp(head, line(n))), 1), bodies = s.actors.filter(a => a.arch === 'mote_swarm');
+    assert.equal(bodies.length, n);
+    for (const b of bodies) assert.ok(C.Labels.of(s, b.uid).behaviour.startsWith(`Comes as ${bodies.length} bodies`), C.Labels.of(s, b.uid).behaviour);
+  });
+
+  test('a weapon, garment or instrument the stamp gives no tier gets the lower tier on offer at the depth, so its label and its numbers agree; a tier that is not 1–4 is refused', () => {
+    const room = ['#######', '#@.W..#', '#######'];
+    for (const depth of [1, 2, 4, 5, 7]) {
+      const spec = A.parse(stamp(['arena: t', 'goal: take W', `depths: ${depth}`, 'kit: instrument pin_driver; tote garment heavy; curio0 prims=dmg:S', 'legend: W item weapon heavy'], room));
+      const s = A.build(spec, 1), want = C.N.TIER_LOW_BY_DEPTH[depth - 1];
+      for (const it of s.items.filter(i => !/^you\./.test(i.uid))) {
+        const l = C.Labels.ofItem(s, it.uid), text = JSON.stringify(l);
+        if (it.kind === 'curio') { assert.equal(it.tier, null, 'a curio has no tier'); continue; }
+        assert.equal(it.tier, want, `depth ${depth}: ${it.kind}`);
+        assert.match(l.pictos[0].text, new RegExp(`tier ${want}\\b`), `depth ${depth}: ${it.kind}`);
+        assert.doesNotMatch(text, /tier null/);
+      }
+      // The Pin-Driver's bolt deals its tier's damage, as its label says.
+      const pin = s.items.find(i => i.form === 'pin_driver'), d = C.Kit.describe(s, pin.uid);
+      assert.ok(C.Labels.ofItem(s, pin.uid).odds.includes(`Its bolt deals ${d.instrument.dmin === d.instrument.dmax ? d.instrument.dmin : d.instrument.dmin + '–' + d.instrument.dmax} damage, rolled with Acc ${d.instrument.acc < 0 ? '−' + -d.instrument.acc : d.instrument.acc}.`));
+    }
+    for (const bad of ['tier=null', 'tier=0', 'tier=5', 'tier=two']) assert.throws(() => A.parse(stamp(['arena: t', 'goal: take W', `legend: W item weapon heavy ${bad}`], room)), /tier is a whole number from 1 to 4/, bad);
   });
 
   test('tools/arena.js passes the determinism lint, like the core', () => {

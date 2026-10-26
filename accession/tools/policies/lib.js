@@ -5,7 +5,7 @@
 // it checks the core (§3.3).
 //
 // A POLICY sees only what a player sees (§10.2; the plan's D7.7):
-//   obs = { vm, read(target), legal, rng, log }
+//   obs = { vm, read(target), legal, rng, log, memory }
 //     vm      ViewModel.derive(state, {events}): the board as drawn, with the events of
 //             your last action that took time, so its noise rings and one-turn cues are
 //             there as a player sees them (a step that takes none, a refusal or a free read,
@@ -17,7 +17,16 @@
 //     legal   Step.legal(state): the buttons a player has (a frozen copy too);
 //     rng     a stream on the policy's own holder, policy/<name>/<seed> (never in the state):
 //             the only source of a policy's choices;
-//     log     the log's sentences for the last step (Text.log), as a player reads them.
+//     log     the log's sentences for the last step (Text.log), as a player reads them;
+//     memory  a plain object of its own for the run, empty at its start and the same object
+//             at every decision of the run: the only thing a policy may keep and change
+//             (a lure's stage, a herald's last tile), as a player remembers. It is never part
+//             of the state. A policy file keeps no state of its own: the files are loaded once
+//             into a context the sim shares between runs, so a variable outside decide would
+//             carry one run into the next, and a seed would decide one way alone and another
+//             after other seeds (§10.2). lint-core refuses, in a policy file, a let or var
+//             outside a function (or in a function called where it is written, at the top)
+//             and a const there holding an object, an array or a new one, unless frozen.
 // It answers decide(obs) → {action, reason}: an action from obs.legal, and one line saying
 // why, in words ("attacks A4.2.room.1 beside you, 10 HP left"), which the sim logs (§10.2).
 //
@@ -100,7 +109,8 @@ const Obs = (() => {
   // What a policy sees now (above). events: the last step's (none before the first), which
   // the log tells; readLog: a list each read is appended to, as {turn, target, text}; rng:
   // the policy's stream (Rng.stream on the policy's own holder); opts.drawn: the events the
-  // view model draws, those of your last action that took time (the events, if not given).
+  // view model draws, those of your last action that took time (the events, if not given);
+  // opts.memory: the run's memory (a fresh empty object, if not given).
   function make(state, events, readLog, rng, opts) {
     const ev = events || [], drawnEv = opts && opts.drawn ? opts.drawn : ev;
     const drawn = ViewModel.derive(state, { events: drawnEv });
@@ -111,7 +121,7 @@ const Obs = (() => {
       if (readLog) readLog.push({ turn: state.turn, target: String(target), text: t });
       return t;
     };
-    return { vm: own(drawn), read, legal: own(Step.legal(state)), rng: rng || null, log };
+    return { vm: own(drawn), read, legal: own(Step.legal(state)), rng: rng || null, log, memory: opts && opts.memory ? opts.memory : {} };
   }
 
   // HELPERS, on what the policy sees (the view model and its legal actions) and nothing else.
@@ -202,7 +212,7 @@ const Obs = (() => {
 const Policies = (() => {
   const groups = [];
   const ID = /^[a-z0-9_]+$/;
-  const clean = s => typeof s === 'string' && s.trim() !== '' && !/undefined|NaN|\[object/.test(s);
+  const clean = s => typeof s === 'string' && s.trim() !== '' && !/undefined|NaN|\[object|\bnull\b/.test(s);
 
   // A card's problem in words, or null: a summary sentence, its rules in order, and its
   // weights as [name, value] pairs (§10.2).

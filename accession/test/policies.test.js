@@ -19,7 +19,8 @@ module.exports = ({ test, assert, root, path, fs }) => {
     const ev = C.Step.step(s, { a: 'wait' });
     const rng = C.Rng.stream({ seed: 1, rng: {} }, 'policy/test/1'), reads = [];
     const obs = C.Obs.make(s, ev, reads, rng);
-    eq(Object.keys(obs).sort(), ['legal', 'log', 'read', 'rng', 'vm']);
+    eq(Object.keys(obs).sort(), ['legal', 'log', 'memory', 'read', 'rng', 'vm']);
+    eq(obs.memory, {}, 'a fresh memory, when the caller gives none');
     eq(plainVm(obs.vm), plainVm(C.ViewModel.derive(s, { events: ev })));
     eq(obs.legal, C.Step.legal(s));
     const shown = obs.vm.actors.map(a => a.uid);
@@ -71,7 +72,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.equal(obs.read(hidden.uid), null, 'out of view');
     assert.equal(obs.read('nobody'), null); assert.equal(obs.read(42), null); assert.equal(obs.read('case:x,y'), null);
     eq(reads.map(r => [r.turn, r.target, r.text === null]), [[0, near.uid, false], [0, far.uid, false], [0, hidden.uid, true], [0, 'nobody', true], [0, '42', true], [0, 'case:x,y', true]]);
-    for (const r of reads) if (r.text) assert.doesNotMatch(r.text, /undefined|NaN|\[object/);
+    for (const r of reads) if (r.text) assert.doesNotMatch(r.text, /undefined|NaN|\[object|\bnull\b/);
   });
 
   test("read asks the labels of cases, items, plaques and staff doors only for what is in view", () => {
@@ -171,6 +172,45 @@ module.exports = ({ test, assert, root, path, fs }) => {
     eq([s.actors[0].x, s.actors[0].y], [5, 2], 'it arrives');
   });
 
+  // A policy's memory is obs.memory, one plain object for each run, empty at its start; a
+  // policy file keeps no state of its own, which would last from one run into the next in
+  // the shared context (BUILD.md §10.2: two runs on one seed make the same decisions).
+  test('a policy remembers in obs.memory, fresh for each run, so a seed decides alike run alone or after others; a policy file that keeps its own state fails the lint', () => {
+    // A lure bot: it waits three turns, remembering how many, then fights.
+    const lure = "Policies.add('lure', { stages: { card: { summary: 'Waits three turns, then fights.', rules: ['Wait three turns.', 'Then fight.'] }, decide(obs) {" +
+      " obs.memory.stage = (obs.memory.stage || 0) + 1;" +
+      " const me = obs.vm.actors[0], foe = obs.vm.actors.find(a => a.uid !== 'you' && Math.max(Math.abs(a.x - me.x), Math.abs(a.y - me.y)) === 1);" +
+      " if (obs.memory.stage > 3 && foe) return { action: { a: 'attack', uid: foe.uid }, reason: 'fights, stage ' + obs.memory.stage };" +
+      " return { action: { a: 'wait' }, reason: 'waits, stage ' + obs.memory.stage }; } } });";
+    const f = planted('lure.js', lure);
+    const H = C.Arena.parse('arena: lure\ngoal: kill\ncap: 30\ndepths: 3\nlegend: Q exhibit role=fodder mode=hunting\n\n########\n#@..Q..#\n########\n');
+    const go = (X, seed) => Sim.run({ C: X, make: (sd, o) => X.Arena.build(H, sd, { options: o }), policy: 'lure.stages', seed, cap: 30 });
+    const shared = Sim.load([f]);
+    for (const seed of [1, 3, 4]) go(shared, seed);
+    const after = go(shared, 2), alone = go(Sim.load([f]), 2);
+    eq([after.reasons, after.replay.actions, after.reads], [alone.reasons, alone.replay.actions, alone.reads], 'seed 2 after others decides as seed 2 alone');
+    assert.match(alone.reasons[0], /waits, stage 1$/, 'each run starts with an empty memory');
+    // The same bot keeping its stage in its file instead: the lint refuses it, and in the
+    // shared context its decisions depend on the runs before (the hazard the rule removes).
+    const leaky = planted('leaky.js', lure.replace("Policies.add('lure'", 'let stage = 0;\nPolicies.add(\'leaky\'').replace(/obs\.memory\.stage = \(obs\.memory\.stage \|\| 0\) \+ 1;/, 'stage++;').replace(/obs\.memory\.stage/g, 'stage'));
+    const { spawnSync } = require('node:child_process');
+    const lint = file => spawnSync(process.execPath, [path.join(root, 'tools/lint-core.js'), file], { encoding: 'utf8' });
+    const r = lint(leaky);
+    assert.equal(r.status, 1, r.stdout); assert.match(r.stdout, /keeps state of its own .* obs\.memory/);
+    const L = Sim.load([leaky]), goL = seed => Sim.run({ C: L, make: (sd, o) => L.Arena.build(H, sd, { options: o }), policy: 'leaky.stages', seed, cap: 30 });
+    const first = goL(2), second = goL(2);
+    assert.notDeepEqual(J(first.reasons), J(second.reasons), 'a stage kept in the file leaks from one run into the next');
+    // What the lint lets through: state inside decide, frozen tables, functions.
+    for (const ok of ['const T = Object.freeze({ a: 1 }); const R = 3; function f(x) { let y = x; return y; }', '(() => { const K = 2; Policies.add(\'k\', {}); })();']) {
+      const g = planted('ok.js', ok + "\nPolicies.add('okp', { p: { card: { summary: 'Fine.', rules: ['Fine.'] }, decide(obs) { let n = 0; n++; return { action: { a: 'wait' }, reason: 'waits ' + n }; } } });");
+      assert.equal(lint(g).status, 0, ok + ': ' + lint(g).stdout);
+    }
+    for (const bad of ['var stage = 0;', '(() => { let seen = 0; })();', 'const seen = new Set();', 'const last = {};', 'const tiles = [];']) {
+      const g = planted('bad2.js', bad + "\nPolicies.add('badp', { p: { card: { summary: 'Bad.', rules: ['Bad.'] }, decide(obs) { return { action: { a: 'wait' }, reason: 'waits' }; } } });");
+      assert.equal(lint(g).status, 1, 'not caught: ' + bad);
+    }
+  });
+
   test('policies run in the hardened context: Math.random and the clock throw', () => {
     const f = planted('chance.js', [
       "Policies.add('chance', {",
@@ -192,7 +232,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     const ours = fs.readdirSync(Sim.POLICY_DIR).filter(f => f.endsWith('.js')).map(f => path.join(Sim.POLICY_DIR, f));
     const r = lint(ours.concat([path.join(root, 'tools/arena.js')]));
     assert.equal(r.status, 0, r.stdout);
-    for (const bad of ['for (const k in obs) {}', 'const r = Math.random();', "['b', 'a'].sort();", 'const t = Date.now();', 'const x = Math.sqrt(2);']) {
+    for (const bad of ['for (const k in obs) {}', 'const r = Math.random();', "['b', 'a'].sort();", 'const t = Date.now();', 'const x = Math.sqrt(2);', '[3, 1].sort((a, b) => a > b);']) {
       const f = planted('bad.js', `Policies.add('bad', { p: { card: { summary: 'Bad.', rules: ['Bad.'] }, decide(obs) { ${bad} return { action: { a: 'wait' }, reason: 'bad' }; } } });`);
       assert.equal(lint([f]).status, 1, 'not caught: ' + bad);
     }
