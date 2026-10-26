@@ -43,8 +43,11 @@
       'Read, returns you to this department’s entrance (or the nearest free tile to it), even while you are rooted, and every exhibit hunting you but the Night Watchman loses you: it searches where it last knew you were, and its pending special is called off. With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read.',
       {}, ['used', 'identified', 'lost', 'special']],
   ];
+  // `noun` is how a sentence names the kind after "it is": the Solutions are stuff
+  // ("Fixative"), the Ephemera things ("a Catalogue Card"), "Quiet, Please" its own title.
+  const COUNTED = ['card', 'plan', 'ticket'];
   kinds.forEach(([id, cls, name, area, harmfulDrink, clause, params, covers], deck) =>
-    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
+    R.define('CONSUMABLES', id, Object.assign({ cls, name, noun: COUNTED.includes(id) ? 'a ' + name : name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
 
   // The seals: 4 wax seals shuffled over the Solutions and 4 ink stamps over the Ephemera,
   // each run (§8.6). A seal is a position; `n` indexes run.seals.sol or run.seals.eph, and

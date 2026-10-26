@@ -62,7 +62,9 @@
       `A ${Form} weapon strikes for its tier${a} to {b} × its tier${c} damage${acc}; a blow with it costs {cost} ticks${extra}.`,
       Object.assign({ b: `${F}[1]`, cost: `${F}[3]` }, ap, cp, accp, more || {}), ['attacked', 'missed', 'damaged']));
   };
-  weapon('light', 'Light', '; a surprise blow with it deals {surprise}% of its most damage, and it cannot break Laminated or Security glass', { surprise: 'N:SURPRISE_LIGHT_PCT' });
+  // Only a blow from beside its target (§8.1: a Light weapon's melee blow): a surprise Reach
+  // blow, with a Light weapon that has the reach primitive, deals its most damage.
+  weapon('light', 'Light', '; a surprise blow with it from beside its target deals {surprise}% of its most damage, and it cannot break Laminated or Security glass', { surprise: 'N:SURPRISE_LIGHT_PCT' });
   weapon('balanced', 'Balanced', '');
   weapon('heavy', 'Heavy', '; one bash with it counts as two');
   weapon('reach', 'Reach', '; it also hits {reach} tiles away in a straight line, over a tile you could step onto that no one stands on', { reach: 'N:REACH_RANGE' });

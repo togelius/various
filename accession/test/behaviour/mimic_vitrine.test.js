@@ -1,5 +1,5 @@
 // ACCESSION — the mimic_vitrine's Behaviour line (BUILD.md §5.3; W1-ARCH-C): "Looks like a
-// case, but its label has no accession number. Opened or bashed, it grips you (you cannot move
+// case whose label has no accession number. Opened or bashed, it grips you (you cannot move
 // for {MIMIC_GRIP_TURNS} turns) and strikes for {dmg}; it does everything at half speed. Wakes
 // only when it is opened, bashed, dissolved or struck; wakes at once when its case is opened or
 // bashed." Each scenario runs for every pack mimic (S9.5) at depths 1–7, as a function of the
@@ -15,7 +15,7 @@
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore();
-  const { Setup, Step, Specials, Wake, Roles, N, Archetypes, Clauses, Cases, Combat, Actors, Noise, Status } = C;
+  const { Setup, Step, Specials, Wake, Roles, N, Archetypes, Clauses, Cases, Combat, Actors, Noise, Status, Labels } = C;
   const json = x => JSON.stringify(x);
   const range = s => s.includes('–') ? s.split('–').map(Number) : [Number(s), Number(s)];
   const waits = n => Array.from({ length: n }, () => ({ a: 'wait' }));
@@ -202,6 +202,23 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.throws(() => Setup.room(1, { acc: 'T0', depth: 1, map: ARCH, you: [1, 1], exhibits: [{ sp: sp.id, at: [3, 1], stats: Roles.stats(sp.role, 1) }] }), /not on a floor tile/);
     assert.throws(() => Setup.room(1, { acc: 'T0', depth: 1, map: ROOM, you: YOU.slice(), fixtures: [{ k: 'plaque', x: AT[0], y: AT[1], ck: 0 }],
       exhibits: [{ sp: sp.id, at: AT.slice(), stats: Roles.stats(sp.role, 1) }] }), /already a fixture/);
+  });
+
+  // Its line is only ever shown on its own label, once it has shown itself (in its disguise
+  // the label is its case's, which has no Behaviour line of its own, Labels.of gives null),
+  // and that label carries its accession number (§8.8: an exhibit's is its pack id). So the
+  // line says what the case it looks like lacks, never that the label it stands on has no
+  // number, which would be false there.
+  test('its line names the case\'s missing number, and the label it is shown on, once it has shown itself, has its own', () => {
+    for (const { sp, depth } of list('mimic_vitrine')) {
+      const s = make(C, sp, depth, { seed: 1, rulesOff: [] }), m = mimic(s);
+      assert.equal(Labels.of(s, m.uid), null, 'in its disguise it has no label of its own');
+      assert.equal(Labels.ofCase(s, caseOf(s, m)).number, '', 'its case has no number');
+      Step.step(s, { a: 'open', x: AT[0], y: AT[1] });
+      const l = Labels.of(s, m.uid);
+      assert.ok(l && l.number === sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2'), `${sp.id} at depth ${depth}: shown, its label's number is ${l && json(l.number)}`);
+      assert.ok(l.behaviour.startsWith('Looks like a case whose label has no accession number.') && !/its label has no accession number/.test(l.behaviour), l.behaviour);
+    }
   });
 
   test('the grip roots whoever touched it, once; the touch, not the grip, wakes it; a second touch does nothing', () => {

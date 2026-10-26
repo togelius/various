@@ -39,10 +39,13 @@
     params: { cost: 'N:COST_DOOR' }, covers: ['opened', 'noise'] }));
 
   // The glasses, in order; n indexes the GLASS_BASHES, GLASS_MIX_D*, GLASS_LOCK_MIN and
-  // GLASS_LOCK_MAX rows (§8.10), and a case fixture's `glass` is n.
+  // GLASS_LOCK_MAX rows (§8.10), and a case fixture's `glass` is n. Its clause names the locks
+  // a case of it can have in the department, at its depth (lock:GLASS[i], Cases.lockSpan:
+  // its glass's range, never above the depth + 1, §8.3), so a label names no lock the
+  // department cannot hold (at depth 1 a Laminated case's lock is always Grade II).
   const glass = (id, n, name) => R.define('GLASS', id, proved({ n, name, icon: null,
-    clause: `${name} glass breaks after {bashes} bash${n === 1 ? '' : 'es'}; its lock is drawn from grade {lo} to {hi}.`,
-    params: { bashes: `N:GLASS_BASHES[${n - 1}]`, lo: `N:GLASS_LOCK_MIN[${n - 1}]`, hi: `N:GLASS_LOCK_MAX[${n - 1}]` }, covers: ['glass_cracked', 'glass_broke'] }));
+    clause: `${name} glass breaks after {bashes} bash${n === 1 ? '' : 'es'}; in this department its lock is {locks}.`,
+    params: { bashes: `N:GLASS_BASHES[${n - 1}]`, locks: `lock:GLASS[${n - 1}]` }, covers: ['glass_cracked', 'glass_broke'] }));
   glass('plate', 1, 'Plate');
   glass('laminated', 2, 'Laminated');
   glass('security', 3, 'Security');

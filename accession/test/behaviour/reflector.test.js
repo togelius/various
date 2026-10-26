@@ -245,7 +245,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const names = uid => ({ 'd.1': 'the Reflecting Dish', 'k.1': 'the Signal Lamp' })[uid] || null;
     const how = { kind: 'shot', range: 3, via: [3, 1] };
     const hit = { k: 'damaged', turn: 1, tick: 100, who: 'k.1', amount: 4, hp: 6, cause: { k: 'reflected', by: 'd.1', shooter: 'k.1', chance: 80, roll: 12, how, range: 3, raw: 5, pad: 1, from: [2, 1] } };
-    assert.equal(C.Text.event(hit, names), 'The Reflecting Dish sent the Signal Lamp’s shot back into itself: 4 damage (rolled 12 against 80%; 5 − 1 Padding).');
+    assert.equal(C.Text.event(hit, names), 'The Reflecting Dish sent the Signal Lamp’s shot back into the Signal Lamp, which fired it: 4 damage (rolled 12 against 80%; 5 − 1 Padding).');
+    // Not "into itself", which after "The Reflecting Dish sent" would name the dish.
+    assert.equal(C.Text.event({ k: 'missed', turn: 1, tick: 100, by: 'd.1', at: 'k.1', cause: { k: 'reflected', by: 'd.1', shooter: 'k.1', chance: 80, roll: 92, how, range: 3 } }, names),
+      'The Reflecting Dish sent the Signal Lamp’s shot back, and it missed the Signal Lamp, which fired it (rolled 92 against 80%).');
     const you = Object.assign({}, hit, { who: 'you', cause: Object.assign({}, hit.cause, { shooter: 'you', side: 'W' }) });
     assert.equal(C.Text.event(you, names), 'The Reflecting Dish sent your shot back into you: 4 damage (rolled 12 against 80%; 5 − 1 Padding, doubled through its repaired west side).');
     assert.equal(C.Text.event({ k: 'missed', turn: 1, tick: 100, by: 'd.1', at: 'you', cause: { k: 'reflected', by: 'd.1', shooter: 'you', chance: 80, roll: 92, how, range: 3 } }, names),
@@ -277,7 +280,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const cause = { k: 'reflected', by: 'd.1', shooter: 'h.1', sp: 'line', gross: 9, pad: 0, net: 9, x: 6, y: 1, from: [5, 1] };
     const own = { k: 'damaged', turn: 3, tick: 300, who: 'h.1', amount: 9, hp: 0, cause };
     assert.equal(Causes.check(own), null);
-    assert.equal(C.Text.event(own, names), 'The Reflecting Dish sent the Heliograph’s beam back into itself: 9 damage (9 − 0 Padding).');
+    assert.equal(C.Text.event(own, names), 'The Reflecting Dish sent the Heliograph’s beam back into the Heliograph, which fired it: 9 damage (9 − 0 Padding).');
     const other = { k: 'damaged', turn: 3, tick: 300, who: 't.1', amount: 2, hp: 7, cause: Object.assign({}, cause, { pad: 1, gross: 2, net: 1, x: 7, side: 'W' }) };
     other.amount = 2;
     assert.equal(C.Text.event(other, names), 'The Reflecting Dish sent the Heliograph’s beam back into the Logbook Trolley: 2 damage (2 − 1 Padding, doubled through its repaired west side).');

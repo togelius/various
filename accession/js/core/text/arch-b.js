@@ -10,8 +10,9 @@
   const rolled = c => c.surprise ? 'a surprise shot, at full strength' : c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`;
   // Whose shot it was: "your" for you, "the Signal Lamp’s" for an exhibit.
   const whose = (w, uid) => uid === 'you' ? 'your' : `${w.name(uid)}’s`;
-  // Who a shot sent back went into: "you", "itself" for an exhibit hit by its own shot.
-  const into = (w, who, shooter) => who === shooter && who !== 'you' ? 'itself' : w.name(who);
+  // Who a shot sent back went into: "you", or for an exhibit hit by its own shot its name,
+  // "which fired it" (never "itself", which after "The Reflecting Dish sent" names the dish).
+  const into = (w, who, shooter) => who === shooter && who !== 'you' ? `${w.name(who)}, which fired it` : w.name(who);
 
   Text.defineCause('missed', 'shot', (e, w) => `${w.Name(e.by)} shot at ${w.name(e.at)} and missed (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   Text.defineCause('damaged', 'shot', (e, w) => {

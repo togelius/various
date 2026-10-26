@@ -286,6 +286,28 @@ module.exports = ({ test, assert, loadCore }) => {
         },
       }));
     }
+    // A Light weapon's surprise figure is for a blow from beside (§8.1: "×1.5, rounded down,
+    // with a Light weapon's melee blow"). The Long-Handled Date Stamp, a Light weapon with the
+    // reach primitive, also strikes 2 tiles off, and a surprise Reach blow deals its most
+    // damage, not more: so the clause, which its label shows, must not say that every
+    // surprise blow with it deals SURPRISE_LIGHT_PCT%.
+    every(scenario({
+      name: 'CLAUSES.weapon_light: the surprise figure is a blow from beside; a surprise Reach blow with the Date Stamp deals its most damage', id: 'CLAUSES.weapon_light',
+      build: (params, sp, depth, { rulesOff }) => room(depth, rulesOff, { grade: 7, items: REACH_WAYS.stamp.items(depth),
+        exhibits: [dummy([5, 3], 'dormant'), dummy([2, 3], 'dormant')] }),
+      actions: (s, i) => i < 2 ? { a: 'attack', uid: s.actors[1 + i].uid } : null,
+      expect(r, params, sp, depth) {
+        const p = P('CLAUSES', 'weapon_light', depth), b = you(r.state), line = Clauses.fill(R.CLAUSES.weapon_light.clause, p);
+        const blows = r.events.filter(e => e.k === 'damaged' && e.cause.by === 'you');
+        if (blows.length !== 2 || !blows.every(e => e.cause.surprise) || blows[0].cause.how.kind !== 'reach' || blows[1].cause.how.kind !== 'melee') return `the blows: ${json(blows.map(e => [e.cause.how.kind, e.cause.surprise]))}`;
+        const most = Math.floor(b.dmax * p.surprise / 100);
+        if (blows[1].cause.raw !== most) return `the surprise blow from beside dealt ${blows[1].cause.raw}, not ${p.surprise}% of ${b.dmax}`;
+        if (blows[0].cause.raw !== b.dmax) return `the surprise Reach blow dealt ${blows[0].cause.raw}, not its most, ${b.dmax}`;
+        const claim = /a surprise blow with it( from beside its target)? deals (\d+)% of its most damage/.exec(line);
+        if (!claim) return `the clause gives no surprise figure: ${line}`;
+        return claim[1] ? null : `the clause says every surprise blow with it deals ${claim[2]}%, and the Reach one dealt ${blows[0].cause.raw} of ${b.dmax}: ${line}`;
+      },
+    }));
     // The cost of a blow, by form, from the ticks it takes.
     for (const form of ['light', 'balanced', 'heavy', 'reach']) {
       const s = room(1, [], { grade: 7, exhibits: [dummy([4, 3])], kit: { weapon: { form, tier: 1 } } }), before = you(s).next;

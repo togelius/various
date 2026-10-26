@@ -30,9 +30,11 @@
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
     covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, proved(WARDEN)));
   // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
-  // its line takes the pipless wake clause; it is slow at everything (§8.1).
+  // its line takes the pipless wake clause; it is slow at everything (§8.1). Its line is shown
+  // only on its own label, once it has shown itself, and that label has its accession number
+  // (§8.8), so the line says that the case it looks like has none, never that its label has none.
   R.define('ARCHETYPES', 'mimic_vitrine', Object.assign({ icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
-    clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
+    clause: 'Looks like a case whose label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, proved(MIMIC)));
 
   // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call

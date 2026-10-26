@@ -6,9 +6,9 @@
   const R = Registry;
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  // A kind's name in a sentence: the Solutions are stuff ("Fixative"), the Ephemera things.
-  const NOUN = { card: 'a Catalogue Card', plan: 'a Floor Plan', ticket: 'a Re-admission Ticket' };
-  const kind = ck => own(NOUN, ck) ? NOUN[ck] : own(R.CONSUMABLES, ck) ? R.CONSUMABLES[ck].name : 'a consumable';
+  // A kind's name in a sentence (its registry noun): the Solutions are stuff ("Fixative"),
+  // the Ephemera things ("a Catalogue Card").
+  const kind = ck => own(R.CONSUMABLES, ck) ? R.CONSUMABLES[ck].noun : 'a consumable';
   const seal = s => own(R.SEALS, s) ? `the ${R.SEALS[s].name}` : 'a seal';
   // What the thing is, before you know it: a phial (a Solution) or a leaflet (an Ephemera).
   const thing = (s, ck) => {

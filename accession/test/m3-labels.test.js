@@ -387,8 +387,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // Identified: the line is its kind's clause, and the label says which kind.
     Consumables.identify(s, Consumables.sealFor(s, c.ck), { k: 'card', by: 'you' }, []);
     l = Labels.ofItem(s, c.uid);
-    assert.deepEqual(J(l.odds), [`Identified: it is ${Registry.CONSUMABLES[c.ck].name}.`]);
+    // The Solutions are stuff and the Ephemera things, so a Card, a Plan and a Ticket take an
+    // article ("it is a Catalogue Card", never "it is Catalogue Card"); every kind is checked.
+    const IS = { consolidant: 'Consolidant', fixative: 'Fixative', fumigant: 'Fumigant', solvent: 'Solvent', card: 'a Catalogue Card',
+      plan: 'a Floor Plan', quiet: '“Quiet, Please”', ticket: 'a Re-admission Ticket' };
+    assert.deepEqual(J(l.odds), [`Identified: it is ${IS[c.ck]}.`]);
     assert.equal(l.behaviour, Consumables.line(s, c));
+    for (const ck of Registry.order('CONSUMABLES')) {
+      const k = Consumables.make(s, ck, { at: 'floor', x: you.x, y: you.y });
+      Consumables.identify(s, Consumables.sealFor(s, ck), { k: 'card', by: 'you' }, []);
+      assert.deepEqual(J(Labels.ofItem(s, k.uid).odds), [`Identified: it is ${IS[ck]}.`], ck);
+    }
     // A weapon: its own numbers at your grade, what it needs, its bonuses, its tombstone.
     const w = s.items.find(i => i.kind === 'weapon' && i.ref);
     const d = Kit.describe(s, w.uid);
@@ -424,6 +433,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(l.odds[4], 'You are rooted to the spot: 2 turns left.');
     assert.ok(l.pictos.some(p => p.icon === 'rooted' && p.text === 'rooted to the spot, 2 turns'), json(l.pictos));
     assert.deepEqual(J(l.actions.map(a => a.id)), ['wait', 'rest']);
+    // A number below 0 is written with the minus sign every label uses (−), never a hyphen:
+    // a T4 Heavy weapon at grade I is worn 7 grades short, so your Acc is below 0.
+    const short = room(MAP, [1, 1], { kit: { weapon: { form: 'heavy', tier: 4 } } }), me = short.actors[0];
+    assert.ok(me.acc < 0, `Acc ${me.acc}`);
+    assert.equal(Labels.you(short).odds[1], `Your blows deal ${me.dmin}–${me.dmax} damage with Acc −${-me.acc}, ${N.FORM_HEAVY[3]} ticks each.`);
+    assert.ok(Labels.you(short).pictos.some(p => p.icon === 'acc' && p.text === '−' + -me.acc), json(Labels.you(short).pictos));
     you.statuses = []; you.x = 2;
     assert.deepEqual(J(Labels.you(s).actions.map(a => a.id)), ['wait', 'rest', 'sit'], 'on the bench');
     Step.step(s, { a: 'sit' });

@@ -240,7 +240,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(r.killer, half.uid);
       assert.equal(r.wakeTrigger, 'summoned');
       assert.deepEqual(J(r.lines), [`${name(s, half.uid)} defeated you on turn ${s.over.turn}.`, blow(events, s),
-        `On turn ${body.woke.turn}, ${names(body.uid)} woke: it was struck.`,
+        `On turn ${body.woke.turn}, ${names(body.uid)} woke and is hunting you: it was struck.`,
         `On turn ${half.woke.turn}, ${names(body.uid)} splits in two, under your hit; the new half is hunting you.`]);
       assert.ok(r.lines[0].startsWith('A split of the '), r.lines[0]);
       found = seed;

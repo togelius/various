@@ -454,7 +454,7 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
   - each modifier's clause, unless `rulesOff` switches the modifier off;
   - the wake clause ("Wakes when you stay inside your ring or make noise near it", or, for a species that gains no pips, "Wakes only when it is opened, bashed, dissolved or struck"), joined to the special trigger's clause; a trigger that stands instead of it ("It never sleeps.") replaces it;
   - any module flag's clause (M4).
-- **Parameters are filled at the department's depth:** `N:KEY` is a number of record, and `N:KEY[i]` one of its values; `curve:KEY` is a role curve at the depth; `role:HP` and `role:DMG` are the species role's health and damage range at the depth; `mod:NAME` is a value the pack gives the modifier (`modParams`). So "strikes from beside you for 4–9" names the numbers a blow can roll.
+- **Parameters are filled at the department's depth:** `N:KEY` is a number of record, and `N:KEY[i]` one of its values; `curve:KEY` is a role curve at the depth; `role:HP` and `role:DMG` are the species role's health and damage range at the depth; `mod:NAME` is a value the pack gives the modifier (`modParams`); `lock:GLASS[i]` is the locks a case of glass i + 1 can have at the depth (§8.3: its glass's range, never above the depth + 1), so a case's label never names a lock its department cannot hold. So "strikes from beside you for 4–9" names the numbers a blow can roll.
 - **Event kinds that need no clause** are the ones any exhibit may cause or suffer (`Clauses.UNIVERSAL`: moving, doors, noise, pips, waking and mode changes, damage and death); blows, specials and statuses are covered by the clauses of the archetypes that make them.
 - **The panel shows it under the title,** above the literary paragraph, and the strip shows it in runs 1–3 (DESIGN default 24).
 - **Length.** The longest line in the packs, with depth 7's numbers, must fit the strip at 390×844 at every text size and leave the board at least 40% of the window's height (`check-screens`); a clause that would break this is reworded, never cut.
@@ -1507,11 +1507,13 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
   - **The expert** may read the whole state; each exploit it reports is annotated per step with its evaluation and the cause records of the gain, and flagged when it relies on what the view model does not show.
 - **`tools/report.js`** fills sentence templates from sim JSON (and the battery's), with the statistics of §10.3. Every claim links a replay chosen by rule: for a rate, a run with the commonest outcome (the median seed among those runs) and the median seed; for a paired comparison, the seed with the largest paired difference in the arena's metric (the largest |B − A|, the lowest seed on a tie) and the median-difference seed (the seeds in order of B − A, then of seed, the lower middle one); for a failure, its crash card (`--cards`, shrunk with the battery's own checks). A replay is written as a file with the command that plays it (`node tools/replay.js <file>`), its link pending M5, and a report names the build its coreHash runs in, `dist/builds/<coreHash>.html` (§12). No language model writes a number in a report.
 - **`tools/browser/*.mjs`** (Playwright, Chromium; WebKit when run on a Mac) cover:
-  - smoke: boot `dist/accession.html` from `file://`, play 200 left-click actions, no console errors;
+  - smoke: boot `dist/accession.html` from `file://` at phone size, play 200 left clicks on the board and 150 anywhere in the window, and fail on a console error, sideways scroll, or "undefined", "NaN" or "[object" on screen;
   - screens at 390×844 and 1280×800;
+  - play: the left-click-only script of §7.1, at both sizes and in both views;
+  - the Bag: its quickslots, aiming and floor plan with left clicks (§7.2), at both sizes and in both views;
   - the hash page;
   - the 3D checks (§6.3);
-  - the kill test (§10.4).
+  - the kill test (§10.4, from M5).
 - **`check-all.sh`** runs, in order:
   1. lints;
   2. art up to date, and every build the log links kept (§12);

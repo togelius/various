@@ -336,7 +336,7 @@ const Labels = (() => {
       if (n > 1) base.title += ` (${n})`;
       if (nm.seal && own(Registry.SEALS, nm.seal)) base.pictos.push({ icon: sealIcon(nm.seal), text: Registry.SEALS[nm.seal].name });
       base.behaviour = Consumables.line(state, it);
-      base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].name}.` : 'Not identified: which kind it is is not known yet.');
+      base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].noun}.` : 'Not identified: which kind it is is not known yet.');
       return base;
     }
     const d = Kit.describe(state, uid);
@@ -462,14 +462,16 @@ const Labels = (() => {
   // and what you can do on your own tile: wait, rest, sit on a bench, leave by an exit.
   function yours(state) {
     const you = state.actors[0], r = Vision.ringRadius(state);
+    // Acc (and, in principle, Eva) can fall below 0 (a weapon worn grades short, §8.1): written
+    // with the minus sign every label uses (num), never a hyphen.
     const pictos = [
-      { icon: 'heart', text: `${you.hp}/${you.maxHp}` }, { icon: 'acc', text: String(you.acc) }, { icon: 'eva', text: String(you.eva) },
-      { icon: 'padding', text: String(you.pad) }, { icon: 'damage', text: `${you.dmin}–${you.dmax}` }, { icon: 'ring', text: count(r, 'tile', 'tiles') },
+      { icon: 'heart', text: `${you.hp}/${you.maxHp}` }, { icon: 'acc', text: num(you.acc) }, { icon: 'eva', text: num(you.eva) },
+      { icon: 'padding', text: num(you.pad) }, { icon: 'damage', text: `${you.dmin}–${you.dmax}` }, { icon: 'ring', text: count(r, 'tile', 'tiles') },
     ].concat(statusPictos(state, you));
     if (you.seated) pictos.push({ icon: 'bench', text: 'seated' });
     const lines = [`Handling Clearance, ${grade(yourGrade(state))}.`,
-      `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${you.acc}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
-      `You have Padding ${you.pad} and Eva ${you.eva}.`,
+      `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${num(you.acc)}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
+      `You have Padding ${num(you.pad)} and Eva ${num(you.eva)}.`,
       `Your ring reaches ${count(r, 'tile', 'tiles')} now.`];
     for (const s of you.statuses || []) if (own(Registry.STATUSES, s.id)) lines.push(`You are ${Registry.STATUSES[s.id].words}: ${turns(Status.left(state, you, s.id))} left.`);
     const actions = offer(state, 'wait', 'Wait', { a: 'wait' }).concat(offer(state, 'rest', 'Rest', { a: 'rest' }), offer(state, 'sit', 'Sit on the bench', { a: 'sit' }));

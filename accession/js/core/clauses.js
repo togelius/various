@@ -19,9 +19,14 @@ const Clauses = (() => {
   //   curve:KEY   the role curve N.KEY at the depth (Roles.at, §8.1)
   //   role:HP     the species role's health at the depth; role:DMG its damage, as "min–max"
   //   mod:NAME    the species' modParams[mod].NAME; a compass side ('W') reads as its word
+  //   lock:GLASS[i]  the locks a case of glass i + 1 can have at the depth (Cases.lockSpan,
+  //               §8.3: its glass's range, never above the depth + 1), as on the badge:
+  //               "Grade II", or "Grade II to Grade IV"
   // Anything missing throws, naming what is missing, so a line never shows a gap.
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const grade = n => 'Grade ' + (ROMAN[n] || String(n));
   function value(ref, sp, depth, mod) {
-    const m = /^(N|curve|role|mod):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
+    const m = /^(N|curve|role|mod|lock):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
     const where = `${sp && sp.id ? sp.id : 'a species'}: ${ref}`;
     if (!m) throw new Error(`Clauses: cannot read the parameter reference ${where}`);
     const [, kind, key, index] = m;
@@ -38,6 +43,11 @@ const Clauses = (() => {
       if (key === 'HP') return s.hp;
       if (key === 'DMG') return range(s.dmin, s.dmax);
       throw new Error(`Clauses: ${where}: a role gives only HP or DMG`);
+    }
+    if (kind === 'lock') {
+      if (key !== 'GLASS' || index === undefined || +index >= N.GLASS_LOCK_MIN.length) throw new Error(`Clauses: ${where}: a lock is lock:GLASS[i], i a glass's index`);
+      const [lo, hi] = Cases.lockSpan(+index + 1, depth);
+      return lo === hi ? grade(lo) : `${grade(lo)} to ${grade(hi)}`;
     }
     const p = sp && sp.modParams && mod && own(sp.modParams, mod) ? sp.modParams[mod] : null;
     if (!p || p[key] === undefined || p[key] === null) throw new Error(`Clauses: ${where} needs modParams.${mod}.${key}`);

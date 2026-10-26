@@ -591,7 +591,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const d = C.Cases.describe(s, C.Cases.at(s, 2, 2));
     assert.equal(json([d.k, d.num, d.glassName, d.lock, d.canOpen, d.blows, d.rules.length]), json(['case', 'T.0.101.22', 'Plate', 2, true, 1, 2]));
     assert.ok(d.rules.every(clean), json(d.rules));
-    assert.ok(/200 ticks/.test(d.rules[0]) && /150 for a Heavy weapon/.test(d.rules[0]) && /Plate glass breaks after 1 bash; its lock is drawn from grade 1 to 2\./.test(d.rules[1]), json(d.rules));
+    assert.ok(/200 ticks/.test(d.rules[0]) && /150 for a Heavy weapon/.test(d.rules[0]) && /Plate glass breaks after 1 bash; in this department its lock is Grade I to Grade II\./.test(d.rules[1]), json(d.rules));
     const st = C.Cases.describe(s, C.Cases.at(s, 4, 4));
     assert.equal(json([st.k, st.grade, st.open, st.canOpen]), json(['staff', 3, false, false]));
     assert.ok(st.rules.every(clean) && /100 ticks/.test(st.rules[0]), json(st.rules));
@@ -618,6 +618,36 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(C.Cases.highlightOk(s, Object.assign({}, f, { lock: 4 })), true, 'within the grade you entered with');
     assert.equal(json([C.Cases.lockRange(1), C.Cases.lockRange(2), C.Cases.lockRange(3)]), json([LOCKS[1], LOCKS[2], LOCKS[3]]));
     assert.equal(C.Cases.openCost(s), 200);
+  });
+
+  // §8.3: a lock is drawn from the overlap of its glass's range and I to the depth + 1. The
+  // glass's clause on a case's label names the locks a case of that glass can have in the
+  // department, so at depth 1 a Laminated case says Grade II only, never "II to IV" (the
+  // glass's whole range, which no case there can need). The locks are drawn here many times
+  // on streams of their own and compared with the clause, and with the cases of real
+  // departments at every depth.
+  test('a glass\'s clause names exactly the locks its cases can be drawn with at the department\'s depth', () => {
+    const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+    const said = locks => { const [lo, hi] = [Math.min(...locks), Math.max(...locks)]; return lo === hi ? `Grade ${ROMAN[lo]}` : `Grade ${ROMAN[lo]} to Grade ${ROMAN[hi]}`; };
+    const MAP = ['#####', '#.v.#', '#...#', '#####'];
+    for (let depth = 1; depth <= 7; depth++) for (const glass of [1, 2, 3]) {
+      const drawn = new Set();
+      for (let k = 0; k < 400; k++) drawn.add(C.Cases.drawLock(C.Rng.stream({ seed: k, rng: {} }, 'lock'), glass, depth));
+      for (const l of drawn) assert.ok(l >= LOCKS[glass][0] && l <= Math.max(LOCKS[glass][0], Math.min(LOCKS[glass][1], depth + 1)), `depth ${depth}, glass ${glass}: lock ${l}`);
+      const s = room(C, MAP, [1, 2], { depth, fixtures: [kase(C, 2, 1, { glass, lock: [...drawn][0] })] });
+      const line = C.Labels.ofCase(s, C.Cases.at(s, 2, 1)).behaviour;
+      assert.ok(line.includes(`in this department its lock is ${said([...drawn])}.`), `depth ${depth}, glass ${glass}, drawn ${json([...drawn].sort())}: ${line}`);
+    }
+    for (const dept of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth++) {
+      const s = C.Dept.create(depth, dept, depth, { rulesOff: [], without: [] });
+      for (const f of s.dept.fixtures) {
+        if (f.k !== 'case' || f.mimic) continue;
+        const line = C.Labels.ofCase(s, f).behaviour, m = /in this department its lock is Grade ([IV]+)(?: to Grade ([IV]+))?\./.exec(line);
+        assert.ok(m, line);
+        const lo = ROMAN.indexOf(m[1]), hi = m[2] ? ROMAN.indexOf(m[2]) : lo;
+        assert.ok(f.lock >= lo && f.lock <= hi, `${dept} at depth ${depth}: a lock of ${f.lock} on a case whose label says ${m[0]}`);
+      }
+    }
   });
 
   test('each case invariant catches the fault it names, and a sound step breaks none', () => {

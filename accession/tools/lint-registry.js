@@ -123,7 +123,7 @@ if (followUps) for (const [where, why] of Object.entries(follow)) {
 }
 
 // Clause templates (§5.3).
-const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*)$/;
+const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*|lock:GLASS\[\d+\])$/;
 const sentence = { ARCHETYPES: true, MODIFIERS: true, CLAUSES: true, SPECIALS: false, STATUSES: false };
 for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;

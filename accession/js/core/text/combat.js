@@ -97,9 +97,11 @@
   Text.defineCause('noise', 'destroyed', noise('an exhibit destroyed'));
   Text.defineCause('noise', 'special', noise('a special'));
 
-  // Damage always wakes, straight to hunting.
+  // Damage always wakes, straight to hunting. The log tells a sleeper woken into a hunt by its
+  // hunting sentence alone (Text.log), so that sentence says it hunts you, as every other
+  // cause's does.
   Text.defineCause('woke', 'damage', (e, w) => `${w.Name(e.who)} woke: it was struck.`);
-  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke: it was struck.` : `${w.Name(e.who)} is hunting you: it was struck.`);
+  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it was struck.` : `${w.Name(e.who)} is hunting you: it was struck.`);
 
   // Sitting (§4.2).
   Text.defineRefusal('no_bench', () => 'There is no bench here to sit on.');

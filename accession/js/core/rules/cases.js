@@ -51,10 +51,15 @@ const Cases = (() => {
   const drawGlass = (rng, depth) => 1 + rng.weighted(N['GLASS_MIX_D' + Math.min(6, Math.max(1, depth))]);
   // A lock is drawn uniformly from the overlap of the glass's range (GLASS_LOCK_MIN … MAX)
   // and I to depth + 1; if they do not overlap, it is the glass range's minimum, with no draw.
+  // lockSpan gives the locks a case of that glass can have at that depth, [lowest, highest],
+  // which the glass's clause states (its parameter lock:GLASS[i], Clauses.value), so a label
+  // names only locks the department can hold.
+  const lockCap = (glass, depth) => Math.min(N.GLASS_LOCK_MAX[glass - 1], depth + 1);
   function drawLock(rng, glass, depth) {
-    const lo = N.GLASS_LOCK_MIN[glass - 1], hi = Math.min(N.GLASS_LOCK_MAX[glass - 1], depth + 1);
+    const lo = N.GLASS_LOCK_MIN[glass - 1], hi = lockCap(glass, depth);
     return hi < lo ? lo : rng.int(lo, hi);
   }
+  const lockSpan = (glass, depth) => { const lo = N.GLASS_LOCK_MIN[glass - 1]; return [lo, Math.max(lo, lockCap(glass, depth))]; };
   const drawLoan = rng => rng.int(1, N.CASE_EMPTY_ONE_IN) === 1;
   function draw(rng, depth) {
     const glass = drawGlass(rng, depth), lock = drawLock(rng, glass, depth), loan = drawLoan(rng);
@@ -471,7 +476,7 @@ const Cases = (() => {
     },
   });
 
-  return { at, encased, make, lockRange, need, drawGlass, drawLock, drawLoan, draw, drawStaff, shardTile, roomKey, disguise, reveal,
+  return { at, encased, make, lockRange, lockSpan, need, drawGlass, drawLock, drawLoan, draw, drawStaff, shardTile, roomKey, disguise, reveal,
     place, staffGrade, enter, swing, canBreak, openCost, touch, release, spreadShards, open, bash, dissolve, reach, highlightOk,
     view, staffView, rules, describe, check };
 })();
