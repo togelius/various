@@ -134,7 +134,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
   // remembered, so the view model shows the far side.
   const STAFF = { map: ['#######', '#...#.#', '#...S.#', '#...#.#', '#...S.#', '#######'], doors: [[4, 2, 3], [4, 4, 1]] };
   const staffSpec = { acc: 'A4', depth: 2, map: STAFF.map, you: [2, 2], grade: 2, fixtures: STAFF.doors.map(([x, y, grade]) => ({ k: 'staff', x, y, grade })) };
-  const staffRoom = (K) => { const s = (K || C).Setup.room(1, staffSpec, {}); s.dept.seen = '1'.repeat(s.dept.w * s.dept.h); return s; };
+  const staffRoom = (K) => { const s = (K || C).Setup.room(1, staffSpec, {}); s.dept.seen = s.dept.tiles.join(''); return s; };
   // The view model with the staff doors in view as W2a-VM lists them (the plan's A14) and
   // your grade from run.grade.
   const withStaff = (s, vm) => Object.assign({}, vm, { you: Object.assign({}, vm.you, { grade: s.run.grade }),

@@ -301,7 +301,7 @@ const Consumables = (() => {
       if (options.length === 1) identify(state, options[0], { k: 'card', by: 'you' }, ev);
       else if (options.length > 1) state.ui.pendingChoice = { k: 'seal', options };
     } else if (ck === 'plan') {
-      m.seen = '1'.repeat(m.w * m.h);
+      m.seen = m.tiles.join('');   // the whole map, as it is now (§8.6, §6.1)
       m.planRead = state.turn;
     } else if (ck === 'quiet') Wake.quiet(state, you.x, you.y, N.QUIET_RANGE, { k: 'quiet', by: 'you' }, ev);
     else if (ck === 'ticket' && to) {

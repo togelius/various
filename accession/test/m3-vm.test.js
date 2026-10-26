@@ -76,16 +76,22 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(n >= 7, `${n} mimics opened`);
   });
 
-  test('unseen tiles are masked: every tile you have not seen is \' \', every other one is the map\'s, and a board rebuilt from the view model walks only where you have seen', () => {
+  test('unseen tiles are masked: every tile you have not seen is \' \', a tile in view is the map\'s, a remembered one is as you last saw it, and a board rebuilt from the view model walks only where you have seen', () => {
+    let remembered = 0;
     for (const acc of DEPTS) {
       const s = Dept.create(2, acc, 3);
-      walk(s, 40, vm => {
+      // What you last saw on each tile, kept here at the end of every step from the tiles in
+      // view then (you remember from your first step on).
+      const mem = new Map();
+      walk(s, 40, (vm, last, i) => {
         for (let y = 0; y < s.dept.h; y++) for (let x = 0; x < s.dept.w; x++) {
-          const v = vm.vis[y * vm.w + x], ch = vm.tiles[y][x];
+          const k = y * vm.w + x, v = vm.vis[k], ch = vm.tiles[y][x];
           if (v === 0) assert.equal(ch, ' ', `${acc}: ${x},${y} is unseen and shows ${json(ch)}`);
-          else assert.equal(ch, s.dept.tiles[y][x], `${acc}: ${x},${y}`);
+          else if (v === 2) assert.equal(ch, s.dept.tiles[y][x], `${acc}: ${x},${y} is in view`);
+          else { assert.ok(mem.has(k), `${acc}: ${x},${y} is remembered, never having been seen`); assert.equal(ch, mem.get(k), `${acc}: ${x},${y} is remembered`); remembered++; }
         }
         assert.notEqual(vm.tiles, s.dept.tiles, 'the view model hands out its own rows');
+        if (i > 0) { const now = seenNow(s); for (let k = 0; k < now.length; k++) if (now[k]) mem.set(k, s.dept.tiles[Math.floor(k / vm.w)][k % vm.w]); }
       });
       // A path for a policy (Obs.path) stays on tiles you have seen.
       const vm = ViewModel.derive(s, {});
@@ -95,11 +101,52 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         same(C.Path.to({ dept: { w: vm.w, h: vm.h, tiles: vm.tiles, fixtures: [] }, actors: vm.actors, run: { grade: vm.you.grade } }, x, y), [], `${acc}: a path to the unseen ${x},${y}`);
       }
     }
+    assert.ok(remembered > 1000, `${remembered} remembered tiles checked`);
     // Deriving changes nothing, and gives the same view model twice.
     const s = Dept.create(5, 'A4', 4), h = State.hash(s);
     const a = ViewModel.derive(s, {}), b = ViewModel.derive(s, {});
     assert.equal(State.hash(s), h);
     same(Object.assign({}, a, { vis: [...a.vis], ring: [...a.ring] }), Object.assign({}, b, { vis: [...b.vis], ring: [...b.ring] }));
+  });
+
+  // §6.1: a remembered tile shows the map as you last saw it. You see a door shut, walk out of
+  // sight of it, and an exhibit you cannot see opens it: the log says only that a door opened
+  // nearby (its sentence is told only of what you see), and the board keeps the door shut until
+  // you see it again. A Floor Plan shows every tile as it is when you read it, and an arena's
+  // `seen: all` the map as it is built.
+  test('a remembered tile is as you last saw it: a door an unseen exhibit opens stays shut on the board until you see it again', () => {
+    const map = ['############', '#....#.....#', '#....+.....#', '#....#.....#', '##.#########', '##.#########', '##.#########', '############'];
+    const pl = C.Packs.get('M11').species.find(sp => sp.id === 'M11.5');
+    const s = Setup.room(1, { acc: 'M11', depth: 3, map, you: [3, 2], exhibits: [{ sp: pl.id, at: [8, 2], mode: 'awake', stats: Roles.stats(pl.role, 3) }] });
+    s.actors[0].hp = s.actors[0].maxHp = 999;
+    const W = s.dept.w, door = 2 * W + 5, dir = (dx, dy) => [0, 1, 2, 3, 4, 5, 6, 7].find(d => Grid.DX[d] === dx && Grid.DY[d] === dy);
+    Step.step(s, { a: 'wait' });
+    let vm = ViewModel.derive(s, {});
+    same([vm.vis[door], vm.tiles[2][5]], [2, '+'], 'you see the door shut');
+    for (const [dx, dy] of [[-1, 1], [0, 1], [0, 1], [0, 1]]) Step.step(s, { a: 'move', dir: dir(dx, dy) });
+    vm = ViewModel.derive(s, {});
+    same([s.actors[0].x, s.actors[0].y, vm.vis[door], vm.tiles[2][5]], [2, 6, 1, '+'], 'out of sight, you remember it shut');
+    C.Noise.emit(s, 4, 2, 'soft', { k: 'tool', by: 'you' }, []);
+    let opened = null;
+    for (let i = 0; i < 12 && !opened; i++) {
+      const ev = Step.step(s, { a: 'wait' });
+      if (ev.some(e => e.k === 'opened')) opened = ev;
+    }
+    assert.ok(opened && s.dept.tiles[2][5] === "'", 'the exhibit opened the door');
+    vm = ViewModel.derive(s, { events: opened });
+    same([vm.vis[door], vm.tiles[2][5], vm.actors.map(a => a.uid)], [1, '+', ['you']], 'the door you remember is still shut, and the exhibit is not shown');
+    assert.ok(!C.Text.log(opened, C.Labels.nameOf(s), uid => vm.actors.some(a => a.uid === uid)).some(l => /opened the door/.test(l)), 'the log does not say who opened it');
+    // You walk back into sight of it: it is open.
+    for (const [dx, dy] of [[0, -1], [0, -1], [0, -1], [1, -1]]) if (!s.over) Step.step(s, { a: 'move', dir: dir(dx, dy) });
+    vm = ViewModel.derive(s, {});
+    same([vm.vis[door], vm.tiles[2][5]], [2, "'"], 'seen again, it is open');
+    // A Floor Plan read now shows the map as it is now; what changes out of sight afterwards
+    // is not shown.
+    const t = Setup.room(1, { acc: 'M11', depth: 3, map, you: [2, 6] });
+    t.dept.seen = t.dept.tiles.join('');
+    Grid.set(t.dept, 5, 2, "'");
+    const v3 = ViewModel.derive(t, {});
+    same([v3.vis[door], v3.tiles[2][5]], [1, '+'], 'a door the plan showed shut, opened out of sight, still shows shut');
   });
 
   // The tiles a noise from (x, y) reaches within range, found independently: walking steps
@@ -135,7 +182,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('noise rings: the tiles each noise of the step reached, on tiles you see or remember, one mark a tile, the loudest class where two reach it (R30d)', () => {
     const map = ['##############', '#......#.....#', '#..v...+.....#', '#......#..p..#', '#......#.....#', '##############'];
     const s = Setup.room(1, { acc: 'T0', depth: 1, map, you: [2, 2] });
-    s.dept.seen = '1'.repeat(s.dept.w * s.dept.h);
+    s.dept.seen = s.dept.tiles.join('');
     const soft = { k: 'noise', x: 5, y: 2, cls: 'soft', range: N.NOISE_SOFT, cause: {} }, loud = { k: 'noise', x: 9, y: 2, cls: 'loud', range: N.NOISE_LOUD, cause: {} };
     const vm = ViewModel.derive(s, { events: [soft, loud] }), noise = vm.marks.filter(k => k.kind === 'noise');
     const S = heard(s.dept, 5, 2, N.NOISE_SOFT), L = heard(s.dept, 9, 2, N.NOISE_LOUD);
@@ -296,7 +343,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const map = ['################', '#.....#........#', '#....v+........#', '#.....#........#', '################'];
       const s = D.Setup.room(1, { acc: 'T0', depth: 1, map, you: [4, 2], fixtures: [D.Cases.make({ x: 5, y: 2, room: 'room', num: '1.1.1', glass: 3, lock: 7 })],
         exhibits: [{ sp: 'x', at: [7, 2], mode: 'hunting', stats: { hp: 50, acc: 30, eva: 0, pad: 0, dmin: 1, dmax: 1 } }] });
-      s.dept.seen = '1'.repeat(s.dept.w * s.dept.h);
+      s.dept.seen = s.dept.tiles.join('');
       s.actors[1].lastKnown = [4, 2];
       const ev = D.Step.step(s, { a: 'bash', x: 5, y: 2 });
       same(ev.filter(e => ['noise', 'opened'].includes(e.k)).map(e => [e.k, e.x, e.y, e.cls || null]), [['noise', 5, 2, 'loud'], ['opened', 6, 2, null], ['noise', 6, 2, 'soft']], 'the bash, then the door opened, then its noise');
@@ -317,7 +364,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const s = D.Setup.room(1, { acc: 'S9', depth: 3, map, you: [2, 1], fixtures: [D.Cases.make({ x: 1, y: 1, room: 'room', num: '1.1.1', glass: 3, lock: 7 })],
         exhibits: [{ sp: mi.id, at: [6, 1], mode: 'dormant', stats: D.Roles.stats(mi.role, 3) }, { sp: sn.id, at: [12, 1], mode: 'hunting', stats: D.Roles.stats(sn.role, 3) }] });
       s.actors[0].hp = s.actors[0].maxHp = 999;
-      s.dept.seen = '1'.repeat(s.dept.w * s.dept.h);
+      s.dept.seen = s.dept.tiles.join('');
       assert.equal(s.dept.tiles[1][6], 'v', 'the mimic is a case');
       D.Specials.mark(s, s.actors[2], 'line', D.Specials.tiles(s, s.actors[2], 'line'), []);
       const ev = D.Step.step(s, { a: 'bash', x: 1, y: 1 });
@@ -336,7 +383,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       for (const [k, now, then, cause] of [['opened', "'", '+'], ['opened', 's', 'S'], ['closed', '+', "'"], ['closed', 'S', 's'], ['case_opened', 'u', 'v'],
         ['glass_broke', 'k', 'v'], ['glass_broke', 'u', 'v'], ['glass_broke', '.', 'v'], ['woke', '.', 'v', { k: 'touch_case', x: 4, y: 1, itself: true }], ['woke', '.', 'v', { k: 'damage' }]]) {
         const s = Setup.room(1, { acc: 'T0', depth: 1, map: corridor(now), you: [7, 1] });
-        s.dept.seen = '1'.repeat(s.dept.w * s.dept.h);
+        s.dept.seen = s.dept.tiles.join('');
         if (k === 'woke') s.dept.fixtures.push(C.Cases.make({ x: 4, y: 1, room: 'room', num: null, mimic: 'm', st: 'revealed' }));
         const e = Object.assign({ k, x: 4, y: 1, who: 'm' }, cause ? { cause } : {});
         const got = ViewModel.derive(s, { events: [noise, e] }).marks.filter(q => q.kind === 'noise');

@@ -143,7 +143,7 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
     assert.equal(m.acc, acc); assert.equal(m.depth, 4);
     eq(m.tiles, ['############', '#E......+..#', '#.......#.v#', '#.......#..#', '#...,...#.vX', '############']);
     eq(m.entrance, [1, 1]); eq(m.exits, [[11, 4]]);
-    assert.equal(m.seen, '1'.repeat(m.w * m.h));
+    assert.equal(m.seen, m.tiles.join(''), 'seen: all remembers the map as it is built');
     eq([m.clock.B, m.clock.G, m.clock.count, m.clock.stage], [220, 60, 279, 1]);
     const you = state.actors[0];
     eq([you.x, you.y], [4, 1]);

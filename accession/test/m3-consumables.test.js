@@ -387,7 +387,7 @@ module.exports = ({ test, assert, loadCore }) => {
     X.Step.step(s, { a: 'wait' }); X.Step.step(s, { a: 'wait' });
     const turn = s.turn, ev = checked(X, X.Step.step(s, { a: 'use', uid: uidOf(s, 'plan') }));
     assert.equal(s.dept.planRead, turn);
-    assert.equal(s.dept.seen, '1'.repeat(s.dept.w * s.dept.h));
+    assert.equal(s.dept.seen, s.dept.tiles.join(''), 'the plan shows every tile, as it is when read');
     assert.equal(json(X.Consumables.planRooms(s)), json(['s2']), 'the kit you carry is taken');
     assert.equal(json(X.Consumables.view(s).plan), json(['s2']));
     said(X, ev);

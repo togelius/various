@@ -66,13 +66,20 @@ const Vision = (() => {
   // [M4] Is a observed, for unobserved_motion and the Lamp's `observing`? Never in M3.
   const observed = (state, a) => false;
 
-  // Marks what you can see now as seen, in state.dept.seen (one character a tile).
+  // Remembers what you can see now, in state.dept.seen: the map as you last saw it, one
+  // character a tile in row-major order, ' ' where you have never seen the tile (BUILD.md
+  // §4.1, §6.1). Each tile in view takes its character now, so a door an exhibit opened out
+  // of sight stays shut in your memory until you see it again.
   function remember(state) {
     const m = state.dept, v = visible(state);
-    let seen = m.seen && m.seen.length === m.w * m.h ? m.seen : '0'.repeat(m.w * m.h);
+    const seen = m.seen && m.seen.length === m.w * m.h ? m.seen : ' '.repeat(m.w * m.h);
     let changed = false;
     const chars = seen.split('');
-    for (let i = 0; i < v.length; i++) if (v[i] && chars[i] !== '1') { chars[i] = '1'; changed = true; }
+    for (let i = 0; i < v.length; i++) {
+      if (!v[i]) continue;
+      const ch = m.tiles[Int.idiv(i, m.w)][i % m.w];
+      if (chars[i] !== ch) { chars[i] = ch; changed = true; }
+    }
     if (changed || seen !== m.seen) m.seen = chars.join('');
   }
 

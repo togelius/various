@@ -364,9 +364,9 @@ module.exports = ({ test, assert, loadCore }) => {
       s.actors[0].x = it.where.x; s.actors[0].y = it.where.y;
       const turn = s.turn, named = st => [...new Set(st.dept.highlights.filter(x => { const i = st.items.find(y => y.uid === x.uid); return i.where.at === 'floor' || i.where.at === 'case'; }).map(x => x.room))];
       let after = null;
-      const r = H.play(C, s, (st, i) => i === 0 ? { a: 'use', uid: toteUid(st, 'plan') } : i === 1 ? (after = { plan: C.Consumables.planRooms(st), rooms: named(st), seen: st.dept.seen, read: st.dept.planRead }, { a: 'take', uid: it.uid }) : null, { clone: true });
+      const r = H.play(C, s, (st, i) => i === 0 ? { a: 'use', uid: toteUid(st, 'plan') } : i === 1 ? (after = { plan: C.Consumables.planRooms(st), rooms: named(st), seen: st.dept.seen, tiles: st.dept.tiles.join(''), read: st.dept.planRead }, { a: 'take', uid: it.uid }) : null, { clone: true });
       assert.deepEqual(r.violations, [], where);
-      assert.equal(after.seen, '1'.repeat(m.w * m.h), `${where}: the plan shows every tile`);
+      assert.equal(after.seen, after.tiles, `${where}: the plan shows every tile, as it is when read`);
       assert.equal(after.read, turn, where);
       assert.ok(after.rooms.length >= 1, `${where}: no Highlight to name`);
       assert.equal(json(after.plan), json(after.rooms), `${where}: read, the plan names the rooms of the Highlights still there`);

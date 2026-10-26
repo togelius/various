@@ -267,7 +267,7 @@ state = {
           surfaces: [ { kind, x, y, size, until, by } ],
           highlights: [ { uid, room } ], planRead, entryGrade,
           modules: [ { id, …moduleState } ],   in pack order
-          seen },                       explored tiles, as a run-length string
+          seen },                       the map as you last saw it: one character a tile, ' ' where never seen
   actors: [ actor ],                    in spawn order; actors[0] is you
   items:  [ item ],
   you:    { kit: { weapon, garment, curio: [null, null], instrument }, tote: [ uid … ] },
@@ -553,7 +553,7 @@ Julian's answer: try the 3D view, built so that going back to top-down is easy. 
 ### 6.1 The view model
 
 `ViewModel.derive(state, ui) → vm` is pure and lives in `js/core`, so it is tested headless. It holds:
-- the map size and its tiles, each tile you have never seen as `' '` (masked, so a board rebuilt from the view model shows only what you have seen);
+- the map size and its tiles: each tile in view as it is now, each remembered tile as you last saw it (`dept.seen`, written for the tiles in view at the end of every step), and each tile you have never seen as `' '` (masked), so a board rebuilt from the view model shows only what you have seen: a door an exhibit opened out of your sight shows shut until you see it again (the log only says a door opened nearby, as its noise). Reading a Floor Plan remembers every tile as it is then, and an arena's `seen: all` every tile as built;
 - per tile: unseen, remembered or visible, and inside your ring;
 - the actors on visible tiles (and you), each with uid, position, size, sprite id, mode, pips, whether it is hostile, the special it is marking, its statuses and whether it stands in an intact case; never one that shows as something else (a mimic in its disguise, which is listed as the case it looks like);
 - **marks,** one a tile of each kind: telegraphed tiles with their exact damage to you, and a herald's call, on visible tiles; noise rings from the last turn, on tiles you see or remember, each measured on the map as it stood when the noise was made (a door opened later in the turn does not widen it), the loudest class where two noises reach a tile; the tile you aim at and a thrown Solution's square round it, its own kind's once you know the kind and, while you do not, the largest any Solution has (5×5, the area §8.6's throw refusal measures), so the square says nothing of the kind; the path preview; the selection;
@@ -1050,7 +1050,7 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 | Fumigant | Drink (harmful): you cough, a soft noise each turn for 5 turns. Throw: a 5×5 cloud for 10 turns that blocks sight; sleeping exhibits inside lose 1 pip a turn | 10 |
 | Solvent | Drink: removes your harmful statuses. Throw: dissolves case glass in the 3×3 silently | 8 |
 | Catalogue Card | Read: identify one unknown seal, of your choice (with only one left, that one at once); a known Card cannot be read once every seal is known | 14 |
-| Floor Plan | Read: reveals the department's plan (every tile counts as explored) and the rooms of the remaining Highlights | 8 |
+| Floor Plan | Read: reveals the department's plan (every tile counts as explored, remembered as it is when read) and the rooms of the remaining Highlights | 8 |
 | "Quiet, Please" | Read: every exhibit within 8 walking tiles loses all pips; awake exhibits that are not hunting settle where they stand; hunters drop to awake | 8 |
 | Re-admission Ticket | Read: return to this department's entrance (or, if someone stands there, the free tile nearest it by walking distance, then in row-major order), even while you are rooted, since it is not a step; hunters lose you; unseals a Centrepiece hall. With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read, so no refusal gives an unknown one away | 5 |
 
@@ -1480,7 +1480,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
   - **Removing an exhibit.** In an arena, `--without` may name an exhibit by its letter in the stamp, which stands for its uid on each seed. A uid that no actor of a visit has removes nothing there; the run lists that as a violation, and the verdict names the seeds.
   - **Each run's JSON** holds its outcome, a reason for every decision, the labels it read, its violations and its replay (`{coreHash, start, options, actions}`, with `start` saying how the state was made: an arena's holds the parsed stamp and the hash of `tools/arena.js`, so the replay rebuilds its room alone); a paired run adds the statistics of §10.3 and the verdict in words. A limit without bound is written `"Infinity"`.
 - **The policies.** Random monkey; naive; one counterplay policy per archetype; rule-aware and rule-blind per module; explorer (finishes departments and runs); a 2-ply expert search (layer 6).
-  - **They see what a player sees.** Every policy except the monkey and the expert observes only `ViewModel.derive(state, {events})` (with the last step's events, so the noise rings and one-turn cues a player sees are there), the log's sentences, and the text of labels it has read, the paragraph only within reading distance (§8.8); it chooses from `Step.legal`, the player's buttons. The view model lists only actors on visible tiles, and masks every tile you have not seen. `Obs.make` in `tools/policies/lib.js` builds exactly this, as a frozen copy, so nothing a policy does reaches the game, and its helpers read nothing else.
+  - **They see what a player sees.** Every policy except the monkey and the expert observes only `ViewModel.derive(state, {events})` (with the last step's events, so the noise rings and one-turn cues a player sees are there), the log's sentences, and the text of labels it has read, the paragraph only within reading distance (§8.8); it chooses from `Step.legal`, the player's buttons. The view model lists only actors on visible tiles, masks every tile you have not seen, and shows a remembered tile as you last saw it. `Obs.make` in `tools/policies/lib.js` builds exactly this, as a frozen copy, so nothing a policy does reaches the game, and its helpers read nothing else.
   - **They are deterministic.** A policy draws any choice from its own stream, `policy/<name>/<seed>`, on a holder of its own and never in the state, and it runs in the hardened core context, where `Math.random` and the clock are not there; `tools/lint-core.js` checks `tools/policies/` as it checks the core. Two runs on one seed make the same decisions.
   - **Each has a card** in `tools/policies/README.md`: its rules in order and its weights, printed in every report. The file is generated from the cards (`node tools/sim.js --cards --write`) and a test fails when it is out of date.
   - **Each decision has a reason.** It appends one line to the sim log ("attack M11.3.s2.4: 80% to hit, kills in 2"), and the replay scrubber shows it.

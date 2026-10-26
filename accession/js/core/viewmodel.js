@@ -11,7 +11,9 @@
 //                 the largest Solution's while it is not); size, given, sets that square.
 // vm:
 //   dept, w, h, turn, over
-//   tiles         the map's rows, with every tile you have not seen as ' ' (§10.2, D7.7)
+//   tiles         the map's rows as you know them: a tile in view as it is now, a remembered
+//                 tile as you last saw it (dept.seen), and one you have never seen as ' '
+//                 (§6.1, §10.2, D7.7)
 //   vis           per tile: 0 unseen, 1 remembered, 2 visible now;  ring  1 inside your ring
 //   actors        you (always first), then each actor on a visible tile, never one that shows
 //                 as something else (a mimic in its disguise): {uid, sprite, x, y, size, mode,
@@ -46,19 +48,29 @@ const ViewModel = (() => {
     ui = ui || {};
     const m = state.dept, you = state.actors[0], n = m.w * m.h, events = ui.events || [];
     const now = Vision.visible(state), vis = new Uint8Array(n);
-    for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (m.seen && m.seen.charCodeAt(i) === 49 ? 1 : 0);
+    // What you remember of each tile (Vision.remember): its character when you last saw it,
+    // ' ' (32) where you never have.
+    const mem = m.seen && m.seen.length === n ? m.seen : '';
+    for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (mem && mem.charCodeAt(i) !== 32 ? 1 : 0);
     const inside = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < m.w && y < m.h;
     const visible = (x, y) => inside(x, y) && vis[y * m.w + x] === 2;
     const known = (x, y) => inside(x, y) && vis[y * m.w + x] > 0;
     const ring = Vision.ring(state);
 
-    // The map as you know it: a tile you have never seen is ' ', which nothing can walk on or
-    // see through, so a board rebuilt from the view model shows only what a player has seen.
+    // The map as you know it: a tile in view as it is now; a remembered one as you last saw it,
+    // so a door an exhibit opened out of sight shows shut until you see it again; and one you
+    // have never seen as ' ', which nothing can walk on or see through. So a board rebuilt
+    // from the view model shows only what a player has seen.
     const tiles = [];
     for (let y = 0; y < m.h; y++) {
       const row = m.tiles[y];
       let out = '', from = 0;
-      for (let x = 0; x < m.w; x++) if (!vis[y * m.w + x]) { out += row.slice(from, x) + ' '; from = x + 1; }
+      for (let x = 0; x < m.w; x++) {
+        const i = y * m.w + x, v = vis[i];
+        if (v === 2 || (v === 1 && mem[i] === row[x])) continue;
+        out += row.slice(from, x) + (v === 1 ? mem[i] : ' ');
+        from = x + 1;
+      }
       tiles.push(from === 0 ? row : out + row.slice(from));
     }
 

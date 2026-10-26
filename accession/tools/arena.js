@@ -37,7 +37,7 @@
 //                      any item field (ref, form, tier, level, charges, max, rechargeAt, ck,
 //                      seal, n; prims=dmg:M,quiet:S). The line may repeat.
 //   clock: none | ltour=<n> | B=<b> G=<g> count=<c>     (none)
-//   seen: none | all   whether the whole map is remembered from the start (none)
+//   seen: none | all   whether the whole map is remembered from the start, as it is built (none)
 //   grade: <1-7>       your grade (I), so that whether a case opens is the stamp's to say
 //   metric: <name> <= <p>% | <name> >= <p>% | died lower
 //                      the comparison §10.3 makes, counterplay against naive: a ratio of sums
@@ -487,7 +487,7 @@ const Arena = (() => {
   // The state for a seed: Setup.room with the layout, under options (rulesOff, without,
   // invulnerable); then each `like` case takes the glass, lock and loan of the case it is
   // like (a mimic's disguise is made by Setup.room, so this comes after it, before anything
-  // acts); with seen: all, every tile is remembered from the start.
+  // acts); with seen: all, every tile is remembered from the start, as it is built.
   function build(spec, seed, opts) {
     opts = opts || {};
     const L = layout(spec, seed, opts);
@@ -502,7 +502,7 @@ const Arena = (() => {
       }
       f.glass = o.glass; f.lock = o.lock; f.loan = o.loan;
     }
-    if (spec.seen === 'all') state.dept.seen = '1'.repeat(state.dept.w * state.dept.h);
+    if (spec.seen === 'all') state.dept.seen = state.dept.tiles.join('');
     return state;
   }
 
