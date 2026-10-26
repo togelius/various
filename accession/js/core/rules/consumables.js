@@ -190,6 +190,10 @@ const Consumables = (() => {
   // square, in spawn order; one inside an intact case is behind glass and is not reached.
   const reached = (state, sq) => state.actors.filter(a => !a.gone && Actors.footprint(a).some(([x, y]) => Grid.covers(sq, x, y)) && !Cases.encased(state, a));
 
+  // What a consumable action costs you: COST_USE, doubled while you are slowed (Actors.cost,
+  // §8.1: "slowed, every action takes 200% of its time"), as the kit's item actions are.
+  const paid = state => Actors.cost(state, state.actors[0], N.COST_USE, 'act');
+
   // Throw one of uid at (x, y) (§8.6): it is used, identified if it was not known, and does
   // what its kind does there; every thrown Solution but Solvent lands with a soft noise, after
   // its other effects (§8.2: an action's noise comes last). Check throwRefusal first.
@@ -209,7 +213,7 @@ const Consumables = (() => {
       for (const f of state.dept.fixtures.slice()) if (f.k === 'case' && f.st === 'shut' && Grid.covers(sq, f.x, f.y)) Cases.dissolve(state, f, { k: 'solvent', by: 'you', item: uid }, ev);
     }
     if (ck !== 'solvent') Noise.emit(state, x, y, 'soft', { k: 'throw', by: 'you', item: uid }, ev);
-    return N.COST_USE;
+    return paid(state);
   }
 
   // ---- Drinking and reading ----
@@ -224,7 +228,7 @@ const Consumables = (() => {
     consume(state, it);
     Causes.emit(state, ev, 'used', { who: 'you', item: uid, how: 'drink' }, gentle ? { k: 'consume', ck, seal, known: was, gentle: true } : { k: 'consume', ck, seal, known: was });
     if (!was) identify(state, seal, { k: 'use', by: 'you' }, ev);
-    if (gentle) return N.COST_USE;
+    if (gentle) return paid(state);
     if (ck === 'consolidant') {
       Health.heal(state, you, Int.pct(you.maxHp, N.CONSOLIDANT_NOW_PCT), cause, ev);
       Status.apply(state, you, 'restoring', N.CONSOLIDANT_HOT_TURNS, cause, ev);
@@ -239,7 +243,7 @@ const Consumables = (() => {
       }
       you.statuses = keep;
     }
-    return N.COST_USE;
+    return paid(state);
   }
 
   // Where a Re-admission Ticket puts you: the department's entrance, or, if someone stands
@@ -305,7 +309,7 @@ const Consumables = (() => {
       you.x = to[0]; you.y = to[1];
       Wake.lose(state, { k: 'ticket', by: 'you' }, ev);
     }
-    return N.COST_USE;
+    return paid(state);
   }
 
   // ---- use(uid) ----

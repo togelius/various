@@ -374,7 +374,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(of(all, 'pip', e => e.who === s.actors[1].uid && e.delta < 0).length, 0);
   });
 
-  test('the registry: six statuses and two surfaces at ready unit, with clauses that name their numbers, and the mimic\'s line embedding rooted', () => {
+  test('the registry: six statuses and two surfaces at ready true (joined up, W2a-BEHAVIOUR), with clauses that name their numbers, and the mimic\'s line embedding rooted', () => {
     const want = {
       fixed: [`${N.FIXATIVE_TURNS} turns`, `+${N.HIT_FIXED_TARGET} to hit`], rooted: [`${N.MIMIC_GRIP_TURNS} turns`], coughing: [`${N.COUGH_TURNS} turns`, `${N.NOISE_SOFT} tiles`],
       restoring: [`${N.CONSOLIDANT_HOT_PCT}%`, `${N.CONSOLIDANT_HOT_TURNS} turns`], slowed: [`${N.SPEED_SLOW_PCT}%`], dazed: [`${N.HIT_DAZED_ATTACKER} to hit`],
@@ -382,18 +382,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(R.order('STATUSES')), json(Object.keys(want)));
     for (const id of R.order('STATUSES')) {
       const e = R.STATUSES[id], text = Clauses.fill(e.clause, Clauses.params(e.params, null, { depth: 4 }));
-      assert.equal(json([e.ready, e.tests, e.inv, e.built]), json(['unit', ['m3-status.test.js', 'behaviour/status.test.js'], 'status', 'M3']), id);
+      assert.equal(json([e.ready, e.tests, e.inv, e.built]), json([true, ['m3-status.test.js', 'behaviour/status.test.js'], 'status', 'M3']), id);
       for (const w of want[id]) assert.ok(text.includes(w), `${id}: "${text}" names ${w}`);
       assert.ok(/^[a-z]/.test(text) && !/\.$/.test(text) && !/undefined|NaN|\[object/.test(text), text);
     }
     const surf = { fumigant: [`${N.FUMIGANT_SIZE} tiles`, `${N.FUMIGANT_TURNS} turns`, 'pip'], dust: [`${N.PLASTER_DUST_SIZE} tiles`, `${N.PLASTER_DUST_TURNS} turns`] };
     for (const id of R.order('SURFACES')) {
       const e = R.SURFACES[id], text = Clauses.fill(e.clause, Clauses.params(e.params, null, { depth: 1 }));
-      assert.equal(json([e.ready, e.inv, e.blocksSight, N[e.size] > 0, N[e.turns] > 0]), json(['unit', 'status', true, true, true]), id);
+      assert.equal(json([e.ready, e.inv, e.blocksSight, N[e.size] > 0, N[e.turns] > 0]), json([true, 'status', true, true, true]), id);
       for (const w of surf[id]) assert.ok(text.includes(w), `${id}: "${text}" names ${w}`);
       assert.ok(/^[A-Z].*\.$/.test(text), text);
     }
-    for (const code of ['fixed', 'rooted']) assert.equal(R.REFUSALS[code].ready, 'unit');
+    for (const code of ['fixed', 'rooted']) assert.equal(R.REFUSALS[code].ready, true);
     // Every species that inflicts rooted (the mimic) reads its grip in its line, at every depth.
     const users = H.species(C, 'rooted');
     assert.ok(users.length >= 7 && users.every(u => u.sp.archetype === 'mimic_vitrine'), json(users.map(u => u.sp.id)));

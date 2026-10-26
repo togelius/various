@@ -477,10 +477,10 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(!/\bstaff\b/i.test(w.paragraph + json(w.tomb)), 'it is never called staff (§8.4)');
   });
 
-  test('the registry: the Night Watchman\'s clause, its wake causes and leave\'s refusals are at unit, with their tests and invariant', () => {
+  test('the registry: the Night Watchman\'s clause, its wake causes and leave\'s refusals are at ready true (joined up, W2a-BEHAVIOUR), with their tests and invariant', () => {
     const e = Registry.ARCHETYPES.night_watchman;
-    assert.equal(json([e.ready, e.inv, e.covers]), json(['unit', 'night_watchman', ['attacked', 'missed', 'entered']]));
-    for (const id of ['night_bell', 'night_watch']) assert.equal(json([Registry.WAKE_CAUSES[id].ready, Registry.WAKE_CAUSES[id].mode]), json(['unit', 'hunting']));
+    assert.equal(json([e.ready, e.inv, e.covers]), json([true, 'night_watchman', ['attacked', 'missed', 'entered']]));
+    for (const id of ['night_bell', 'night_watch']) assert.equal(json([Registry.WAKE_CAUSES[id].ready, Registry.WAKE_CAUSES[id].mode]), json([true, 'hunting']));
     for (const code of ['no_exit', 'not_on_exit']) assert.ok(Registry.REFUSALS[code] && Text.refusalDefined(code), code);
     // Each names an invariant file that checks what it says: leave's refusals, clock.leave.
     const Inv = require('../tools/invariants.js'), byFile = file => Inv.load(C).filter(i => i.file === file).map(i => i.id);

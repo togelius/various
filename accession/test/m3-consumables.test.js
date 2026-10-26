@@ -709,7 +709,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const t of ['CONSUMABLES', 'SEALS', 'FIXTURES', 'CLAUSES', 'REFUSALS']) for (const id of X.Registry.order(t)) {
       const e = X.Registry[t][id];
       if (!e.tests.includes('m3-consumables.test.js')) continue;
-      assert.equal(e.ready, 'unit', `${t}.${id}`); assert.equal(e.inv, 'consumables');
+      assert.equal(e.ready, true, `${t}.${id}`); assert.equal(e.inv, 'consumables');
       if (e.clause !== undefined) assert.ok(clean(X.Clauses.fill(e.clause, X.Clauses.params(e.params, null, { depth: 4 }))), `${t}.${id}`);
     }
   });

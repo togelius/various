@@ -13,8 +13,11 @@
   // something that is not an instrument, a kit or a consumable. m3-backbone makes each one
   // refuse, with nothing changed and nothing drawn; their invariant is
   // test/behaviour/system.inv.js (a refused step has no other event and changes nothing).
+  // The real game makes each refuse in test/behaviour/refusals.test.js (ready true), all but
+  // not_built, which no M3 action can give (ready 'unit', with its follow-up).
   for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
-    'not_built', 'no_use']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' });
+    'not_built', 'no_use']) R.define('REFUSALS', code, code === 'not_built' ? { ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' }
+    : { ready: true, tests: ['m3-backbone.test.js', 'behaviour/refusals.test.js'], inv: 'system' });
   R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
 
   // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until
