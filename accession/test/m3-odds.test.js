@@ -146,13 +146,14 @@ module.exports = ({ test, assert, loadCore }) => {
     return Setup.room(depth, { acc, depth, map: OPEN, you: [5, 3], exhibits: [{ sp: sp.id, at: [4, 3], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] });
   }
   // Your kit space at a depth: each pack item (and the starting pieces, and a plain Reach
-  // weapon) of each tier on offer, each level 0–3, each 0–2 grades short where that is
+  // weapon) of each tier on offer (the lower and the next, never above T4, the highest, so
+  // T4 alone at depth 7: Kit.drawTier), each level 0–3, each 0–2 grades short where that is
   // possible; [{slot, rec, tier, level, grade}].
   function kits(depth) {
-    const low = N.TIER_LOW_BY_DEPTH[depth - 1], out = [];
+    const T = N.TIER_LOW_BY_DEPTH, low = T[depth - 1], high = Math.min(low + 1, T[T.length - 1]), out = [];
     const pieces = ITEMS.filter(r => r.kind === 'weapon' || r.kind === 'garment').concat([
       { id: null, kind: 'weapon', form: 'balanced', prims: [] }, { id: null, kind: 'weapon', form: 'reach', prims: [] }, { id: null, kind: 'garment', form: 'standard', prims: [] }]);
-    for (const rec of pieces) for (const tier of [low, low + 1]) for (let level = 0; level <= 3; level++) {
+    for (const rec of pieces) for (const tier of low === high ? [low] : [low, high]) for (let level = 0; level <= 3; level++) {
       const needs = Kit.needs({ kind: rec.kind, form: rec.form, tier });
       for (let short = 0; short <= 2; short++) {
         const g = needs - short;

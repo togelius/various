@@ -40,7 +40,8 @@ const Marks = (() => {
   const BACKING = 'rgba(0,0,0,0.45)';
   const backed = (ctx, q) => { ctx.fillStyle = BACKING; ctx.fillRect(q.x - 1, q.y - 1, q.w + 2, q.h + 2); };
   // The state glyph of an exhibit's mode (§8.2's table folds searching into hunting and
-  // reinstalling into returning, D1.1); a sleeper with pips shows its pips instead.
+  // reinstalling into returning, D1.1); a sleeper with pips shows its pips instead. A label's
+  // state icon is the same (Labels.MODE_ICON; m3-labels holds the two tables equal).
   const GLYPH = { dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' };
   const glyphOf = mode => GLYPH[mode] || 'alert';
   // An item's pictogram: a consumable's seal shape, seal_<shape> (D5.11, §8.8), else its kind's.

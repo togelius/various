@@ -12,6 +12,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const { Setup, Dept, Labels, Step, State, Cases, Clauses, Packs, Registry, Roles, Grid, Actors, Archetypes, Consumables, Status, N, Kit } = C;
   const json = v => JSON.stringify(v), J = v => JSON.parse(JSON.stringify(v));
   const BAD = /undefined|NaN|\[object/;
+  // What a player reads on a label (§8.8): its title, tombstone, accession number, the words
+  // beside its pictograms, its Behaviour line, odds, paragraph, the far note and its buttons'
+  // words. None of it may be a raw code: no id in snake_case ('night_watchman'), no uid
+  // ('M11.2.watch.1'), no 'null', and no grade in Arabic numerals ('Grade 8'), since grades
+  // are Roman on the badge and stop at VII (§8.7).
+  const RAW = /\b[a-z]+_[a-z_]+\b|\b[A-Z]+\d+\.\d+\.[a-z]+\.\d+\b|\bnull\b|Grade \d/;
+  const shown = l => [l.title, ...Object.values(l.tomb || {}), l.number, ...(l.pictos || []).map(p => p.text), l.behaviour, ...(l.odds || []), l.paragraph, l.far,
+    ...(l.actions || []).map(a => a.text)].filter(t => t !== null && t !== undefined && t !== '');
+  function readable(l, where) {
+    if (!l) return;
+    for (const t of shown(l)) assert.ok(typeof t === 'string' && !BAD.test(t) && !RAW.test(t), `${where}: a raw code or gap the player would read: ${JSON.stringify(t)} (${t && (t.match(RAW) || t.match(BAD) || [])[0]})`);
+  }
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   // Does step() take act now (on a copy)?
   const takes = (s, act) => { const ev = Step.step(State.clone(s), act); return !(ev.length === 1 && ev[0].k === 'refused'); };
@@ -19,6 +31,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   function sound(s, l, where) {
     if (!l) return 0;
     assert.ok(!BAD.test(json(l)), `${where}: ${json(l)}`);
+    readable(l, where);
     let n = 0;
     for (const a of l.actions || []) {
       assert.ok(typeof a.text === 'string' && a.text && !BAD.test(a.text), `${where}: ${json(a)}`);
@@ -140,6 +153,109 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       }
     }
     assert.ok(labels > 600 && buttons > 300, `${labels} labels and ${buttons} buttons checked`);
+  });
+
+  test('the Night Watchman\'s label carries no accession number (it was never accessioned, §8.8) and no raw code, and nor does any other label once it walks in', () => {
+    const s = Dept.create(3, 'M11', 2), you = s.actors[0];
+    you.hp = you.maxHp = 9999;
+    const c = s.dept.clock; c.count = c.B + c.G - 1;
+    let w = null;
+    for (let i = 0; i < 40 && !w; i++) { Step.step(s, { a: 'wait' }); w = s.actors.find(a => a.arch === 'night_watchman' && !a.gone); }
+    assert.ok(w, 'the Night Watchman came in');
+    for (let i = 0; i < 60 && Actors.dist(w, you.x, you.y) > 1; i++) Step.step(s, { a: 'wait' });
+    const l = Labels.of(s, w.uid);
+    assert.equal(l.title, 'The Night Watchman');
+    assert.equal(l.number, '', 'a shared species has no accession number');
+    assert.equal(l.tomb.credit, Packs.shared('night_watchman').tomb.credit);
+    readable(l, w.uid);
+    // Every pack species' number is its id's readable form (§8.8, D40): family letter,
+    // department, item.
+    for (const acc of ['S9', 'A4', 'M11']) for (const sp of Packs.get(acc).species) assert.ok(/^[A-Z]+\d+\./.test(sp.id), `${sp.id} has the pack form`);
+    const st = Labels.strip(s);
+    assert.ok(st && !RAW.test(json([st.title, st.behaviour])), json(st));
+    for (const a of s.actors.slice(1)) readable(Labels.of(s, a.uid), `M11 d2 ${a.uid}`);
+    readable(Labels.you(s), 'you');
+  });
+
+  test('an exhibit\'s wake pictograms follow its Behaviour line: the ring only beside the generic wake clause, its trigger\'s icon in that trigger\'s words', () => {
+    const MAP = ['#########', '#.......#', '#.......#', '#.......#', '#.......#', '#########'];
+    const all = [];
+    for (const acc of ['S9', 'A4', 'M11']) for (const sp of Packs.get(acc).species) all.push([acc, sp]);
+    all.push(['M11', Packs.shared('night_watchman')]);
+    const TRIG = new Set(Registry.order('TRIGGERS').map(t => Registry.TRIGGERS[t].icon));
+    let checked = 0, mimicAsleep = 0;
+    for (const [acc, sp] of all) for (let depth = 1; depth <= 7; depth++) for (const mode of ['hunting', 'dormant']) {
+      // A mimic made asleep on the floor is a case, with no exhibit's label (§8.3); one that has
+      // shown itself and sleeps again is the exhibit, asleep, so it is made hunting and then set
+      // asleep.
+      const mimic = sp.archetype === 'mimic_vitrine';
+      const s = Setup.room(depth, { acc, depth, map: MAP, you: [1, 1], exhibits: [{ sp: sp.id, at: [4, 3], mode: mimic ? 'hunting' : mode, stats: Roles.stats(sp.role, depth) }] });
+      const a = s.actors[1];
+      if (mimic && mode === 'dormant') { a.mode = 'dormant'; mimicAsleep++; }
+      const l = Labels.of(s, a.uid), where = `${sp.id} d${depth} ${mode}`;
+      assert.ok(l, where);
+      const parts = Clauses.of(sp, { depth }), wake = parts.find(p => p.kind === 'wake'), trig = parts.find(p => p.kind === 'trigger');
+      const ringWanted = !!wake && !!Registry.CLAUSES[wake.id].icon;
+      assert.equal(l.pictos.some(p => p.icon === 'ring'), ringWanted, `${where}: the ring pictogram beside "${l.behaviour}": ${json(l.pictos)}`);
+      if (ringWanted) assert.deepEqual(J(l.pictos[0]), { icon: Registry.CLAUSES[wake.id].icon, text: 'ring' }, where);
+      const trigPictos = l.pictos.filter(p => TRIG.has(p.icon));
+      if (trig) {
+        const T = Registry.TRIGGERS[trig.id];
+        assert.deepEqual(J(trigPictos), [{ icon: T.icon, text: T.replacesWake ? 'never sleeps' : 'wakes' }], `${where}: its trigger's pictogram, beside "${trig.text}"`);
+      } else assert.deepEqual(J(trigPictos), [], `${where}: no trigger, no trigger pictogram`);
+      checked++;
+    }
+    assert.ok(checked >= 19 * 14 && mimicAsleep === 7, `${checked} labels, ${mimicAsleep} sleeping shown mimics`);
+    // The Watchman's strip shows what it is: it never sleeps, and its health.
+    const s = Setup.room(1, { acc: 'M11', depth: 2, map: MAP, you: [3, 3], exhibits: [{ sp: 'night_watchman', at: [4, 3], stats: Roles.stats('warden', 2) }] });
+    assert.deepEqual(J(Labels.strip(s).pictos), ['awake', 'heart']);
+  });
+
+  test('a weapon or garment that needs more than the highest grade (a T4 Heavy one, §8.1) says so in words, at grades I and VII', () => {
+    const MAP = ['#######', '#.....#', '#######'];
+    const one = (kind, grade) => {
+      const s = room(MAP, [1, 1], { grade, items: [{ uid: 'T0.1.room.i1', kind, form: 'heavy', tier: 4, where: { at: 'tote' } }] });
+      return Labels.ofItem(s, 'T0.1.room.i1').odds.find(o => o.startsWith('It needs'));
+    };
+    for (const kind of ['weapon', 'garment']) {
+      assert.equal(one(kind, 1), 'It needs more than Grade VII, the highest grade, so it is always worn at least 1 grade short; you are Grade I, 7 grades short.', kind);
+      assert.equal(one(kind, 7), 'It needs more than Grade VII, the highest grade, so it is always worn at least 1 grade short; you are Grade VII, 1 grade short.', kind);
+    }
+    // At or below VII the need is the grade itself.
+    const s = room(MAP, [1, 1], { grade: 7, items: [{ uid: 'T0.1.room.i1', kind: 'weapon', form: 'balanced', tier: 4, where: { at: 'tote' } }] });
+    assert.equal(Labels.ofItem(s, 'T0.1.room.i1').odds.find(o => o.startsWith('It needs')), 'It needs Grade VII; you are Grade VII.');
+  });
+
+  test('an item with no tier (an arena\'s or a test\'s) names none, rather than "tier null"', () => {
+    const MAP = ['#######', '#.....#', '#######'];
+    const s = room(MAP, [1, 1], { items: [
+      { uid: 'T0.1.room.i1', kind: 'instrument', form: 'fork', where: { at: 'tote' } },
+      { uid: 'T0.1.room.i2', kind: 'weapon', form: 'heavy', where: { at: 'tote' } }] });
+    for (const uid of ['T0.1.room.i1', 'T0.1.room.i2']) {
+      const l = Labels.ofItem(s, uid);
+      readable(l, uid);
+      assert.ok(!/tier/.test(l.pictos[0].text), json(l.pictos));
+    }
+    assert.equal(Labels.ofItem(s, 'T0.1.room.i2').pictos[0].text, 'Heavy weapon');
+  });
+
+  test('an exhibit\'s state icon is its board glyph (§8.2\'s table: searching shows as hunting, reinstalling as returning), on its label and on the strip', () => {
+    const vmod = require('node:vm'), fs = require('node:fs');
+    const ctx = vmod.createContext({ ART: { palettes: { semantic: {} } }, Math });
+    for (const f of ['js/view/pictograms.js', 'js/view/marks.js']) vmod.runInContext(fs.readFileSync(path.join(root, f), 'utf8') + (f.endsWith('marks.js') ? '\nthis.Marks = Marks;' : ''), ctx);
+    const Marks = ctx.Marks, MAP = ['#######', '#.....#', '#.....#', '#######'];
+    for (const mode of ['dormant', 'awake', 'hunting', 'searching', 'returning', 'reinstalling']) {
+      const s = Setup.room(1, { acc: 'A4', depth: 2, map: MAP, you: [1, 1], exhibits: [{ sp: 'A4.1', at: [3, 1], mode, stats: Roles.stats('fodder', 2) }] });
+      const a = s.actors[1], want = [Marks.glyphOf(mode)];
+      assert.deepEqual(J(Labels.of(s, a.uid).stateIcons), want, `${mode}: its label`);
+      assert.deepEqual(J(Labels.strip(s).stateIcons), want, `${mode}: the strip`);
+      assert.deepEqual(J(Labels.stateIcons(a)), want, mode);
+    }
+    for (const mode of Object.keys(Marks.GLYPH)) assert.equal(Labels.MODE_ICON[mode], Marks.GLYPH[mode], `${mode}: the label's table and the board's agree`);
+    assert.deepEqual(Object.keys(Labels.MODE_ICON).sort(), Object.keys(Marks.GLYPH).sort(), 'the label\'s table and the board\'s name the same modes');
+    // A sleeper with pips shows its pips instead.
+    const s = Setup.room(1, { acc: 'A4', depth: 2, map: MAP, you: [1, 1], exhibits: [{ sp: 'A4.1', at: [3, 1], mode: 'dormant', pips: 2, stats: Roles.stats('fodder', 2) }] });
+    assert.deepEqual(J(Labels.of(s, s.actors[1].uid).stateIcons), ['pip', 'pip', 'pip_empty']);
   });
 
   test('a case\'s label: what it holds, on loan, or empty; its glass, lock and cracks; Open and Break the glass as your grade and weapon allow', () => {
@@ -328,6 +444,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const pick = (o, you) => { const s = room(MAP, you || [2, 1], o), t = Labels.strip(s); return t && t.uid; };
     const fx = [kase(3, 2), kase(5, 2)];
     assert.equal(pick({ fixtures: fx, exhibits: [ex([1, 1], 'dormant')] }), 'T0.1.room.1', 'a sleeping exhibit before a case');
+    assert.equal(pick({ fixtures: fx, exhibits: [ex([1, 1], 'dormant'), ex([4, 1], 'awake')] }), 'T0.1.room.2', 'an awake exhibit 2 tiles off before a sleeping one beside you');
+    assert.equal(pick({ fixtures: fx, exhibits: [ex([1, 1], 'dormant'), ex([4, 1], 'hunting')] }), 'T0.1.room.2', 'a hunting one too');
+    assert.equal(pick({ fixtures: fx, exhibits: [ex([4, 1], 'hunting'), ex([1, 1], 'awake')] }), 'T0.1.room.2', 'hunting and awake are one tier, nearest first');
     assert.equal(pick({ fixtures: fx }), 'case:3,2', 'the nearer case');
     assert.equal(pick({ fixtures: fx }, [5, 3]), 'case:5,2');
     assert.equal(pick({ fixtures: fx }, [8, 3]), null, 'nothing within 2 tiles');

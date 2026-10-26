@@ -28,9 +28,16 @@ const Labels = (() => {
   // (the Night Watchman); null for you and the test room's dummies.
   const speciesOf = (state, a) => Packs.speciesFor(state, a);
 
-  // Words. Grades as on the badge (§8.7): Grade I … Grade VII.
+  // Words. Grades as on the badge (§8.7): Grade I … Grade VII, the highest (GRADE_MAX). A
+  // need above it (a T4 Heavy weapon or garment, §8.1) is never written as a grade: needs()
+  // says it in words.
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   const grade = n => 'Grade ' + (Number.isInteger(n) && n >= 1 && n < ROMAN.length ? ROMAN[n] : String(n));
+  // What an item needs, for its label: its grade, or, above the highest, that it is always
+  // worn at least that many grades short.
+  const needs = n => n > N.GRADE_MAX
+    ? `more than ${grade(N.GRADE_MAX)}, the highest grade, so it is always worn at least ${count(n - N.GRADE_MAX, 'grade', 'grades')} short`
+    : grade(n);
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const hits = n => count(n, 'hit', 'hits');
   const turns = n => count(n, 'turn', 'turns');
@@ -79,10 +86,32 @@ const Labels = (() => {
 
   // ---- Exhibits ----
 
+  // The state icon of each mode, as §8.2's table shows it: searching is shown as hunting (!!)
+  // and reinstalling as returning (↩), D1.1. The board draws the same glyph (Marks.GLYPH,
+  // which a test holds equal to this table); a sleeper with pips shows its pips instead.
+  const MODE_ICON = Object.freeze({ dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' });
   function stateIcons(a) {
     if (a.uid === 'you') return [];
-    if (a.mode === 'dormant') return a.pips ? Array.from({ length: N.PIPS_TO_WAKE }, (_, i) => i < a.pips ? 'pip' : 'pip_empty') : ['asleep'];
-    return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
+    if (a.mode === 'dormant' && a.pips) return Array.from({ length: N.PIPS_TO_WAKE }, (_, i) => i < a.pips ? 'pip' : 'pip_empty');
+    return [own(MODE_ICON, a.mode) ? MODE_ICON[a.mode] : 'alert'];
+  }
+
+  // The wake pictograms of an exhibit (§8.2, §8.8), from the same entries as its Behaviour
+  // line's wake and trigger parts (Clauses.of): the ring, labelled 'ring', beside the wake
+  // clause that has the ring's icon (the generic one; a mimic's pipless clause has none, since
+  // the ring never touches it), unless its trigger stands instead of that clause (`awake`);
+  // then its trigger's icon, in its words: 'never sleeps' for one that stands instead of the
+  // wake clause, else 'wakes'. An actor with no species (a test room's dummy) is read by its
+  // own archetype and trigger.
+  function wakePictos(sp, a) {
+    const R = Registry, arch = sp ? sp.archetype : a.arch, trigger = sp ? sp.trigger : a.trigger;
+    const A = own(R.ARCHETYPES, arch) ? R.ARCHETYPES[arch] : null, T = own(R.TRIGGERS, trigger) ? R.TRIGGERS[trigger] : null, out = [];
+    if (!(T && T.replacesWake)) {
+      const w = (A && A.wake) || 'wake', W = own(R.CLAUSES, w) ? R.CLAUSES[w] : null;
+      if (W && W.icon) out.push({ icon: W.icon, text: 'ring' });
+    }
+    if (T) out.push({ icon: T.icon, text: T.replacesWake ? 'never sleeps' : 'wakes' });
+    return out;
   }
 
   // A body split from another (a splitter's half, §8.1): a splitter whose uid is its body's
@@ -198,6 +227,10 @@ const Labels = (() => {
   // 'staff:x,y', 'item:<uid>'), and gives that thing's label. Its Attack button is offered
   // only for a blow step() would take now (allowed), beside it or with Reach.
   const SELECTED = /^(case|plaque|staff):(-?\d+),(-?\d+)$/;
+  // An exhibit's accession number (§8.8, D40): its pack id read as family letter, department
+  // and item ('S9.5' → 'S.9.5'). A shared species (the Night Watchman), which no department
+  // accessioned, has none, and nor has an actor with no species.
+  const accession = sp => sp && /^[A-Z]+\d+\./.test(sp.id) ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '';
   function of(state, uid) {
     if (typeof uid !== 'string') return null;
     const m = SELECTED.exec(uid);
@@ -218,13 +251,12 @@ const Labels = (() => {
       { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
       { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
     ].filter(p => blow || (p.icon !== 'acc' && p.icon !== 'damage'));
-    if (sp && sp.trigger && own(Registry.TRIGGERS, sp.trigger)) pictos.unshift({ icon: Registry.TRIGGERS[sp.trigger].icon, text: 'wakes' });
-    pictos.unshift({ icon: 'ring', text: 'ring' });
+    pictos.unshift(...wakePictos(sp, a));
     pictos.push(...statusPictos(state, a));
     const kind = blowNow(state, you, a);
     const title = sp ? (split(a) ? 'A split of ' + theName(sp) : sp.name) : a.sp;
     return {
-      uid, kind: 'exhibit', title, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
+      uid, kind: 'exhibit', title, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: accession(sp),
       pictos, behaviour: sp ? behaviour(state, sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
@@ -255,11 +287,12 @@ const Labels = (() => {
   const itemIcon = (state, it) => it.kind === 'consumable' ? sealIcon(Consumables.name(state, it).seal) : it.kind;
   const BONUS = { dmg: 'damage', acc: 'Acc', eva: 'Eva', pad: 'Padding' };
   // What kind of thing it is, beside its pictogram: a weapon's or garment's form and tier, an
-  // instrument's tier, a curio's rank; and its Restoration levels.
+  // instrument's tier, a curio's rank; and its Restoration levels. An item with no tier (one
+  // an arena or a test made without one) names none, as its title does.
   function itemKind(it, d) {
-    const level = d.level ? `, level ${d.level}` : '';
-    if ((it.kind === 'weapon' || it.kind === 'garment') && typeof it.form === 'string') return `${cap(it.form)} ${it.kind}, tier ${it.tier}${level}`;
-    if (it.kind === 'instrument') return `instrument, tier ${it.tier}${level}` + (d.instrument ? `, ${d.instrument.charges}/${d.instrument.max} charges` : '');
+    const level = d.level ? `, level ${d.level}` : '', tier = Number.isInteger(it.tier) ? `, tier ${it.tier}` : '';
+    if ((it.kind === 'weapon' || it.kind === 'garment') && typeof it.form === 'string') return `${cap(it.form)} ${it.kind}${tier}${level}`;
+    if (it.kind === 'instrument') return `instrument${tier}${level}` + (d.instrument ? `, ${d.instrument.charges}/${d.instrument.max} charges` : '');
     if (it.kind === 'curio') return d.rank ? `curio, rank ${d.rank}` : 'curio';
     return it.kind === 'kit' ? 'Restoration kit' : it.kind;
   }
@@ -319,7 +352,7 @@ const Labels = (() => {
       base.pictos.push({ icon: 'padding', text: String(d.stats.pad) }, { icon: 'eva', text: signed(d.stats.eva) });
       base.odds.push(`At your grade, before any bonus: Padding ${d.stats.pad} and Eva ${signed(d.stats.eva)}.`);
     }
-    if (d.needs !== null) base.odds.push(`It needs ${grade(d.needs)}; you are ${grade(yourGrade(state))}` + (d.short ? `, ${count(d.short, 'grade', 'grades')} short.` : '.'));
+    if (d.needs !== null) base.odds.push(`It needs ${needs(d.needs)}; you are ${grade(yourGrade(state))}` + (d.short ? `, ${count(d.short, 'grade', 'grades')} short.` : '.'));
     const bonus = [];
     for (const b of d.bonuses) {
       if (own(BONUS, b.id) && Number.isInteger(b.n)) bonus.push(`${signed(b.n)} ${BONUS[b.id]}`);
@@ -493,5 +526,5 @@ const Labels = (() => {
     };
   }
 
-  return { of, strip, odds, speciesOf, stateIcons, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours, allowed };
+  return { of, strip, odds, speciesOf, stateIcons, MODE_ICON, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours, allowed };
 })();

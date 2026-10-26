@@ -795,7 +795,8 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - **Each grade short:**
   - a weapon gives −2 Acc;
   - a garment gives −1 Padding.
-- **Tier follows depth,** 60/40 between the two tiers on offer (`TIER_LOW_BY_DEPTH`).
+- **A need above VII,** the highest grade (§8.7), comes only from a T4 Heavy weapon or garment (VII + 1): such an item is always worn at least 1 grade short (−2 Acc for a weapon, −1 Padding for a garment), and its label says so in words, never as a grade VIII.
+- **Tier follows depth,** 60/40 between the tiers on offer (`TIER_LOW_BY_DEPTH`): the lower one and the next, never above T4, the highest, so where the lower is T4 (depth 7) only T4 is offered.
 
 **Your starting stats:**
 - HP 20 (+5 per grade above I);
@@ -1104,9 +1105,9 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 **Examining** anything visible is free. The strip shows the nearest readable thing within 2 tiles (as Distance, below, counts them), in this priority: hunting or awake exhibit, sleeping exhibit, case contents (a shut case, by what it holds, an object on loan elsewhere, or nothing; an opened, broken or dissolved case only while it still holds its object, since an empty one has nothing left to read), plaque; nearest first within each, then the actors' and the fixtures' order. A mimic in its disguise is on it only as its case, which is shut and reads as a real empty shut case does.
 
 **The full panel shows:**
-1. the title, with the state and pips;
-2. the tombstone fields (maker, date, medium, dimensions, credit line, accession number);
-3. the pictogram row;
+1. the title, with the state and pips (the state icon is the board's glyph, §8.2's "Shown as": searching shows as hunting, reinstalling as returning);
+2. the tombstone fields (maker, date, medium, dimensions, credit line, accession number); an exhibit's accession number is its pack id read as family letter, department and item (S.9.5), and a shared species (the Night Watchman), which no department accessioned, shows none;
+3. the pictogram row; an exhibit's begins with its wake pictograms, from the same entries as its Behaviour line's wake and trigger parts: the ring ("ring") only beside the generic wake clause (never for a mimic, whose pipless clause the ring never touches, nor for an exhibit that never sleeps), then its trigger's icon, "never sleeps" for `awake` and "wakes" for the others;
 4. the Behaviour line;
 5. the odds readout;
 6. the paragraph;
