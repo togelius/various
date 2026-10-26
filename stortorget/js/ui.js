@@ -22,6 +22,15 @@
     particles: [],
     rings: [],
     floaters: [],
+    quips: [],
+    quipSchedule: new Map(),
+    hitFlashes: new Map(),
+    recoil: new Map(),
+    lastDamageNumbers: new Map(),
+    shake: 0,
+    shakeOffset: { x: 0, y: 0 },
+    statueHit: 0,
+    combo: { count: 0, timer: 0, best: 0 },
     endShown: false,
     helpOpen: false,
   };
@@ -33,7 +42,11 @@
   let lastFrame = 0;
   let accumulator = 0;
   let toastTimer = 0;
+  let waveBannerTimer = 0;
   let audioContext = null;
+  let masterGain = null;
+  let noiseBuffer = null;
+  const lastSoundTimes = new Map();
   let soundEnabled = true;
 
   try {
@@ -105,15 +118,15 @@
 
   function worldToScreen(point) {
     return {
-      x: (point.x - camera.x) * camera.scale + view.width / 2,
-      y: (point.y - camera.y) * camera.scale + view.height / 2,
+      x: (point.x - camera.x) * camera.scale + view.width / 2 + ui.shakeOffset.x,
+      y: (point.y - camera.y) * camera.scale + view.height / 2 + ui.shakeOffset.y,
     };
   }
 
   function screenToWorld(point) {
     return {
-      x: (point.x - view.width / 2) / camera.scale + camera.x,
-      y: (point.y - view.height / 2) / camera.scale + camera.y,
+      x: (point.x - ui.shakeOffset.x - view.width / 2) / camera.scale + camera.x,
+      y: (point.y - ui.shakeOffset.y - view.height / 2) / camera.scale + camera.y,
     };
   }
 
@@ -141,6 +154,9 @@
     context.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     context.fillStyle = "#19332d";
     context.fillRect(0, 0, view.width, view.height);
+    ui.shakeOffset.x = ui.shake > 0 && !reducedMotion ? Math.sin(time * 91.7) * ui.shake : 0;
+    ui.shakeOffset.y = ui.shake > 0 && !reducedMotion ? Math.cos(time * 113.3) * ui.shake * 0.72 : 0;
+    context.translate(ui.shakeOffset.x, ui.shakeOffset.y);
 
     beginWorldDraw();
     context.fillStyle = "#d9ddcf";
@@ -152,6 +168,7 @@
 
     if (ui.routePreview > 0) drawRoutes(time);
     drawRanges();
+    drawSupportAuras();
     context.restore();
 
     if (!mapReady) {
@@ -259,6 +276,30 @@
     }
   }
 
+  function drawSupportAuras() {
+    for (const support of game.towers) {
+      if (!levels.TOWER_TYPES[support.type].support) continue;
+      const stats = game.getTowerStats(support);
+      context.fillStyle = levels.TOWER_TYPES[support.type].color;
+      context.globalAlpha = 0.035;
+      context.beginPath();
+      context.arc(support.x, support.y, stats.range, 0, Math.PI * 2);
+      context.fill();
+      context.globalAlpha = 0.16;
+      context.strokeStyle = levels.TOWER_TYPES[support.type].color;
+      context.lineWidth = 1 / camera.scale;
+      for (const ally of game.towers) {
+        if (ally.id === support.id || levels.TOWER_TYPES[ally.type].support) continue;
+        if (Math.hypot(ally.x - support.x, ally.y - support.y) > stats.range) continue;
+        context.beginPath();
+        context.moveTo(support.x, support.y);
+        context.lineTo(ally.x, ally.y);
+        context.stroke();
+      }
+    }
+    context.globalAlpha = 1;
+  }
+
   function drawBuildPads(time) {
     for (const pad of levels.BUILD_PADS) {
       if (game.towers.some((tower) => tower.padId === pad.id)) continue;
@@ -303,9 +344,11 @@
     if (point.x < -30 || point.x > view.width + 30 || point.y < -30 || point.y > view.height + 30) return;
     const definition = levels.TOWER_TYPES[tower.type];
     const selected = tower.id === ui.selectedTowerId;
+    const recoil = ui.recoil.get(tower.id) || 0;
+    const visualScale = clamp(camera.scale, 0.62, 1) * (1 + recoil * 0.35);
     context.save();
     context.translate(point.x, point.y);
-    context.scale(clamp(camera.scale, 0.62, 1), clamp(camera.scale, 0.62, 1));
+    context.scale(visualScale, visualScale);
     context.shadowColor = "rgba(0,0,0,.45)";
     context.shadowBlur = 7;
     context.fillStyle = "#163c34";
@@ -321,16 +364,27 @@
     context.lineWidth = selected ? 3 : 1.5;
     context.stroke();
 
-    context.save();
-    context.rotate(tower.angle);
-    context.strokeStyle = tower.type === "bulle" ? "#6d3d25" : "#264b41";
-    context.lineWidth = tower.type === "bulle" ? 5 : 3;
-    context.lineCap = "round";
-    context.beginPath();
-    context.moveTo(4, 0);
-    context.lineTo(16, 0);
-    context.stroke();
-    context.restore();
+    if (!definition.support && tower.type !== "vind") {
+      context.save();
+      context.rotate(tower.angle);
+      context.translate(-recoil * 20, 0);
+      context.strokeStyle = tower.type === "bulle" ? "#6d3d25" : "#264b41";
+      context.lineWidth = tower.type === "bulle" ? 5 : 3;
+      context.lineCap = "round";
+      context.beginPath();
+      context.moveTo(4, 0);
+      context.lineTo(16, 0);
+      context.stroke();
+      if (recoil > 0.025) {
+        context.globalAlpha = clamp(recoil * 7, 0, 1);
+        context.fillStyle = "#fff1ae";
+        context.beginPath();
+        context.arc(18, 0, tower.type === "bulle" ? 5 : 3, 0, Math.PI * 2);
+        context.fill();
+        context.globalAlpha = 1;
+      }
+      context.restore();
+    }
 
     if (tower.type === "falafel") {
       context.fillStyle = "#f4d18d";
@@ -345,7 +399,7 @@
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText("◎", 0, 0);
-    } else {
+    } else if (tower.type === "glass") {
       context.fillStyle = "#f4fbff";
       context.beginPath();
       context.arc(0, -3, 4, 0, Math.PI * 2);
@@ -357,12 +411,47 @@
       context.lineTo(0, 7);
       context.closePath();
       context.fill();
+    } else if (tower.type === "espresso") {
+      context.fillStyle = "#fff0d2";
+      context.fillRect(-5, -1, 9, 7);
+      context.strokeStyle = "#68452e";
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.arc(5, 2, 3, -Math.PI / 2, Math.PI / 2);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-2, -3);
+      context.quadraticCurveTo(-4, -6, -1, -8);
+      context.moveTo(2, -3);
+      context.quadraticCurveTo(0, -6, 3, -8);
+      context.stroke();
+    } else if (tower.type === "vind") {
+      context.save();
+      context.rotate(game.elapsed * 4 + tower.id);
+      context.fillStyle = "#efffff";
+      for (let blade = 0; blade < 3; blade += 1) {
+        context.rotate(Math.PI * 2 / 3);
+        context.beginPath();
+        context.ellipse(4, 0, 5, 2.2, 0.35, 0, Math.PI * 2);
+        context.fill();
+      }
+      context.restore();
+      context.fillStyle = "#347b78";
+      context.beginPath();
+      context.arc(0, 0, 2.3, 0, Math.PI * 2);
+      context.fill();
     }
 
     for (let index = 0; index < tower.level; index += 1) {
       context.fillStyle = "#ffe19a";
       context.beginPath();
       context.arc((index - (tower.level - 1) / 2) * 5, 17, 1.7, 0, Math.PI * 2);
+      context.fill();
+    }
+    if (game.getFireRateMultiplier(tower) > 1) {
+      context.fillStyle = "#fff0a8";
+      context.beginPath();
+      context.arc(-11, -11, 3, 0, Math.PI * 2);
       context.fill();
     }
     context.restore();
@@ -373,19 +462,32 @@
     if (point.x < -35 || point.x > view.width + 35 || point.y < -35 || point.y > view.height + 35) return;
     const definition = levels.ENEMY_TYPES[enemy.type];
     const size = definition.size;
-    const bob = reducedMotion ? 0 : Math.sin(game.elapsed * 8 + enemy.id * 1.7) * 0.9;
-    const colors = {
-      basic: "#d94f51",
-      runner: "#ef735c",
-      tank: "#a93746",
-      boss: "#7e2639",
-    };
+    const stride = reducedMotion ? 0 : Math.sin(game.elapsed * 11 + enemy.id * 1.7);
+    const bob = Math.abs(stride) * -0.8;
+    const facing = Math.cos(enemy.angle) >= 0 ? 1 : -1;
+    const flash = (ui.hitFlashes.get(enemy.id) || 0) > 0;
+    const colors = { basic: "#d94f51", runner: "#ef735c", tank: "#a93746", boss: "#7e2639" };
     context.save();
     context.translate(point.x, point.y + bob);
     context.fillStyle = "rgba(0,0,0,.28)";
     context.beginPath();
-    context.ellipse(1, size * 0.8, size * 0.85, size * 0.38, 0, 0, Math.PI * 2);
+    context.ellipse(1, size + 4, size * 0.9, size * 0.35, 0, 0, Math.PI * 2);
     context.fill();
+
+    context.strokeStyle = "#632f35";
+    context.lineWidth = Math.max(1.5, size * 0.18);
+    context.lineCap = "round";
+    context.beginPath();
+    context.moveTo(-size * 0.35, size * 0.55);
+    context.lineTo(-size * 0.35 + stride * 3, size + 4);
+    context.moveTo(size * 0.35, size * 0.55);
+    context.lineTo(size * 0.35 - stride * 3, size + 4);
+    context.moveTo(-size * 0.7, -size * 0.15);
+    context.lineTo(-size - 2, stride * 3);
+    context.moveTo(size * 0.7, -size * 0.15);
+    context.lineTo(size + 2, -stride * 3);
+    context.stroke();
+
     if (enemy.slowTimer > 0 || game.fikaRemaining > 0) {
       context.strokeStyle = "rgba(151, 225, 255, .9)";
       context.lineWidth = 2;
@@ -393,7 +495,7 @@
       context.arc(0, 0, size + 3, 0, Math.PI * 2);
       context.stroke();
     }
-    context.fillStyle = colors[enemy.type];
+    context.fillStyle = flash ? "#fff5dc" : colors[enemy.type];
     context.strokeStyle = enemy.type === "boss" ? "#ffd166" : "rgba(255,255,255,.8)";
     context.lineWidth = enemy.type === "boss" ? 2.5 : 1;
     context.beginPath();
@@ -401,41 +503,66 @@
     context.fill();
     context.stroke();
 
-    // A tiny Dannebrog cross makes the attackers readable at any zoom level.
     context.strokeStyle = "#fff7ed";
     context.lineWidth = Math.max(1.5, size * 0.17);
     context.beginPath();
-    context.moveTo(-size * 0.7, -size * 0.08);
-    context.lineTo(size * 0.7, -size * 0.08);
+    context.moveTo(-size * 0.7, 0);
+    context.lineTo(size * 0.7, 0);
     context.moveTo(-size * 0.18, -size * 0.72);
     context.lineTo(-size * 0.18, size * 0.72);
     context.stroke();
 
+    const headX = facing * size * 0.18;
+    const headY = -size * 0.58;
+    context.fillStyle = flash ? "#ffffff" : "#f0c5a0";
+    context.beginPath();
+    context.arc(headX, headY, size * 0.46, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#3d3230";
+    const eyeY = headY - size * 0.06;
+    context.beginPath();
+    context.arc(headX - 1.5, eyeY, 0.75, 0, Math.PI * 2);
+    context.arc(headX + 1.5, eyeY, 0.75, 0, Math.PI * 2);
+    context.fill();
+    if (enemy.type === "tank" || enemy.type === "boss") {
+      context.strokeStyle = "#59362d";
+      context.lineWidth = 1.4;
+      context.beginPath();
+      context.moveTo(headX - 2.5, headY + size * 0.2);
+      context.lineTo(headX + 2.5, headY + size * 0.2);
+      context.stroke();
+    }
     if (enemy.type === "runner") {
       context.strokeStyle = "#ffe0ad";
       context.lineWidth = 2;
       context.beginPath();
-      context.moveTo(-size * 0.8, -size * 0.65);
-      context.lineTo(size * 0.8, -size * 0.9);
+      context.moveTo(headX - size * 0.45, headY - 1);
+      context.lineTo(headX + size * 0.45, headY - 2);
       context.stroke();
+    }
+    if (enemy.type === "tank") {
+      context.fillStyle = "#738078";
+      context.beginPath();
+      context.arc(headX, headY - 1, size * 0.48, Math.PI, 0);
+      context.fill();
     }
     if (enemy.type === "boss") {
       context.fillStyle = "#ffd166";
       context.beginPath();
-      context.moveTo(-10, -size + 1);
-      context.lineTo(-9, -size - 9);
-      context.lineTo(-3, -size - 3);
-      context.lineTo(0, -size - 11);
-      context.lineTo(4, -size - 3);
-      context.lineTo(10, -size - 9);
-      context.lineTo(10, -size + 1);
+      context.moveTo(headX - 9, headY - 3);
+      context.lineTo(headX - 8, headY - 12);
+      context.lineTo(headX - 3, headY - 7);
+      context.lineTo(headX, headY - 14);
+      context.lineTo(headX + 4, headY - 7);
+      context.lineTo(headX + 9, headY - 12);
+      context.lineTo(headX + 9, headY - 3);
       context.closePath();
       context.fill();
     }
 
     if (enemy.hp < enemy.maxHp || enemy.type === "tank" || enemy.type === "boss") {
       const width = size * 2.2;
-      const y = -size - (enemy.type === "boss" ? 17 : 8);
+      const y = -size - (enemy.type === "boss" ? 20 : 10);
       context.fillStyle = "rgba(13, 29, 26, .8)";
       context.fillRect(-width / 2, y, width, 3.5);
       context.fillStyle = enemy.hp / enemy.maxHp > 0.4 ? "#8de0ac" : "#ff8a76";
@@ -448,13 +575,44 @@
     for (const projectile of game.projectiles) {
       if (projectile.dead) continue;
       const point = worldToScreen(projectile);
+      const previous = worldToScreen({ x: projectile.lastX, y: projectile.lastY });
+      const dx = point.x - previous.x;
+      const dy = point.y - previous.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const color = levels.TOWER_TYPES[projectile.type].color;
       context.save();
-      context.shadowColor = projectile.type === "glass" ? "#9de5ff" : "#ffe2a6";
-      context.shadowBlur = 7;
-      context.fillStyle = levels.TOWER_TYPES[projectile.type].color;
+      context.strokeStyle = color;
+      context.globalAlpha = 0.48;
+      context.lineWidth = projectile.type === "bulle" ? 3 : 1.8;
+      context.lineCap = "round";
       context.beginPath();
-      context.arc(point.x, point.y, projectile.type === "bulle" ? 4.2 : 2.7, 0, Math.PI * 2);
-      context.fill();
+      context.moveTo(point.x - dx / distance * 12, point.y - dy / distance * 12);
+      context.lineTo(point.x, point.y);
+      context.stroke();
+      context.globalAlpha = 1;
+      context.translate(point.x, point.y);
+      context.rotate(projectile.age * (projectile.type === "vind" ? 14 : 8));
+      context.shadowColor = projectile.type === "glass" || projectile.type === "vind" ? "#9de5ff" : "#ffe2a6";
+      context.shadowBlur = 8;
+      context.fillStyle = color;
+      if (projectile.type === "vind") {
+        context.strokeStyle = "#e8ffff";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(0, 0, 4.5, -1.1, 1.1);
+        context.stroke();
+      } else {
+        context.beginPath();
+        context.arc(0, 0, projectile.type === "bulle" ? 4.4 : 2.8, 0, Math.PI * 2);
+        context.fill();
+        if (projectile.type === "bulle") {
+          context.fillStyle = "#8a4e2e";
+          context.font = "8px Georgia, serif";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillText("◎", 0, 0);
+        }
+      }
       context.restore();
     }
   }
@@ -466,6 +624,7 @@
     context.save();
     context.translate(point.x, point.y);
     context.scale(clamp(camera.scale, 0.62, 1), clamp(camera.scale, 0.62, 1));
+    if (ui.statueHit > 0 && !reducedMotion) context.rotate(Math.sin(game.elapsed * 45) * ui.statueHit * 0.12);
     context.shadowColor = "rgba(0,0,0,.5)";
     context.shadowBlur = 12;
     context.fillStyle = "#153d34";
@@ -502,12 +661,20 @@
     for (const ring of ui.rings) {
       const point = worldToScreen(ring);
       const progress = 1 - ring.life / ring.maxLife;
-      context.globalAlpha = ring.life / ring.maxLife;
+      const alpha = clamp(ring.life / ring.maxLife, 0, 1);
+      const radius = (ring.startRadius || 1) + ring.radius * camera.scale * progress;
+      context.globalAlpha = alpha;
       context.strokeStyle = ring.color;
-      context.lineWidth = 2.5;
+      context.fillStyle = ring.color;
+      context.lineWidth = ring.width || 2.5;
       context.beginPath();
-      context.arc(point.x, point.y, Math.max(2, ring.radius * camera.scale * progress), 0, Math.PI * 2);
-      context.stroke();
+      context.arc(point.x, point.y, Math.max(1, radius), 0, Math.PI * 2);
+      if (ring.fill) {
+        context.globalAlpha = alpha * 0.22;
+        context.fill();
+      } else {
+        context.stroke();
+      }
     }
     context.globalAlpha = 1;
 
@@ -517,7 +684,13 @@
       context.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
       context.fillStyle = particle.color;
       context.beginPath();
-      context.arc(origin.x + particle.vx * age, origin.y + particle.vy * age, particle.size, 0, Math.PI * 2);
+      context.arc(
+        origin.x + particle.vx * age,
+        origin.y + particle.vy * age + (particle.gravity || 0) * age * age / 2,
+        Math.max(0.2, particle.size + (particle.grow || 0) * age),
+        0,
+        Math.PI * 2,
+      );
       context.fill();
     }
     context.globalAlpha = 1;
@@ -527,11 +700,11 @@
       const age = floater.maxLife - floater.life;
       context.globalAlpha = clamp(floater.life / floater.maxLife, 0, 1);
       context.fillStyle = floater.color;
-      context.font = "800 11px -apple-system, sans-serif";
+      context.font = `900 ${floater.size || 11}px -apple-system, sans-serif`;
       context.textAlign = "center";
       context.shadowColor = "rgba(0,0,0,.8)";
       context.shadowBlur = 4;
-      context.fillText(floater.text, origin.x, origin.y - age * 24);
+      context.fillText(floater.text, origin.x + (floater.xOffset || 0), origin.y - 8 - age * 28);
     }
     context.shadowBlur = 0;
     context.globalAlpha = 1;
@@ -541,18 +714,55 @@
       context.fillRect(0, 0, view.width, view.height);
     }
 
-    if (!reducedMotion) {
-      ui.rings.forEach((ring) => { ring.life -= dt; });
-      ui.particles.forEach((particle) => { particle.life -= dt; });
-      ui.floaters.forEach((floater) => { floater.life -= dt; });
-    } else {
-      ui.rings.forEach((ring) => { ring.life -= dt * 3; });
-      ui.particles.forEach((particle) => { particle.life -= dt * 3; });
-      ui.floaters.forEach((floater) => { floater.life -= dt * 3; });
+    const effectDt = reducedMotion ? dt * 3 : dt;
+    ui.rings.forEach((ring) => { ring.life -= effectDt; });
+    ui.particles.forEach((particle) => { particle.life -= effectDt; });
+    ui.floaters.forEach((floater) => { floater.life -= effectDt; });
+    ui.quips.forEach((quip) => { quip.life -= dt; });
+    for (const [id, life] of ui.hitFlashes) {
+      if (life <= effectDt) ui.hitFlashes.delete(id);
+      else ui.hitFlashes.set(id, life - effectDt);
     }
+    for (const [id, life] of ui.recoil) {
+      if (life <= effectDt) ui.recoil.delete(id);
+      else ui.recoil.set(id, life - effectDt);
+    }
+    ui.shake = Math.max(0, ui.shake - dt * 18);
+    ui.statueHit = Math.max(0, ui.statueHit - dt * 2.5);
+    ui.combo.timer = Math.max(0, ui.combo.timer - dt);
+    if (ui.combo.timer === 0) ui.combo.count = 0;
     ui.rings = ui.rings.filter((ring) => ring.life > 0);
     ui.particles = ui.particles.filter((particle) => particle.life > 0);
     ui.floaters = ui.floaters.filter((floater) => floater.life > 0);
+    ui.quips = ui.quips.filter((quip) => quip.life > 0);
+  }
+
+  function drawQuips() {
+    for (const quip of ui.quips) {
+      const enemy = game.enemies.find((item) => item.id === quip.enemyId);
+      const origin = worldToScreen(enemy || quip);
+      const boss = enemy?.type === "boss" || quip.boss;
+      const fontSize = boss ? 12 : 10;
+      context.save();
+      context.font = `800 ${fontSize}px -apple-system, sans-serif`;
+      const width = Math.ceil(context.measureText(quip.text).width) + 16;
+      const height = boss ? 25 : 22;
+      const x = clamp(origin.x - width / 2, 7, Math.max(7, view.width - width - 7));
+      const y = clamp(origin.y - (boss ? 48 : 38), 7, Math.max(7, view.height - height - 7));
+      context.globalAlpha = clamp(quip.life / 0.25, 0, 1);
+      context.shadowColor = "rgba(0,0,0,.35)";
+      context.shadowBlur = 8;
+      context.fillStyle = boss ? "#fff0bd" : "#fffdf4";
+      context.beginPath();
+      context.roundRect(x, y, width, height, 7);
+      context.fill();
+      context.shadowBlur = 0;
+      context.fillStyle = "#3e3030";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(quip.text, x + width / 2, y + height / 2 + 0.5);
+      context.restore();
+    }
   }
 
   function render(time, dt) {
@@ -564,24 +774,71 @@
     drawProjectiles();
     drawStatue();
     drawEffects(dt);
+    drawQuips();
   }
 
-  function burst(x, y, color, count = 8) {
+  function addShake(amount) {
+    if (!reducedMotion) ui.shake = Math.min(12, Math.max(ui.shake, amount));
+  }
+
+  function addQuip(enemy, text, options = {}) {
+    if (!enemy) return;
+    const activeTexts = new Set(ui.quips.map((quip) => quip.text));
+    if (activeTexts.has(text)) {
+      const alternatives = levels.ENEMY_TYPES[enemy.type].quips.filter((phrase) => !activeTexts.has(phrase));
+      if (!alternatives.length) return;
+      text = alternatives[(enemy.id + game.currentWave) % alternatives.length];
+    }
+    const boss = enemy.type === "boss";
+    if (ui.quips.length >= 3) {
+      if (!boss) return;
+      ui.quips.shift();
+    }
+    ui.quips = ui.quips.filter((quip) => quip.enemyId !== enemy.id);
+    ui.quips.push({
+      enemyId: enemy.id,
+      text,
+      x: enemy.x,
+      y: enemy.y,
+      boss,
+      life: options.duration || (boss ? 2.8 : 2.1),
+      maxLife: options.duration || (boss ? 2.8 : 2.1),
+    });
+    if (!options.silent) playSound("quip", { boss });
+  }
+
+  function updateQuipSchedule() {
+    if (game.phase !== "wave") return;
+    for (const enemy of game.enemies) {
+      const next = ui.quipSchedule.get(enemy.id);
+      if (!next || game.elapsed < next) continue;
+      const phrases = levels.ENEMY_TYPES[enemy.type].quips;
+      const index = (enemy.id + game.currentWave + Math.floor(game.elapsed)) % phrases.length;
+      addQuip(enemy, phrases[index]);
+      ui.quipSchedule.set(enemy.id, game.elapsed + 8 + enemy.id % 6);
+    }
+  }
+
+  function burst(x, y, color, count = 8, options = {}) {
     if (reducedMotion) count = Math.min(2, count);
+    const speed = options.speed || 30;
+    const life = options.life || 0.7;
     for (let index = 0; index < count; index += 1) {
       const angle = (Math.PI * 2 * index) / count + Math.random() * 0.4;
-      const speed = 14 + Math.random() * 24;
+      const velocity = speed * (0.45 + Math.random() * 0.8);
       ui.particles.push({
         x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 8,
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity - (options.lift ?? 8),
         color,
-        size: 1.5 + Math.random() * 1.7,
-        life: 0.7,
-        maxLife: 0.7,
+        size: (options.size || 1.8) * (0.7 + Math.random() * 0.6),
+        gravity: options.gravity || 0,
+        grow: options.grow || 0,
+        life,
+        maxLife: life,
       });
     }
-    if (ui.particles.length > 160) ui.particles.splice(0, ui.particles.length - 160);
+    if (ui.particles.length > 220) ui.particles.splice(0, ui.particles.length - 220);
   }
 
   function toast(message, warning = false) {
@@ -599,40 +856,116 @@
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       audioContext = new AudioContext();
+      masterGain = audioContext.createGain();
+      masterGain.gain.value = 0.78;
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -14;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 5;
+      compressor.attack.value = 0.004;
+      compressor.release.value = 0.18;
+      masterGain.connect(compressor);
+      compressor.connect(audioContext.destination);
+      noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
+      const samples = noiseBuffer.getChannelData(0);
+      for (let index = 0; index < samples.length; index += 1) samples[index] = Math.random() * 2 - 1;
     }
     if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
   }
 
-  function tone(frequency, duration, delay = 0, volume = 0.035, type = "sine") {
-    if (!soundEnabled || !audioContext) return;
+  function tone(frequency, duration, delay = 0, volume = 0.035, type = "sine", endFrequency = frequency) {
+    if (!soundEnabled || !audioContext || !masterGain) return;
     const start = audioContext.currentTime + delay;
     const oscillator = audioContext.createOscillator();
     const gain = audioContext.createGain();
     oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, start);
+    oscillator.frequency.setValueAtTime(Math.max(20, frequency), start);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(volume, start + Math.min(0.012, duration / 3));
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     oscillator.connect(gain);
-    gain.connect(audioContext.destination);
+    gain.connect(masterGain);
     oscillator.start(start);
     oscillator.stop(start + duration + 0.03);
   }
 
-  function playSound(name) {
+  function noise(duration, delay = 0, volume = 0.025, cutoff = 900, filterType = "lowpass") {
+    if (!soundEnabled || !audioContext || !noiseBuffer || !masterGain) return;
+    const start = audioContext.currentTime + delay;
+    const source = audioContext.createBufferSource();
+    const filter = audioContext.createBiquadFilter();
+    const gain = audioContext.createGain();
+    source.buffer = noiseBuffer;
+    source.playbackRate.value = 0.75 + Math.random() * 0.5;
+    filter.type = filterType;
+    filter.frequency.value = cutoff;
+    filter.Q.value = filterType === "bandpass" ? 1.2 : 0.7;
+    gain.gain.setValueAtTime(volume, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+    source.start(start, Math.random() * 0.5);
+    source.stop(start + duration + 0.02);
+  }
+
+  function allowSound(key, interval) {
+    if (!audioContext) return false;
+    const now = audioContext.currentTime;
+    if (now - (lastSoundTimes.get(key) ?? -100) < interval) return false;
+    lastSoundTimes.set(key, now);
+    return true;
+  }
+
+  function playSound(name, detail = {}) {
     if (!soundEnabled || !audioContext) return;
-    if (name === "build") {
-      tone(330, 0.12, 0, 0.04, "triangle");
-      tone(495, 0.16, 0.08, 0.03, "triangle");
+    if (name === "shot") {
+      const type = detail.projectileType;
+      if (!allowSound(`shot-${type}`, type === "falafel" ? 0.055 : 0.09)) return;
+      if (type === "bulle") {
+        tone(115, 0.18, 0, 0.055, "sine", 48);
+        noise(0.09, 0, 0.025, 420);
+      } else if (type === "glass") {
+        tone(880, 0.09, 0, 0.012, "sine", 390);
+      } else if (type === "vind") {
+        noise(0.16, 0, 0.022, 1300, "bandpass");
+      } else {
+        tone(470 + Math.random() * 90, 0.055, 0, 0.013, "triangle", 230);
+      }
+    } else if (name === "explosion") {
+      if (!allowSound("explosion", 0.08)) return;
+      tone(92, 0.34, 0, 0.085, "sine", 34);
+      noise(0.3, 0, 0.065, 760);
+    } else if (name === "kill") {
+      if (!allowSound("kill", 0.055)) return;
+      const pitch = 610 + Math.min(10, detail.combo || 1) * 32;
+      tone(pitch, 0.09, 0, 0.015, "triangle", pitch * 1.35);
+    } else if (name === "knockback") {
+      if (allowSound("knockback", 0.12)) noise(0.18, 0, 0.026, 1500, "bandpass");
+    } else if (name === "quip") {
+      if (!allowSound("quip", 0.24)) return;
+      const base = detail.boss ? 105 : 175 + Math.random() * 55;
+      tone(base, 0.1, 0, 0.014, "sawtooth", base * 0.82);
+      tone(base * 1.25, 0.12, 0.1, 0.011, "sawtooth", base * 0.95);
+    } else if (name === "build") {
+      tone(330, 0.12, 0, 0.04, "triangle", 390);
+      tone(495, 0.16, 0.08, 0.03, "triangle", 620);
+      noise(0.08, 0, 0.015, 1400, "bandpass");
     } else if (name === "upgrade") {
       tone(440, 0.12, 0, 0.035, "triangle");
       tone(660, 0.16, 0.08, 0.035, "triangle");
       tone(880, 0.2, 0.16, 0.025, "triangle");
-    } else if (name === "wave") {
-      tone(196, 0.22, 0, 0.05, "square");
-      tone(294, 0.25, 0.17, 0.04, "square");
+    } else if (name === "sell") {
+      tone(500, 0.12, 0, 0.025, "triangle", 320);
+    } else if (name === "wave" || name === "boss") {
+      const root = name === "boss" ? 82 : 196;
+      tone(root, 0.28, 0, name === "boss" ? 0.075 : 0.05, "square", root * 0.85);
+      tone(root * 1.5, 0.28, 0.17, 0.04, "square");
+      if (name === "boss") noise(0.5, 0, 0.035, 320);
     } else if (name === "leak") {
-      tone(130, 0.3, 0, 0.055, "sawtooth");
+      tone(145, 0.36, 0, 0.07, "sawtooth", 65);
+      noise(0.18, 0, 0.03, 400);
     } else if (name === "clear") {
       tone(392, 0.15, 0, 0.035, "triangle");
       tone(523, 0.2, 0.12, 0.035, "triangle");
@@ -663,31 +996,105 @@
     element("restart-game").focus();
   }
 
+  function showWaveBanner(kicker, title, duration = 2200) {
+    clearTimeout(waveBannerTimer);
+    setText("wave-banner-kicker", kicker);
+    setText("wave-banner-title", title);
+    element("wave-banner").classList.add("visible");
+    waveBannerTimer = setTimeout(() => element("wave-banner").classList.remove("visible"), duration);
+  }
+
+  function addFloater(floater) {
+    ui.floaters.push({ life: 0.8, maxLife: 0.8, ...floater });
+    if (ui.floaters.length > 60) ui.floaters.shift();
+  }
+
   function processEvents() {
     for (const event of game.drainEvents()) {
       if (event.type === "build") {
-        burst(event.x, event.y, levels.TOWER_TYPES[event.tower.type].color, 10);
+        burst(event.x, event.y, levels.TOWER_TYPES[event.tower.type].color, 12, { speed: 42, gravity: 45 });
+        ui.rings.push({ x: event.x, y: event.y, radius: 24, color: levels.TOWER_TYPES[event.tower.type].color, life: 0.4, maxLife: 0.4 });
         playSound("build");
       } else if (event.type === "upgrade") {
-        burst(event.x, event.y, "#ffd166", 14);
+        burst(event.x, event.y, "#ffd166", 18, { speed: 55, gravity: 55 });
+        ui.rings.push({ x: event.x, y: event.y, radius: 30, color: "#ffd166", life: 0.45, maxLife: 0.45 });
+        addShake(1.2);
         playSound("upgrade");
       } else if (event.type === "sell") {
-        ui.floaters.push({ x: event.x, y: event.y, text: `+${event.refund} kr`, color: "#ffd166", life: 1, maxLife: 1 });
+        addFloater({ x: event.x, y: event.y, text: `+${event.refund} kr`, color: "#ffd166", life: 1, maxLife: 1 });
+        playSound("sell");
       } else if (event.type === "wave") {
         ui.routePreview = 6;
-        toast(`Wave ${event.wave} · ${event.name}${event.earlyBonus ? ` · +${event.earlyBonus} kr early bonus` : ""}`);
+        showWaveBanner(`WAVE ${event.wave} · ${event.routes.length} ${event.routes.length === 1 ? "APPROACH" : "APPROACHES"}`, event.name);
+        if (event.earlyBonus) toast(`Early call · +${event.earlyBonus} kr`);
         playSound("wave");
-      } else if (event.type === "spawn" && event.enemy.type === "boss") {
-        ui.routePreview = 3;
-        toast("The final boss has arrived at Malmö Central!", true);
-        playSound("wave");
+      } else if (event.type === "spawn") {
+        const enemy = event.enemy;
+        const phrases = levels.ENEMY_TYPES[enemy.type].quips;
+        ui.quipSchedule.set(enemy.id, game.elapsed + 4 + enemy.id % 5);
+        if (enemy.type === "boss") {
+          ui.routePreview = 3;
+          showWaveBanner("FINAL BOSS · MALMÖ CENTRAL", phrases[0], 2400);
+          addQuip(enemy, phrases[0], { silent: true });
+          addShake(5);
+          playSound("boss");
+        } else if (enemy.id % 4 === 0) {
+          addQuip(enemy, phrases[enemy.id % phrases.length]);
+        }
+      } else if (event.type === "shot") {
+        const duration = event.projectileType === "bulle" ? 0.22 : 0.13;
+        ui.recoil.set(event.tower.id, duration);
+        burst(
+          event.tower.x + Math.cos(event.tower.angle) * 8,
+          event.tower.y + Math.sin(event.tower.angle) * 8,
+          "#fff0b0",
+          event.projectileType === "bulle" ? 4 : 2,
+          { speed: 18, life: 0.22, lift: 0, size: 1.4 },
+        );
+        if (event.projectileType === "bulle") addShake(0.8);
+        playSound("shot", { projectileType: event.projectileType });
+      } else if (event.type === "hit") {
+        ui.hitFlashes.set(event.enemy.id, 0.11);
+        const lastNumber = ui.lastDamageNumbers.get(event.enemy.id) ?? -100;
+        if (event.killed || game.elapsed - lastNumber > 0.22) {
+          const color = event.sourceType === "bulle" ? "#ffd09a" : event.sourceType === "glass" || event.sourceType === "vind" ? "#c5f4ff" : "#fff5df";
+          addFloater({
+            x: event.x,
+            y: event.y,
+            text: `${Math.round(event.amount)}`,
+            color,
+            size: event.sourceType === "bulle" ? 13 : 10,
+            xOffset: (event.enemy.id % 3 - 1) * 5,
+          });
+          ui.lastDamageNumbers.set(event.enemy.id, game.elapsed);
+        }
+        if (event.sourceType !== "bulle") burst(event.x, event.y, "#fff1cf", 2, { speed: 22, life: 0.25, lift: 0 });
       } else if (event.type === "kill") {
-        burst(event.x, event.y, "#e66b62", 4);
-        ui.floaters.push({ x: event.x, y: event.y, text: `+${event.bounty}`, color: "#ffe092", life: 0.8, maxLife: 0.8 });
-        if (ui.floaters.length > 45) ui.floaters.shift();
+        ui.combo.count += 1;
+        ui.combo.timer = 1.35;
+        ui.combo.best = Math.max(ui.combo.best, ui.combo.count);
+        burst(event.x, event.y, "#e66b62", 7, { speed: 48, gravity: 65 });
+        addFloater({ x: event.x, y: event.y, text: `+${event.bounty}`, color: "#ffe092", xOffset: 8 });
+        if (event.enemy.id % 5 === 0) addQuip(event.enemy, "Øv!", { silent: true, duration: 1.4 });
+        playSound("kill", { combo: ui.combo.count });
       } else if (event.type === "explosion") {
-        ui.rings.push({ x: event.x, y: event.y, radius: event.radius, color: "#ffc17c", life: 0.38, maxLife: 0.38 });
+        ui.rings.push(
+          { x: event.x, y: event.y, radius: event.radius * 0.65, color: "#fff1b0", life: 0.16, maxLife: 0.16, fill: true, startRadius: 5 },
+          { x: event.x, y: event.y, radius: event.radius * 1.3, color: "#ffc17c", life: 0.42, maxLife: 0.42, width: 3.5 },
+          { x: event.x, y: event.y, radius: event.radius * 1.8, color: "#e87950", life: 0.58, maxLife: 0.58, width: 1.5 },
+        );
+        burst(event.x, event.y, "#ffb36b", 18, { speed: 78, gravity: 80, size: 2.3 });
+        burst(event.x, event.y, "#5c615b", 7, { speed: 22, life: 1.1, grow: 5, size: 3, lift: 14 });
+        addShake(3.4);
+        playSound("explosion");
+      } else if (event.type === "knockback") {
+        burst(event.x, event.y, "#c5f4ff", 5, { speed: 35, life: 0.4, lift: 0 });
+        playSound("knockback");
       } else if (event.type === "leak") {
+        addShake(9);
+        ui.statueHit = 1;
+        addFloater({ x: event.x, y: event.y, text: `−${event.damage}`, color: "#ff8a7e", size: 20, life: 1.1, maxLife: 1.1 });
+        addQuip(event.enemy, "Skål!", { silent: true, duration: 1.5 });
         const vignette = element("damage-vignette");
         vignette.classList.remove("flash");
         void vignette.offsetWidth;
@@ -700,7 +1107,12 @@
         playSound("clear");
       } else if (event.type === "fika") {
         toast("Fika break! The whole invasion slows down.");
-        ui.rings.push({ x: levels.STATUE.x, y: levels.STATUE.y, radius: 160, color: "#ffe09a", life: 0.8, maxLife: 0.8 });
+        ui.rings.push(
+          { x: levels.STATUE.x, y: levels.STATUE.y, radius: 160, color: "#ffe09a", life: 0.8, maxLife: 0.8 },
+          { x: levels.STATUE.x, y: levels.STATUE.y, radius: 105, color: "#fff2c7", life: 0.55, maxLife: 0.55 },
+        );
+        game.enemies.slice(0, 2).forEach((enemy, index) => addQuip(enemy, index ? "Kaffe?!" : "Tak for kaffe!", { silent: index > 0 }));
+        addShake(1);
         playSound("fika");
       } else if (event.type === "win") {
         setTimeout(() => showEnd(true), 500);
@@ -727,10 +1139,18 @@
     panel.hidden = false;
     const definition = levels.TOWER_TYPES[tower.type];
     const stats = game.getTowerStats(tower);
-    setText("selection-kicker", `LEVEL ${tower.level} · ${Math.round(stats.range * 1.35)} m RANGE`);
+    const multiplier = game.getFireRateMultiplier(tower);
+    setText("selection-kicker", `LEVEL ${tower.level} · ${Math.round(stats.range * 1.35)} m RANGE${multiplier > 1 ? " · ESPRESSO BOOST" : ""}`);
     setText("selection-name", definition.name);
-    const extras = stats.splash ? ` · ${stats.splash} splash` : stats.slowDuration ? ` · ${Math.round((1 - stats.slowFactor) * 100)}% slow` : "";
-    setText("selection-stats", `${stats.damage} damage · ${stats.rate.toFixed(2)} s reload${extras}`);
+    if (definition.support) {
+      const allies = game.towers.filter((ally) => ally.id !== tower.id && !levels.TOWER_TYPES[ally.type].support && Math.hypot(ally.x - tower.x, ally.y - tower.y) <= stats.range).length;
+      setText("selection-stats", `${Math.round(stats.haste * 100)}% faster fire · ${allies} ${allies === 1 ? "ally" : "allies"} in range`);
+    } else {
+      const extras = stats.splash ? ` · ${stats.splash} splash` : stats.slowDuration ? ` · ${Math.round((1 - stats.slowFactor) * 100)}% slow` : stats.knockback ? ` · ${Math.round(stats.knockback * 1.35)} m push` : "";
+      const heavy = stats.heavyBonus > 1 ? ` · +${Math.round((stats.heavyBonus - 1) * 100)}% heavy` : "";
+      const effectiveRate = stats.rate / multiplier;
+      setText("selection-stats", `${stats.damage} damage · ${effectiveRate.toFixed(2)} s reload${extras}${heavy}`);
+    }
     const upgrade = element("upgrade-button");
     const cost = game.getUpgradeCost(tower);
     upgrade.disabled = cost === null;
@@ -743,6 +1163,9 @@
     setText("money-value", game.money);
     setText("wave-value", game.currentWave || "–");
     element("health-stat").classList.toggle("hurt", game.health <= 5);
+    const comboChip = element("combo-chip");
+    comboChip.classList.toggle("visible", ui.combo.count >= 3 && ui.combo.timer > 0);
+    if (ui.combo.count >= 3) comboChip.textContent = `${ui.combo.count}× STREAK`;
 
     const remaining = game.enemies.length + game.spawnQueue.length;
     const chip = element("phase-chip");
@@ -862,6 +1285,17 @@
     ui.particles.length = 0;
     ui.rings.length = 0;
     ui.floaters.length = 0;
+    ui.quips.length = 0;
+    ui.quipSchedule.clear();
+    ui.hitFlashes.clear();
+    ui.recoil.clear();
+    ui.lastDamageNumbers.clear();
+    ui.shake = 0;
+    ui.shakeOffset = { x: 0, y: 0 };
+    ui.statueHit = 0;
+    ui.combo = { count: 0, timer: 0, best: 0 };
+    clearTimeout(waveBannerTimer);
+    element("wave-banner").classList.remove("visible");
     ui.paused = false;
     ui.started = true;
     ui.endShown = false;
@@ -1041,6 +1475,8 @@
     if (soundEnabled) {
       initAudio();
       tone(440, 0.1, 0, 0.025, "triangle");
+    } else if (audioContext) {
+      audioContext.suspend().catch(() => {});
     }
     updateHUD();
   });
@@ -1105,8 +1541,8 @@
     }
     if (!element("end-modal").hidden) return;
     const key = event.key.toLowerCase();
-    if (["1", "2", "3"].includes(key)) {
-      selectBuildType(["falafel", "bulle", "glass"][Number(key) - 1]);
+    if (["1", "2", "3", "4", "5"].includes(key)) {
+      selectBuildType(["falafel", "bulle", "glass", "espresso", "vind"][Number(key) - 1]);
     } else if (key === "escape") {
       ui.selectedType = null;
       ui.selectedTowerId = null;
@@ -1156,6 +1592,7 @@
       ui.routePreview = ui.routePreview === Infinity ? Infinity : Math.max(0, ui.routePreview - dt);
     }
     processEvents();
+    updateQuipSchedule();
     render(seconds, dt);
     updateHUD();
     requestAnimationFrame(frame);
@@ -1173,12 +1610,22 @@
     levels,
     get camera() { return { ...camera }; },
     get ready() { return mapReady; },
+    get effects() {
+      return {
+        quips: ui.quips.map((quip) => quip.text),
+        shake: ui.shake,
+        particles: ui.particles.length,
+        recoil: ui.recoil.size,
+        combo: { ...ui.combo },
+      };
+    },
     startWave: startNextWave,
     reset: resetGame,
     step(seconds) {
       const steps = Math.ceil(seconds * 60);
       for (let index = 0; index < steps; index += 1) game.update(1 / 60);
       processEvents();
+      updateQuipSchedule();
       updateHUD();
     },
     worldToScreen,

@@ -40,9 +40,18 @@
       this.stats = {
         kills: 0,
         leaks: 0,
+        leakDamage: 0,
         earned: 0,
         spent: 0,
         towersBuilt: 0,
+        shots: 0,
+        damage: 0,
+        knockback: 0,
+        fikaUses: 0,
+        earlyBonus: 0,
+        damageByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
+        shotsByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
+        spentByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
       };
       this.events.length = 0;
       return this;
@@ -70,6 +79,20 @@
 
     getTowerStats(tower) {
       return this.levels.TOWER_TYPES[tower.type].levels[tower.level - 1];
+    }
+
+    getFireRateMultiplier(tower) {
+      if (this.levels.TOWER_TYPES[tower.type].support) return 1;
+      let strongestBoost = 0;
+      for (const support of this.towers) {
+        const definition = this.levels.TOWER_TYPES[support.type];
+        if (!definition.support) continue;
+        const stats = this.getTowerStats(support);
+        if (distanceBetween(tower, support) <= stats.range) {
+          strongestBoost = Math.max(strongestBoost, stats.haste);
+        }
+      }
+      return 1 + strongestBoost;
     }
 
     getUpgradeCost(tower) {
@@ -116,6 +139,7 @@
       this.towers.push(tower);
       this.money -= definition.cost;
       this.stats.spent += definition.cost;
+      this.stats.spentByType[typeId] += definition.cost;
       this.stats.towersBuilt += 1;
       this.emit("build", { tower, x: tower.x, y: tower.y });
       return { ok: true, tower };
@@ -132,6 +156,7 @@
       tower.invested += cost;
       this.money -= cost;
       this.stats.spent += cost;
+      this.stats.spentByType[tower.type] += cost;
       this.emit("upgrade", { tower, x: tower.x, y: tower.y });
       return { ok: true, tower };
     }
@@ -157,6 +182,7 @@
       if (earlyBonus > 0) {
         this.money += earlyBonus;
         this.stats.earned += earlyBonus;
+        this.stats.earlyBonus += earlyBonus;
       }
 
       this.currentWave += 1;
@@ -217,6 +243,7 @@
       }
       this.fikaRemaining = this.config.fikaDuration;
       this.fikaCooldown = this.config.fikaCooldown;
+      this.stats.fikaUses += 1;
       this.emit("fika", { duration: this.config.fikaDuration });
       return { ok: true };
     }
@@ -267,6 +294,7 @@
           enemy.dead = true;
           this.health = Math.max(0, this.health - definition.leak);
           this.stats.leaks += 1;
+          this.stats.leakDamage += definition.leak;
           this.emit("leak", {
             enemy,
             damage: definition.leak,
@@ -292,6 +320,8 @@
 
     updateTowers(dt) {
       for (const tower of this.towers) {
+        const definition = this.levels.TOWER_TYPES[tower.type];
+        if (definition.support) continue;
         const stats = this.getTowerStats(tower);
         tower.cooldown = Math.max(0, tower.cooldown - dt);
         if (tower.cooldown > 0) continue;
@@ -321,17 +351,24 @@
         targetId: target.id,
         x: tower.x,
         y: tower.y,
+        lastX: tower.x,
+        lastY: tower.y,
+        age: 0,
         targetX: target.x,
         targetY: target.y,
         speed: stats.projectileSpeed,
         damage: stats.damage,
+        heavyBonus: stats.heavyBonus || 1,
         splash: stats.splash || 0,
         slowFactor: stats.slowFactor || 1,
         slowDuration: stats.slowDuration || 0,
+        knockback: stats.knockback || 0,
         dead: false,
       });
       tower.angle = Math.atan2(target.y - tower.y, target.x - tower.x);
-      tower.cooldown = stats.rate;
+      tower.cooldown = stats.rate / this.getFireRateMultiplier(tower);
+      this.stats.shots += 1;
+      this.stats.shotsByType[tower.type] += 1;
       this.emit("shot", { tower, target, projectileType: tower.type });
     }
 
@@ -339,6 +376,9 @@
       const enemiesById = new Map(this.enemies.map((enemy) => [enemy.id, enemy]));
       for (const projectile of this.projectiles) {
         if (projectile.dead) continue;
+        projectile.age += dt;
+        projectile.lastX = projectile.x;
+        projectile.lastY = projectile.y;
         const target = enemiesById.get(projectile.targetId);
         const targetAlive = target && !target.dead;
         if (targetAlive) {
@@ -376,14 +416,16 @@
         });
         for (const enemy of this.enemies) {
           if (!enemy.dead && distanceBetween(projectile, enemy) <= projectile.splash) {
-            this.damageEnemy(enemy, projectile.damage);
+            this.damageEnemy(enemy, projectile.damage, projectile.type);
           }
         }
         return;
       }
 
       if (!target || target.dead) return;
-      this.damageEnemy(target, projectile.damage);
+      const heavy = target.type === "tank" || target.type === "boss";
+      const damage = projectile.damage * (heavy ? projectile.heavyBonus : 1);
+      this.damageEnemy(target, damage, projectile.type);
       if (!target.dead && projectile.slowDuration > 0) {
         target.slowFactor = target.slowTimer > 0
           ? Math.min(target.slowFactor, projectile.slowFactor)
@@ -391,11 +433,36 @@
         target.slowTimer = Math.max(target.slowTimer, projectile.slowDuration);
         this.emit("slow", { enemy: target, x: target.x, y: target.y });
       }
+      if (!target.dead && projectile.knockback > 0) {
+        const definition = this.levels.ENEMY_TYPES[target.type];
+        const route = this.getRoute(target.routeId);
+        const requested = projectile.knockback * (definition.knockbackFactor ?? 1);
+        const amount = Math.min(target.distance, requested);
+        target.distance = Math.max(0, target.distance - amount);
+        target.progress = Math.min(1, target.distance / route.length);
+        const position = levels.pointOnRoute(route, target.distance);
+        target.x = position.x;
+        target.y = position.y;
+        target.angle = position.angle;
+        this.stats.knockback += amount;
+        this.emit("knockback", { enemy: target, amount, x: target.x, y: target.y });
+      }
     }
 
-    damageEnemy(enemy, amount) {
+    damageEnemy(enemy, amount, sourceType = null) {
       if (enemy.dead) return false;
-      enemy.hp -= amount;
+      const applied = Math.min(enemy.hp, Math.max(0, amount));
+      enemy.hp -= applied;
+      this.stats.damage += applied;
+      if (sourceType) this.stats.damageByType[sourceType] += applied;
+      this.emit("hit", {
+        enemy,
+        amount: applied,
+        sourceType,
+        killed: enemy.hp <= 0,
+        x: enemy.x,
+        y: enemy.y,
+      });
       if (enemy.hp > 0) return false;
       enemy.dead = true;
       const definition = this.levels.ENEMY_TYPES[enemy.type];

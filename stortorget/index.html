@@ -63,6 +63,11 @@
 
         <div id="game-hint" class="game-hint">Pick a defence, then tap a white build site</div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        <div id="wave-banner" class="wave-banner" aria-live="polite">
+          <span id="wave-banner-kicker">WAVE 1</span>
+          <strong id="wave-banner-title">The first arrivals</strong>
+        </div>
+        <div id="combo-chip" class="combo-chip" aria-live="polite">3× STREAK</div>
         <div id="damage-vignette" class="damage-vignette"></div>
 
         <div id="selection-panel" class="selection-panel" hidden>
@@ -97,12 +102,12 @@
         <section class="arsenal" aria-label="Build defences">
           <div class="section-heading">
             <span>BUILD A DEFENCE</span>
-            <small>Keys 1–3</small>
+            <small>Keys 1–5</small>
           </div>
           <div class="tower-shop">
             <button class="tower-card" type="button" data-tower="falafel" aria-pressed="false">
               <span class="tower-icon falafel-icon" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="tower-copy"><strong>Falafel stand</strong><small>Fast · single target</small></span>
+              <span class="tower-copy"><strong>Falafel stand</strong><small>Fast · heavy hunter</small></span>
               <span class="tower-cost">60 kr</span>
               <kbd>1</kbd>
             </button>
@@ -117,6 +122,18 @@
               <span class="tower-copy"><strong>Ice-cream van</strong><small>Slows · support</small></span>
               <span class="tower-cost">75 kr</span>
               <kbd>3</kbd>
+            </button>
+            <button class="tower-card" type="button" data-tower="espresso" aria-pressed="false">
+              <span class="tower-icon espresso-icon" aria-hidden="true">♨</span>
+              <span class="tower-copy"><strong>Espresso cart</strong><small>Boosts · nearby towers</small></span>
+              <span class="tower-cost">105 kr</span>
+              <kbd>4</kbd>
+            </button>
+            <button class="tower-card" type="button" data-tower="vind" aria-pressed="false">
+              <span class="tower-icon vind-icon" aria-hidden="true">≋</span>
+              <span class="tower-copy"><strong>Öresund wind</strong><small>Knockback · control</small></span>
+              <span class="tower-cost">85 kr</span>
+              <kbd>5</kbd>
             </button>
           </div>
         </section>

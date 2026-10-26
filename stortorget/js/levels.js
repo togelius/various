@@ -123,12 +123,12 @@
       icon: "●●●",
       color: "#2fbea0",
       cost: 60,
-      description: "Quick single-target shots",
+      description: "Quick shots with bonus damage to tanks and bosses",
       range: 69,
       levels: [
-        { damage: 13, rate: 0.62, range: 69, projectileSpeed: 270 },
-        { damage: 20, rate: 0.54, range: 75, projectileSpeed: 290, upgradeCost: 50 },
-        { damage: 30, rate: 0.46, range: 82, projectileSpeed: 315, upgradeCost: 85 },
+        { damage: 13, rate: 0.62, range: 69, heavyBonus: 1.5, projectileSpeed: 270 },
+        { damage: 20, rate: 0.54, range: 75, heavyBonus: 1.5, projectileSpeed: 290, upgradeCost: 50 },
+        { damage: 30, rate: 0.46, range: 82, heavyBonus: 1.5, projectileSpeed: 315, upgradeCost: 85 },
       ],
     },
     bulle: {
@@ -161,6 +161,37 @@
         { damage: 16, rate: 0.72, range: 79, slowFactor: 0.36, slowDuration: 2.3, projectileSpeed: 270, upgradeCost: 95 },
       ],
     },
+    espresso: {
+      id: "espresso",
+      name: "Espresso cart",
+      shortName: "Espresso",
+      icon: "▴",
+      color: "#e6c07a",
+      cost: 105,
+      description: "Boosts nearby defences’ fire rate",
+      support: true,
+      range: 66,
+      levels: [
+        { range: 66, haste: 0.16 },
+        { range: 73, haste: 0.24, upgradeCost: 80 },
+        { range: 81, haste: 0.34, upgradeCost: 125 },
+      ],
+    },
+    vind: {
+      id: "vind",
+      name: "Öresund wind",
+      shortName: "Wind",
+      icon: "≋",
+      color: "#9ddbd7",
+      cost: 85,
+      description: "Knocks attackers back along the street",
+      range: 76,
+      levels: [
+        { damage: 4, rate: 1.25, range: 76, knockback: 5, projectileSpeed: 215 },
+        { damage: 7, rate: 1.12, range: 83, knockback: 8, projectileSpeed: 235, upgradeCost: 65 },
+        { damage: 11, rate: 1, range: 90, knockback: 12, projectileSpeed: 255, upgradeCost: 100 },
+      ],
+    },
   };
 
   const ENEMY_TYPES = {
@@ -172,6 +203,8 @@
       bounty: 11,
       leak: 1,
       size: 8,
+      knockbackFactor: 1,
+      quips: ["Kamelåså!", "Hvad så?", "Til torvet!"],
     },
     runner: {
       id: "runner",
@@ -181,6 +214,8 @@
       bounty: 12,
       leak: 1,
       size: 7,
+      knockbackFactor: 0.85,
+      quips: ["Sådan!", "Skynd jer!", "Vi kommer!"],
     },
     tank: {
       id: "tank",
@@ -190,6 +225,8 @@
       bounty: 26,
       leak: 2,
       size: 11,
+      knockbackFactor: 0.55,
+      quips: ["Rødgrød med fløde!", "Fremad!", "Smørrebrød!"],
     },
     boss: {
       id: "boss",
@@ -199,6 +236,8 @@
       bounty: 200,
       leak: 8,
       size: 16,
+      knockbackFactor: 0.15,
+      quips: ["Kamelåsååå!", "Malmö er vores!", "Skål!"],
     },
   };
 

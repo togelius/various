@@ -522,3 +522,77 @@ test("fixed-policy full-game autoplay is deterministic and defeats the final bos
   const replay = autoplayFullGame();
   assert.deepStrictEqual(replay, first, "Identical fixed-step inputs should produce identical games");
 });
+
+test("espresso boosts attack rate without firing or stacking multiple auras", () => {
+  const game = new Game({ config: { startingMoney: 1000 } });
+  const falafel = game.buildTower("sq-se", "falafel").tower;
+  const espresso = game.buildTower("sq-ne", "espresso").tower;
+  assert.equal(game.buildTower("sq-sw", "espresso").ok, true, "A second overlapping cart is allowed");
+  assert.equal(game.getFireRateMultiplier(falafel), 1.16, "Only the strongest equal aura applies");
+  assert.equal(game.getFireRateMultiplier(espresso), 1, "Support carts do not boost themselves");
+
+  assert.equal(game.upgradeTower(espresso.id).ok, true);
+  assertClose(game.getFireRateMultiplier(falafel), 1.24, "The strongest upgraded aura wins");
+  assert.equal(game.startWave(), true);
+  const events = [];
+  assert.ok(advanceUntil(game, () => events.some((event) => event.type === "shot"), { events, seconds: 30 }));
+  assert.ok(game.stats.shotsByType.falafel > 0);
+  assert.equal(game.stats.shotsByType.espresso, 0);
+  assert.ok(game.projectiles.every((projectile) => projectile.type !== "espresso"));
+  assertClose(falafel.cooldown, game.getTowerStats(falafel).rate / 1.24, "Boosted reload uses the aura", 1e-8);
+});
+
+test("Öresund wind knocks living attackers backwards and records combat telemetry", () => {
+  const game = new Game({ config: { startingMoney: 500 } });
+  assert.equal(game.buildTower("soder-north", "vind").ok, true);
+  assert.equal(game.startWave(), true);
+  const events = [];
+  assert.ok(
+    advanceUntil(game, () => events.some((event) => event.type === "knockback"), { events, seconds: 40 }),
+    "The wind should push an attacker back",
+  );
+  const knockback = events.find((event) => event.type === "knockback");
+  const route = game.getRoute(knockback.enemy.routeId);
+  assert.ok(knockback.amount > 0);
+  assert.ok(knockback.enemy.distance < route.length);
+  assertClose(knockback.enemy.progress, knockback.enemy.distance / route.length);
+  const position = levels.pointOnRoute(route, knockback.enemy.distance);
+  assertClose(knockback.enemy.x, position.x);
+  assertClose(knockback.enemy.y, position.y);
+  assert.ok(game.stats.knockback >= knockback.amount);
+  assert.ok(game.stats.shotsByType.vind > 0);
+  assert.ok(game.stats.damageByType.vind > 0);
+  assert.ok(events.some((event) => event.type === "hit" && event.sourceType === "vind"));
+});
+
+test("falafel deals its advertised heavy bonus only to tanks and bosses", () => {
+  const game = new Game();
+  game.currentWave = 4;
+  game.phase = "wave";
+  game.spawnEnemy({ routeId: "sodergatan", typeId: "tank" });
+  const tank = game.enemies[0];
+  const startingHp = tank.hp;
+  game.impactProjectile({
+    type: "falafel",
+    damage: 13,
+    heavyBonus: 1.5,
+    splash: 0,
+    slowDuration: 0,
+    knockback: 0,
+  }, tank);
+  assertClose(startingHp - tank.hp, 19.5);
+  assertClose(game.stats.damageByType.falafel, 19.5);
+
+  game.enemies.length = 0;
+  game.spawnEnemy({ routeId: "sodergatan", typeId: "basic" });
+  const basic = game.enemies[0];
+  game.impactProjectile({
+    type: "falafel",
+    damage: 13,
+    heavyBonus: 1.5,
+    splash: 0,
+    slowDuration: 0,
+    knockback: 0,
+  }, basic);
+  assert.equal(basic.hp, basic.maxHp - 13);
+});

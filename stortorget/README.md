@@ -27,15 +27,21 @@ If macOS asks whether Node may accept local network connections, allow it. No ga
 
 ## How to play
 
-- Select **Falafel stand**, **Bun mortar**, or **Ice-cream van**, then choose a white build site on the map.
-- Falafel fires quickly, buns damage groups, and ice cream slows attackers.
-- Tap a built defence to **upgrade** it twice or **sell** it.
-- Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions.
-- **Fika break** slows every attacker for five seconds. It recharges during and between waves.
-- Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr.
-- There is no timer before wave 1. You can also pause or switch to 2× speed at any time.
+Choose one of five defences, then choose a white build site on the map:
 
-**Controls:** drag to pan; pinch or scroll to zoom; use the map buttons to zoom or fit the whole neighbourhood. Keyboard shortcuts: `1`–`3` select defences, `F` activates fika, `P` pauses, `Space` starts the next wave, and `0` refits the map.
+- **Falafel stand:** quick shots and 50% bonus damage against tanks and bosses.
+- **Bun mortar:** heavy hits and splash damage against crowds.
+- **Ice-cream van:** slows attackers so other towers have more time to fire.
+- **Espresso cart:** boosts the fire rate of nearby attacking defences; only the strongest overlapping aura applies.
+- **Öresund wind:** knocks attackers backwards along their route, with reduced effect on heavy enemies.
+
+Tap a built defence to **upgrade** it twice or **sell** it. Espresso boosts appear as support links and a small gold marker on affected towers.
+
+Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. **Fika break** slows every attacker for five seconds and recharges during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1.
+
+Combat includes recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. The attackers occasionally talk in Danish speech bubbles, including “Kamelåså!” and “Tak for kaffe!”. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
+
+**Controls:** drag to pan; pinch or scroll to zoom; use the map buttons to zoom or fit the whole neighbourhood. Keyboard shortcuts: `1`–`5` select defences, `F` activates fika, `P` pauses, `Space` starts the next wave, and `0` refits the map. The header also provides pause, 2× speed, sound, and help controls.
 
 ## Map and design
 
@@ -47,14 +53,50 @@ Map image: **© OpenStreetMap contributors**, rendered from the OSM Standard til
 
 Plain JavaScript, HTML, Canvas 2D, and CSS. No runtime dependencies.
 
-- `js/levels.js` — map geometry, routes, build sites, unit statistics, and waves
-- `js/engine.js` — deterministic fixed-step simulation, economy, combat, and win/loss rules
-- `js/ui.js` — DPR-aware canvas renderer, input, sound, and interface
-- `test/engine.test.js` — dependency-free rules and balance regression tests
+- `js/levels.js` — map geometry, routes, build sites, unit statistics, enemy personalities, and waves
+- `js/engine.js` — deterministic simulation, economy, combat, support/control effects, telemetry, and win/loss rules
+- `js/ui.js` — DPR-aware renderer, animation, sound, speech, input, and interface
+- `test/engine.test.js` — dependency-free mechanics and complete-game regression tests
+- `tools/personas.js` — seeded utility-driven synthetic players and cloned content scenarios
+- `tools/balance-lab.js` — balance matrix, aggregates, and findings CLI
+- `test/personas.test.js` — persona determinism, diversity, viability, and telemetry tests
+- `test/browser-smoke.cjs` — optional real-browser UI, combat-effect, and mobile checks
 
 ```sh
 npm run check
 npm test
 ```
 
-The simulation runs at 60 fixed steps per second and is independent of the renderer, so complete games can be tested quickly in Node.
+The game simulation runs at 60 fixed steps per second and is independent of the renderer, so complete games can be tested quickly in Node.
+
+## Balance lab
+
+```sh
+# Six personas × four scenarios (24 complete games)
+npm run balance
+
+# Three deterministic seeds per cell (72 complete games)
+npm run balance:deep
+
+# Focus a particular player/content combination
+node tools/balance-lab.js --persona warden --scenario fortified --seed 42
+
+# Machine-readable runs, per-wave records, aggregates, and findings
+node tools/balance-lab.js --deep --json
+```
+
+The lab compares six utility-driven play styles across baseline, higher-HP, denser-spawn, and lower-starting-funds variants. It reports wins, wave progress, leaks, fika use, early income, tower spending/damage/shots, support coverage, and wave spikes. See **[BALANCE.md](BALANCE.md)** for the model, metrics, research links, and limitations.
+
+The design is inspired by [Automated Playtesting with Procedural Personas through MCTS with Evolved Heuristics](https://arxiv.org/abs/1802.06881) and [Talakat](https://arxiv.org/abs/1806.04718). These are lightweight deterministic heuristics, not MCTS or MAP-Elites. They are regression and investigation tools, not proof of human difficulty or fun.
+
+## Browser smoke tests
+
+The optional browser runner checks direct-file launch, construction and upgrades, a complete first wave, all eight waves through victory and restart, combat effects, espresso/wind mechanics, Danish speech, explosion shake, shake-aligned placement, and two mobile viewports with touch placement and pinch zoom.
+
+```sh
+npm install --no-save playwright
+npx playwright install chromium
+npm run test:browser
+```
+
+Playwright is only a development/test dependency; it is not needed to play or run the unit/balance suites. Screenshots default to the system temporary directory. Set `STORTORGET_SCREENSHOTS` to choose another output directory.
