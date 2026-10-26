@@ -135,7 +135,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       }
     }
   });
-  test('the staff door, joined up: at its grade, a step into it opens it for COST_DOOR ticks with a soft noise; below, it is a wall; no exhibit ever passes one', () => {
+  test('the staff door, joined up: at its grade or above, a step into it opens it for COST_DOOR ticks with a soft noise; one grade below, it is a wall (staff_grade); no exhibit ever passes one', () => {
     const MAP = ['#########', '#...S...#', '#########'];
     const sc = H.scenario({
       name: 'a staff door opened at its grade', id: 'FIXTURES.staff', clone: true,
@@ -153,6 +153,33 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       },
     });
     assert.equal(json(H.failures(H.sweep(C, sc, H.DEPTHS.map(depth => ({ sp: null, depth }))))), '[]');
+    // One grade below its grade, it is a wall: the step into it is refused (staff_grade), the
+    // door stays shut, you stay where you are, and no time passes and no noise is made. The
+    // door's grade g is at least II (so a grade below it exists) and at most VII, the highest.
+    // One grade above, the step opens it, as at its grade.
+    const door = depth => Math.max(2, Math.min(7, depth + 1));
+    const at = (mine, g) => (p, sp, depth, opts) => Setup.room(opts.seed, { acc: 'T0', depth, map: MAP, you: [3, 1], grade: mine(g(depth)), fixtures: [{ k: 'staff', x: 4, y: 1, grade: g(depth) }],
+      exhibits: [{ sp: 'dummy', at: [7, 1], mode: 'hunting', stats: { hp: 999, acc: -99, eva: 0, pad: 0, dmin: 1, dmax: 1 } }] }, { rulesOff: opts.rulesOff, invulnerable: true });
+    const below = H.scenario({
+      name: 'a staff door one grade above yours is a wall', id: 'REFUSALS.staff_grade', clone: true,
+      build: at(g => g - 1, door),
+      actions: [{ a: 'move', dir: 2 }],
+      expect(r) {
+        const e0 = r.steps[0].events, you0 = r.start.actors[0], you1 = r.state.actors[0];
+        if (e0.length !== 1 || e0[0].k !== 'refused' || e0[0].reason !== 'staff_grade') return `the step into it gave ${json(e0)}, not one staff_grade refusal`;
+        if (r.state.dept.tiles[1][4] !== 'S') return `the door reads ${json(r.state.dept.tiles[1][4])}, not shut`;
+        if (you1.x !== 3 || you1.y !== 1) return `you moved to ${you1.x},${you1.y}`;
+        return you1.next === you0.next && r.state.tick === r.start.tick ? null : `the refusal cost ${you1.next - you0.next} ticks`;
+      },
+    });
+    assert.equal(json(H.failures(H.sweep(C, below, H.DEPTHS.map(depth => ({ sp: null, depth }))))), '[]');
+    const above = H.scenario({
+      name: 'a staff door one grade below yours opens', id: 'FIXTURES.staff', clone: true,
+      build: at(g => g + 1, depth => Math.max(1, Math.min(6, depth))),
+      actions: [{ a: 'move', dir: 2 }],
+      expect: r => r.steps[0].events.some(e => e.k === 'opened' && e.cause.k === 'staff') ? null : `the step into it gave ${json(r.steps[0].events)}`,
+    });
+    assert.equal(json(H.failures(H.sweep(C, above, H.DEPTHS.map(depth => ({ sp: null, depth }))))), '[]');
   });
   test('every case a department places, at depths 1–7, has a lock within its glass\'s range and an accession number; only a mimic\'s has none', () => {
     let n = 0;

@@ -97,6 +97,89 @@ module.exports = ({ test, assert, loadCore }) => {
     }));
   });
 
+  // Reach (CLAUSES.weapon_reach: "it also hits {reach} tiles away in a straight line, over a
+  // tile you could step onto that no one stands on"; ITEM_PRIMS.reach: "your blows reach
+  // {REACH_RANGE} tiles away in a straight line, as a Reach weapon's do"), played with real
+  // attacks, three ways: a Reach weapon at the tier on offer; a Balanced weapon and a curio
+  // with the reach primitive, put on first; and the Long-Handled Date Stamp (A4.6, a Light
+  // weapon with the primitive). The hunters are scheduled far ahead, so they stay put.
+  const REACH_WAYS = {
+    form: { id: 'CLAUSES.weapon_reach', range: p => p.reach, kit: depth => ({ weapon: { form: 'reach', tier: tierAt(depth) } }), items: () => [], first: [] },
+    curio: { id: 'ITEM_PRIMS.reach', range: p => p.REACH_RANGE, kit: () => undefined,
+      items: depth => [{ uid: 'c', kind: 'curio', where: { at: 'tote' }, prims: [{ id: 'reach', cls: CLS[depth % 3] }] }], first: [{ a: 'equip', uid: 'c' }] },
+    stamp: { id: 'ITEM_PRIMS.reach', range: p => p.REACH_RANGE, kit: () => undefined, first: [],
+      items: depth => { const rec = C.Packs.get('A4').items.find(i => i.id === 'A4.6'); return [{ uid: 'w', kind: 'weapon', ref: rec.id, form: rec.form, tier: tierAt(depth), where: { at: 'kit', slot: 'weapon' }, prims: rec.prims.map(q => ({ id: q.id, cls: q.cls })) }]; } },
+  };
+  const still = (at, extra) => Object.assign(dummy(at, 'hunting', { eva: 0 }), { next: 1000000, sawYou: true }, extra || {});
+  // The blows a run's attack steps struck: each a Reach blow at its target from exactly the
+  // clause's range, then its hit or miss, a hit from your tile.
+  function reachBlows(r, range) {
+    const from = [you(r.start).x, you(r.start).y];
+    for (const st of r.steps.filter(q => q.action.a === 'attack')) {
+      const a = st.events.find(e => e.k === 'attacked' && e.by === 'you');
+      if (!a || a.at !== st.action.uid || a.how.kind !== 'reach' || a.cause.dist !== range) return `no Reach blow from ${range} tiles at ${st.action.uid}: ${json(st.events.map(e => [e.k, e.reason || (e.how && e.how.kind) || null]))}`;
+      const res = st.events.find(e => (e.k === 'damaged' || e.k === 'missed') && e.cause && e.cause.by === 'you');
+      if (!res || res.cause.how.kind !== 'reach') return `its hit or miss: ${json(res)}`;
+      if (res.k === 'damaged' && json(res.cause.from) !== json(from)) return `the blow came from ${json(res.cause.from)}, not your tile ${json(from)}`;
+    }
+    return null;
+  }
+
+  test('Reach, played: a Reach weapon, a curio with the reach primitive and the Long-Handled Date Stamp each strike a hunter exactly {reach} tiles off, straight and diagonal; a body or a wall between, or a corner on either half of a diagonal, refuses it with no blow; without Reach it is out of reach', () => {
+    for (const [way, W] of Object.entries(REACH_WAYS)) {
+      // You at (3, 3); hunters exactly the range off east and south-east.
+      every(scenario({
+        name: `${W.id}: ${way}, a hunter the clause's range off east and one south-east, each struck`, id: W.id,
+        build: (params, sp, depth, { rulesOff }) => {
+          const d = W.range(params);
+          return room(depth, rulesOff, { grade: 7, kit: W.kit(depth), items: W.items(depth), exhibits: [still([3 + d, 3]), still([3 + d, 3 + d])] });
+        },
+        actions: (s, i) => W.first.concat([{ a: 'attack', uid: 'T0.' + s.dept.depth + '.room.1' }, { a: 'attack', uid: 'T0.' + s.dept.depth + '.room.2' }])[i] || null,
+        expect(r, params) {
+          if (W.range(params) !== N.REACH_RANGE) return `the clause says ${W.range(params)} tiles`;
+          if (!you(r.state).reach) return 'you have no Reach';
+          if (r.steps.length !== W.first.length + 2) return `${r.steps.length} steps`;
+          return reachBlows(r, W.range(params));
+        },
+      }));
+      // The refusals, each a single refused event with no blow, no noise and no time spent:
+      // east, a body between (blocked); west, a wall between (blocked); south-east, a wall
+      // on the first half's corner (corner); north-east, a wall on the second half's (corner).
+      // The curio is worn from the start here.
+      const worn = depth => W.items(depth).map(it => it.kind === 'curio' ? Object.assign({}, it, { where: { at: 'kit', slot: 'curio0' } }) : it);
+      every(scenario({
+        name: `${W.id}: ${way}, a body or a wall between, or a corner on either half, refuses it`, id: W.id,
+        build: (params, sp, depth, { rulesOff }) => {
+          const map = MAP.slice(), wall = (x, y) => { map[y] = map[y].slice(0, x) + '#' + map[y].slice(x + 1); };
+          wall(2, 3); wall(3, 4); wall(5, 2);
+          return room(depth, rulesOff, { grade: 7, map, kit: W.kit(depth), items: worn(depth),
+            exhibits: [still([5, 3]), still([4, 3]), still([1, 3]), still([5, 5]), still([5, 1])] });
+        },
+        actions: (s, i) => [1, 3, 4, 5].map(n => ({ a: 'attack', uid: `T0.${s.dept.depth}.room.${n}` }))[i] || null,
+        expect(r) {
+          const want = ['blocked', 'blocked', 'corner', 'corner'];
+          if (!you(r.start).reach) return 'you have no Reach';
+          for (let k = 0; k < want.length; k++) {
+            const ev = r.steps[k] && r.steps[k].events;
+            if (!ev || ev.length !== 1 || ev[0].k !== 'refused' || ev[0].reason !== want[k]) return `attack ${k + 1}: ${json(ev)}, not one refusal ${want[k]}`;
+          }
+          return you(r.state).next === you(r.start).next && r.state.tick === r.start.tick ? null : `the refusals cost ${you(r.state).next - you(r.start).next} ticks`;
+        },
+      }));
+    }
+    // Without Reach (a Balanced weapon, no curio), the same blow is out of reach: the control
+    // that shows the scenarios above would fail with Reach switched off.
+    every(scenario({
+      name: 'without Reach, a hunter 2 tiles off is out of reach', id: 'CLAUSES.weapon_reach',
+      build: (params, sp, depth, { rulesOff }) => room(depth, rulesOff, { grade: 7, exhibits: [still([5, 3])] }),
+      actions: (s, i) => i === 0 ? { a: 'attack', uid: `T0.${s.dept.depth}.room.1` } : null,
+      expect(r) {
+        const ev = r.steps[0].events;
+        return you(r.state).reach === false && ev.length === 1 && ev[0].k === 'refused' && ev[0].reason === 'out_of_reach' ? null : `without Reach: ${json(ev)}`;
+      },
+    }));
+  });
+
   test('the instruments: the fork rings where it is aimed, the Pin-Driver\'s bolt has its own damage and your Acc without the weapon\'s, and the pole pushes, pulls and takes; each spends a charge and gets it back', () => {
     // The fork, at a tile within its range, then waited on until its charge comes back.
     every(scenario({
