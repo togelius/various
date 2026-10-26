@@ -1,9 +1,11 @@
 // The darter arena (BUILD.md §10.3): a room; kill it. A darter hunts you in an open room. You
 // start in the middle of the room, in the kit a run starts with (a T1 Balanced weapon and a T1
-// Standard garment, at grade I). A darter strikes from beside you and at once steps back in
-// the same action, two tiles a turn on its feet. Naive chases it, and so spends its turns
-// walking up to it while it strikes; the counterplay goes to the nearest corner, puts its
-// back to the walls there and holds still, striking whenever the darter is beside it.
+// Standard garment, at grade I). A darter moves two tiles a turn; beside you, it strikes and
+// at once steps back, in the same action, to a tile farther from you, and with no such tile
+// it is cornered and stays. Naive chases it, and so spends its turns walking up to it while
+// it strikes; the counterplay corners it, its back to a wall: it comes at the darter from the
+// side that leaves it the fewest tiles to step back to, until it has none, and strikes it
+// whenever it is beside it.
 arena: darter
 goal: kill
 cap: 200

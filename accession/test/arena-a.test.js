@@ -6,6 +6,7 @@
 // however often, and whatever ran before it. The 200-seed gate is Wave 3's.
 module.exports = ({ test, assert, root, path }) => {
   const Sim = require(path.join(root, 'tools/sim.js'));
+  const Stats = require(path.join(root, 'tools/stats.js'));
   const C = Sim.load();
   const J = v => JSON.parse(JSON.stringify(v)), eq = (a, b, m) => assert.deepEqual(J(a), J(b), m);
   const clean = (s, what) => assert.doesNotMatch(String(s), /undefined|NaN|\[object|\bnull\b/, `${what}: not a clean sentence: ${s}`);
@@ -37,15 +38,49 @@ module.exports = ({ test, assert, root, path }) => {
   const on = (a, list) => list.some(([x, y]) => a.x === x && a.y === y);
 
   // The paired smoke runs, made once and shared by the tests below: seeds 1–20, every
-  // invariant after every step.
+  // invariant after every step, with each run's events.
   const smoke = {};
-  const pairedOf = id => smoke[id] || (smoke[id] = Sim.paired(id, 'naive', 'counter', SEEDS, { C, check: true, coreHash: 'test' }));
+  const pairedOf = id => smoke[id] || (smoke[id] = Sim.paired(id, 'naive', 'counter', SEEDS, { C, check: true, coreHash: 'test', log: true }));
+  // The health a run took from the exhibits: every blow's damage to one, summed (a split
+  // moves health between halves and takes none).
+  const dealt = run => run.events.filter(e => e.k === 'damaged' && e.who !== 'you').reduce((t, e) => t + e.amount, 0);
 
-  // A run replayed from its start alone: each(state before the step, action, step number).
-  function replay(r, each) {
+  // A run replayed from its start alone: each(state before the step, action, step number),
+  // then after(state after it, its events, step number).
+  function replay(r, each, after) {
     const s = Sim.rebuild(r.replay.start, r.replay.options, C);
-    r.replay.actions.forEach((a, i) => { each(s, a, i); C.Step.step(s, a); });
+    r.replay.actions.forEach((a, i) => { if (each) each(s, a, i); const ev = C.Step.step(s, a); if (after) after(s, ev, i); });
     return s;
+  }
+
+  // The tiles the darter d could step back to after its blow if you stood on (x, y), by its
+  // own rule (rules/arch/darter.js): an empty tile beside it, not a closed door, farther from
+  // you by its walking distance (AI.field). Worked out from the state, apart from the
+  // policy's own code, which reads only what the view model shows.
+  function backRoom(s, d, x, y) {
+    const m = s.dept, f = C.AI.field(s, d, [x, y], 'onto'), here = f[d.y * m.w + d.x];
+    if (here < 0) return 0;
+    let n = 0;
+    for (let k = 0; k < 8; k++) {
+      const nx = d.x + C.Grid.DX[k], ny = d.y + C.Grid.DY[k], o = C.Actors.at(s, nx, ny, d);
+      if (C.Grid.canStep(m, d.x, d.y, k, 'exhibit') && !C.Grid.closedDoor(m, nx, ny) && f[ny * m.w + nx] > here && (!o || o.uid === 'you')) n++;
+    }
+    return n;
+  }
+  // The darter's blows in a run, and those after which it did not step back (it was
+  // cornered), leaving out a blow that ended the visit.
+  function darterBlows(run) {
+    let blows = 0, stayed = 0;
+    replay(run, null, (s, ev) => {
+      if (ev.some(e => e.k === 'died' && e.who === 'you')) return;
+      ev.forEach((e, i) => {
+        if (e.k !== 'attacked' || e.by === 'you') return;
+        blows++;
+        const next = ev.slice(i + 1), end = next.findIndex(x => x.k === 'attacked');
+        if (!(end < 0 ? next : next.slice(0, end)).some(x => x.k === 'moved' && x.who === e.by)) stayed++;
+      });
+    });
+    return { blows, stayed };
   }
 
   test('each stamp is §10.3\'s arena: its goal, cap, depths, metric, species, exhibits hunting you, and the kit a run starts with', () => {
@@ -105,9 +140,10 @@ module.exports = ({ test, assert, root, path }) => {
       assert.match(card, /\n  1\. \S/);
       assert.ok(readme.includes(`### ${id}.${k}\n\n${p.policy.card.summary}\n`), `${id}.${k} is in the README`);
     }
-    // §10.3's splitter row: Light against Heavy, and nothing else differs in the kit.
+    // §10.3's splitter row: Light against Heavy, and nothing else differs in the kit (the
+    // tier is the arena's, so the stamp alone says it).
     eq([C.Policies.get('splitter.naive').policy.kit, C.Policies.get('splitter.counter').policy.kit],
-      [{ weapon: { form: 'light', tier: 1 } }, { weapon: { form: 'heavy', tier: 1 } }]);
+      [{ weapon: { form: 'light' } }, { weapon: { form: 'heavy' } }]);
     for (const id of ['plodder', 'darter', 'mote_swarm']) for (const k of ['naive', 'counter']) assert.equal(C.Policies.get(`${id}.${k}`).policy.kit, undefined, `${id}.${k} wears the arena's kit`);
   });
 
@@ -129,6 +165,13 @@ module.exports = ({ test, assert, root, path }) => {
       const s = r.stats.hpLost;
       console.log(`  ${id}, seeds 1–20: HP lost ${s.sumB} with the counterplay against ${s.sumA} naive; ${r.verdict.sentence}`);
       assert.ok(!(s.sumB > s.sumA && s.lo > 0), `${id}: the counterplay is worse than naive on seeds 1–20: ${r.verdict.sentence}`);
+      // HP lost stops counting at a death, so where naive dies on (nearly) every seed it cannot
+      // show a worse counterplay. So the health each took from the exhibits (the kill goal's
+      // progress, which goes on counting up to the death) is compared too, the same way: worse
+      // would be a counterplay that takes less in total, with the interval wholly below zero.
+      const d = Stats.compare(r.a.runs.map(dealt), r.b.runs.map(dealt), { path: `bootstrap/${id}/dealt` });
+      console.log(`  ${id}, seeds 1–20: health taken from the exhibits ${d.sumB} with the counterplay against ${d.sumA} naive; the mean per-seed difference is ${d.mean.toFixed(2)} (95% interval ${d.lo.toFixed(2)} to ${d.hi.toFixed(2)})`);
+      assert.ok(!(d.sumB < d.sumA && d.hi < 0), `${id}: the counterplay takes less health from the exhibits than naive on seeds 1–20: ${d.sumB} against ${d.sumA}, interval ${d.lo} to ${d.hi}`);
     }
   });
 
@@ -159,22 +202,30 @@ module.exports = ({ test, assert, root, path }) => {
     }
   });
 
-  test('the darter counterplay goes to a corner and holds still there; naive chases it and never waits while it can walk after it', () => {
+  test('the darter counterplay corners it: it strikes whenever it can, and otherwise steps nearer by the step that leaves the darter the fewest tiles to step back to, so the darter is cornered on more of its blows; naive chases it and never waits while it can walk after it', () => {
     const r = pairedOf('darter');
-    for (const run of r.b.runs) {
-      let held = false;
-      replay(run, (s, a, i) => {
-        const you = s.actors[0], at = `darter counter seed ${run.seed} step ${i + 1}`;
-        if (on(you, gaps(s, 'corner'))) held = true;
-        if (held) assert.ok(a.a === 'attack' || a.a === 'wait', `${at}: once in a corner it holds still (${C.Obs.say(a)})`);
-        else if (a.a === 'move') assert.ok(C.Combat.canStrike(s, you, s.actors[1], { kind: 'melee' }) !== null, `${at}: it walks to the corner only while it cannot strike`);
-      });
-      assert.ok(held || run.outcome.died, `darter counter seed ${run.seed}: it reached a corner`);
-    }
+    for (const run of r.b.runs) replay(run, (s, a, i) => {
+      const you = s.actors[0], d = s.actors[1], at = `darter counter seed ${run.seed} step ${i + 1}`, legal = C.Step.legal(s);
+      if (d.gone) return;
+      if (legal.some(l => l.a === 'attack' && l.uid === d.uid)) { eq(a, { a: 'attack', uid: d.uid }, `${at}: it strikes the darter beside it`); return; }
+      const now = C.Actors.between(you, d), nearer = legal.filter(l => l.a === 'move').map(l => [l, you.x + C.Grid.DX[l.dir], you.y + C.Grid.DY[l.dir]])
+        .filter(([, x, y]) => !C.Actors.at(s, x, y, you) && Math.max(Math.abs(x - d.x), Math.abs(y - d.y)) < now);
+      assert.ok(a.a === 'move' || !nearer.length, `${at}: it waits only when no step brings it nearer (${C.Obs.say(a)})`);
+      if (a.a !== 'move' || !nearer.length) return;
+      const x = you.x + C.Grid.DX[a.dir], y = you.y + C.Grid.DY[a.dir], least = Math.min(...nearer.map(([, nx, ny]) => backRoom(s, d, nx, ny)));
+      assert.ok(nearer.some(([l]) => l.dir === a.dir), `${at}: its step brings it nearer the darter`);
+      assert.equal(backRoom(s, d, x, y), least, `${at}: its step leaves the darter the fewest tiles to step back to`);
+    });
     for (const run of r.a.runs) replay(run, (s, a, i) => {
       const obs = C.Obs.make(s, [], null, null), foes = C.Obs.hostiles(obs.vm);
       if (a.a === 'wait') assert.ok(!foes.some(f => C.Obs.step(obs, f.x, f.y)), `darter naive seed ${run.seed} step ${i + 1}: it waits only with no way after the darter`);
     });
+    // The darter's own rule at the centre: against the counterplay it is cornered (no step
+    // back after its blow) on a larger share of its blows than against naive.
+    const share = side => side.runs.map(darterBlows).reduce((t, b) => ({ blows: t.blows + b.blows, stayed: t.stayed + b.stayed }), { blows: 0, stayed: 0 });
+    const n = share(r.a), c = share(r.b);
+    console.log(`  darter, seeds 1–20: cornered on ${c.stayed} of its ${c.blows} blows against the counterplay, ${n.stayed} of ${n.blows} against naive`);
+    assert.ok(c.blows > 0 && n.blows > 0 && c.stayed * n.blows > n.stayed * c.blows, `the darter is cornered on more of its blows against the counterplay: ${c.stayed}/${c.blows} against ${n.stayed}/${n.blows}`);
   });
 
   test('the two splitter policies wear Light and Heavy weapons and otherwise decide alike', () => {

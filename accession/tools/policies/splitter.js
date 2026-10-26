@@ -1,10 +1,11 @@
 // ACCESSION — the splitter arena's policies (BUILD.md §10.3; test/arena/splitter.txt): a
 // splitter in an open room. Each hit it survives with 2 or more health splits it into two
 // halves, which split again, up to SPLIT_MAX splits deep (§8.1), and every half strikes. The
-// two policies fight in the same way and differ only in their weapon (their kit, which the
-// arena gives them): naive brings a T1 Light weapon, the counterplay a T1 Heavy one, whose
-// harder hits leave less of a body to split and fell its halves in fewer hits. At grade I a
-// T1 Heavy weapon is one grade short, as its label says, so it costs 2 Acc (§8.1).
+// two policies fight in the same way and differ only in their weapon's form (their kit):
+// naive brings a Light weapon, the counterplay a Heavy one, whose harder hits leave less of a
+// body to split and fell its halves in fewer hits. The tier is the arena's (its stamp gives
+// none, so T1, as a run starts). At grade I a T1 Heavy weapon is one grade short, as its
+// label says, so it costs 2 Acc (§8.1).
 //
 // A classic script, loaded after lib.js into the hardened core context. Each policy sees only
 // obs (Obs.make: the view model, the labels it reads, the legal actions) and keeps what it
@@ -61,13 +62,13 @@
 
   Policies.add('splitter', {
     naive: {
-      card: { summary: 'Fights the splitter with a T1 Light weapon: many small hits, each of which the body or a half may survive and split on.', rules, weights },
-      kit: { weapon: { form: 'light', tier: 1 } },
+      card: { summary: 'Fights the splitter with a Light weapon, of the tier the arena gives: many small hits, each of which the body or a half may survive and split on.', rules, weights },
+      kit: { weapon: { form: 'light' } },
       decide: fight('Light'),
     },
     counter: {
-      card: { summary: 'Fights the splitter as naive does, but with a T1 Heavy weapon: fewer, harder hits, which leave less of a body to split and fell its halves sooner.', rules, weights },
-      kit: { weapon: { form: 'heavy', tier: 1 } },
+      card: { summary: 'Fights the splitter as naive does, but with a Heavy weapon, of the tier the arena gives: fewer, harder hits, which leave less of a body to split and fell its halves sooner.', rules, weights },
+      kit: { weapon: { form: 'heavy' } },
       decide: fight('Heavy'),
     },
   });

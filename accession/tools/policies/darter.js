@@ -1,10 +1,13 @@
 // ACCESSION — the darter arena's policies (BUILD.md §10.3; test/arena/darter.txt): a darter in
 // an open room. A darter steps two tiles a turn and, beside you, strikes and at once steps
-// back in the same action (§8.1). Naive chases it: each turn it walks up to the darter, which
-// then strikes and steps away before naive's next turn, so naive rarely strikes at all. The
-// counterplay puts its back to the walls of the nearest corner and holds still there: the
-// darter has to come back beside it to strike, and on some of those turns it is still
-// there when the counterplay's turn comes, and is struck.
+// back in the same action, to an empty tile beside it that is farther from you by walking
+// distance; with no such tile it is cornered and stays (§8.1). Naive chases it: each turn it
+// walks up to the darter, which then strikes and steps away before naive's next turn, so
+// naive strikes only when the darter happens to be cornered. The counterplay corners it, its
+// back to a wall (the design's "corner it against walls", vocabulary.md §2.1): it comes at
+// the darter from the side that leaves it the fewest tiles to step back to, so each step back
+// takes it toward a wall, until it stands with its back to the wall and you square in front
+// of it, where it has none; there it strikes and stays beside you, and is struck back.
 //
 // A classic script, loaded after lib.js into the hardened core context. Each policy sees only
 // obs (Obs.make: the view model, the labels it reads, the legal actions) and keeps what it
@@ -26,17 +29,34 @@
   }
   const strike = (f, where) => ({ action: { a: 'attack', uid: f.uid }, reason: `attacks ${f.uid} beside it${where}, ${f.hp} of ${f.maxHp} HP left` });
 
-  // The nearest corner: a tile you can walk on with walls on two sides that meet (north and
-  // west, north and east, south and west, or south and east), the nearest by the way a tap
-  // would walk you there; null if none is in view or none can be walked to.
-  function corner(vm) {
-    const m = Obs.board(vm).dept, me = Obs.you(vm), wall = (x, y) => !Grid.walkable(m, x, y);
-    let best = null, bestLen = 0;
-    for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) {
-      if (wall(x, y) || !((wall(x, y - 1) || wall(x, y + 1)) && (wall(x - 1, y) || wall(x + 1, y)))) continue;
-      const here = me.x === x && me.y === y, len = here ? 0 : Obs.path(vm, x, y).length;
-      if (!here && !len) continue;
-      if (best === null || len < bestLen) { best = [x, y]; bestLen = len; }
+  // The tiles a darter at d could step back to after its blow if you stood on (px, py): the
+  // empty tiles beside it, not a closed door, that are farther from (px, py) than it
+  // is by the exhibits' walking distance (§8.1, AI.field's rule), over the tiles the view
+  // model shows. None when its back is to a wall and you stand square in front of it.
+  function room(vm, d, px, py) {
+    const m = Obs.board(vm).dept, far = Grid.distances(m, [[px, py]], m.w * m.h, null, 'exhibit'), here = far[d.y * m.w + d.x];
+    if (here < 0) return 0;
+    let n = 0;
+    for (let k = 0; k < 8; k++) {
+      const nx = d.x + Grid.DX[k], ny = d.y + Grid.DY[k];
+      if (!Grid.canStep(m, d.x, d.y, k, 'exhibit') || Grid.closedDoor(m, nx, ny) || far[ny * m.w + nx] <= here) continue;
+      if (vm.actors.some(a => a.uid !== 'you' && a.uid !== d.uid && Obs.dist(a, nx, ny) === 0)) continue;
+      n++;
+    }
+    return n;
+  }
+
+  // The step toward the exhibit f (one that ends nearer it) after which it would have the
+  // fewest tiles to step back to; ties go to the step that ends nearer it, then by direction.
+  // {action, room, dist} or null.
+  function corner(obs, f) {
+    const vm = obs.vm, me = Obs.you(vm), now = Obs.dist(f, me.x, me.y);
+    let best = null;
+    for (const l of Obs.legalOf(obs, 'move')) {
+      const x = me.x + Grid.DX[l.dir], y = me.y + Grid.DY[l.dir], dd = Obs.dist(f, x, y);
+      if (dd >= now || vm.actors.some(a => a.uid !== 'you' && Obs.dist(a, x, y) === 0)) continue;
+      const r = room(vm, f, x, y);
+      if (best === null || r < best.room || (r === best.room && dd < best.dist)) best = { action: l, room: r, dist: dd };
     }
     return best;
   }
@@ -97,32 +117,34 @@
     },
     counter: {
       card: {
-        summary: 'Puts its back to a wall: goes to the nearest corner and holds still there, striking the darter whenever it is beside it, never walking after it.',
+        summary: 'Corners the darter, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.',
         rules: [
-          'Find the nearest corner once, at its first decision: a tile with walls on two sides that meet.',
-          'Read the label of each exhibit the first time it is in view.',
+          'Read the label of each exhibit the first time it is in view (a darter steps back after its blow only if it has room).',
           'If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).',
-          'Otherwise, if it is not standing in the corner, take the first step of the way a tap on the corner would walk.',
+          'Otherwise, if an exhibit is in view, step toward the nearest by the step after which it would have the fewest tiles to step back to: the empty tiles beside it, not a closed door, that are farther from you by walking distance, none when its back is to a wall and you stand square in front of it. Ties go to the step that ends nearer it, then by direction.',
           `Otherwise, if it has seen no exhibit for ${PATIENCE} turns, walk toward where it last saw one.`,
-          'Otherwise, wait in the corner for the darter to come back beside it.',
+          'Otherwise, wait.',
         ],
         weights: [['turns without an exhibit in view before it goes to look', PATIENCE]],
       },
       decide(obs) {
-        const vm = obs.vm, mem = obs.memory, me = Obs.you(vm);
-        if (mem.corner === undefined) mem.corner = corner(vm);
-        const foes = remember(obs), read = readNew(obs, foes), s = strikable(obs);
-        if (s.length) { const d = strike(s[0], at(me, mem.corner) ? ', its back to the corner' : ''); d.reason = read + d.reason; return d; }
-        if (mem.corner && !at(me, mem.corner)) {
-          const st = Obs.step(obs, mem.corner[0], mem.corner[1]);
-          if (st) return { action: st, reason: `${read}steps ${Obs.DIRS[st.dir]} toward the corner at ${mem.corner[0]},${mem.corner[1]}, to put its back to the walls` };
+        const vm = obs.vm, me = Obs.you(vm), foes = remember(obs), read = readNew(obs, foes), s = strikable(obs);
+        if (s.length) {
+          const f = s[0], r = room(vm, f, me.x, me.y);
+          return { action: { a: 'attack', uid: f.uid }, reason: `${read}attacks ${f.uid} beside it, ${f.hp} of ${f.maxHp} HP left, ` +
+            (r ? `with ${r === 1 ? '1 tile' : `${r} tiles`} it could step back to` : 'its back to a wall: it has no tile to step back to') };
+        }
+        if (foes.length) {
+          const f = foes[0], c = corner(obs, f);
+          if (c) {
+            const where = c.dist === 1 ? `beside ${f.uid}` : `toward ${f.uid}, ${c.dist} tiles from it`;
+            return { action: c.action, reason: `${read}steps ${Obs.DIRS[c.action.dir]} ${where}, where it would have ` +
+              (c.room ? `${c.room === 1 ? '1 tile' : `${c.room} tiles`} to step back to, the fewest of its steps` : 'no tile to step back to, its back to a wall') };
+          }
         }
         const l = look(obs);
         if (l) { l.reason = read + l.reason; return l; }
-        const where = at(me, mem.corner) ? 'with its back to the corner' : mem.corner ? 'where it is, with no way into the corner now' : 'where it is, with no corner in view';
-        if (!foes.length) return { action: { a: 'wait' }, reason: `${read}holds still ${where}: no exhibit in view` };
-        const f = foes[0];
-        return { action: { a: 'wait' }, reason: `${read}holds still ${where} while ${f.uid} is ${Obs.dist(f, me.x, me.y)} tiles away, for it to come back beside it` };
+        return { action: { a: 'wait' }, reason: `${read}waits: ${foes.length ? 'no step brings it nearer the exhibit in view' : 'no exhibit in view'}` };
       },
     },
   });
