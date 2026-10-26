@@ -583,7 +583,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Labels.of(s, half.uid).title, 'A split of ' + the);
     assert.equal(Labels.of(s, s.actors[1].uid).title, sp.name);
     const made = C.Text.log(ev, names).join(' ');
-    assert.ok(made.includes(`${the.charAt(0).toUpperCase() + the.slice(1)} splits in two`), made);
+    assert.ok(made.includes(`${the.charAt(0).toUpperCase() + the.slice(1)} split in two`), made);
   });
 
   test('a split half keeps its name after it settles back and is woken again, though that waking writes over the story that said how it split', () => {
@@ -612,7 +612,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Labels.of(s, half.uid).title, 'A split of ' + the);
     assert.equal(names()(s.actors[1].uid), the, 'the body it split from keeps its own name');
     const log = C.Text.log(ev, names());
-    assert.ok(log.includes(`A split of ${the} woke and is hunting you: you stayed inside your ring.`), log.join('\n'));
+    assert.ok(log.includes(`A split of ${the} woke and began hunting you: you stayed inside your ring.`), log.join('\n'));
     assert.ok(!log.some(l => l.startsWith(The + ' woke')), log.join('\n'));
   });
 

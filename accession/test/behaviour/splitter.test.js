@@ -136,7 +136,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const made = ev.find(isHalf);
     assert.equal(json([made.who, made.mode]), json([h1.uid, 'hunting']));
     assert.equal(Causes.check(made), null);
-    assert.equal(Text.event(made, uid => uid === 'you' ? null : 'the Bust of the Proposing Trustee'), 'The Bust of the Proposing Trustee splits in two, under your hit; the new half is hunting you.');
+    assert.equal(Text.event(made, uid => uid === 'you' ? null : 'the Bust of the Proposing Trustee'), 'The Bust of the Proposing Trustee split in two, under your hit; the new half began hunting you.');
     blow(s, a, 2, ev);                          // 6 left: a half of 3, the body keeps 3; generation 2
     const h2 = s.actors[3];
     assert.equal(json([a.hp, a.gen, a.kids, h2.uid, h2.hp, h2.gen, h2.x, h2.y]), json([3, 2, 2, a.uid + '/2', 3, 2, 6, 2]), 'north is taken, so north-east');
@@ -241,8 +241,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(json([a.hp, h.hp, h.gen, made.cause.by]), json([8, 8, 1, cause.by]), cause.k);
       for (const e of ev) assert.equal(Causes.check(e), null, json(e));
       const said = Text.event(made, uid => names[uid]);
-      assert.equal(said, cause.by === 'you' ? 'The Bust of the Proposing Trustee splits in two, under your hit; the new half is hunting you.'
-        : 'The Bust of the Proposing Trustee splits in two, hit by the Seated Clerk of the Ordinance Office; the new half is hunting you.', cause.k);
+      assert.equal(said, cause.by === 'you' ? 'The Bust of the Proposing Trustee split in two, under your hit; the new half began hunting you.'
+        : 'The Bust of the Proposing Trustee split in two, hit by the Seated Clerk of the Ordinance Office; the new half began hunting you.', cause.k);
     }
   });
 

@@ -8,9 +8,11 @@
 // Then M3's verbs (playM3, at the end of this file): the Bag's wiring; select and read a
 // case, open one and walk into it (your own label there), break one through the
 // confirmation (Cancel and a click beside it cancel), step onto shards through theirs (the
-// key for that step asks too), step off a beam, sit and rest (once only in the night
-// watch), take an item, read a plaque, walk until a status of yours ends, onto a pool and
-// until the bell rings (its banner in the strip), die and press "Another visit", leave and
+// key for that step asks too), step off a beam, sit and rest (a long rest told in one log
+// line; once only in the night watch), take an item, read a plaque, walk until a status of
+// yours ends, past a sleeping exhibit seen before that comes back into view as it was (and
+// stop when it comes back with a pip), onto a pool and until the bell rings (its banner in
+// the strip), die and press "Another visit", leave and
 // press it again; a status shown in the top bar; and no sideways scroll or target under
 // 44 px. Last (touchM3), with a finger on a touch screen: a confirmation stays until it is
 // answered.
@@ -291,7 +293,7 @@ await playM3(SIZES, lines, bad);
 await touchM3(lines, bad);
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; the Bag wired; cases read, opened and broken, shards, a beam stepped off, sat and rested, an item taken, a plaque read, walks stopped by a status, a pool and the bell, a death and a leaving each followed by another visit; a confirmation answered by finger taps; no problems`);
+console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; the Bag wired; cases read, opened and broken, shards, a beam stepped off, sat and rested (a long rest in one log line), an item taken, a plaque read, walks stopped by a status, a pool and the bell, not by an exhibit seen before coming back as it was but by one come back with a pip, a death and a leaving each followed by another visit; a confirmation answered by finger taps; no problems`);
 process.exit(problems.length ? 1 : 0);
 
 // ---- M3's verbs (BUILD.md §7.1, §8.1, §8.3, §8.4) ----
@@ -682,15 +684,21 @@ async function playM3(sizes, lines, bad) {
           else if (t2.turn - t1.turn < 2) bad(`${tag}: Rest did not repeat`);
           else if (!t2.seated) bad(`${tag}: resting got you up from the bench`);
           else did.push(`rested ${t2.turn - t1.turn} turns to full health`);
+          // A rest that repeated leaves one line in the log (§7.1, Text.rest): the turns and the
+          // health that came back, the newest entry once it ends.
+          const said = await page.evaluate(d => ({ want: Text.rest(d), got: window.ACCESSION.history.slice(-1)[0] }), { turns: t2.turn - t1.turn, regained: t2.hp - t1.hp, hp: t2.hp, maxHp: t2.maxHp });
+          if (!said.want || said.got !== said.want) bad(`${tag}: after a long rest the log's newest entry is "${said.got}", not "${said.want}"`);
+          else did.push('a long rest told in one line');
         }
         // In the night watch no health comes back (§8.4), so Rest rests once and stops. The
         // clock is set into the night watch for this (with no Night Watchman due), then back.
         const was = await page.evaluate(() => { const A = window.ACCESSION, s = A.state, c = s.dept.clock, me = s.actors[0]; window.__m3.calm(); const w = { stage: c.stage, count: c.count, back: c.watch.back }; c.stage = 2; c.count = c.B + c.G + 1; c.watch.back = c.count + 1000; me.hp = me.maxHp - 3; A.redraw(); return w; });
         if (await page.evaluate(() => UI.labelShown()) !== 'you') await tapAt({ uid: 'you' }, tag, 'you');
-        const n0 = await now();
+        const n0 = await now(), said0 = await page.evaluate(() => window.ACCESSION.history.join('\n'));
         if (await press('#sheet [data-label-act="rest"]', tag, 'Rest in the night watch')) {
           const n1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy);
           if (n1.turn - n0.turn !== 1 || why !== 'no_recovery' || n1.hp !== n0.hp) bad(`${tag}: in the night watch Rest went on for ${n1.turn - n0.turn} turns (${why}, ${n0.hp} → ${n1.hp})`);
+          else if (await page.evaluate(was => { const h = window.ACCESSION.history; return h.join('\n') !== was && (h[h.length - 1] || '').startsWith('You rested'); }, said0)) bad(`${tag}: a single rest left a long rest's line in the log`);
           else did.push('in the night watch, rested once');
         }
         await page.evaluate(w => { const A = window.ACCESSION, s = A.state, c = s.dept.clock; c.stage = w.stage; c.count = w.count; c.watch.back = w.back; s.actors[0].hp = s.actors[0].maxHp; A.redraw(); }, was);
@@ -760,6 +768,64 @@ async function playM3(sizes, lines, bad) {
         const t1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy), steps = Math.max(Math.abs(t1.x - ln.from[0]), Math.abs(t1.y - ln.from[1]));
         if (why !== 'status' || steps !== 1) bad(`${tag}: as dazed ended, the walk went ${steps} steps and stopped for ${why}`);
         else did.push('a walk stopped as a status ended');
+      }
+
+      // A walk stops for what is new or changed in sight, never for a sleeping exhibit you
+      // have seen coming back into view as it was (§7.1). On a lane out of every exhibit's
+      // sight, a sleeping plodder is stood (staged) where the board shows it from the lane's
+      // start and from its second tile; the walk's first step takes it back out of sight and
+      // its second puts it where it was (Step.step wrapped for this walk, the plodder kept
+      // asleep with no pips). Back as it was, the walk goes on to the lane's end; back with a
+      // pip, it stops there, for what it sees.
+      for (const pip of [0, 1]) {
+        await closeLabel();
+        const sc = await page.evaluate(pip => {
+          const A = window.ACCESSION, s = A.state, M = window.__m3, me = s.actors[0], m = s.dept; M.calm();
+          const end = M.lane(4);
+          if (!end) return { why: 'no lane of free tiles out of every exhibit\'s sight' };
+          // The walk's own path (ties broken as Path.to breaks them), from none of whose tiles an
+          // exhibit is in sight either.
+          const from = [me.x, me.y], path = Path.to(s, end[0], end[1]);
+          const alone = ([x, y]) => { me.x = x; me.y = y; const one = ViewModel.derive(s, {}).actors.length === 1; me.x = from[0]; me.y = from[1]; return one; };
+          if (path.length !== 4 || !path.every(alone)) return { why: 'an exhibit is in sight from the walk\'s path' };
+          const e = s.actors.find(a => a.arch === 'plodder' && !a.gone && (a.size || 1) === 1 && Archetypes.present(s, a) === null && !Cases.encased(s, a));
+          if (!e) return { why: 'no plodder to stage' };
+          const home = [e.x, e.y];
+          // What you see from (x, y), as the view model would.
+          const sees = (x, y, tx, ty) => { const was = [me.x, me.y]; me.x = x; me.y = y; const v = Vision.visible(s)[ty * m.w + tx] === 1; me.x = was[0]; me.y = was[1]; return v; };
+          let at = null;
+          for (let dy = -3; dy <= 3 && !at; dy++) for (let dx = -3; dx <= 3 && !at; dx++) {
+            const x = from[0] + dx, y = from[1] + dy;
+            if (!M.free(x, y) || path.some(t => t[0] === x && t[1] === y) || (x === from[0] && y === from[1])) continue;
+            if (sees(from[0], from[1], x, y) && sees(path[1][0], path[1][1], x, y) && !sees(path[0][0], path[0][1], home[0], home[1])) at = [x, y];
+          }
+          if (!at) return { why: 'no tile in sight from the lane\'s start and its second tile' };
+          e.x = at[0]; e.y = at[1];
+          if (JSON.stringify(Path.to(s, end[0], end[1])) !== JSON.stringify(path)) { e.x = home[0]; e.y = home[1]; return { why: 'the staged plodder turns the walk' }; }
+          A.redraw();
+          const real = Step.step, inView = () => ViewModel.derive(s, {}).actors.some(a => a.uid === e.uid), seen = [];
+          let k = 0;
+          const keep = () => { e.mode = 'dormant'; e.pips = k >= 2 ? pip : 0; e.telegraph = null; e.stim = s.turn; };
+          Step.step = (st, act) => {
+            const ev = real(st, act);
+            k++;
+            if (k === 1) { e.x = home[0]; e.y = home[1]; }
+            if (k === 2) { e.x = at[0]; e.y = at[1]; }
+            keep(); seen.push(inView());
+            return ev;
+          };
+          M.unwrap = () => { Step.step = real; e.x = home[0]; e.y = home[1]; keep(); A.redraw(); return seen; };
+          return { from, to: end };
+        }, pip);
+        if (sc.why) { bad(`${tag}: could not stage an exhibit coming back into view: ${sc.why}`); continue; }
+        await tapAt({ x: sc.to[0], y: sc.to[1] }, tag, 'the end of the lane');
+        const t1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy), steps = Math.max(Math.abs(t1.x - sc.from[0]), Math.abs(t1.y - sc.from[1]));
+        const seen = await page.evaluate(() => window.__m3.unwrap());
+        if (seen[0] !== false) bad(`${tag}: the staged plodder was not out of sight after the walk's first step`);
+        else if (pip === 0 && (steps !== 4 || why !== null)) bad(`${tag}: a sleeping exhibit seen before went out of sight and came back into view as it was, and the walk stopped after ${steps} of 4 steps (${why})`);
+        else if (pip === 1 && (steps !== 2 || why !== 'sight')) bad(`${tag}: a sleeping exhibit came back into view with a pip, and the walk went ${steps} steps (${why}), not 2 stopping for it`);
+        else if (seen[1] !== true) bad(`${tag}: the staged plodder was not back in view after the walk's second step`);
+        else did.push(pip === 0 ? 'a walk went on past an exhibit seen before, back as it was' : 'a walk stopped for an exhibit back with a pip');
       }
 
       // A walk stops on the first loud tile it brings you onto (§7.1): a pool, which asks

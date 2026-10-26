@@ -328,7 +328,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Text.event(back, names), 'The Ground-Nesting Brooder, With Its Nest missed you (rolled 88 against 70%).');
     const big = { k: 'missed', turn: 4, by: cp.uid, at: 'you', cause: { k: 'attack', by: cp.uid, at: 'you', chance: 70, roll: 88 } };
     assert.equal(Text.event(big, names), 'The Composite, Assembled From the Round Books missed you (rolled 88 against 70%).');
-    assert.equal(Text.event({ k: 'hunting', turn: 3, who: caller.uid, was: 'dormant', cause: { k: 'damage', by: 'you' } }, names), 'The Dawn-Caller on a Perch woke and is hunting you: it was struck.');
+    assert.equal(Text.event({ k: 'hunting', turn: 3, who: caller.uid, was: 'dormant', cause: { k: 'damage', by: 'you' } }, names), 'The Dawn-Caller on a Perch woke and began hunting you: it was struck.');
     assert.equal(Text.event({ k: 'died', turn: 9, who: caller.uid, cause: {} }, names), 'The Dawn-Caller on a Perch broke apart.');
     assert.equal(Text.event({ k: 'died', turn: 9, who: 'you', cause: {} }, names), 'You fell.');
     // No names, a nameOf that knows nobody, or a map callback's index: the test room's words.

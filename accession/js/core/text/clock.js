@@ -1,5 +1,6 @@
 // ACCESSION — sentences: the clock and leaving (BUILD.md §8.4, §8.9), owned by W1-CLOCK. Also
-// the dial's sentence, Text.clock(view), from Clock.view(state).
+// the dial's sentence, Text.clock(view), and the stage chip's words, Text.stage(view), from
+// Clock.view(state).
 'use strict';
 (() => {
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
@@ -40,9 +41,9 @@
   const why = { night_bell: 'the night-watch bell rang', night_watch: 'the night watch is on' };
   for (const k of ['night_bell', 'night_watch']) {
     Text.defineCause('woke', k, (e, w) => e.was == null
-      ? (k === 'night_watch' ? `${w.Name(e.who)} is on its rounds, hunting you from the start.` : `${w.Name(e.who)} is awake: ${why[k]}.`)
+      ? (k === 'night_watch' ? `${w.Name(e.who)} began its rounds, hunting you from the start.` : `${w.Name(e.who)} was already awake: ${why[k]}.`)
       : `${w.Name(e.who)} woke: ${why[k]}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why[k]}.` : `${w.Name(e.who)} began hunting you: ${why[k]}.`);
   }
 
   // leave(i)'s refusals.
@@ -60,4 +61,14 @@
     return `The clock: the night watch, ${at}; the next night-watch bell rings in ${turns(v.toNightBell)}.${back}`;
   }
   Text.provide('clock', dial);
+
+  // The stage chip's words (§7.2), from Clock.view(state): the stage's name and what comes
+  // next and when ("Open:" "bell in 238 turns"), or null with no clock.
+  function chip(v) {
+    if (!v) return null;
+    if (v.stage === 0) return { name: 'Open:', next: `bell in ${turns(v.toBell)}` };
+    if (v.stage === 1) return { name: 'After the bell:', next: `night watch in ${turns(v.toWatch)}` };
+    return { name: 'Night watch:', next: `next bell in ${turns(v.toNightBell)}` };
+  }
+  Text.provide('stage', chip);
 })();

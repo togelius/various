@@ -4,19 +4,23 @@
 // kind and its cause, because many rules emit the same kind for their own reasons.
 'use strict';
 const Text = (() => {
-  const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null);
+  const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null),
+    AGAIN = Object.create(null);
   const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const once = (o, k, what) => { if (has(o, k)) throw new Error(`Text: ${what} is defined twice`); };
   const isFn = (f, what) => { if (typeof f !== 'function') throw new Error(`Text: ${what} needs a function`); };
 
-  // Text.define(k, fn, {log}?): the kind's default sentence, by its base owner. `log` says
-  // whether Text.log shows the kind: true (the default), false (never), or 'seen' (only when
-  // the actor it is about, `who`, is you or in view).
+  // Text.define(k, fn, {log, again}?): the kind's default sentence, by its base owner. `log`
+  // says whether Text.log shows the kind: true (the default), false (never), or 'seen' (only
+  // when the actor it is about, `who`, is you or in view). `again(n)`, for a kind two actors
+  // of one name can tell word for word in one step (a swarm's bodies stirring), is what
+  // Text.log adds to the first such sentence in place of the n more ('So does another…').
   function define(k, fn, opts) {
     once(KINDS, k, `the sentence for ${k}`); isFn(fn, k);
     const log = opts && opts.log !== undefined ? opts.log : true;
     if (log !== true && log !== false && log !== 'seen') throw new Error(`Text: ${k} has log ${JSON.stringify(log)}`);
     KINDS[k] = fn; LOG[k] = log;
+    if (opts && opts.again !== undefined) { isFn(opts.again, k + ' again'); AGAIN[k] = opts.again; }
   }
   // Text.defineCause(k, causeK, fn): the sentence for one cause of a kind, by that cause's owner.
   function defineCause(k, causeK, fn) {
@@ -26,7 +30,8 @@ const Text = (() => {
   }
   // Text.defineRefusal(code, fn): the sentence for a refusal code, fn(data) → sentence.
   function defineRefusal(code, fn) { once(REFUSALS, code, `the refusal ${code}`); isFn(fn, code); REFUSALS[code] = fn; }
-  // Text.provide(name, fn): a named sentence maker ('clock', 'recap', 'confirm'), by its one owner.
+  // Text.provide(name, fn): a named sentence maker ('clock', 'stage', 'recap', 'confirm',
+  // 'rest'), by its one owner.
   function provide(name, fn) { once(MAKERS, name, `the sentence maker ${name}`); isFn(fn, name); MAKERS[name] = fn; }
 
   // The words a sentence uses for an actor. nameOf(uid) gives an actor's name in
@@ -51,27 +56,39 @@ const Text = (() => {
   // A refusal code's sentence; a reason with no sentence defined is shown as it is.
   const refusal = (code, data) => has(REFUSALS, code) ? REFUSALS[code](data === undefined ? null : data) : String(code);
   const clock = view => has(MAKERS, 'clock') ? MAKERS.clock(view) : null;
+  // The stage chip's words (§7.2), {name, next}, from Clock.view(state), or null with no clock.
+  const stage = view => has(MAKERS, 'stage') ? MAKERS.stage(view) : null;
   const recap = (state, nameOf) => has(MAKERS, 'recap') ? MAKERS.recap(state, nameOf) : null;
   // A count of tiles in words: '1 tile', '3 tiles' (a distance or a range from an event can be 1).
   const tiles = n => n === 1 ? '1 tile' : `${n} tiles`;
   // A confirmation's words (§7.1), {title, yes, line}, or null for a kind with none.
   const confirm = (k, data, nameOf) => has(MAKERS, 'confirm') ? MAKERS.confirm(k, data, nameOf) : null;
+  // A long rest's one line in the log (§7.1): data {turns, regained, hp, maxHp}, or null.
+  const rest = data => has(MAKERS, 'rest') ? MAKERS.rest(data) : null;
 
   // Text.log(events, nameOf, visible): the sentences of one step for the player's log.
   // It leaves out the kinds defined with log: false, and those with log: 'seen' about an
   // actor that visible(uid) says is out of view (everything is in view without visible).
   // An exhibit that wakes straight into a hunt emits woke, then hunting; the log shows the
-  // hunting sentence alone, which says that it woke.
+  // hunting sentence alone, which says that it woke. Of a kind with `again`, a sentence the
+  // step has already told word for word is not told twice: the first says how many more.
   function log(events, nameOf, visible) {
     const seen = uid => uid === 'you' || typeof visible !== 'function' || !!visible(uid);
-    const out = [];
+    const out = [], told = new Map();
     for (let i = 0; i < events.length; i++) {
       const e = events[i], how = has(LOG, e.k) ? LOG[e.k] : true;
       if (how === false || (how === 'seen' && !seen(e.who))) continue;
       if (e.k === 'woke' && e.mode === 'hunting' && events.slice(i + 1).some(f => f.k === 'hunting' && f.who === e.who)) continue;
       const s = event(e, nameOf);
-      if (s) out.push(s);
+      if (!s) continue;
+      if (has(AGAIN, e.k)) {
+        const key = e.k + '\n' + s, t = told.get(key);
+        if (t) { t.n++; continue; }
+        told.set(key, { at: out.length, k: e.k, n: 0 });
+      }
+      out.push(s);
     }
+    for (const t of told.values()) if (t.n > 0) out[t.at] += ' ' + AGAIN[t.k](t.n);
     return out;
   }
 
@@ -86,5 +103,5 @@ const Text = (() => {
   }
   const logs = k => has(LOG, k) ? LOG[k] : true;
 
-  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, confirm, tiles, log, defined, refusalDefined, provided, list, logs };
+  return { define, defineCause, defineRefusal, provide, event, refusal, clock, stage, recap, confirm, rest, tiles, log, defined, refusalDefined, provided, list, logs };
 })();

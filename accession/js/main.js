@@ -28,6 +28,11 @@ const Main = (() => {
   // preview: the tile a "tap twice" walk previews. asking: the action a confirmation waits on.
   // ended: what the end-of-visit overlay says.
   let preview = null, asking = null, ended = null;
+  // known: each exhibit the board has shown you this visit, as you last saw it (its mode, pips
+  // and tile), so a walk stops for one new or changed, not for one you have seen come back
+  // into view as it was (§7.1). ending: what a run does when it ends (a long rest's line).
+  const known = new Map();
+  let ending = null;
   const history = [], HISTORY = 6, banners = new Set();
 
   function newVisit() {
@@ -158,7 +163,6 @@ const Main = (() => {
   // ---- Confirmations (§7.1) ----
 
   const SHARDS = 'xk'; // shards, and a broken case's tile, which holds its glass
-  const turns = n => n === 1 ? '1 turn' : `${n} turns`;
   // What a confirmation says before an action, or null when it needs none. It asks before:
   // stepping onto shards from a tile without them; every blow at a case's glass; leaving by
   // an exit (a minimal confirmation, D4.9); and any action that would leave you on a tile
@@ -193,18 +197,38 @@ const Main = (() => {
   // A walk or a rest: one action at a time, each through the confirmations, until it is done
   // or something stops it (§7.1). next() gives the next action, or null when done. An action
   // that needs a confirmation ends the run: the sheet asks, and its answer does that one
-  // action or nothing. stopWhy says why the last run stopped.
+  // action or nothing. stopWhy says why the last run stopped; end(), if given, is called once
+  // when the run ends, however it ends (done, stopped, asked, or interrupted by stop()).
   //   A run stops after an action whose events the log tells you of and that §7.1 lists
-  //   (STOPS; status only when it is yours), when an exhibit comes into view or changes its
-  //   mode or pips, when a new telegraph or call is marked, on the first loud tile you step
-  //   onto, and when the visit ends.
+  //   (STOPS; status only when it is yours), when an exhibit in view changes its mode or pips,
+  //   when one comes into view that is new to you or not as you last saw it (its mode, pips or
+  //   tile: known), when a new telegraph or call is marked, on the first loud tile you step
+  //   onto, and when the visit ends. An exhibit going out of view, or one you have seen coming
+  //   back into view as it was, does not stop it.
   const STOPS = new Set(['refused', 'opened', 'hunting', 'damaged', 'missed', 'died', 'telegraphed', 'woke', 'alerted', 'stage', 'entered',
     'case_opened', 'glass_cracked', 'glass_broke', 'took', 'used', 'identified', 'status', 'left']);
   const loudHere = () => { const you = state.actors[0], t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)]; return !!(t && t.loud); };
+  // How an exhibit looks: its mode and pips, and its tile.
+  const look = a => a.mode + '/' + a.pips;
+  const lookAt = a => look(a) + '@' + a.x + ',' + a.y;
+  // What the board shows now: each exhibit in view as it looks, the marks, and what the board
+  // had shown of each exhibit before (a copy of known).
   const watch = () => {
-    const vm = ViewModel.derive(state, {});
-    return { sights: vm.actors.map(a => a.uid + a.mode + a.pips).join(), marks: vm.marks.filter(k => k.kind === 'telegraph' || k.kind === 'call').map(k => k.kind + k.x + ',' + k.y + k.by), inView: new Set(vm.actors.map(a => a.uid)) };
+    const vm = ViewModel.derive(state, {}), sights = new Map();
+    for (const a of vm.actors) if (a.uid !== 'you') sights.set(a.uid, a);
+    return { sights, marks: vm.marks.filter(k => k.kind === 'telegraph' || k.kind === 'call').map(k => k.kind + k.x + ',' + k.y + k.by), inView: new Set(vm.actors.map(a => a.uid)), known: new Map(known) };
   };
+  // Is there something new or changed in sight since before: an exhibit in view then whose
+  // mode or pips changed, or one come into view that you had not seen, or not as it is now?
+  function news(now, before) {
+    for (const [uid, a] of now.sights) {
+      const was = before.sights.get(uid);
+      if (was ? look(was) !== look(a) : before.known.get(uid) !== lookAt(a)) return true;
+    }
+    return false;
+  }
+  // The board has shown you these exhibits: remember them as they look (draw, each frame).
+  function remember(vm) { for (const a of vm.actors) if (a.uid !== 'you') known.set(a.uid, lookAt(a)); }
   function stopFor(ev, before, wasLoud) {
     if (state.over) return 'over';
     const now = watch(), nameOf = Labels.nameOf(state);
@@ -212,29 +236,31 @@ const Main = (() => {
       if (!STOPS.has(e.k)) continue;
       if (e.k === 'status' ? e.who === 'you' : Text.log([e], nameOf, uid => now.inView.has(uid)).length) return e.k;
     }
-    if (now.sights !== before.sights) return 'sight';
+    if (news(now, before)) return 'sight';
     if (now.marks.some(k => !before.marks.includes(k))) return 'mark';
     if (!wasLoud && loudHere()) return 'loud';
     return null;
   }
-  function run(next) {
-    stop(); stopWhy = null;
+  function run(next, end) {
+    stop(); stopWhy = null; ending = end || null;
     let before = watch();
+    const done = () => { runner = null; const f = ending; ending = null; if (f) f(); };
     const once = () => {
       runner = null;
-      if (state.over) { stopWhy = 'over'; return; }
+      if (state.over) { stopWhy = 'over'; done(); return; }
       const action = next();
-      if (!action) { draw(); return; }
+      if (!action) { done(); draw(); return; }
       const c = askFor(action);
-      if (c) { stopWhy = 'confirm'; asking = { action }; UI.confirm(c); draw(); return; }
+      if (c) { stopWhy = 'confirm'; done(); asking = { action }; UI.confirm(c); draw(); return; }
       const wasLoud = loudHere(), ev = act_(action, true), why = stopFor(ev, before, wasLoud);
-      if (why) { stopWhy = why; return; }
+      if (why) { stopWhy = why; done(); return; }
       before = watch();
       runner = setTimeout(once, settings.motion === 'reduce' ? 0 : 70);
     };
     runner = setTimeout(once, 0);
   }
-  function stop() { clearTimeout(runner); runner = null; }
+  // Stops a run, which then ends (its end() is called, once).
+  function stop() { clearTimeout(runner); runner = null; const f = ending; ending = null; if (f) f(); }
 
   // Walk a path one move at a time; it also stops where the next tile is taken (a walk
   // never turns into an attack).
@@ -250,15 +276,31 @@ const Main = (() => {
   }
   // Rest (§8.1: a wait under its own name, which the interface repeats): once, then again
   // while you are below your maximum health and can recover it (not in the night watch,
-  // Clock.regenRate), under the walk's stop rules.
+  // Clock.regenRate), under the walk's stop rules. A rest that repeated leaves one line in the
+  // log when it ends, however it ends: the turns it took and the health that came back
+  // (Text.rest), since a rest's own turns are left out of the log.
   function rest() {
-    let n = 0;
+    const visit = state, turn = state.turn;
+    let n = 0, regained = 0, counted = last;
+    // The health each rest brought back (regenerated, or healed by anything else), counted
+    // once per step from the step's events (last).
+    const count = () => {
+      if (n === 0 || last === counted) return;
+      counted = last;
+      for (const e of last) if (e.who === 'you') regained += e.k === 'regenerated' ? 1 : e.k === 'healed' ? e.amount : 0;
+    };
     run(() => {
       const you = state.actors[0];
+      count();
       if (n > 0 && you.hp >= you.maxHp) { stopWhy = 'rested'; return null; }
       if (n > 0 && Clock.regenRate(state) === 0) { stopWhy = 'no_recovery'; return null; }
       n++;
       return { a: 'rest' };
+    }, () => {
+      if (n < 2 || state !== visit) return;
+      count();
+      const you = state.actors[0], s = Text.rest({ turns: state.turn - turn, regained, hp: you.hp, maxHp: you.maxHp });
+      if (s) { say(s); draw(); }
     });
   }
 
@@ -362,7 +404,7 @@ const Main = (() => {
     stop(); asking = null; UI.closeConfirm(); UI.closeOverlays(); UI.closeLabel();
     seed += 1; state = newVisit();
     ui = blank(); preview = null; ended = null; last = []; shown = null; stopWhy = null; overLogged = false;
-    history.length = 0; banners.clear(); Bag.close();
+    history.length = 0; banners.clear(); known.clear(); Bag.close();
     say(welcome());
     draw();
   }
@@ -379,6 +421,7 @@ const Main = (() => {
     // carry the selection themselves).
     ui.selectedTile = preview || tileOf(ui.selection);
     const vm = ViewModel.derive(state, ui);
+    remember(vm);
     // While a label is open the camera centres between you and what it names in the part of
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
     // leans as far towards it as it can.
@@ -391,13 +434,11 @@ const Main = (() => {
     renderer.draw(vm);
     shown = vm.camera;
   }
-  // The stage chip: the clock's stage (name) and what comes next (next), as one sentence
-  // (§7.2, §8.4), or null with no clock.
+  // The stage chip: the clock's stage (n, for its colour) with Text.stage's words, its name
+  // and what comes next (§7.2, §8.4, §3.4), or null with no clock.
   function stageChip(c) {
-    if (!c) return null;
-    if (c.stage === 0) return { n: 0, name: 'Open:', next: `bell in ${turns(c.toBell)}` };
-    if (c.stage === 1) return { n: 1, name: 'After the bell:', next: `night watch in ${turns(c.toWatch)}` };
-    return { n: 2, name: 'Night watch:', next: `next bell in ${turns(c.toNightBell)}` };
+    const w = c ? Text.stage(c) : null;
+    return w ? { n: c.stage, name: w.name, next: w.next } : null;
   }
   // Your statuses for the top bar: each by its registry pictogram, with its words and the
   // turns it still covers (Status.left), as your label says them.

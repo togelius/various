@@ -9,11 +9,12 @@
   Text.define('noise', e => `${CLS[e.cls] || 'A noise'}: a noise, heard ${Text.tiles(e.range)} away.`);
 
   // A pip is shown only for an exhibit in view, so the log never tells you about one you
-  // cannot see (§8.2's pips are shown on the exhibit).
+  // cannot see (§8.2's pips are shown on the exhibit). Exhibits of one name (a swarm's
+  // bodies) that stir alike in one step are told once, with how many more did the same.
   const pips = e => `${e.pips} of ${N.PIPS_TO_WAKE} pips`;
   const stir = (e, w, why) => `${w.Name(e.who)} ${e.delta < 0 ? 'settles' : 'stirs'} (${pips(e)})${why ? ': ' + why : ''}.`;
   const ally = (e, w) => e.cause.ally ? `${w.name(e.cause.ally)}, one of its group, took damage` : 'one of its group took damage';
-  Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen' });
+  Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen', again: n => n === 1 ? 'So does another of the same name.' : `So do ${n} others of the same name.` });
   Text.defineCause('pip', 'ring', (e, w) => stir(e, w, `you are inside your ring, ${Text.tiles(e.cause.dist)} away`));
   Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away`));
   Text.defineCause('pip', 'axis', (e, w) => stir(e, w, `you are in its row or column, ${Text.tiles(e.cause.dist)} away`));
@@ -24,8 +25,8 @@
 
   // Waking. `was` is null for an actor made awake. A sleeper woken straight into a hunt is
   // told once, by its hunting sentence (Text.log merges the two).
-  Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} is awake.` : `${w.Name(e.who)} woke.`);
-  Text.define('hunting', (e, w) => `${w.Name(e.who)} is hunting you.`);
+  Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake.` : `${w.Name(e.who)} woke.`);
+  Text.define('hunting', (e, w) => `${w.Name(e.who)} began hunting you.`);
   const why = {
     ring: e => 'you stayed inside your ring',
     noise: e => e.cause.cls ? `it heard a ${e.cause.cls} noise` : 'it heard a noise',
@@ -37,10 +38,10 @@
   };
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
-    // Woken by a noise, it goes to look where the noise was.
-    const then = k === 'noise' ? ', and goes to look' : '';
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${because(e, w)}.` : `${w.Name(e.who)} is hunting you: ${because(e, w)}.`);
+    // Woken by a noise, it sets off to look where the noise was.
+    const then = k === 'noise' ? ', and set off to look' : '';
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then}.`);
+    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${because(e, w)}.` : `${w.Name(e.who)} began hunting you: ${because(e, w)}.`);
   }
 
   // Losing you, being settled, and being sent to look, for waking's reasons. A hunter's
@@ -50,5 +51,5 @@
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
   Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
-  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, and goes to look.`);
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, and set off to look.`);
 })();

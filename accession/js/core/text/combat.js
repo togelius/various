@@ -67,13 +67,28 @@
   Text.defineCause('died', 'attack', died);
   Text.defineCause('died', 'special', died);
 
-  // A mark: the tiles it covers, and for a damage special its number before your Padding.
-  const tiles = list => `${list.length} ${list.length === 1 ? 'tile' : 'tiles'}`;
-  Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}.`);
+  // A mark: the tiles it covers, said by its shape (a ring round it, a beam's line, a call's
+  // reach; the marks on the board show each tile), and for a damage special its number
+  // before your Padding.
+  const covers = e => {
+    const S = typeof e.sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, e.sp) ? Registry.SPECIALS[e.sp] : null;
+    const n = Array.isArray(e.tiles) ? e.tiles.length : 0, shape = S ? S.shape : null;
+    if (shape === 'ring') return 'the tiles round it';
+    if (shape === 'line') return `a line of ${Text.tiles(n)}`;
+    if (shape === 'call' && S.range && Number.isInteger(N[S.range])) return `the tiles within ${Text.tiles(N[S.range])} of it`;
+    return Text.tiles(n);
+  };
+  Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}.`);
   Text.defineCause('telegraphed', 'special', (e, w) => isInt(e.cause.gross) && e.cause.gross > 0
-    ? `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, at its next action.`
-    : `${w.Name(e.who)} marks ${tiles(e.tiles)} for its ${spName(e.sp)}, at its next action.`);
-  const struck = hits => !Array.isArray(hits) ? '' : hits.length === 1 ? ': it struck 1' : hits.length ? `: it struck ${hits.length}` : ': it struck nothing';
+    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, at its next action.`
+    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, at its next action.`);
+  // Whom a damage special struck: you, and how many exhibits (never their names, since some
+  // may be out of your sight).
+  const struck = hits => {
+    if (!Array.isArray(hits)) return '';
+    const me = hits.includes('you'), n = hits.length - (me ? 1 : 0), them = n === 1 ? '1 exhibit' : `${n} exhibits`;
+    return me ? (n ? `: it struck you and ${them}` : ': it struck you') : n ? `: it struck ${them}` : ': it struck nothing';
+  };
   const used = (e, w) => e.cancelled ? `${whose(w, e.who)} ${spName(e.sp)} was called off.` : `${w.Name(e.who)} used its ${spName(e.sp)}${struck(e.hits)}.`;
   Text.define('special', used);
   Text.defineCause('special', 'special', used);
@@ -90,18 +105,25 @@
   Text.define('regenerated', (e, w) => `${w.Name(e.who)} recovered 1 health: now ${e.hp}.`, { log: false });
   Text.defineCause('regenerated', 'regen', (e, w) => `${w.Name(e.who)} recovered 1 health${e.cause.bench ? ' on the bench' : ''}: now ${e.hp}.`);
   Text.define('healed', (e, w) => `${w.Name(e.who)} regained ${e.amount} health: now ${e.hp}.`);
+  // A long rest (§7.1: Rest repeated by the interface) is told once, when it ends: how many
+  // turns it took and how much health came back, Text.rest({turns, regained, hp, maxHp}).
+  Text.provide('rest', d => {
+    const n = d && Number.isInteger(d.turns) ? d.turns : 0, got = d && Number.isInteger(d.regained) ? d.regained : 0;
+    const back = got > 0 ? `recovered ${got} health` : 'recovered no health';
+    return `You rested for ${n === 1 ? '1 turn' : `${n} turns`} and ${back}: now ${d.hp} of ${d.maxHp}.`;
+  });
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
   const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'attack', noise('a blow'));
   Text.defineCause('noise', 'destroyed', noise('an exhibit destroyed'));
-  Text.defineCause('noise', 'special', noise('a special'));
+  Text.defineCause('noise', 'special', noise('a special attack'));
 
   // Damage always wakes, straight to hunting. The log tells a sleeper woken into a hunt by its
   // hunting sentence alone (Text.log), so that sentence says it hunts you, as every other
   // cause's does.
   Text.defineCause('woke', 'damage', (e, w) => `${w.Name(e.who)} woke: it was struck.`);
-  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it was struck.` : `${w.Name(e.who)} is hunting you: it was struck.`);
+  Text.defineCause('hunting', 'damage', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: it was struck.` : `${w.Name(e.who)} began hunting you: it was struck.`);
 
   // Sitting (§4.2).
   Text.defineRefusal('no_bench', () => 'There is no bench here to sit on.');

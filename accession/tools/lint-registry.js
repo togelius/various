@@ -109,7 +109,7 @@ for (const c of keys(R.CAUSES.damaged)) for (const f of ['saved', 'side']) {
 }
 for (const code of R.order('REFUSALS')) if (!Text.refusalDefined(code)) bad(`the refusal ${code} has no sentence (Text.defineRefusal)`);
 for (const code of said.refusals) if (!R.REFUSALS[code]) bad(`there is a sentence for the refusal ${code}, which is not in REFUSALS`);
-for (const name of ['clock', 'recap']) if (!Text.provided(name)) bad(`no fragment provides Text.${name}`);
+for (const name of ['clock', 'stage', 'recap', 'confirm', 'rest']) if (!Text.provided(name)) bad(`no fragment provides Text.${name}`);
 
 // Open follow-ups (--follow-ups): an entry below true that one names passes --strict.
 const FOLLOW = arg('--follow-file') || path.join(root, 'test/behaviour/follow-ups.json');

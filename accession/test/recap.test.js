@@ -70,7 +70,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(r.wakeTrigger, 'ring');
     assert.equal(r.huntTurn, r.wakeTurn, 'it woke into a hunt');
     assert.deepEqual(J(r.lines), [`${name(s, a.uid)} defeated you on turn ${s.over.turn}.`, blow(events, s),
-      `On turn ${r.wakeTurn}, ${Labels.nameOf(s)(a.uid)} woke and is hunting you: you stayed inside your ring.`]);
+      `On turn ${r.wakeTurn}, ${Labels.nameOf(s)(a.uid)} woke and began hunting you: you stayed inside your ring.`]);
   });
 
   test('woken, settled back home, then woken again by the axis trigger: the recap tells the second waking', () => {
@@ -103,7 +103,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(r.killer, a.uid);
     assert.equal(r.wakeTrigger, 'axis');
     assert.equal(r.wakeTurn, a.woke.turn);
-    assert.ok(r.lines.some(l => l === `On turn ${a.woke.turn}, ${Labels.nameOf(s)(a.uid)} woke and is hunting you: you stood in its row or column.`), r.lines.join('\n'));
+    assert.ok(r.lines.some(l => l === `On turn ${a.woke.turn}, ${Labels.nameOf(s)(a.uid)} woke and began hunting you: you stood in its row or column.`), r.lines.join('\n'));
     assert.ok(!r.lines.some(l => l.includes(`turn ${first.turn},`)), 'the first waking is not the story');
     assert.equal(s.over.cause.k, 'special', 'its beam killed you');
   });
@@ -123,8 +123,8 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(r.wakeTrigger, 'noise');
     assert.ok(r.huntTurn > r.wakeTurn, `it hunted after it woke: ${r.wakeTurn}, ${r.huntTurn}`);
     const names = Labels.nameOf(s);
-    assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke: it heard a soft noise, and goes to look.`,
-      `On turn ${r.huntTurn}, ${names(a.uid)} saw you and is hunting you.`]);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke: it heard a soft noise, and set off to look.`,
+      `On turn ${r.huntTurn}, ${names(a.uid)} saw you and began hunting you.`]);
   });
 
   test('woken into a hunt by your ring, it lost you and later saw you: the waking reads as a hunt, the later hunt follows it, and the blow is the fatal one, not an earlier one still on record', () => {
@@ -148,8 +148,8 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(r.wakeTrigger, 'ring');
     assert.equal(a.hunted.cause.k, 'seen');
     assert.ok(r.huntTurn > r.wakeTurn, `${r.wakeTurn}, ${r.huntTurn}`);
-    assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke and is hunting you: you stayed inside your ring.`,
-      `On turn ${r.huntTurn}, ${names(a.uid)} saw you and is hunting you.`]);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke and began hunting you: you stayed inside your ring.`,
+      `On turn ${r.huntTurn}, ${names(a.uid)} saw you and began hunting you.`]);
     // The fatal blow, though earlier ones are still among the cause records and read otherwise.
     const told = s.causes.filter(c => c.k === 'damaged' && c.who === 'you').map(c => Text.event(c, names));
     assert.ok(told.length >= 3 && told[0] !== told[told.length - 1], told.join('\n'));
@@ -165,7 +165,7 @@ module.exports = ({ test, assert, loadCore }) => {
     const a = s.actors[1], start = State.clone(s), events = play(s, { a: 'wait' }, 80);
     const r = recapped(start, s, events, 'awake then seen'), names = Labels.nameOf(s);
     assert.deepEqual([r.wakeTurn, r.wakeTrigger, r.huntTurn, a.hunted.cause.k], [0, 'awake', 0, 'seen']);
-    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} is awake: it never sleeps.`, `On turn 0, ${names(a.uid)} saw you and is hunting you.`]);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} was already awake: it never sleeps.`, `On turn 0, ${names(a.uid)} saw you and began hunting you.`]);
   });
 
   test('set out hunting by the room, an exhibit that can sleep: the recap says the room set it out awake ("placed"), never that it never sleeps, and it does go back to sleep', () => {
@@ -178,7 +178,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.deepEqual(J([a.woke, a.hunted]), [{ turn: 0, cause: { k: 'placed' } }, { turn: 0, cause: { k: 'placed' } }]);
     const r = recapped(start, s, events, 'placed'), names = Labels.nameOf(s);
     assert.deepEqual([r.wakeTurn, r.wakeTrigger, r.huntTurn], [0, 'placed', 0]);
-    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} is awake: it was set out awake when the room was made.`]);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} was already awake: it was set out awake when the room was made.`]);
     assert.ok(!r.lines.join(' ').includes('never sleeps'), r.lines.join('\n'));
     // The same exhibit, set out awake with you out of its sight, goes back to sleep: "it never
     // sleeps" would have been false.
@@ -209,7 +209,7 @@ module.exports = ({ test, assert, loadCore }) => {
     const r = recapped(start, s, events, '64 records');
     assert.equal(r.killer, a.uid);
     assert.deepEqual([r.wakeTurn, r.wakeTrigger], [woke.turn, 'ring']);
-    assert.ok(r.lines.includes(`On turn ${woke.turn}, ${Labels.nameOf(s)(a.uid)} woke and is hunting you: you stayed inside your ring.`), r.lines.join('\n'));
+    assert.ok(r.lines.includes(`On turn ${woke.turn}, ${Labels.nameOf(s)(a.uid)} woke and began hunting you: you stayed inside your ring.`), r.lines.join('\n'));
   });
 
   test('the Night Watchman: on its rounds, hunting you from the start', () => {
@@ -222,7 +222,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(r.wakeTrigger, 'night_watch');
     assert.equal(r.huntTurn, r.wakeTurn);
     assert.deepEqual(J(r.lines), [`The Night Watchman defeated you on turn ${s.over.turn}.`, blow(events, s),
-      `On turn ${r.wakeTurn}, the Night Watchman is on its rounds, hunting you from the start.`]);
+      `On turn ${r.wakeTurn}, the Night Watchman began its rounds, hunting you from the start.`]);
   });
 
   test('a splitter\'s half: the recap tells how the body woke, then how it split', () => {
@@ -240,8 +240,8 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(r.killer, half.uid);
       assert.equal(r.wakeTrigger, 'summoned');
       assert.deepEqual(J(r.lines), [`${name(s, half.uid)} defeated you on turn ${s.over.turn}.`, blow(events, s),
-        `On turn ${body.woke.turn}, ${names(body.uid)} woke and is hunting you: it was struck.`,
-        `On turn ${half.woke.turn}, ${names(body.uid)} splits in two, under your hit; the new half is hunting you.`]);
+        `On turn ${body.woke.turn}, ${names(body.uid)} woke and began hunting you: it was struck.`,
+        `On turn ${half.woke.turn}, ${names(body.uid)} split in two, under your hit; the new half began hunting you.`]);
       assert.ok(r.lines[0].startsWith('A split of the '), r.lines[0]);
       found = seed;
     }
@@ -269,7 +269,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(r.lines[0], `${name(s, dish.uid)} defeated you on turn ${s.over.turn}.`);
       assert.equal(r.lines[1], blow(events, s));
       assert.ok(r.lines[1].includes(names(dish.uid).replace(/^the /, '')), r.lines[1]);
-      assert.ok(r.lines.includes(`On turn ${dish.woke.turn}, ${names(dish.uid)} woke and is hunting you: you stayed inside your ring.`), r.lines.join('\n'));
+      assert.ok(r.lines.includes(`On turn ${dish.woke.turn}, ${names(dish.uid)} woke and began hunting you: you stayed inside your ring.`), r.lines.join('\n'));
       found = seed;
     }
     assert.ok(found, 'a bolt sent back killed you within 60 seeds');

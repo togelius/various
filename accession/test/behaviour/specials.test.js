@@ -218,7 +218,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const names = uid => uid === 'w.1' ? 'the Warden' : null;
     const say = e => Text.event(Object.assign({ turn: 3, tick: 300 }, e), names);
     assert.equal(say({ k: 'telegraphed', who: 'w.1', sp: 'ring', tiles: [[1, 1], [2, 1]], cause: { k: 'special', by: 'w.1', sp: 'ring', gross: 9, every: 3 } }),
-      'The Warden marks 2 tiles for its ring of blows: 9 before your Padding, at its next action.');
+      'The Warden marks the tiles round it for its ring of blows: 9 before your Padding, at its next action.');
     assert.equal(say({ k: 'damaged', who: 'you', amount: 7, hp: 13, cause: { k: 'special', by: 'w.1', sp: 'line', gross: 9, pad: 2, net: 7, x: 1, y: 1, from: [2, 1] } }),
       'The Warden’s beam struck you for 7 (9 − 2 Padding).');
     assert.equal(say({ k: 'damaged', who: 'you', amount: 1, hp: 13, cause: { k: 'special', by: 'w.1', sp: 'ring', gross: 2, pad: 4, net: 1, x: 1, y: 1, from: [2, 1] } }),
@@ -229,10 +229,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(say(repaired), 'The Warden’s beam struck the Warden for 14 (9 − 2 Padding, doubled through its repaired west side).');
     assert.equal(say({ k: 'damaged', who: 'w.1', amount: 3, hp: 0, cause: { k: 'special', by: 'w.1', sp: 'ring', gross: 9, pad: 2, net: 7, x: 1, y: 1, from: [2, 1] } }),
       'The Warden’s ring of blows struck the Warden for 3 (9 − 2 Padding; it falls to any one blow: all 3 of its health).');
-    assert.equal(say({ k: 'special', who: 'w.1', sp: 'ring', hits: ['you'], cause: { k: 'special', by: 'w.1', sp: 'ring' } }), 'The Warden used its ring of blows: it struck 1.');
+    assert.equal(say({ k: 'special', who: 'w.1', sp: 'ring', hits: ['you'], cause: { k: 'special', by: 'w.1', sp: 'ring' } }), 'The Warden used its ring of blows: it struck you.');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'call', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'fixed' } }), 'The Warden’s call was called off: it was fixed in place.');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'line', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'out_of_sight' } }), 'The Warden’s beam was called off: it stopped hunting you.');
-    assert.equal(say({ k: 'telegraphed', who: 'w.1', sp: 'call', tiles: [[1, 1]], cause: { k: 'special', by: 'w.1', sp: 'call', gross: 0 } }), 'The Warden marks 1 tile for its call, at its next action.');
+    assert.equal(say({ k: 'telegraphed', who: 'w.1', sp: 'call', tiles: [[1, 1]], cause: { k: 'special', by: 'w.1', sp: 'call', gross: 0 } }), 'The Warden marks the tiles within 6 tiles of it for its call, at its next action.');
   });
 
   // Joined up (W2a-BEHAVIOUR): the same threat, with the real actions and the real exhibit.

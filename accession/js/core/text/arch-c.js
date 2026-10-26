@@ -19,6 +19,6 @@
   // You left the warden's tether, so it goes back.
   Text.defineCause('lost', 'tether', (e, w) => `${w.Name(e.who)} goes back: it will not follow you more than ${N.TETHER_RANGE} tiles from what it guards.`);
   // A herald's call wakes a sleeper awake, sent to look where you were.
-  Text.defineCause('woke', 'herald', (e, w) => `${w.Name(e.who)} woke at the call of ${w.name(e.cause.by)}, and goes to look where you were.`);
-  Text.defineCause('hunting', 'herald', (e, w) => `${w.Name(e.who)} is hunting you: ${w.name(e.cause.by)} called.`);
+  Text.defineCause('woke', 'herald', (e, w) => `${w.Name(e.who)} woke at the call of ${w.name(e.cause.by)}, and set off to look where you were.`);
+  Text.defineCause('hunting', 'herald', (e, w) => `${w.Name(e.who)} began hunting you: ${w.name(e.cause.by)} called.`);
 })();

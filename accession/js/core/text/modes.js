@@ -16,7 +16,7 @@
   Text.defineCause('lost', 'idle', (e, w) => `${w.Name(e.who)} is going back: nothing has disturbed it for ${turns(e.cause.turns)}.`);
   Text.defineCause('lost', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and is going back.`);
   Text.defineCause('lost', 'displaced', (e, w) => `${w.Name(e.who)} was moved from its place, and is going back to it.`);
-  Text.define('alerted', (e, w) => `${w.Name(e.who)} goes to look.`);
+  Text.define('alerted', (e, w) => `${w.Name(e.who)} set off to look.`);
   Text.defineCause('alerted', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and wanders, for it does not go back to sleep.`);
   Text.defineCause('alerted', 'homeless', (e, w) => `${w.Name(e.who)} has no place left to go back to, and wanders.`);
   Text.defineCause('alerted', 'blocked', (e, w) => `${w.Name(e.who)} cannot get back to its place, for others stand in the way, and wanders for now.`);
@@ -25,7 +25,7 @@
   Text.defineCause('returned', 'home', back);
 
   Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${Text.tiles(e.cause.dist)} away.`);
-  Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it saw you.` : `${w.Name(e.who)} saw you and is hunting you.`);
+  Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: it saw you.` : `${w.Name(e.who)} saw you and began hunting you.`);
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
   const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
