@@ -691,6 +691,13 @@ A confirmation is a sheet over the board, saying what the action would do, with 
 
 **Laptop:** the board on the left, with Wait · Bag · Map and Zoom under it; the strip with the last six log entries (newest kept in view), the label panel and six quickslots in a right column.
 
+**The Bag** (`js/ui/bag.js`), opened by the bar's Bag or `i`:
+- **What it shows:** what you wear, slot by slot, then your tote. A tap on an item shows its label (§8.8) with its buttons, each acting through the confirmations (§7.1). A Catalogue Card's choice, one button for each seal you do not know, opens the Bag by itself and stays at its top until it is answered.
+- **Quickslots** hold your instrument, then your consumables in the order of your tote: three on a phone, six on a laptop. An instrument's quickslot aims it (pressed again, it stops aiming); a consumable's shows it in the Bag with its buttons; an empty one opens the Bag.
+- **Aiming at a tile** (a throw, an instrument): on a phone the strip's place, on a laptop the bar under the board, says what you aim and what a tap does, at a height set by the text size alone, so the board never moves between taps. The first tap on a tile marks it (with a thrown Solution's square, §6.1) and says what a second tap would do there, or the refusal `step()` would give. The second tap does it, or, where it cannot be done, is refused with that sentence, and the aim stays for another tile. Cancel or Escape ends the aim. Where the Window Pole can do more than one thing, the second tap opens a sheet with a button for each, in the order push, pull, take.
+- **A Restoration kit** is aimed in the Bag: the items it can be used on are listed in `Kit.useLegal`'s order (what you wear in slot order, then your tote); a first tap on one shows what a level would give it, and a second uses the kit on it.
+- **The floor plan** (the bar's Map or `m`): the department as you have seen and remember it, with you, the exits and the entrance; once a Floor Plan has been read in this department, all of it, with the rooms whose Highlights have not been taken outlined and numbered.
+
 **Other screens:**
 - the Entrance Hall;
 - door placards;
