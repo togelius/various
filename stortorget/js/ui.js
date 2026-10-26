@@ -24,6 +24,7 @@
     floaters: [],
     quips: [],
     quipSchedule: new Map(),
+    quipHistory: new Map(),
     hitFlashes: new Map(),
     recoil: new Map(),
     lastDamageNumbers: new Map(),
@@ -784,10 +785,14 @@
   function addQuip(enemy, text, options = {}) {
     if (!enemy) return;
     const activeTexts = new Set(ui.quips.map((quip) => quip.text));
-    if (activeTexts.has(text)) {
-      const alternatives = levels.ENEMY_TYPES[enemy.type].quips.filter((phrase) => !activeTexts.has(phrase));
-      if (!alternatives.length) return;
-      text = alternatives[(enemy.id + game.currentWave) % alternatives.length];
+    const previous = ui.quipHistory.get(enemy.id);
+    if (activeTexts.has(text) || text === previous) {
+      const alternatives = levels.ENEMY_TYPES[enemy.type].quips.filter((phrase) => !activeTexts.has(phrase) && phrase !== previous);
+      if (!alternatives.length) {
+        if (activeTexts.has(text)) return;
+      } else {
+        text = alternatives[(enemy.id + game.currentWave) % alternatives.length];
+      }
     }
     const boss = enemy.type === "boss";
     if (ui.quips.length >= 3) {
@@ -804,6 +809,7 @@
       life: options.duration || (boss ? 2.8 : 2.1),
       maxLife: options.duration || (boss ? 2.8 : 2.1),
     });
+    ui.quipHistory.set(enemy.id, text);
     if (!options.silent) playSound("quip", { boss });
   }
 
@@ -813,8 +819,10 @@
       const next = ui.quipSchedule.get(enemy.id);
       if (!next || game.elapsed < next) continue;
       const phrases = levels.ENEMY_TYPES[enemy.type].quips;
-      const index = (enemy.id + game.currentWave + Math.floor(game.elapsed)) % phrases.length;
-      addQuip(enemy, phrases[index]);
+      const previous = ui.quipHistory.get(enemy.id);
+      const candidates = phrases.filter((phrase) => phrase !== previous);
+      const index = (enemy.id + game.currentWave + Math.floor(game.elapsed)) % candidates.length;
+      addQuip(enemy, candidates[index]);
       ui.quipSchedule.set(enemy.id, game.elapsed + 8 + enemy.id % 6);
     }
   }
@@ -1075,7 +1083,10 @@
         ui.combo.best = Math.max(ui.combo.best, ui.combo.count);
         burst(event.x, event.y, "#e66b62", 7, { speed: 48, gravity: 65 });
         addFloater({ x: event.x, y: event.y, text: `+${event.bounty}`, color: "#ffe092", xOffset: 8 });
-        if (event.enemy.id % 5 === 0) addQuip(event.enemy, "Øv!", { silent: true, duration: 1.4 });
+        if (event.enemy.id % 5 === 0) {
+          const quips = levels.QUIPS.defeat;
+          addQuip(event.enemy, quips[event.enemy.id % quips.length], { silent: true, duration: 1.4 });
+        }
         playSound("kill", { combo: ui.combo.count });
       } else if (event.type === "explosion") {
         ui.rings.push(
@@ -1089,12 +1100,17 @@
         playSound("explosion");
       } else if (event.type === "knockback") {
         burst(event.x, event.y, "#c5f4ff", 5, { speed: 35, life: 0.4, lift: 0 });
+        if (event.enemy.id % 3 === 0) {
+          const quips = levels.QUIPS.knockback;
+          addQuip(event.enemy, quips[(event.enemy.id + game.currentWave) % quips.length], { silent: true, duration: 1.5 });
+        }
         playSound("knockback");
       } else if (event.type === "leak") {
         addShake(9);
         ui.statueHit = 1;
         addFloater({ x: event.x, y: event.y, text: `−${event.damage}`, color: "#ff8a7e", size: 20, life: 1.1, maxLife: 1.1 });
-        addQuip(event.enemy, "Skål!", { silent: true, duration: 1.5 });
+        const quips = levels.QUIPS.leak;
+        addQuip(event.enemy, quips[(event.enemy.id + game.currentWave) % quips.length], { silent: true, duration: 1.5 });
         const vignette = element("damage-vignette");
         vignette.classList.remove("flash");
         void vignette.offsetWidth;
@@ -1111,7 +1127,10 @@
           { x: levels.STATUE.x, y: levels.STATUE.y, radius: 160, color: "#ffe09a", life: 0.8, maxLife: 0.8 },
           { x: levels.STATUE.x, y: levels.STATUE.y, radius: 105, color: "#fff2c7", life: 0.55, maxLife: 0.55 },
         );
-        game.enemies.slice(0, 2).forEach((enemy, index) => addQuip(enemy, index ? "Kaffe?!" : "Tak for kaffe!", { silent: index > 0 }));
+        game.enemies.slice(0, 2).forEach((enemy, index) => {
+          const quips = levels.QUIPS.fika;
+          addQuip(enemy, quips[(game.currentWave + index) % quips.length], { silent: index > 0 });
+        });
         addShake(1);
         playSound("fika");
       } else if (event.type === "win") {
@@ -1287,6 +1306,7 @@
     ui.floaters.length = 0;
     ui.quips.length = 0;
     ui.quipSchedule.clear();
+    ui.quipHistory.clear();
     ui.hitFlashes.clear();
     ui.recoil.clear();
     ui.lastDamageNumbers.clear();

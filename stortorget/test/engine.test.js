@@ -596,3 +596,25 @@ test("falafel deals its advertised heavy bonus only to tanks and bosses", () => 
   }, basic);
   assert.equal(basic.hp, basic.maxHp - 13);
 });
+
+test("Danish dialogue has broad, non-repetitive rivalry and event vocabulary", () => {
+  const allQuips = [];
+  for (const definition of Object.values(levels.ENEMY_TYPES)) {
+    assert.ok(definition.quips.length >= 12, `${definition.id} needs a varied phrase pool`);
+    assert.equal(new Set(definition.quips).size, definition.quips.length, `${definition.id} has duplicate stock quips`);
+    for (const text of definition.quips) assert.ok(text.length <= 36, `Speech bubble is too long: ${text}`);
+    allQuips.push(...definition.quips);
+  }
+  assert.ok(new Set(allQuips).size >= 30, "Enemy roles should have a broad shared vocabulary");
+  for (const required of [
+    "Kamelåså!", "LEGO > IKEA", "Skåne er dansk!", "Roskilde tæller ikke!",
+    "1658? Tilfældighed!", "Wienerbrød > kanelboller", "Helsingør > Helsingborg",
+    "Havfruen > hesten", "Over Bæltet!", "ABBA? Nej, Aqua!", "Hvor er min cykel?",
+  ]) {
+    assert.ok(allQuips.includes(required), `Missing rivalry line: ${required}`);
+  }
+  for (const [event, phrases] of Object.entries(levels.QUIPS)) {
+    assert.ok(phrases.length >= 4, `${event} needs multiple event-specific lines`);
+    assert.equal(new Set(phrases).size, phrases.length, `${event} has duplicate lines`);
+  }
+});

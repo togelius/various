@@ -204,7 +204,12 @@
       leak: 1,
       size: 8,
       knockbackFactor: 1,
-      quips: ["Kamelåså!", "Hvad så?", "Til torvet!"],
+      quips: [
+        "Kamelåså!", "Hvad så?", "Til torvet!", "LEGO > IKEA", "Wienerbrød!",
+        "Hvor er min cykel?", "Malmö er jo dansk!", "Roskilde tæller ikke!",
+        "Skåne er dansk!", "Falafel? Frikadeller!", "Kaffe og wienerbrød!",
+        "Helsingør > Helsingborg", "Forstår du dansk?", "ABBA? Nej, Aqua!", "Broen var dyr!",
+      ],
     },
     runner: {
       id: "runner",
@@ -215,7 +220,11 @@
       leak: 1,
       size: 7,
       knockbackFactor: 0.85,
-      quips: ["Sådan!", "Skynd jer!", "Vi kommer!"],
+      quips: [
+        "Sådan!", "Skynd jer!", "Vi kommer!", "Over isen igen!", "Hvor er broen?",
+        "Vi cykler næste gang!", "Skåne tilbage!", "LEGO > IKEA",
+        "Øresund er bare en rende!", "Til Malmö!", "Hvor er min cykel?", "København > Malmö",
+      ],
     },
     tank: {
       id: "tank",
@@ -226,7 +235,12 @@
       leak: 2,
       size: 11,
       knockbackFactor: 0.55,
-      quips: ["Rødgrød med fløde!", "Fremad!", "Smørrebrød!"],
+      quips: [
+        "Rødgrød med fløde!", "Fremad!", "Smørrebrød!", "Roskilde var en fejl!",
+        "Skåne hører til Danmark!", "Vores konge er bedre!", "Dannebrog er ældst!",
+        "Wienerbrød > kanelboller", "Kronborg!", "1658? Tilfældighed!",
+        "Hvem er Karl X?", "Havfruen er bedre!", "Det er ikke hyggeligt!",
+      ],
     },
     boss: {
       id: "boss",
@@ -237,7 +251,12 @@
       leak: 8,
       size: 16,
       knockbackFactor: 0.15,
-      quips: ["Kamelåsååå!", "Malmö er vores!", "Skål!"],
+      quips: [
+        "Kamelåsååå!", "Malmö er vores!", "Skål!", "Skåne er dansk!",
+        "Roskilde var en fejl!", "Vi vil have Skåne tilbage!", "Havfruen > hesten",
+        "Over Bæltet!", "Malmö? Det er jo Danmark!", "1658? Tilfældighed!",
+        "Dannebrog!", "Tivoli er bedre!",
+      ],
     },
   };
 
@@ -333,6 +352,13 @@
     },
   ];
 
+  const QUIPS = {
+    fika: ["Tak for kaffe!", "Kaffe og wienerbrød!", "Fika er bare kaffe!", "Kaffe? Tak!", "Wienerbrød!"],
+    defeat: ["Øv!", "Det er ikke hyggeligt!", "Det gjorde ondt!", "Jeg faldt!", "Hvor er min frikadelle?", "Av!"],
+    leak: ["Skål!", "Skåne er dansk!", "Malmö er jo dansk!", "Roskilde tæller ikke!", "Malmö er vores!"],
+    knockback: ["Hvor er cykelstien?", "Hvor er isen?", "Øresund blæser!", "Tilbage igen!"],
+  };
+
   const CONFIG = {
     startingMoney: 240,
     startingHealth: 20,
@@ -380,6 +406,7 @@
     TOWER_TYPES,
     ENEMY_TYPES,
     WAVES,
+    QUIPS,
     CONFIG,
     pointOnRoute,
   };

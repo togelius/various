@@ -39,7 +39,18 @@ Tap a built defence to **upgrade** it twice or **sell** it. Espresso boosts appe
 
 Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. **Fika break** slows every attacker for five seconds and recharges during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1.
 
-Combat includes recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. The attackers occasionally talk in Danish speech bubbles, including “Kamelåså!” and “Tak for kaffe!”. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
+Combat includes recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
+
+The attackers have dozens of short Danish lines, with separate pools for ordinary chatter, fika, defeat, statue leaks, and wind knockback. References include Roskilde and 1658, the Belts and Øresund, Skåne, LEGO versus IKEA, wienerbrød versus kanelboller, frikadeller versus falafel, cycling, Dannebrog, the Little Mermaid versus Karl’s horse, Helsingør versus Helsingborg, and ABBA versus Aqua. Simultaneous bubbles vary, and an enemy avoids immediately repeating itself when alternatives exist.
+
+A tiny phrasebook for the playful taunts (not historical claims):
+
+- **Skåne er dansk!** — “Skåne is Danish!”
+- **Roskilde tæller ikke!** — “Roskilde doesn’t count!”
+- **Havfruen > hesten** — “The Mermaid beats the horse.”
+- **Hvor er min cykel?** — “Where is my bike?”
+- **Det er ikke hyggeligt!** — “This isn’t cosy!”
+- **Kaffe og wienerbrød!** — “Coffee and Danish pastry!”
 
 **Controls:** drag to pan; pinch or scroll to zoom; use the map buttons to zoom or fit the whole neighbourhood. Keyboard shortcuts: `1`–`5` select defences, `F` activates fika, `P` pauses, `Space` starts the next wave, and `0` refits the map. The header also provides pause, 2× speed, sound, and help controls.
 
