@@ -22,7 +22,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const ids = C.Clauses.of(sp, { depth: 4 }).map(q => q.id);
       assert.equal(ids.includes('role_brute'), sp.role === 'brute', `${sp.id} (${sp.role}): ${ids.join(', ')}`);
     }
-    assert.equal(C.Registry.CLAUSES.role_brute.ready, 'unit');
+    assert.equal(C.Registry.CLAUSES.role_brute.ready, true);
   });
 
   test('a brute beside you strikes once every COST_ATTACK_HEAVY ticks, as its line says, for every species at depths 1–7', () => {

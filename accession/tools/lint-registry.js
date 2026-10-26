@@ -15,7 +15,8 @@
 //   entry does not name; a parameter reference cannot be read; a clause covers an unknown
 //   event kind; a pack species' Behaviour line cannot be filled at some depth 1–7;
 //   an entry at ready 'unit' or above names no tests, a test file that does not exist, or
-//   no invariant file that exists (test/behaviour/<inv>.inv.js);
+//   no invariant file that exists (test/behaviour/<inv>.inv.js); an entry at ready true
+//   names no scenario file under test/behaviour/ (true means its joined-up scenarios pass);
 //   a built: 'M3' id is referenced by no pack, scenario test or arena fixture (§5.1; refs,
 //   below): a pack uses it (a species' archetype, trigger or modifiers, its archetype's
 //   special, inflicted statuses and wake clause, its role's clause if it has one; an item's primitives, instrument and
@@ -132,6 +133,7 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
     for (const f of e.tests) if (!fs.existsSync(path.join(root, 'test', f))) bad(`${where} names the test test/${f}, which does not exist`);
     if (!e.inv || !fs.existsSync(path.join(root, 'test/behaviour', e.inv + '.inv.js'))) bad(`${where} is at ready ${JSON.stringify(e.ready)} but its invariant test/behaviour/${e.inv}.inv.js does not exist`);
   }
+  if (e.ready === true && !e.tests.some(f => /^behaviour\/[^/]+\.test\.js$/.test(f))) bad(`${where} is at ready true but names no joined-up scenario file (test/behaviour/*.test.js)`);
   if (strict && e.built === 'M3' && (e.ready !== true || !e.tests.length || !e.inv)) {
     const open = followUps && Object.prototype.hasOwnProperty.call(follow, where) ? follow[where] : null;
     if (open === null) bad(`--strict: ${where} is at ready ${JSON.stringify(e.ready)}, with ${e.tests.length} test(s) and invariant ${e.inv}`);

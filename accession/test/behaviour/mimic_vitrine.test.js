@@ -3,11 +3,11 @@
 // for {MIMIC_GRIP_TURNS} turns) and strikes for {dmg}; it does everything at half speed. Wakes
 // only when it is opened, bashed, dissolved or struck; wakes at once when its case is opened or
 // bashed." Each scenario runs for every pack mimic (S9.5) at depths 1–7, as a function of the
-// clause's parameters, with the invariants and a clone checked after every step. Opening,
-// bashing and Solvent are W1-CASES's: here they are stood in for as W1-CASES builds them (the
-// touch: Cases.touch calls the mimic's onTouched, shows the mimic if it has not shown itself,
-// and wakes it, hunting; then the soft or loud noise; Solvent shows the mimic, then releases
-// it, hunting).
+// clause's parameters, with every invariant and a clone checked after every step. Opening,
+// bashing and Solvent are W1-CASES's real actions (the touch: Cases.touch calls the mimic's
+// onTouched, shows the mimic if it has not shown itself, and wakes it, hunting, its cause
+// marked itself; then the soft or loud noise): every scenario runs joined up (W2a-BEHAVIOUR),
+// you of grade VII, so that a mimic's lock, drawn as a real case's is, never stops the open.
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {
@@ -25,34 +25,11 @@ module.exports = ({ test, assert, loadCore }) => {
   // A room with a door beside you; the mimic sleeps at (4, 3), you stand west of it.
   const ROOM = ['#########', '#.......#', '#.+.....#', '#.......#', '#.......#', '#.......#', '#########'];
   const AT = [4, 3], YOU = [3, 3];
-  const make = (X, sp, depth, opts, extra) => strong(X.Setup.room(opts.seed, { acc: 'T0', depth, map: ROOM, you: YOU.slice(),
+  const make = (X, sp, depth, opts, extra) => strong(X.Setup.room(opts.seed, { acc: 'T0', depth, map: ROOM, you: YOU.slice(), grade: 7,
     exhibits: [{ sp: sp.id, at: AT.slice(), stats: Roles.stats(sp.role, depth) }].concat(extra || []) }, { rulesOff: opts.rulesOff }));
 
-  // A core with W1-CASES's open and bash stood in for a mimic's case, as W1-CASES builds them.
-  function standIn() {
-    const X = loadCore(), get = X.Actions.get;
-    X.Cases.touch = (state, f, how, by, ev) => {
-      const m = f.mimic && X.Actors.byUid(state, f.mimic);
-      if (!m || m.gone) return;
-      X.Archetypes.onTouched(state, m, how, by, ev);
-      if (f.st !== 'revealed') X.Cases.reveal(state, m);
-      X.Wake.wake(state, m, 'hunting', { k: 'touch_case', by, x: f.x, y: f.y, how }, ev);
-    };
-    const handler = (id, cost, cls, noise) => ({
-      legal: () => [], candidates: () => [],
-      apply(state, action, ev) {
-        const you = state.actors[0], f = X.Cases.at(state, action.x, action.y);
-        if (!f || f.k !== 'case' || f.st !== 'shut' || X.Actors.dist(you, f.x, f.y) !== 1) return 'no_target';
-        X.Cases.touch(state, f, id === 'open' ? 'opened' : 'bashed', 'you', ev);
-        X.Noise.emit(state, f.x, f.y, cls, { k: noise, by: 'you' }, ev);
-        return cost;
-      },
-    });
-    const planted = { open: handler('open', N.COST_OPEN_CASE, 'soft', 'case_opened'), bash: handler('bash', N.COST_BASH, 'loud', 'bash') };
-    X.Actions.get = id => planted[id] || get(id);
-    return X;
-  }
-  const X = standIn();
+  // The real core, with nothing stood in for.
+  const X = C;
 
   // A disguised mimic: in your ring, beside a door you open, beside a sleeper you strike, it
   // stays a case: no pips, no waking, no blow possible, its tile unchanged.
@@ -86,7 +63,7 @@ module.exports = ({ test, assert, loadCore }) => {
   // then its first action, after the beat, is a rolled blow, and everything it does is slow.
   const opened = how => H.scenario({
     name: `${how === 'open' ? 'opened' : 'bashed'}, it grips you for your next turns, then strikes from beside you, slowly`,
-    id: 'mimic_vitrine', clone: true, inv: ['arch-c'],
+    id: 'mimic_vitrine', clone: true,
     build: (params, sp, depth, opts) => make(C, sp, depth, opts),
     actions: (s, i, c) => {
       const g = grip(c.sp, c.depth), seq = [{ a: how, x: AT[0], y: AT[1] }];
@@ -134,7 +111,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(m.next, Actors.cost(s, m, N.COST_STEP, 'act'));
       assert.equal(json([Actors.cost(s, m, N.COST_STEP, 'move'), Actors.cost(s, m, N.COST_ATTACK, 'act'), Actors.cost(s, m, N.COST_WAIT, 'act')]),
         json([2 * N.COST_STEP, 2 * N.COST_ATTACK, 2 * N.COST_WAIT]));
-      const r = H.play(X, s, waits(12), { inv: ['arch-c'] });
+      const r = H.play(X, s, waits(12), { clone: true });
       assert.equal(json(r.violations), '[]');
       assert.ok(r.events.filter(e => e.k === 'attacked' && e.by === m.uid).length >= 3, 'it fought');
       assert.ok(r.events.filter(e => e.k === 'attacked' && e.by === m.uid).length <= 7, 'it fought slowly: at most one blow in two turns');
@@ -231,12 +208,12 @@ module.exports = ({ test, assert, loadCore }) => {
     Archetypes.onTouched(s, m, 'opened', 'you', ev);
     assert.equal(json(ev.map(e => [e.k, e.who, e.cause.k])), json([['status', 'you', 'grip']]));
     assert.equal(json([m.ax.gripped, caseOf(s, m).st, s.dept.tiles[AT[1]][AT[0]], m.mode]), json([1, 'revealed', '.', 'dormant']));
-    // Through the touch (as W1-CASES's Cases.touch makes it): the grip, then the waking, with
-    // the touch's own cause.
+    // Through the real touch (W1-CASES's Cases.touch): the grip, then the waking, with the
+    // touch's own cause, marked itself (its case is the mimic).
     const t = make(X, sp, depth, { seed: 1, rulesOff: [] }), n = mimic(t), tv = [];
     X.Cases.touch(t, caseOf(t, n), 'opened', 'you', tv);
     assert.equal(json(tv.map(e => [e.k, e.who, e.cause.k])), json([['status', 'you', 'grip'], ['woke', n.uid, 'touch_case'], ['hunting', n.uid, 'touch_case']]));
-    assert.equal(json(tv[1].cause), json({ k: 'touch_case', by: 'you', x: AT[0], y: AT[1], how: 'opened' }));
+    assert.equal(json(tv[1].cause), json({ k: 'touch_case', by: 'you', x: AT[0], y: AT[1], how: 'opened', itself: true }));
     const more = [];
     X.Cases.touch(t, caseOf(t, n), 'bashed', 'you', more);
     assert.equal(more.length, 0);
@@ -265,7 +242,7 @@ module.exports = ({ test, assert, loadCore }) => {
     Y.Archetypes.pipless = () => false;
     const s = make(Y, sp, depth, { seed: 1, rulesOff: [] });
     assert.ok(H.play(Y, s, waits(3), { inv: ['arch-c'] }).violations.some(v => v.inv === 'mimic_disguise'));
-    const Z = standIn();
+    const Z = loadCore();
     Z.Archetypes.onTouched = (state, a, how, by, ev) => { Z.Cases.reveal(state, a); Z.Wake.wake(state, a, 'hunting', { k: 'touch_case', by }, ev); Z.Status.apply(state, state.actors[0], 'rooted', 1, { k: 'grip', by: a.uid }, ev); };
     Z.Archetypes.speedApplies = () => ['move'];
     const t = make(Z, sp, depth, { seed: 1, rulesOff: [] });

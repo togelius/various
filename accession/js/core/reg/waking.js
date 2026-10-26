@@ -6,10 +6,11 @@
 (() => {
   const R = Registry;
   // Where each entry is proved: its scenarios and unit tests, and its invariants
-  // (test/behaviour/waking.inv.js).
+  // (test/behaviour/waking.inv.js). ready true (W2a-BEHAVIOUR): its scenarios pass joined up,
+  // in the real core with every rule in place and every package's invariants.
   const WAKE_TESTS = ['m3-waking.test.js', 'm3-ring.test.js', 'behaviour/wake.test.js'];
   const TRIGGER_TESTS = ['m3-waking.test.js', 'behaviour/triggers.test.js'];
-  const proved = tests => ({ ready: 'unit', tests, inv: 'waking' });
+  const proved = tests => ({ ready: true, tests, inv: 'waking' });
 
   // The generic wake clause ends every sleeping species' Behaviour line, joined to its
   // special trigger's clause (§5.3): your ring gives a pip a turn, and so does a noise it

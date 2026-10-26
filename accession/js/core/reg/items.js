@@ -7,7 +7,9 @@
 (() => {
   const R = Registry;
   const TESTS = ['m3-kit.test.js', 'behaviour/items.test.js'];
-  const rule = (clause, params, covers) => ({ icon: null, clause, params: params || {}, covers: covers || [], ready: 'unit', tests: TESTS, inv: 'kit' });
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (the real bolt, the real cases),
+  // every package's invariants on; each refusal is made to happen in behaviour/refusals.test.js.
+  const rule = (clause, params, covers) => ({ icon: null, clause, params: params || {}, covers: covers || [], ready: true, tests: TESTS, inv: 'kit' });
   const sizes = row => ({ S: `N:${row}[0]`, M: `N:${row}[1]`, L: `N:${row}[2]` });
   // A signed number in a clause, its words chosen by its value now so that the line reads
   // well: a form's offset after "its tier" is " + {name}" above 0, " {name}" below it ("its
@@ -81,7 +83,7 @@
   // Refusal codes of the item actions (§4.2); the sentences are in text/items.js.
   for (const code of ['no_item', 'carried', 'not_carried', 'worn', 'tote_full', 'not_equippable', 'curio_slots_full', 'weapon_slot', 'slot_empty', 'bad_slot',
     'not_equipped', 'no_charges', 'out_of_range', 'no_line', 'no_aim', 'own_tile', 'not_a_place', 'bad_use', 'no_exhibit', 'too_big', 'in_case', 'marked', 'cannot_move',
-    'nothing_to_take', 'cannot_restore']) R.define('REFUSALS', code, { ready: 'unit', tests: TESTS, inv: 'kit' });
+    'nothing_to_take', 'cannot_restore']) R.define('REFUSALS', code, { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'kit' });
 
   // Events (§4.3). Unequipping is `equipped` with item null. Each cause carries what the item
   // was (its kind, and its form, tier, level and count when it has them), so its sentence

@@ -64,7 +64,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('the kiter\'s clause is on the Signal Lamps, at every depth', () => {
     const list = H.species(C, 'kiter');
     assert.ok(list.length >= 7 && list.every(x => x.sp.archetype === 'kiter'), json(list.map(x => x.sp.id)));
-    assert.equal(C.Registry.ARCHETYPES.kiter.ready, 'unit');
+    assert.equal(C.Registry.ARCHETYPES.kiter.ready, true);
     const line = C.Clauses.line(list[0].sp, { depth: 3 });
     assert.ok(line.includes(`Keeps ${N.KITER_HOLD[0]} to ${N.KITER_HOLD[1]} tiles from you and shoots within ${N.ROLE_ARTILLERY_RANGE} tiles`), line);
   });

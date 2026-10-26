@@ -6,7 +6,8 @@
 //   play(C, state, actions, {inv, cap, clone}) → {events, violations, steps, state, stopped}
 //   scenario({name, id, build, actions, expect, seeds?, cap?, inv?, clone?}) → sc
 //   run(C, sc, sp, depth, {seed, rulesOff, inv, clone}) → result  (also sc.run(C, sp, depth, opts))
-//   sweep(C, sc, list?, {rulesOff, inv}) → [result]                 every {sp, depth} × seed
+//   sweep(C, sc, list?, {rulesOff, inv}) → [result]                 every {sp, depth} × seed; a
+//                                     modifier's scenario is also rerun with it off (§5.3)
 //   failures(results) → [line]
 //   sensitivity(C, sc, modifierId, list?) → {sensitive, problems, runs}
 //   species(C, id, {depths, m4}) → [{sp, depth, acc}]
@@ -26,8 +27,9 @@ const message = e => (e && e.message) || String(e);
 //   opts.clone: also play the same actions on a twin of the state that is replaced by
 //     State.clone after every step, and report a violation at the first step whose hash
 //     differs (§3.5's clone stability, for a scenario).
-// After every step the state must be plain data (§3.1), whatever the invariants: a step
-// that leaves anything else is a violation. It stops early when the visit is over. stopped
+// After every step the state must be plain data (§3.1), and every event must pass its cause
+// schema (§3.4) and read as a clean sentence (Text.event), whatever the invariants: anything
+// else is a violation. It stops early when the visit is over. stopped
 // is 'done', 'over' or 'cap'; steps is [{action, events}] in order; events is every step's
 // events, concatenated.
 function play(C, state, actions, opts) {
@@ -51,6 +53,15 @@ function play(C, state, actions, opts) {
     steps.push({ action, events: ev });
     const bad = C.State.plainData(state);
     if (bad) { violations.push({ id: 'plain_data', text: `not plain data at ${bad} after step ${i} (${JSON.stringify(action)})` }); break; }
+    // Every event passes its schema (§3.4), and has a sentence a player could be shown with
+    // no gap in it (§0: nothing says "undefined", "NaN" or "[object").
+    const names = C.Labels.nameOf(state);
+    for (const e of ev) {
+      const wrong = C.Causes.check(e);
+      if (wrong) violations.push({ id: 'cause', text: `${wrong}, at step ${i} (${JSON.stringify(action)}): ${JSON.stringify(e)}` });
+      const said = C.Text.event(e, names);
+      if (typeof said !== 'string' || !said || /undefined|NaN|\[object/.test(said)) violations.push({ id: 'sentence', text: `the ${e.k}${e.cause && e.cause.k ? '.' + e.cause.k : ''} event reads ${JSON.stringify(said)}, at step ${i} (${JSON.stringify(action)})` });
+    }
     if (check) for (const v of check(pre, action, ev, state)) violations.push(v);
     if (twin) {
       C.Step.step(twin, action);
@@ -64,8 +75,9 @@ function play(C, state, actions, opts) {
 // A scenario. Its fields:
 //   name     what it shows, in words;
 //   id       the registry id of the clause it proves (an archetype, modifier, trigger,
-//            special, status or wake clause); its parameters at the species and depth,
-//            from Clauses.of, are the scenario's params; null for none;
+//            special, status or wake clause), or 'TABLE.id' for a clause no species' line
+//            has (paramsOf); its parameters at the species and depth, from Clauses.of or
+//            the registry, are the scenario's params; null for none;
 //   build(params, sp, depth, {seed, rulesOff}) → state; pass rulesOff to Setup.room's
 //            options so that a rule switched off is off from the start;
 //   actions  as play() takes them; a function also gets {params, sp, depth} in its third
@@ -73,7 +85,10 @@ function play(C, state, actions, opts) {
 //   expect(result, params, sp, depth) → null, or a message saying what the clause promised
 //            and what happened; it may also throw;
 //   seeds    the seeds each species and depth is run with ([1]); cap (CAP); inv ('all');
-//   clone    true to clone-check every run (play's opts.clone; false by default).
+//   clone    true to clone-check every run (play's opts.clone; false by default);
+//   holdsWithout  for a scenario of a modifier's clause that holds with the modifier
+//            switched off too (it shows what the modifier leaves as it is): why, in words;
+//            sweep() reruns every other modifier scenario with its modifier off (§5.3).
 function scenario(def) {
   if (!def || typeof def.name !== 'string' || !def.name) throw new Error('scenario: needs a name');
   const where = `scenario "${def.name}"`;
@@ -83,19 +98,38 @@ function scenario(def) {
   if (typeof def.expect !== 'function') throw new Error(`${where}: needs expect(result, params, sp, depth)`);
   const seeds = def.seeds === undefined ? [1] : def.seeds;
   if (!Array.isArray(seeds) || !seeds.length || !seeds.every(Number.isInteger)) throw new Error(`${where}: seeds must be a list of integers`);
+  if (def.holdsWithout !== undefined && def.holdsWithout !== null && (typeof def.holdsWithout !== 'string' || !def.holdsWithout)) throw new Error(`${where}: holdsWithout must say why it holds with its rule switched off`);
   const sc = { name: def.name, id: def.id || null, build: def.build, actions: def.actions, expect: def.expect, seeds: seeds.slice(),
-    cap: def.cap || CAP, inv: def.inv === undefined ? 'all' : def.inv, clone: !!def.clone };
+    cap: def.cap || CAP, inv: def.inv === undefined ? 'all' : def.inv, clone: !!def.clone, holdsWithout: def.holdsWithout || null };
   sc.run = (C, sp, depth, opts) => run(C, sc, sp, depth, opts);
   return sc;
 }
 
-// The clause part's parameters for a species at a depth, as written (no rule switched off).
+// A scenario's id names the clause it proves: a bare id (an archetype, modifier, trigger,
+// special, status or wake clause) that a species' Behaviour line has, or a table-qualified
+// one, 'TABLE.id', for a clause that belongs to no species' line (a status nothing in the
+// packs inflicts, a surface, a consumable, an item's clause: §5.3's other clauses) or one
+// whose bare id is ambiguous (fumigant is a surface and a consumable).
+const qualified = id => { const m = /^([A-Z][A-Z_]*)\.(.+)$/.exec(id || ''); return m ? { table: m[1], id: m[2] } : null; };
+const bare = id => { const q = qualified(id); return q ? q.id : id; };
+
+// The clause part's parameters for a species at a depth, as written (no rule switched off):
+// the part of the species' line with that id; or, for a table-qualified id the line has no
+// part for (or with no species), the registry entry's clause, filled at the depth.
 function paramsOf(C, id, sp, depth) {
   if (!id) return { params: {}, clause: null };
-  if (!sp) throw new Error(`the clause ${id} needs a species`);
-  const part = C.Clauses.of(sp, { depth, rulesOff: [] }).find(p => p.id === id);
-  if (!part) throw new Error(`${sp.id}'s Behaviour line has no ${id} clause`);
-  return { params: Object.assign({}, part.params), clause: part.text };
+  const q = qualified(id);
+  if (!sp && !q) throw new Error(`the clause ${id} needs a species`);
+  const part = sp ? C.Clauses.of(sp, { depth, rulesOff: [] }).find(p => p.id === bare(id)) : null;
+  if (part) return { params: Object.assign({}, part.params), clause: part.text };
+  if (!q) throw new Error(`${sp.id}'s Behaviour line has no ${id} clause`);
+  const R = C.Registry, e = R.TABLES.includes(q.table) && Object.prototype.hasOwnProperty.call(R[q.table], q.id) ? R[q.table][q.id] : null;
+  if (!e) throw new Error(`the registry has no ${id}`);
+  if (e.clause === undefined) return { params: {}, clause: null };
+  const params = C.Clauses.params(e.params, sp, { depth });
+  let clause = null;
+  try { clause = C.Clauses.fill(e.clause, params); } catch (err) { clause = null; }
+  return { params, clause };
 }
 
 // Run a scenario once. opts: seed (the scenario's first), rulesOff (ids switched off, passed
@@ -141,14 +175,33 @@ function describe(r) {
     (r.failure ? ': ' + r.failure : ': passed');
 }
 
+// The rule a scenario's clause belongs to that rulesOff can switch off: a modifier built in
+// M3 (and, from M4, a module), or null.
+function switchable(C, sc) {
+  const id = bare(sc.id), R = C.Registry, own = (t, k) => Object.prototype.hasOwnProperty.call(R[t], k);
+  return id && ((own('MODIFIERS', id) && R.MODIFIERS[id].built === 'M3') || (own('MODULES', id) && R.MODULES[id].built === 'M3')) ? id : null;
+}
+
 // Run a scenario for every {sp, depth} in list (by default species(C, sc.id)), once per
 // seed, with run()'s rulesOff and inv. An empty list throws: a sweep over nothing would
 // pass without testing anything.
+// A scenario of a modifier's clause is also rerun with that modifier switched off (§5.3,
+// check 3), each run that passed with it on: with it off the run must fail, or the sweep
+// gets a failure saying the scenario does not test the modifier. A scenario that shows what
+// a modifier leaves as it is (marble's blows, the side opposite an old repair) holds with it
+// off as well, and says so, with why, in holdsWithout; it is not rerun. (Not when the sweep
+// is itself run with rules off.)
 function sweep(C, sc, list, opts) {
   list = list || (sc.id ? species(C, sc.id) : null);
   if (!list || !list.length) throw new Error(`sweep: no species and depths to run "${sc.name}" for`);
-  const out = [];
-  for (const { sp, depth } of list) for (const seed of sc.seeds) out.push(run(C, sc, sp, depth, Object.assign({}, opts, { seed })));
+  const out = [], rule = switchable(C, sc), check = rule && !sc.holdsWithout && !((opts && opts.rulesOff) || []).length;
+  for (const { sp, depth } of list) for (const seed of sc.seeds) {
+    const on = run(C, sc, sp, depth, Object.assign({}, opts, { seed }));
+    out.push(on);
+    if (!check || on.failure) continue;
+    const off = run(C, sc, sp, depth, Object.assign({}, opts, { seed, rulesOff: [rule], inv: [] }));
+    if (off.error || !off.failure) out.push(Object.assign({}, off, { failure: off.error ? `with ${rule} switched off it threw (${off.error}), which shows nothing` : `with ${rule} switched off it still passed, so it does not test ${rule}` }));
+  }
   return out;
 }
 
@@ -173,8 +226,8 @@ function sensitivity(C, sc, modifierId, list) {
   return { sensitive: problems.length === 0, problems, runs };
 }
 
-// Every species whose Behaviour line has a part with this id, from the packs and the shared
-// species (Packs.sharedList: the Night Watchman), at every depth 1–7 (opts.depths), as
+// Every species whose Behaviour line has a part with this id (bare, or table-qualified), from
+// the packs and the shared species (Packs.sharedList: the Night Watchman), at every depth 1–7 (opts.depths), as
 // {sp, depth, acc}. The species records are the packs' own, so the fields by which a pack
 // overrides a number (§5.2; modParams) apply. Species whose archetype M3 does not build are
 // left out, as M3 departments leave them out (§5.5), unless opts.m4.
@@ -190,12 +243,13 @@ function species(C, id, opts) {
     if (!built && !opts.m4) continue;
     // An M3 species' line always fills (lint-registry checks it), so an error there is
     // thrown; an unbuilt species whose line cannot be read simply uses nothing.
-    let uses = sp.archetype === id;
-    if (!uses && built) uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === id);
-    else if (!uses) { try { uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === id); } catch (e) { uses = false; } }
+    const want = bare(id);
+    let uses = sp.archetype === want;
+    if (!uses && built) uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === want);
+    else if (!uses) { try { uses = C.Clauses.of(sp, { depth: depths[0], rulesOff: [] }).some(p => p.id === want); } catch (e) { uses = false; } }
     if (uses) for (const depth of depths) out.push({ sp, depth, acc });
   }
   return out;
 }
 
-module.exports = { DEPTHS, CAP, play, scenario, run, sweep, failures, describe, sensitivity, species };
+module.exports = { DEPTHS, CAP, play, scenario, run, sweep, failures, describe, sensitivity, species, switchable };

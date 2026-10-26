@@ -6,8 +6,8 @@
 // Each scenario runs for every species whose line has it (the Heliographs), at every depth
 // 1–7, with every invariant checked after every step and a clone check; and each must fail
 // with glass switched off (rulesOff), which shows that it tests the modifier (§5.3, check 3).
-// Your Pin-Driver is W1-KIT's; here, in this test's own core, a stand-in fires it through
-// Ranged.shoot as the plan says KIT's does.
+// Your Pin-Driver is W1-KIT's real one (Kit.useInstrument, through Ranged.shoot): every
+// scenario runs joined up, with no hook stood in for (W2a-BEHAVIOUR).
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const C = loadCore();
@@ -18,10 +18,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // A glass body that falls to one blow (a surprise blow, since it sleeps).
   const frail = (sp, depth, at) => ({ sp: sp.id, at, mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 1 }) });
   const sturdy = (sp, depth, at) => ({ sp: sp.id, at, mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 999 }) });
+  // Your real Pin-Driver, a tier 1 instrument in its slot, with its charges of record.
   const PD = 'arch_b.pd';
-  // The stand-in fires with its own damage (1–4) and Acc (1), as an instrument's bolt is made.
-  C.Kit.useAction = (state, action, ev) => Ranged.shoot(state, state.actors[0], action.x, action.y, { kind: 'shot', item: action.uid, dmin: 1, dmax: 4, acc: 1 }, ev);
-  const pinDriver = [{ uid: PD, kind: 'instrument', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.PIN_DRIVER[0], max: N.PIN_DRIVER[0] }];
+  const pinDriver = [{ uid: PD, kind: 'instrument', form: 'pin_driver', where: { at: 'kit', slot: 'instrument' }, tier: 1 }];
   const ch = (r, x, y) => r.state.dept.tiles[y][x];
   const both = sc => {
     const res = H.sweep(C, sc);
@@ -35,7 +34,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('the glass clause is on the Heliographs, at every depth', () => {
     const list = H.species(C, 'glass');
     assert.ok(list.length >= 7 && list.every(x => x.sp.modifiers.includes('glass')), json(list.map(x => x.sp.id)));
-    assert.equal(C.Registry.MODIFIERS.glass.ready, 'unit');
+    assert.equal(C.Registry.MODIFIERS.glass.ready, true);
   });
 
   test('destroyed on the floor, it leaves shards on its own tile', () => both(H.scenario({
@@ -126,6 +125,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const OPEN = ['############', ...Array.from({ length: 5 }, () => '#..........#'), '############'];
     const res = H.sweep(K, H.scenario({
       name: 'a glass body pulled onto a marked beam\'s line is struck with you behind it; nothing comes back', id: 'glass', clone: true,
+      holdsWithout: 'a beam marked before the glass body came into its line goes on through it, glass or not: its line says which beams it sends back',
       build: (params, sp, depth, opts) => K.Setup.room(opts.seed, { acc: K.Packs.list().find(p => p.species.includes(sp)).acc, depth, map: OPEN, you: [8, 3], items: pole,
         exhibits: [{ sp: 'arch_b_sniper', arch: 'axis_sniper', at: [1, 3], mode: 'hunting', stats: Roles.stats('artillery', depth) }, sturdy(sp, depth, [6, 4])] }, { rulesOff: opts.rulesOff, invulnerable: true }),
       actions(state, i) {

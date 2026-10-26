@@ -24,31 +24,34 @@
 'use strict';
 (() => {
   const R = Registry;
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (your real Pin-Driver), every
+  // package's invariants on, and each modifier's fail with it switched off; the kiter's also
+  // wakes to your noise and finds you by sight (behaviour/joined.test.js).
   const tests = id => ['behaviour/' + id + '.test.js'];
 
   R.define('ARCHETYPES', 'kiter', { icon: null, ranged: true,
     clause: 'Keeps {KITER_HOLD0} to {KITER_HOLD1} tiles from you and shoots within {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its shots hit the first body in their way and stop at glass; backs away when you are beside it.',
     params: { KITER_HOLD0: 'N:KITER_HOLD[0]', KITER_HOLD1: 'N:KITER_HOLD[1]', ROLE_ARTILLERY_RANGE: 'N:ROLE_ARTILLERY_RANGE', dmg: 'role:DMG' },
-    covers: ['attacked', 'missed'], ready: 'unit', tests: tests('kiter'), inv: 'arch-b' });
+    covers: ['attacked', 'missed'], ready: true, tests: tests('kiter').concat(['behaviour/joined.test.js']), inv: 'arch-b' });
   R.define('ARCHETYPES', 'axis_sniper', { icon: null, ranged: true, special: 'line',
     clause: 'Moves to share your row or column with no reflector between you, then {special}. It never strikes.',
-    params: {}, covers: ['telegraphed', 'special'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
+    params: {}, covers: ['telegraphed', 'special'], ready: true, tests: tests('axis_sniper'), inv: 'arch-b' });
   R.define('ARCHETYPES', 'reflector', { icon: null,
     clause: 'Walks one tile at a time; sends beams back along their line, and shots back into whoever fired them, so nothing behind it is hit; a beam marked before it stepped into its line goes on through it; strikes from beside you for only {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: 'unit', tests: tests('reflector'), inv: 'arch-b' });
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: true, tests: tests('reflector'), inv: 'arch-b' });
 
   // A special: its shape, its effect, the §8.10 rows for its gross damage (a role curve),
   // its range and its cadence (null: whenever its archetype chooses).
   R.define('SPECIALS', 'line', { icon: 'special', shape: 'line', effect: 'damage', curve: 'ROLE_ARTILLERY_SPECIAL', range: 'AXIS_BEAM_RANGE', every: null,
     clause: 'aims along it for a turn, with the line shown, then fires a beam up to {AXIS_BEAM_RANGE} tiles that passes through glass, for {gross} before your Padding',
-    params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
+    params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: true, tests: tests('axis_sniper'), inv: 'arch-b' });
 
   // A glass body sends shots back, and a shot it sends back that misses is its `missed`.
   R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed; sends shots back along their line, and beams marked while it is in their way.',
-    params: {}, covers: ['missed'], ready: 'unit', tests: tests('glass'), inv: 'arch-b' });
+    params: {}, covers: ['missed'], ready: true, tests: tests('glass'), inv: 'arch-b' });
   // The repaired side is a compass side from the species' modParams.old_repair.side.
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows, shots and beams from that side deal double damage.',
-    params: { side: 'mod:side' }, covers: [], ready: 'unit', tests: tests('old_repair'), inv: 'arch-b' });
+    params: { side: 'mod:side' }, covers: [], ready: true, tests: tests('old_repair'), inv: 'arch-b' });
 
   // Shots are rolled like blows and carry their range (Combat.attack makes k 'shot' when
   // how.kind is 'shot', with from the last tile the bolt crossed, how.via). A shot a

@@ -313,4 +313,33 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(run(X => { const f = X.ClockRules.spawnWatchman; X.ClockRules.spawnWatchman = (s, ev) => { const a = f(s, ev); if (a) a.next = s.tick; return a; }; })),
       json(['night_watchman.acts']));
   });
+
+  // Joined up (W2a-BEHAVIOUR): a night-watch bell rung by the real clock (B + G + 30 counts in,
+  // D4.1) wakes the NIGHT_WAKE_COUNT sleepers nearest you by walking distance, hunting you,
+  // and none it cannot reach: not one in an intact case, not a mimic in its disguise.
+  test('the night-watch bell, joined up: rung by the clock, it wakes the NIGHT_WAKE_COUNT sleepers nearest you that it can reach, hunting you, at every depth', () => {
+    const MAP = ['######################', 'E....................#', '#..v.................#', '######################'];
+    const sleeper = at => ({ sp: 'dummy', at, mode: 'dormant', stats: { hp: 999, acc: -99, eva: 0, pad: 0, dmin: 1, dmax: 1 } });
+    const sc = H.scenario({
+      name: 'the night-watch bell wakes the sleepers nearest you that it can reach', id: 'WAKE_CAUSES.night_bell', clone: true,
+      build: (p, sp, depth, o) => C.Setup.room(o.seed, { acc: 'S9', depth, map: MAP, you: [1, 1], entrance: [0, 1], clock: { B: 1, G: 1, count: 1 + 1 + C.N.NIGHT_WAKE_EVERY - 1 },
+        fixtures: [C.Cases.make({ x: 3, y: 2, room: null, glass: 1, lock: 1 })],
+        exhibits: [{ sp: 'S9.5', at: [2, 2], stats: C.Roles.stats('ambusher', depth) }, sleeper([3, 2]), sleeper([6, 1]), sleeper([8, 1]), sleeper([10, 1]), sleeper([12, 1]), sleeper([14, 1])] },
+        { rulesOff: o.rulesOff, invulnerable: true }),
+      actions: [{ a: 'wait' }],
+      expect(r) {
+        const ev = r.steps[0].events, bell = ev.find(e => e.k === 'stage' && e.stage === 'night_bell');
+        if (!bell || bell.n !== 1) return `no first night-watch bell: ${json(ev.filter(e => e.k === 'stage'))}`;
+        const uid = at => r.start.actors.find(a => a.x === at[0] && a.y === at[1]).uid, want = [[6, 1], [8, 1], [10, 1]].map(uid);
+        if (json(bell.woke) !== json(want)) return `the bell named ${json(bell.woke)}, not the ${C.N.NIGHT_WAKE_COUNT} nearest it can reach ${json(want)}`;
+        const woke = ev.filter(e => e.k === 'woke' && e.cause.k === 'night_bell');
+        if (json(woke.map(e => [e.who, e.mode])) !== json(want.map(w => [w, 'hunting']))) return `it woke ${json(woke.map(e => [e.who, e.mode]))}`;
+        for (const w of want) { const a = r.state.actors.find(x => x.uid === w); if (json(a.lastKnown) !== json([1, 1])) return `${w} looks for you at ${json(a.lastKnown)}`; }
+        const [, mimic, encased] = r.state.actors;
+        if (mimic.mode !== 'dormant' || encased.mode !== 'dormant') return `the mimic is ${mimic.mode} and the encased sleeper ${encased.mode}`;
+        return null;
+      },
+    });
+    assert.equal(json(H.failures(H.sweep(C, sc, H.DEPTHS.map(depth => ({ sp: null, depth }))))), '[]');
+  });
 };

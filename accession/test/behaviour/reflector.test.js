@@ -4,8 +4,8 @@
 // beside you for only {dmg}." Each scenario is a function of the
 // clause's parameters, run for every species whose line has it (the Reflecting Dishes), at
 // every depth 1–7, with every invariant checked after every step and a clone check. Your
-// Pin-Driver is W1-KIT's; here, in this test's own core, a stand-in fires it through
-// Ranged.shoot as the plan says KIT's does, so the reflector's rule is tested on its own.
+// Pin-Driver is W1-KIT's real one (Kit.useInstrument, through Ranged.shoot): every scenario
+// runs joined up, with no hook stood in for (W2a-BEHAVIOUR).
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const C = loadCore();
@@ -21,11 +21,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const body = (sp, depth, at, extra) => Object.assign({ sp: sp.id, at, mode: 'hunting', stats: Roles.stats(sp.role, depth) }, extra || {});
   const fodder = (depth, at) => ({ sp: 'arch_b_fodder', arch: 'plodder', at, mode: 'dormant', stats: Object.assign(Roles.stats('fodder', depth), { hp: 999 }) });
   const sniper = (depth, at) => ({ sp: 'arch_b_sniper', arch: 'axis_sniper', at, mode: 'hunting', stats: Roles.stats('artillery', depth) });
-  // The stand-in Pin-Driver: use(uid, x, y) fires a bolt with damage 1–4 and Acc 1 (its own
-  // numbers, as KIT's Pin-Driver has: not your weapon's) through Ranged.shoot.
-  const PD = 'arch_b.pd', PD_HOW = { kind: 'shot', dmin: 1, dmax: 4, acc: 1 };
-  C.Kit.useAction = (state, action, ev) => Ranged.shoot(state, state.actors[0], action.x, action.y, Object.assign({ item: action.uid }, PD_HOW), ev);
-  const pinDriver = [{ uid: PD, kind: 'instrument', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.PIN_DRIVER[0], max: N.PIN_DRIVER[0] }];
+  // Your real Pin-Driver, a tier 1 instrument in its slot: use(uid, x, y) fires a bolt with
+  // its own numbers (Kit.shot: its tier's damage from PIN_DRIVER_DMG, your Acc without your
+  // weapon's), not your weapon's, through Ranged.shoot.
+  const PD = 'arch_b.pd';
+  const pinDriver = [{ uid: PD, kind: 'instrument', form: 'pin_driver', where: { at: 'kit', slot: 'instrument' }, tier: 1 }];
   function track(r, uid) {
     const a = r.start.actors.find(x => x.uid === uid);
     let p = [a.x, a.y];
@@ -51,7 +51,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('the reflector\'s clause is on the Reflecting Dishes, at every depth', () => {
     const list = H.species(C, 'reflector');
     assert.ok(list.length >= 7 && list.every(x => x.sp.archetype === 'reflector'), json(list.map(x => x.sp.id)));
-    assert.equal(C.Registry.ARCHETYPES.reflector.ready, 'unit');
+    assert.equal(C.Registry.ARCHETYPES.reflector.ready, true);
   });
 
   test('it walks one tile at a time, and strikes from beside you for its damage', () => sweep(H.scenario({
@@ -70,23 +70,27 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('your shots at it come back into you, and nothing behind it is hit', () => sweep(H.scenario({
     name: 'your Pin-Driver bolts at a dish come back into you; the dish and an exhibit behind it are untouched', id: 'reflector', clone: true, seeds: [1, 2],
-    build: (params, sp, depth, opts) => room(sp, depth, opts, CORRIDOR, [1, 1], [body(sp, depth, [4, 1], { mode: 'dormant' }), fodder(depth, [6, 1])], pinDriver),
+    // With a Light weapon, whose Acc (+2) the Pin-Driver's bolt does not take, so that which
+    // Acc a bolt is rolled with shows; one bolt for each of its charges.
+    build: (params, sp, depth, opts) => Setup.room(opts.seed, { acc: accOf(sp), depth, map: CORRIDOR, you: [1, 1], kit: { weapon: { form: 'light', tier: 1 } },
+      exhibits: [body(sp, depth, [4, 1], { mode: 'dormant' }), fodder(depth, [6, 1])], items: pinDriver }, { rulesOff: opts.rulesOff, invulnerable: true }),
     actions(state, i) {
       const dish = state.actors[1];
-      return i < 6 ? { a: 'use', uid: PD, x: dish.x, y: dish.y } : null;
+      return i < N.PIN_DRIVER[0] ? { a: 'use', uid: PD, x: dish.x, y: dish.y } : null;
     },
     expect(r, params, sp, depth) {
       const dish = r.start.actors[1].uid, behind = r.start.actors[2].uid;
       const back = r.events.filter(e => (e.k === 'damaged' || e.k === 'missed') && e.cause.k === 'reflected');
       const loose = uncovered(r, sp, depth, dish);
       if (loose.length) return `the dish caused ${json(loose)}, which its Behaviour line does not cover`;
-      if (back.length !== 6) return `${back.length} of 6 bolts came back`;
+      if (back.length !== N.PIN_DRIVER[0]) return `${back.length} of ${N.PIN_DRIVER[0]} bolts came back`;
       if (back.some(e => (e.who || e.at) !== 'you' || e.cause.by !== dish || e.cause.shooter !== 'you')) return `a bolt came back as ${json(back.find(e => (e.who || e.at) !== 'you'))}`;
       if (!back.some(e => e.k === 'damaged')) return 'no bolt that came back hurt you';
       // Rolled with the Pin-Driver's own Acc and damage, not your weapon's: the chance its Acc
       // gives against your Eva, a hit on a roll at or below it, damage in its range.
-      const you = r.start.actors[0], chance = C.Combat.hitChance(you, you, { acc: PD_HOW.acc });
-      if (chance === C.Combat.hitChance(you, you)) return 'the stand-in\'s Acc must differ from your weapon\'s to show which is used';
+      const you = r.start.actors[0], PD_HOW = C.Kit.shot(r.start, PD), chance = C.Combat.hitChance(you, you, { acc: PD_HOW.acc });
+      if (chance === C.Combat.hitChance(you, you)) return 'the Pin-Driver\'s Acc must differ from your weapon\'s to show which is used';
+      if (PD_HOW.dmin !== 1 + N.PIN_DRIVER_DMG[0] || PD_HOW.dmax !== N.PIN_DRIVER_DMG[1] + N.PIN_DRIVER_DMG[2]) return `a tier 1 Pin-Driver's bolt deals ${PD_HOW.dmin}–${PD_HOW.dmax}`;
       for (const e of back) {
         if (e.cause.chance !== chance) return `a bolt came back at ${e.cause.chance}%, not the ${chance}% the Pin-Driver's Acc gives`;
         if ((e.k === 'damaged') !== (e.cause.roll <= e.cause.chance)) return `a bolt that rolled ${e.cause.roll} against ${e.cause.chance}% ${e.k === 'damaged' ? 'hit' : 'missed'}`;
@@ -139,7 +143,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // floor showed is what resolves: a dish pulled onto a beam already marked does not turn it,
   // and you behind the dish are still struck, for the number the mark showed. Its Behaviour
   // line says so ("a beam marked before it stepped into its line goes on through it"). This
-  // scenario uses its own core, with the real Window Pole, not the stand-in Pin-Driver.
+  // scenario uses its own core, with the real Window Pole.
   const K = loadCore();
   const pole = [{ uid: 'arch_b.pole', kind: 'instrument', form: 'pole', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.WINDOW_POLE[0], max: N.WINDOW_POLE[0] }];
   test('a dish pulled onto a beam already marked does not turn it: you behind it are still struck, as the mark showed, and its line says so', () => {

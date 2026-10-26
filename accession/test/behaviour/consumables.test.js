@@ -3,11 +3,10 @@
 // after every step (§3.5): a thrown Fixative and a thrown Consolidant on every M3 pack
 // species (and the Night Watchman) at depths 1–7, in the open and inside an intact case;
 // a first use of every kind, every way, at every depth; the Re-admission Ticket against a
-// pending special (R30c). The other
-// Wave 1 packages' hooks that consumables call are driven as their contracts say
-// (m3-consumables.test.js, contracts); the joined-up runs are W2a-BEHAVIOUR's.
+// pending special (R30c). Every scenario runs joined up (W2a-BEHAVIOUR): the other Wave 1
+// packages' hooks that consumables call (Health.heal, Wake.quiet, Wake.lose, Cases.dissolve,
+// Kit.addToTote) are their real rules, with nothing stood in for.
 const H = require('./_harness.js');
-const { contracts } = require('../m3-consumables.test.js');
 
 module.exports = ({ test, assert, loadCore }) => {
   const json = x => JSON.stringify(x);
@@ -58,7 +57,7 @@ module.exports = ({ test, assert, loadCore }) => {
   const sweepAll = (C, sc, list) => { const rs = H.sweep(C, sc, list); assert.deepEqual(H.failures(rs), []); return rs; };
 
   test('a thrown Fixative fixes an exhibit of every species at every depth for FIXATIVE_TURNS turns from its next decision; in an intact case it is behind glass', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     const N = C.N;
     const sc = H.scenario({
       name: 'thrown Fixative fixes', id: null, clone: true,
@@ -83,7 +82,7 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('a thrown Consolidant heals an exhibit of every species at every depth by CONSOLIDANT_THROW_PCT% of its own maximum health, up to it', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     const N = C.N;
     const sc = H.scenario({
       name: 'thrown Consolidant heals', id: null, clone: true,
@@ -107,7 +106,7 @@ module.exports = ({ test, assert, loadCore }) => {
   // Inside an intact case an exhibit is behind glass: a Fixative or Consolidant thrown so that
   // its square covers the case reaches you, if you are in it, but not the exhibit inside.
   test('a thrown Fixative or Consolidant does not reach an exhibit of any species inside an intact case, at any depth: it is behind glass', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     let runs = 0;
     for (const ck of ['fixative', 'consolidant']) {
       const sc = H.scenario({
@@ -139,7 +138,7 @@ module.exports = ({ test, assert, loadCore }) => {
   // at 2. A first use never harms you (the consumable_first_use invariant, checked after
   // every step), and identifies the kind at once.
   test('a first use of every kind, every way, at every depth, never harms you, and identifies its kind at once', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     const depths = H.DEPTHS.map(depth => ({ sp: null, depth }));
     let runs = 0;
     for (const ck of KINDS) {
@@ -170,7 +169,7 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('the first-use invariant bites: a first drink that harms you is caught, whatever cause it gives and whether or not it says so', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     C.Registry.CONSUMABLES.fixative.harmfulDrink = false;
     let s = build(C, { seed: 1 }, { depth: 1, tote: [['fixative', 1]] });
     let r = H.play(C, s, [{ a: 'use', uid: toteUid(s, 'fixative') }], { inv: ['consumable_first_use'] });
@@ -185,7 +184,7 @@ module.exports = ({ test, assert, loadCore }) => {
     };
     const want = { 'a status with the status cause': /made you fixed/, 'a status put on with no event': /came to be coughing/, 'a status made longer with no event': /came to be dazed for longer/, 'health lost with no event': /your health fell from 60 to 57/ };
     for (const name of Object.keys(plants)) {
-      const D = loadCore(); contracts(D);
+      const D = loadCore();
       const emit = D.Causes.emit;
       D.Causes.emit = (st, ev, k, fields, cause) => { const e = emit(st, ev, k, fields, cause); if (k === 'used' && cause && cause.gentle) plants[name](st, ev); return e; };
       s = build(D, { seed: 1 }, { depth: 1, tote: [['fumigant', 1]] });
@@ -197,7 +196,7 @@ module.exports = ({ test, assert, loadCore }) => {
     }
     // And a harm an exhibit does in the same step is no violation: a hunter that strikes you
     // after your first drink.
-    const E = loadCore(); contracts(E);
+    const E = loadCore();
     let struck = 0;
     for (let seed = 1; seed <= 10; seed++) {
       s = build(E, { seed }, { depth: 1, you: [2, 3], tote: [['fumigant', 1]], exhibits: [{ sp: 'dummy', at: [3, 3], mode: 'hunting', stats: { hp: 40, acc: 99, eva: 0, pad: 0, dmin: 2, dmax: 2 } }] });
@@ -233,7 +232,7 @@ module.exports = ({ test, assert, loadCore }) => {
       return { r, hits, s };
     };
     for (let depth = 1; depth <= 7; depth++) {
-      const C = loadCore(); contracts(C);
+      const C = loadCore();
       const { r, hits, s } = run(C, depth, depth);
       assert.deepEqual(r.violations, []);
       const ticket = r.steps[1].events;
@@ -246,13 +245,13 @@ module.exports = ({ test, assert, loadCore }) => {
     }
     // Sensitivity: with Wake.lose doing nothing, the special resolves on you at the entrance
     // in the Ticket's own step, from a mark made while you stood across the room.
-    const C = loadCore(); contracts(C); C.Wake.lose = () => {};
+    const C = loadCore(); C.Wake.lose = () => {};
     const { hits } = run(C, 3, 3);
     assert.ok(hits.some(h => h.step === 1 && h.x === 0 && h.y === 1), json(hits));
   });
 
   test('the Catalogue Card\'s choice, at every depth: one unknown seal chosen and identified, at no cost; then nothing else waits', () => {
-    const C = loadCore(); contracts(C);
+    const C = loadCore();
     const sc = H.scenario({
       name: 'the Card', id: null, clone: true, seeds: [1, 2, 3],
       build: (p, sp, depth, opts) => build(C, opts, { depth, tote: [['card', 2]], known: ['card'] }),
@@ -266,5 +265,143 @@ module.exports = ({ test, assert, loadCore }) => {
       },
     });
     sweepAll(C, sc, H.DEPTHS.map(depth => ({ sp: null, depth })));
+  });
+
+  // ---- Each kind's clause, joined up (W2a-BEHAVIOUR) ----
+  // Drinking Consolidant, Fixative and Fumigant, and the Fumigant cloud, are status.test.js's
+  // joined scenarios; the thrown Fixative and Consolidant and the Ticket are above. Here the
+  // rest, each as its clause says it, at depths 1–7, every invariant, clone-checked.
+  const sweepDepths = (C, sc) => sweepAll(C, sc, H.DEPTHS.map(depth => ({ sp: null, depth })));
+
+  test('Solvent, joined up: drunk, it ends every harmful status you have and keeps the rest; thrown, it silently dissolves every intact case in its square, releasing the sleeper inside, hunting', () => {
+    const C = loadCore();
+    const drunk = H.scenario({
+      name: 'Solvent drunk', id: 'CONSUMABLES.solvent', clone: true,
+      build: (p, sp, depth, opts) => {
+        const s = build(C, opts, { depth, tote: [['solvent', 1]], known: ['solvent'] });
+        for (const id of ['rooted', 'restoring', 'coughing']) C.Status.apply(s, s.actors[0], id, 4, { k: 'status', id }, []);
+        C.Status.settle(s);
+        return s;
+      },
+      actions: (s, i) => i === 0 ? { a: 'use', uid: toteUid(s, 'solvent') } : null,
+      expect(r) {
+        const ended = r.steps[0].events.filter(e => e.k === 'status' && !e.on && e.cause.k === 'item').map(e => e.id);
+        if (json(ended) !== json(['rooted', 'coughing'])) return `it ended ${json(ended)}`;
+        return json(r.state.actors[0].statuses.map(t => t.id)) === json(['restoring']) ? null : `you are left with ${json(r.state.actors[0].statuses.map(t => t.id))}`;
+      },
+    });
+    // The drink scenario's room is made with the statuses on (Status.apply, then settled), as
+    // a room for tests may be: nothing in a test room puts them on otherwise.
+    sweepDepths(C, drunk);
+    const MAP = ['#############', '#...........#', '#....v......#', '#...v.u.....#', '#...........#', '#.......v...#', '#############'];
+    const thrown = H.scenario({
+      name: 'Solvent thrown', id: 'CONSUMABLES.solvent', clone: true,
+      build: (p, sp, depth, opts) => {
+        const s = build(C, opts, { depth, map: MAP, you: [1, 1], tote: [['solvent', 1]], known: ['solvent'], exhibits: [{ sp: 'dummy', at: [4, 3], mode: 'dormant', pips: 2, home: [4, 3], stats: C.Roles.stats('fodder', depth) }] });
+        for (const [x, y] of [[5, 2], [4, 3], [6, 3], [8, 5]]) s.dept.fixtures.push(C.Cases.make({ x, y, room: null, glass: 2, lock: 3 }));
+        s.dept.fixtures.find(f => f.x === 6 && f.y === 3).st = 'open';
+        return s;
+      },
+      actions: (s, i) => i === 0 ? { a: 'throw', uid: toteUid(s, 'solvent'), x: 5, y: 3 } : null,
+      expect(r) {
+        const ev = r.steps[0].events, broke = ev.filter(e => e.k === 'glass_broke').map(e => [e.x, e.y, e.cause.k, e.shards.length]);
+        if (json(broke) !== json([[5, 2, 'solvent', 0], [4, 3, 'solvent', 0]])) return `it dissolved ${json(broke)}: the two intact cases in its square, with no shards, were expected`;
+        if (ev.some(e => e.k === 'noise')) return 'it made a noise';
+        if (ev.some(e => e.cause && e.cause.k === 'touch_case')) return 'it touched a case';
+        const woke = ev.filter(e => e.k === 'woke').map(e => [e.who, e.mode, e.cause.k]);
+        if (json(woke) !== json([[r.start.actors[1].uid, 'hunting', 'dissolved']])) return `it woke ${json(woke)}`;
+        const t = r.state.dept.tiles;
+        return t[2][5] === 'u' && t[3][4] === 'u' && t[3][6] === 'u' && t[5][8] === 'v' ? null : `the tiles are ${t[2]} / ${t[3]} / ${t[5]}`;
+      },
+    });
+    sweepDepths(C, thrown);
+  });
+
+  test('"Quiet, Please", joined up: read, it takes every pip from each sleeper within QUIET_RANGE walking tiles; the awake settle where they stand, hunters drop to awake; the Night Watchman and those beyond its range are untouched', () => {
+    const C = loadCore(), N = C.N;
+    const WIDE = ['#'.repeat(26), ...Array.from({ length: 5 }, () => '#' + '.'.repeat(24) + '#'), '#'.repeat(26)];
+    const sc = H.scenario({
+      name: 'Quiet read', id: 'CONSUMABLES.quiet', clone: true,
+      build: (p, sp, depth, opts) => build(C, opts, { depth, map: WIDE, you: [2, 3], tote: [['quiet', 1]], known: ['quiet'], exhibits: [
+        { sp: 'dummy', at: [7, 1], mode: 'dormant', pips: 2, stats: C.Roles.stats('fodder', depth) },
+        { sp: 'dummy', at: [6, 5], mode: 'awake', target: [7, 5], stats: C.Roles.stats('fodder', depth) },
+        { sp: 'dummy', at: [2 + N.QUIET_RANGE, 3], mode: 'hunting', stats: C.Roles.stats('fodder', depth) },
+        { sp: 'night_watchman', at: [4, 3], mode: 'hunting', stats: C.Roles.stats('warden', depth) },
+        { sp: 'dummy', at: [3 + N.QUIET_RANGE, 1], mode: 'dormant', pips: 2, stats: C.Roles.stats('fodder', depth) }] }),
+      actions: (s, i) => i === 0 ? { a: 'use', uid: toteUid(s, 'quiet') } : null,
+      expect(r) {
+        const [, sleeper, awake, hunter, watch, far] = r.state.actors, b = r.start.actors;
+        if (sleeper.pips !== 0 || sleeper.mode !== 'dormant') return `the sleeper within range has ${sleeper.pips} pips, ${sleeper.mode}`;
+        if (awake.mode !== 'dormant' || awake.x !== b[2].x || awake.y !== b[2].y) return `the awake one is ${awake.mode} at ${awake.x},${awake.y}, not asleep where it stood`;
+        // The hunter drops to awake as you read (a lost event, cause quiet); seeing you again
+        // at its next action, it may hunt again, as any awake exhibit does (§8.2).
+        const dropped = r.steps[0].events.find(e => e.k === 'lost' && e.who === hunter.uid);
+        if (!dropped || dropped.from !== 'hunting' || dropped.to !== 'awake' || dropped.cause.k !== 'quiet') return `the hunter ${N.QUIET_RANGE} tiles off did not drop to awake: ${json(dropped)}`;
+        if (watch.mode !== 'hunting' || r.steps[0].events.some(e => e.who === watch.uid && e.k !== 'moved' && e.k !== 'attacked')) return 'the Night Watchman was touched';
+        if (far.pips !== 2) return `the sleeper ${N.QUIET_RANGE + 1} tiles off has ${far.pips} pips`;
+        return null;
+      },
+    });
+    sweepDepths(C, sc);
+  });
+
+  test('the Floor Plan, joined up, in every department at depths 1–7: read, the whole plan counts as explored, and the rooms whose Highlights are still there are named; one taken is no longer', () => {
+    const C = loadCore();
+    let n = 0;
+    for (const acc of ['S9', 'A4', 'M11']) for (const depth of H.DEPTHS) {
+      const s = C.Dept.create(depth, acc, depth);
+      C.Consumables.make(s, 'plan', { at: 'tote' });
+      const turn = s.turn, r = H.play(C, s, [{ a: 'use', uid: toteUid(s, 'plan') }], { clone: true });
+      assert.deepEqual(r.violations, [], `${acc} d${depth}`);
+      const m = r.state.dept;
+      assert.equal(m.seen, '1'.repeat(m.w * m.h), `${acc} d${depth}: the plan shows every tile`);
+      assert.equal(m.planRead, turn, `${acc} d${depth}`);
+      const rooms = [...new Set(m.highlights.filter(h => { const it = r.state.items.find(i => i.uid === h.uid); return it.where.at === 'floor' || it.where.at === 'case'; }).map(h => h.room))];
+      assert.equal(json(C.Consumables.planRooms(r.state)), json(rooms), `${acc} d${depth}`);
+      assert.ok(rooms.length >= 1, `${acc} d${depth}: no Highlight to name`);
+      // One Highlight taken (put in your tote): its room is no longer named, unless another is there.
+      const h = m.highlights[0], it = r.state.items.find(i => i.uid === h.uid);
+      it.where = { at: 'tote' }; r.state.you.tote.push(it.uid);
+      const left = [...new Set(m.highlights.filter(x => { const i = r.state.items.find(y => y.uid === x.uid); return i.where.at === 'floor' || i.where.at === 'case'; }).map(x => x.room))];
+      assert.equal(json(C.Consumables.planRooms(r.state)), json(left));
+      n++;
+    }
+    assert.equal(n, 21);
+  });
+
+  test('seals, the deck and the labels, joined up, in every department at depths 1–7: seals shuffled once a run; a department\'s consumables drawn from the deck; each label read identifies its kind for the run, at no cost', () => {
+    const C = loadCore(), N = C.N, total = N.DECK.reduce((a, b) => a + b, 0);
+    let read = 0;
+    for (const acc of ['S9', 'A4', 'M11']) for (const depth of H.DEPTHS) {
+      const s = C.Dept.create(depth, acc, depth), where = `${acc} d${depth}`;
+      // The seals: four wax seals over the four Solutions, four ink stamps over the Ephemera.
+      assert.equal(json([...s.run.seals.sol].sort((a, b) => a - b)), json([0, 1, 2, 3]), where);
+      assert.equal(json([...s.run.seals.eph].sort((a, b) => a - b)), json([4, 5, 6, 7]), where);
+      // The deck: the department's consumables came out of it, one card each.
+      const placed = s.items.filter(i => i.kind === 'consumable');
+      assert.equal(placed.length, N.CONSUMABLES_PER_DEPT, where);
+      assert.equal(s.run.deck.reduce((a, b) => a + b, 0), total - placed.length, where);
+      for (const ck of C.Registry.order('CONSUMABLES')) assert.equal(s.run.deck[C.Registry.CONSUMABLES[ck].deck], N.DECK[C.Registry.CONSUMABLES[ck].deck] - placed.filter(i => i.ck === ck).length, `${where}: ${ck}`);
+      // Each label: stand where you can read it (within READ_RANGE, in sight, on a free floor
+      // tile), read it, and its kind is known for the run.
+      const plaques = s.dept.fixtures.filter(f => f.k === 'plaque');
+      assert.equal(plaques.length, N.ID_LABELS_PER_DEPT, where);
+      for (const f of plaques) {
+        const t = C.State.clone(s), you = t.actors[0], R = N.READ_RANGE, spots = [];
+        for (let y = f.y - R; y <= f.y + R; y++) for (let x = f.x - R; x <= f.x + R; x++)
+          if (C.Grid.inside(t.dept, x, y) && C.Grid.disc(x - f.x, y - f.y, R) && C.Grid.ch(t.dept, x, y) === '.' && !C.Actors.at(t, x, y) && C.Grid.los(t.dept, x, y, f.x, f.y)) spots.push([x, y]);
+        const spot = spots[0];
+        assert.ok(spot, `${where}: the label at ${f.x},${f.y} cannot be read from any free floor tile`);
+        you.x = spot[0]; you.y = spot[1];
+        const before = you.next, r = H.play(C, t, [{ a: 'read', x: f.x, y: f.y }], { clone: true });
+        assert.deepEqual(r.violations, [], where);
+        const id = r.events.find(e => e.k === 'identified');
+        assert.ok(id && id.ck === f.ck && id.cause.k === 'label', `${where}: ${json(r.events.map(e => e.k))}`);
+        assert.ok(C.Consumables.known(r.state, f.ck) && r.state.actors[0].next === before, `${where}: known, and it cost nothing`);
+        // Known for the rest of the run: a consumable of that kind now says so when used.
+        read++;
+      }
+    }
+    assert.ok(read >= 21 * N.ID_LABELS_PER_DEPT);
   });
 };

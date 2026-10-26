@@ -27,6 +27,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
   const strikes = H.scenario({
     name: 'a marble body beside you strikes at the usual pace: only its steps are slow', id: 'marble',
+    holdsWithout: 'it shows what marble leaves as it is (a blow\'s cost), which is the same with marble off',
     build: make(HALL, [1, 1], [2, 1]), actions: waits(10), clone: true,
     expect(r) {
       const blows = own(r, 'attacked'), want = r.start.actors[1].role === 'brute' ? N.COST_ATTACK_HEAVY : N.COST_ATTACK;

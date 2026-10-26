@@ -6,14 +6,17 @@
 'use strict';
 (() => {
   const R = Registry;
-  const unit = tests => ({ ready: 'unit', tests, inv: 'arch-c' });
-  const HERALD = ['behaviour/herald.test.js'], WARDEN = ['behaviour/tethered_warden.test.js'], MIMIC = ['behaviour/mimic_vitrine.test.js'];
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (the real open, bash and going
+  // back), every package's invariants on; the herald and the warden also wake to your noise
+  // (behaviour/joined.test.js), and the mimic is touched in every S.9 department.
+  const proved = tests => ({ ready: true, tests, inv: 'arch-c' });
+  const HERALD = ['behaviour/herald.test.js', 'behaviour/joined.test.js'], WARDEN = ['behaviour/tethered_warden.test.js', 'behaviour/joined.test.js'], MIMIC = ['behaviour/mimic_vitrine.test.js', 'behaviour/joined.test.js'];
 
   // The herald calls once each time it wakes, the first time it then sees you (§8.2); its
   // blows are the plodder's.
   R.define('ARCHETYPES', 'herald', Object.assign({ icon: null, special: 'call',
     clause: 'Each time it wakes, the first time it sees you it {special}; it strikes from beside you for {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'] }, unit(HERALD)));
+    params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'] }, proved(HERALD)));
   // The tethered_warden keeps within TETHER_RANGE of what it guards; hunting you (searching
   // for you included: §8.2's hunting row) while you are outside its tether, it goes back: it
   // waits at its place while it sees you, and heals and settles once it does not (an exhibit
@@ -25,26 +28,26 @@
   R.define('ARCHETYPES', 'tethered_warden', Object.assign({ icon: null, special: 'ring',
     clause: 'Stays within {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead of starting a fight, waits there while it sees you, then heals fully and settles, unless it has no home. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}.',
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
-    covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, unit(WARDEN)));
+    covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, proved(WARDEN)));
   // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
   // its line takes the pipless wake clause; it is slow at everything (§8.1).
   R.define('ARCHETYPES', 'mimic_vitrine', Object.assign({ icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
     clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, unit(MIMIC)));
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, proved(MIMIC)));
 
   // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call
   // wakes only the sleepers that can hear: a pipless one (a sleeping mimic) hears nothing
   // (§8.2), so the call's clause says "that can hear", and gives no mimic away.
   R.define('SPECIALS', 'ring', Object.assign({ icon: 'special', shape: 'ring', effect: 'damage', curve: 'ROLE_WARDEN_SPECIAL', range: null, every: 'ROLE_WARDEN_SPECIAL_EVERY',
     clause: 'marks the tiles round it for a turn, then strikes everything on them for {gross} before Padding',
-    params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, unit(WARDEN)));
+    params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, proved(WARDEN)));
   R.define('SPECIALS', 'call', Object.assign({ icon: 'special', shape: 'call', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null,
     clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it that can hear, which come to look where you stood as the call went off',
-    params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, unit(HERALD)));
+    params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, proved(HERALD)));
 
   // A pipless species' wake clause, in place of the generic one (§5.3): only these wake it.
   R.define('CLAUSES', 'wake_pipless', Object.assign({ icon: null, clause: 'Wakes only when it is opened, bashed, dissolved or struck.', params: {},
-    covers: ['woke', 'hunting'] }, unit(MIMIC)));
+    covers: ['woke', 'hunting'] }, proved(MIMIC)));
 
   // Causes this fragment's rules give events of other kinds (§4.3): the mimic's grip
   // (rooted), the warden's heal at home, and its going back when you leave its tether.
@@ -54,7 +57,7 @@
 
   // A herald's call wakes sleepers awake, to look where you were (§8.2): `by` is the herald,
   // dist its distance, x and y the tile they go to look at.
-  R.define('WAKE_CAUSES', 'herald', Object.assign({ mode: 'awake', creation: false }, unit(HERALD)));
+  R.define('WAKE_CAUSES', 'herald', Object.assign({ mode: 'awake', creation: false }, proved(HERALD)));
   const wake = { by: 'uid', dist: 'int?', x: 'int?', y: 'int?' };
   for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'herald', { fields: wake });
 })();

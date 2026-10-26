@@ -4,13 +4,14 @@
 'use strict';
 (() => {
   const R = Registry;
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on.
   const TESTS = ['m3-clock.test.js', 'behaviour/night_watchman.test.js'];
 
   R.define('ARCHETYPES', 'night_watchman', { icon: null,
     clause: 'Comes for you across the whole department, always knowing where you are, and strikes from beside you for {dmg}; it is never caught by surprise. ' +
       'Staff doors stop it: when it cannot reach you, it waits as near to you as it can. If defeated, another comes {WATCHMAN_RETURN} turns later.',
     params: { dmg: 'role:DMG', WATCHMAN_RETURN: 'N:WATCHMAN_RETURN' }, covers: ['attacked', 'missed', 'entered'],
-    ready: 'unit', tests: TESTS, inv: 'night_watchman' });
+    ready: true, tests: TESTS, inv: 'night_watchman' });
 
   // Events (§4.3). A stage is 'bell', 'night_watch' or 'night_bell'; a night-watch bell
   // carries its number (n, from 1) and the exhibits it woke.
@@ -28,13 +29,13 @@
 
   // The night-watch bell wakes the sleepers nearest you, hunting (n: the bell's number, dist:
   // the walking distance); the Watchman is made hunting (n: which Watchman it is).
-  R.define('WAKE_CAUSES', 'night_bell', { mode: 'hunting', creation: false, ready: 'unit', tests: TESTS, inv: 'night_watchman' });
-  R.define('WAKE_CAUSES', 'night_watch', { mode: 'hunting', creation: true, ready: 'unit', tests: TESTS, inv: 'night_watchman' });
+  R.define('WAKE_CAUSES', 'night_bell', { mode: 'hunting', creation: false, ready: true, tests: TESTS, inv: 'night_watchman' });
+  R.define('WAKE_CAUSES', 'night_watch', { mode: 'hunting', creation: true, ready: true, tests: TESTS, inv: 'night_watchman' });
   const wake = { by: 'uid?', n: 'int?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   for (const k of ['night_bell', 'night_watch']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
 
   // leave(i)'s refusals (§4.2): no exit door i, or you are not standing on it. Their
   // invariant is clock.leave, in night_watchman.inv.js: a leave is refused with exactly the
   // code its door and your tile give, and a refused leave changes nothing.
-  for (const code of ['no_exit', 'not_on_exit']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-clock.test.js'], inv: 'night_watchman' });
+  for (const code of ['no_exit', 'not_on_exit']) R.define('REFUSALS', code, { ready: true, tests: ['m3-clock.test.js', 'behaviour/refusals.test.js'], inv: 'night_watchman' });
 })();

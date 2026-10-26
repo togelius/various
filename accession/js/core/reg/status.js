@@ -11,7 +11,9 @@
   const R = Registry;
   const TESTS = ['m3-status.test.js', 'behaviour/status.test.js'];
   // Each status's and surface's pictogram is keyed by its own id (js/view/pictograms.js).
-  const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: 'unit', tests: TESTS.slice(), inv: 'status' });
+  // ready true (W2a-BEHAVIOUR): each status and surface is put on as the game puts it on, in
+  // behaviour/status.test.js's joined-up scenarios, every package's invariants on.
+  const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: true, tests: TESTS.slice(), inv: 'status' });
 
   // A status's clause continues the clause of the archetype that inflicts it (§5.3), so it
   // starts lower-case and has no full stop; its numbers are those of record (§8.10).
@@ -30,7 +32,7 @@
   // Surfaces: a square of `size` tiles a side for `turns` turns (the N keys Surfaces.add is
   // called with); both block sight (§8.2). The clause is a sentence of its own, for the label
   // of a tile it covers.
-  const surface = (clause, params, covers, extra) => Object.assign({ blocksSight: true, icon: null, clause, params, covers, ready: 'unit', tests: TESTS.slice(), inv: 'status' }, extra);
+  const surface = (clause, params, covers, extra) => Object.assign({ blocksSight: true, icon: null, clause, params, covers, ready: true, tests: TESTS.slice(), inv: 'status' }, extra);
   R.define('SURFACES', 'fumigant', surface('A Fumigant cloud {FUMIGANT_SIZE} tiles a side blocks sight for {FUMIGANT_TURNS} turns, and every sleeping exhibit inside it with a pip loses one each turn.',
     { FUMIGANT_SIZE: 'N:FUMIGANT_SIZE', FUMIGANT_TURNS: 'N:FUMIGANT_TURNS' }, ['pip'], { size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS', icon: 'fumigant' }));
   R.define('SURFACES', 'dust', surface('Plaster dust {PLASTER_DUST_SIZE} tiles a side blocks sight for {PLASTER_DUST_TURNS} turns.',
@@ -38,8 +40,8 @@
 
   // What a status forbids you (Status.blocks, §4.2): fixed allows only wait, rest and the
   // answer to a waiting choice; rooted refuses a move that would change your tile.
-  R.define('REFUSALS', 'fixed', { ready: 'unit', tests: TESTS.slice(), inv: 'status' });
-  R.define('REFUSALS', 'rooted', { ready: 'unit', tests: TESTS.slice(), inv: 'status' });
+  R.define('REFUSALS', 'fixed', { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'status' });
+  R.define('REFUSALS', 'rooted', { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'status' });
 
   // Events (§4.3): a status put on (on: true, for `turns` turns, settled once the action that
   // put it on is over) or ended (on: false, at the boundary of turn `until`).

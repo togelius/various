@@ -1,9 +1,11 @@
 // M3 W1-COMBAT: the specials readout and the threat (BUILD.md §8.1, §7.1), and criterion 3 of
 // §11 M3 for each special: what resolves on you is what the readout said and the mark showed.
 // The scenarios run for every pack species with a ring of blows, a beam or a call, at depths
-// 1–7, with every invariant checked after each step. The exhibit's own behaviour is not used
-// here (its archetype's package owns it): each scenario marks the special directly, as the
-// exhibit would, and its next action resolves it.
+// 1–7, with every invariant checked after each step, joined up (W2a-BEHAVIOUR): each exhibit
+// marks its special itself, by its archetype's rule, and its next action resolves it. The
+// threat's timing is shown with a planted exhibit and planted actions, timed by hand, and
+// then joined up: a real warden's ring against the real Fixative, "Quiet, Please", Ticket and
+// leave.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require('./_harness.js');
   const C = loadCore();
@@ -16,24 +18,32 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const PLACE = { ring: [4, 2], line: [7, 2], call: [6, 4] };
   const OFF = { ring: 6, line: 0, call: 4 };       // west, off the ring; north, off the row; anywhere
 
+  // Joined up (W2a-BEHAVIOUR): the exhibit, hunting you from where its special can reach you,
+  // marks it itself, by its archetype's own rule (the warden at its
+  // ROLE_WARDEN_SPECIAL_EVERY-th action, the sniper sharing your row, the herald on seeing
+  // you). The state at your decision with its mark pending is kept (`at`), and the next step,
+  // in which it resolves, is what the readout, the mark and the threat are held to.
   function build(id) {
-    return (params, sp, depth, opts) => {
-      const s = Setup.room(opts.seed, { acc: 'T0', depth, map: OPEN, you: YOU,
-        exhibits: [{ sp: sp.id, at: PLACE[id], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] }, { rulesOff: opts.rulesOff });
-      const a = s.actors[1], tiles = Specials.tiles(s, a, Registry.SPECIALS[id].shape);
-      if (!Specials.canMark(s, a, id, tiles)) throw new Error(`${sp.id} cannot mark its ${id} from ${PLACE[id]}`);
-      Specials.mark(s, a, id, tiles, []);
-      return s;
-    };
+    return (params, sp, depth, opts) => Setup.room(opts.seed, { acc: 'T0', depth, map: OPEN, you: YOU,
+      exhibits: [{ sp: sp.id, at: PLACE[id], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] }, { rulesOff: opts.rulesOff, invulnerable: true });
   }
+  let at = null, atStep = -1;
+  const untilMarked = (s, i) => {
+    if (i === 0) { at = null; atStep = -1; }
+    if (at) return i === atStep + 1 ? null : { a: 'wait' };
+    if (s.actors[1].telegraph) { at = State.clone(s); atStep = i; return { a: 'wait' }; }
+    return i < 8 ? { a: 'wait' } : null;
+  };
 
   const readoutAndMark = id => H.scenario({
-    name: `the ${id}: the readout's net, the mark on your tile and the threat of staying all equal what resolves; a step off the marks has no threat`,
+    name: `the ${id}, marked by its exhibit: the readout's net, the mark on your tile and the threat of staying all equal what resolves; a step off the marks has no threat`,
     id,
     build: build(id),
-    actions: [{ a: 'wait' }],
+    actions: untilMarked,
     expect(r, params, sp) {
-      const s = r.start, you = s.actors[0], a = s.actors[1], S = Registry.SPECIALS[id], damage = S.effect === 'damage';
+      if (!at) return `it never marked its ${id}`;
+      const s = at, you = s.actors[0], a = s.actors[1], S = Registry.SPECIALS[id], damage = S.effect === 'damage';
+      if (a.telegraph.sp !== id) return `it marked ${a.telegraph.sp}, not its ${id}`;
       const gross = damage ? params.gross : 0, net = damage ? Math.max(N.DMG_MIN_ON_HIT, gross - you.pad) : null;
       // The readout's line, from the registry and §8.10, written out again.
       const want = [{ sp: id, net, gross, effect: S.effect, every: S.every ? N[S.every] : null, shape: S.shape, range: S.range ? N[S.range] : null }];
@@ -46,8 +56,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (damage && json(stay) !== json({ x: you.x, y: you.y, dmg: net, by: a.uid })) return `staying: threat ${json(stay)}`;
       if (!damage && stay !== null) return `a call has no threat, but staying gave ${json(stay)}`;
       if (off !== null) return `stepping off: threat ${json(off)}`;
-      // What resolved.
-      const ev = r.steps[0].events, hit = ev.filter(e => e.k === 'damaged' && e.cause.k === 'special');
+      // What resolved, in the step after.
+      const ev = r.steps[atStep].events, hit = ev.filter(e => e.k === 'damaged' && e.cause.k === 'special');
       const special = ev.find(e => e.k === 'special' && e.who === a.uid);
       if (!special || special.cancelled) return `the ${id} did not resolve: ${ev.map(e => e.k).join()}`;
       const noise = ev.findIndex(e => e.k === 'noise' && e.cause.k === 'special');
@@ -223,5 +233,52 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'call', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'fixed' } }), 'The Warden’s call was called off: it was fixed in place.');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'line', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'out_of_sight' } }), 'The Warden’s beam was called off: it stopped hunting you.');
     assert.equal(say({ k: 'telegraphed', who: 'w.1', sp: 'call', tiles: [[1, 1]], cause: { k: 'special', by: 'w.1', sp: 'call', gross: 0 } }), 'The Warden marks 1 tile for its call, at its next action.');
+  });
+
+  // Joined up (W2a-BEHAVIOUR): the same threat, with the real actions and the real exhibit.
+  // A pack tethered warden (S9.4) hunts you from beside you, within its tether, and marks its
+  // ring; at your next decision you are on it, and it resolves at its next action. You stand
+  // on an exit and carry Fixative, "Quiet, Please" and the Re-admission Ticket, all known:
+  // a thrown Fixative fixes it, Quiet drops it to awake, the Ticket makes it lose you, and
+  // leaving ends the visit, so each calls the ring off and none has a threat; waiting has the
+  // ring's. A Fixative you have not identified is judged as doing nothing (its threat is the
+  // wait's, so it says nothing of its kind); drunk, it does nothing, and the ring strikes.
+  test('the threat, joined up: a real warden\'s ring is called off by a real Fixative thrown, "Quiet, Please", the Ticket or leaving, and stays for an unidentified drink', () => {
+    const ROOM = ['############', '#..........#', '#..........#', '#..........#', '#.........X#', '#..........#', '############'];
+    const YOUAT = [10, 4], W = [9, 4], sp = C.Packs.species('S9', 'S9.4');
+    const make = (depth, known) => {
+      const s = Setup.room(depth, { acc: 'S9', depth, map: ROOM, you: YOUAT.slice(), entrance: [1, 1], exits: [YOUAT.slice()],
+        exhibits: [{ sp: sp.id, at: W.slice(), mode: 'hunting', stats: Roles.stats(sp.role, depth) }] }, { invulnerable: true });
+      C.Consumables.startRun(s);
+      for (const ck of ['fixative', 'quiet', 'ticket']) { C.Consumables.make(s, ck, { at: 'tote' }); if (known) s.run.knownSeals.push(C.Consumables.sealFor(s, ck)); }
+      // Wait until its ring is shown (its ROLE_WARDEN_SPECIAL_EVERY-th action since it woke).
+      for (let i = 0; i < 8 && !s.actors[1].telegraph; i++) Step.step(s, { a: 'wait' });
+      if (!s.actors[1].telegraph || s.actors[1].telegraph.sp !== 'ring') throw new Error(`depth ${depth}: the warden did not mark its ring`);
+      return s;
+    };
+    const uidOf = (s, ck) => s.items.find(i => i.kind === 'consumable' && i.ck === ck && i.where.at === 'tote').uid;
+    for (const depth of H.DEPTHS) {
+      const s = make(depth, true), w = s.actors[1], you = s.actors[0];
+      const ring = { x: you.x, y: you.y, dmg: Specials.net(w.telegraph.gross, you.pad), by: w.uid };
+      assert.equal(json(Specials.threat(s, { a: 'wait' })), json(ring), `depth ${depth}: waiting, the ring would strike you`);
+      const acts = { fixative: { a: 'throw', uid: uidOf(s, 'fixative'), x: w.x, y: w.y }, quiet: { a: 'use', uid: uidOf(s, 'quiet') }, ticket: { a: 'use', uid: uidOf(s, 'ticket') }, leave: { a: 'leave', i: 0 } };
+      for (const why of Object.keys(acts)) {
+        const t = State.clone(s), h = State.hash(t);
+        assert.equal(Specials.threat(t, acts[why]), null, `depth ${depth}, ${why}: a threat`);
+        assert.equal(State.hash(t), h, 'the threat changes nothing');
+        const r = H.play(C, t, [acts[why]], { clone: true });
+        assert.equal(json(r.violations.map(v => v.text)), '[]', `depth ${depth}, ${why}`);
+        assert.ok(!r.events.some(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special'), `depth ${depth}, ${why}: the ring struck you`);
+        assert.ok(r.events.some(e => e.k === 'special' && e.who === w.uid && e.cancelled) || t.over, `depth ${depth}, ${why}: ${r.events.map(e => e.k).join()}`);
+      }
+      // Unidentified: its threat is the wait's; drunk, it does nothing, and the ring strikes.
+      const u = make(depth, false), uw = u.actors[1], drink = { a: 'use', uid: uidOf(u, 'fixative') };
+      const want = { x: u.actors[0].x, y: u.actors[0].y, dmg: Specials.net(uw.telegraph.gross, u.actors[0].pad), by: uw.uid };
+      assert.equal(json(Specials.threat(u, drink)), json(want), `depth ${depth}: an unidentified drink keeps the threat`);
+      const r = H.play(C, u, [drink], { clone: true });
+      assert.equal(json(r.violations.map(v => v.text)), '[]', `depth ${depth}, unidentified`);
+      const hit = r.events.find(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special');
+      assert.ok(hit && hit.amount === want.dmg, `depth ${depth}: the ring dealt ${hit && hit.amount}, not the ${want.dmg} the threat said`);
+    }
   });
 };

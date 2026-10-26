@@ -8,7 +8,11 @@
   // Where each entry is proved: its scenarios and rule tests, and the invariants checked
   // after every step of every scenario, monkey and bot (test/behaviour/cases.inv.js).
   const TESTS = ['m3-cases.test.js', 'm3-cases-sweep.test.js', 'behaviour/touch_case.test.js'];
-  const proved = extra => Object.assign({ ready: 'unit', tests: TESTS.slice(), inv: 'cases' }, extra);
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on;
+  // each refusal is also made to happen in behaviour/refusals.test.js, and Solvent's
+  // dissolving in behaviour/consumables.test.js.
+  const proved = extra => Object.assign({ ready: true, tests: TESTS.slice(), inv: 'cases' }, extra);
+  const refusal = () => proved({ tests: TESTS.concat(['behaviour/refusals.test.js']) });
 
   // A species' trigger (§8.2): opening its case, or any bash at it, adds PIPS_TO_WAKE pips,
   // so it wakes at once, hunting, before the action's noise; Solvent never touches it.
@@ -20,11 +24,11 @@
   // and bash(x, y) need an intact case beside you, past no corner (no_case; the backbone's
   // out_of_reach and corner), a lock within your grade to open it, and glass your weapon can
   // break to bash it; a staff door above your grade is a wall to you.
-  R.define('REFUSALS', 'behind_glass', proved({}));
-  R.define('REFUSALS', 'no_case', proved({}));
-  R.define('REFUSALS', 'case_locked', proved({}));
-  R.define('REFUSALS', 'glass_too_strong', proved({}));
-  R.define('REFUSALS', 'staff_grade', proved({}));
+  R.define('REFUSALS', 'behind_glass', refusal());
+  R.define('REFUSALS', 'no_case', refusal());
+  R.define('REFUSALS', 'case_locked', refusal());
+  R.define('REFUSALS', 'glass_too_strong', refusal());
+  R.define('REFUSALS', 'staff_grade', refusal());
 
   // The fixtures, each with the clause of its rules that its label shows (Cases.rules).
   R.define('FIXTURES', 'case', proved({ icon: null,
@@ -59,7 +63,7 @@
   // mimic, whose case is the mimic itself.
   R.define('WAKE_CAUSES', 'touch_case', proved({ mode: 'hunting', creation: false }));
   R.define('WAKE_CAUSES', 'case_broken', proved({ mode: 'hunting', creation: false }));
-  R.define('WAKE_CAUSES', 'dissolved', proved({ mode: 'hunting', creation: false }));
+  R.define('WAKE_CAUSES', 'dissolved', proved({ mode: 'hunting', creation: false, tests: TESTS.concat(['behaviour/consumables.test.js']) }));
   const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?', itself: 'bool?' };
   for (const k of ['touch_case', 'case_broken', 'dissolved']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
   // touch_case wakes at once, through Wake.addPips +3, whose pip event carries the same cause.

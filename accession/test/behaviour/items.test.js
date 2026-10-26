@@ -5,29 +5,15 @@
 // scenario is run with no species; its depth picks the tier on offer there
 // (TIER_LOW_BY_DEPTH), a primitive's size and a curio's rank, so that the seven runs cover
 // every size and several tiers and levels. Where a clause names another system's rule (a
-// bolt, a case that can be reached), the core the scenario runs in has that hook planted,
-// as W1-ARCH-B and W1-CASES will build it; the joined-up runs are W2a-BEHAVIOUR's.
+// bolt, a case that can be reached), it is that system's real rule: every scenario runs
+// joined up, with no hook stood in for (W2a-BEHAVIOUR).
 'use strict';
 const H = require('./_harness.js');
 
 module.exports = ({ test, assert, loadCore }) => {
-  // A core with the two hooks the kit calls planted: a bolt that hits the first actor on its
-  // line through Combat.attack, from the last tile it crossed (Ranged.shoot's contract, as
-  // W1-ARCH-B builds it); and a case's contents within reach once it is opened or broken
-  // (Cases.reach, as W1-CASES builds it).
-  function planted() {
-    const X = loadCore();
-    X.Ranged.shoot = (state, att, x, y, how, ev) => {
-      let via = [att.x, att.y], target = null;
-      for (const [tx, ty] of X.Ranged.line(state, att.x, att.y, x, y, 99, X.Grid.bolt)) { const a = X.Actors.at(state, tx, ty, att); if (a) { target = a; break; } via = [tx, ty]; }
-      if (!target) return 'no_target';
-      X.Combat.attack(state, att, target, ev, Object.assign({}, how, { range: X.Actors.between(att, target), via }));
-      return X.Actors.attackCost(state, att);
-    };
-    X.Cases.reach = (state, it) => { const f = X.Cases.at(state, it.where.x, it.where.y); return !!f && (f.st === 'open' || f.st === 'broken'); };
-    return X;
-  }
-  const C = planted();
+  // The real core: the kit's bolt is W1-ARCH-B's Ranged.shoot, and a case's contents are
+  // within reach as W1-CASES's Cases.reach says, with nothing stood in for (W2a-BEHAVIOUR).
+  const C = loadCore();
   const { Setup, Registry: R, Clauses, Kit, Cases, Vision, Roles, N } = C;
   const json = JSON.stringify;
   const CLS = ['S', 'M', 'L'];

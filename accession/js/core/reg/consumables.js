@@ -8,7 +8,10 @@
 (() => {
   const R = Registry;
   const TESTS = ['m3-consumables.test.js', 'behaviour/consumables.test.js'], INV = 'consumables';
-  const unit = { ready: 'unit', tests: TESTS, inv: INV };
+  // ready true (W2a-BEHAVIOUR): every kind, the seals, the deck and the labels pass joined up,
+  // in the real core (the real healing, quieting, losing, dissolving and tote), every
+  // package's invariants on; each refusal is made to happen in behaviour/refusals.test.js.
+  const proved = { ready: true, tests: TESTS, inv: INV };
 
   // The eight kinds, in the order of the DECK row (§8.10): `deck` indexes it. cls: Solutions
   // are drunk or thrown, Ephemera are read. `area` names the side of a thrown Solution's
@@ -41,7 +44,7 @@
       {}, ['used', 'identified', 'lost', 'special']],
   ];
   kinds.forEach(([id, cls, name, area, harmfulDrink, clause, params, covers], deck) =>
-    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, unit)));
+    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
 
   // The seals: 4 wax seals shuffled over the Solutions and 4 ink stamps over the Ephemera,
   // each run (§8.6). A seal is a position; `n` indexes run.seals.sol or run.seals.eph, and
@@ -49,27 +52,27 @@
   // speaks of it, and `shape` the pictogram that tells it apart (D5.11).
   const seals = [['round', 'round seal'], ['square', 'square seal'], ['diamond', 'diamond seal'], ['star', 'star seal']];
   const stamps = [['anchor', 'anchor stamp'], ['key', 'key stamp'], ['bell', 'bell stamp'], ['hand', 'hand stamp']];
-  seals.forEach(([shape, name], n) => R.define('SEALS', 'wax' + (n + 1), Object.assign({ cls: 'solution', n, shape, name }, unit)));
-  stamps.forEach(([shape, name], n) => R.define('SEALS', 'ink' + (n + 1), Object.assign({ cls: 'ephemera', n, shape, name }, unit)));
+  seals.forEach(([shape, name], n) => R.define('SEALS', 'wax' + (n + 1), Object.assign({ cls: 'solution', n, shape, name }, proved)));
+  stamps.forEach(([shape, name], n) => R.define('SEALS', 'ink' + (n + 1), Object.assign({ cls: 'ephemera', n, shape, name }, proved)));
 
   // An identifying label on a wall (§8.6, §8.8): reading it, close and in sight, identifies
   // the kind it describes.
   R.define('FIXTURES', 'plaque', Object.assign({ icon: 'reads', clause: 'An identifying label: read within {range} tiles, in sight, it identifies the kind it describes, for the rest of the run, at no cost in time. A department hangs {labels} on its walls, each for a different kind you do not know, one by the Intro or the first section, and each beside a floor tile you can walk to from the entrance.',
-    params: { range: 'N:READ_RANGE', labels: 'N:ID_LABELS_PER_DEPT' }, covers: ['identified'] }, unit));
+    params: { range: 'N:READ_RANGE', labels: 'N:ID_LABELS_PER_DEPT' }, covers: ['identified'] }, proved));
 
   // The rules every kind shares (§8.6), each a sentence of its own.
   R.define('CLAUSES', 'consumable_seals', Object.assign({ icon: 'seal', clause: 'Each run shuffles four wax seals over the four Solutions and four ink stamps over the four Ephemera; a seal identified once is known for the rest of the run.',
-    covers: ['identified'] }, unit));
+    covers: ['identified'] }, proved));
   R.define('CLAUSES', 'consumable_deck', Object.assign({ icon: 'seal', clause: 'A department’s consumables are drawn from the run’s one deck of cards, without replacement, and the deck is refilled when it is empty. A department lays {n} of them on free floor tiles of its sections and studies, each one you can walk to from the entrance without passing a staff door.',
-    params: { n: 'N:CONSUMABLES_PER_DEPT' }, covers: [] }, unit));
+    params: { n: 'N:CONSUMABLES_PER_DEPT' }, covers: [] }, proved));
   R.define('CLAUSES', 'consumable_throw', Object.assign({ icon: 'seal', clause: 'A Solution is thrown, for the time of a use, onto a tile within {range} tiles that you can see and that does not block sight. It reaches every creature with a tile in its square, you included, except one inside an intact case, which is behind glass. Every thrown Solution but Solvent lands with a soft noise, after what it does.',
-    params: { range: 'N:THROW_RANGE' }, covers: ['used', 'noise', 'refused'] }, unit));
+    params: { range: 'N:THROW_RANGE' }, covers: ['used', 'noise', 'refused'] }, proved));
   R.define('CLAUSES', 'consumable_unknown', Object.assign({ icon: 'seal', clause: 'Unidentified, a first use never harms you: a harmful drink is identified and does nothing, and a throw is refused if the {area}×{area} square centred where it lands would include you; any other first use does what its kind does, and identifies it.',
-    params: { area: 'N:FUMIGANT_SIZE' }, covers: ['used', 'identified', 'refused'] }, unit));
+    params: { area: 'N:FUMIGANT_SIZE' }, covers: ['used', 'identified', 'refused'] }, proved));
 
   // Refusals (§4.2), each with its sentence in text/consumables.js.
   for (const code of ['consumable_not_carried', 'use_no_target', 'throw_not_solution', 'throw_far', 'throw_unseen', 'throw_unknown_near',
-    'label_none', 'label_far', 'label_known', 'card_all_known', 'ticket_no_entrance', 'choice_none', 'choice_bad']) R.define('REFUSALS', code, Object.assign({}, unit));
+    'label_none', 'label_far', 'label_known', 'card_all_known', 'ticket_no_entrance', 'choice_none', 'choice_bad']) R.define('REFUSALS', code, Object.assign({}, proved, { tests: TESTS.concat(['behaviour/refusals.test.js']) }));
 
   // Events (§4.3): a kind identified for this run.
   R.defineEvent('identified', { fields: { seal: 'str', ck: 'str' } });

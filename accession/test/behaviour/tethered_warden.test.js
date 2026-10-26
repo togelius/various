@@ -7,7 +7,9 @@
 // §8.2's table, where searching is part of the hunt.) Each scenario runs for every pack warden
 // (S9.4) at depths 1–7, as a function of the clause's parameters, with every invariant and a
 // clone checked after every step. "Within r" is dx² + dy² ≤ r² + r (§8.2), and "sees" is
-// within SIGHT_EXHIBIT with a line of sight (§8.2), both written out here.
+// within SIGHT_EXHIBIT with a line of sight (§8.2), both written out here. Every scenario
+// runs joined up (W2a-BEHAVIOUR): going back, healing and settling are W1-WAKE-B's real
+// modes, with no hook stood in for, and every package's invariants hold after every step.
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {
@@ -196,26 +198,6 @@ module.exports = ({ test, assert, loadCore }) => {
     ok(H.sweep(C, detour, list('tethered_warden')), detour.name);
   });
 
-  // A core in which going back is stood in for as W1-WAKE-B builds it (AI.byMode, BUILD.md
-  // §8.2): returning walks home and, on arriving, reinstalls (returned, then onHome);
-  // REINSTALL_TURNS later it sleeps with 1 pip. Only this package's invariants run with it.
-  function goingBack() {
-    const X = loadCore(), orig = X.AI.byMode;
-    X.AI.byMode = (state, a, ev) => {
-      if (a.mode === 'returning' && a.home) {
-        const t = X.AI.towards(state, a, a.home, 'onto', ev);
-        if (t !== null) return t;
-        if (a.x === a.home[0] && a.y === a.home[1]) { X.Wake.setMode(state, a, 'reinstalling', { k: 'home', x: a.x, y: a.y }, ev); X.Archetypes.onHome(state, a, ev); }
-        return X.AI.wait(state, a, ev);
-      }
-      if (a.mode === 'reinstalling') {
-        if (state.turn - a.stim >= X.N.REINSTALL_TURNS) { X.Wake.setMode(state, a, 'dormant', { k: 'home', x: a.x, y: a.y }, ev); a.pips = 1; a.stim = state.turn; }
-        return X.AI.wait(state, a, ev);
-      }
-      return orig(state, a, ev);
-    };
-    return X;
-  }
   // Two rooms joined by a doorway at (6, 3); the warden guards (3, 3).
   const TWO = ['#############', '#.....#.....#', '#.....#.....#', '#...........#', '#.....#.....#', '#.....#.....#', '#############'];
   // The step at which it should go back: the first after which you stand outside its tether
@@ -249,7 +231,6 @@ module.exports = ({ test, assert, loadCore }) => {
   // The same, going back as W1-WAKE-B builds it: it heals fully on reaching home, and settles.
   const home = H.scenario(Object.assign({}, outOfSight, {
     name: 'when you leave its tether and its sight it goes back, heals fully when it reaches home, and settles',
-    inv: ['arch-c'],
     expect(r, params) {
       const first = outOfSight.expect(r, params);
       if (first) return first;
@@ -263,9 +244,8 @@ module.exports = ({ test, assert, loadCore }) => {
   test('when you leave its tether and its sight it goes back once, and never fights you outside its tether', () => {
     ok(H.sweep(C, away, list('tethered_warden')), away.name);
   });
-  test('when you leave its tether it goes back, heals fully on reaching home, and settles (going back stood in for as W1-WAKE-B builds it)', () => {
-    const X = goingBack();
-    ok(H.sweep(X, home, H.species(X, 'tethered_warden')), home.name);
+  test('when you leave its tether it goes back, heals fully on reaching home, and settles', () => {
+    ok(H.sweep(C, home, list('tethered_warden')), home.name);
   });
 
   // Watched from outside its tether. It stands at home, hurt; you stand in its sight, 4 tiles
@@ -298,7 +278,6 @@ module.exports = ({ test, assert, loadCore }) => {
   const watch = H.scenario(watched);
   const watchHome = H.scenario(Object.assign({}, watched, {
     name: 'watched from outside its tether it does not heal; out of its sight, it goes back, heals fully once and settles',
-    inv: ['arch-c'],
     expect(r, params) {
       const first = watched.expect(r, params);
       if (first) return first;
@@ -312,9 +291,8 @@ module.exports = ({ test, assert, loadCore }) => {
   test('watched from outside its tether it waits quietly at its place; out of its sight it goes back once', () => {
     ok(H.sweep(C, watch, list('tethered_warden')), watch.name);
   });
-  test('watched from outside its tether it does not heal; out of its sight it goes back, heals once and settles (going back stood in for as W1-WAKE-B builds it)', () => {
-    const X = goingBack();
-    ok(H.sweep(X, watchHome, H.species(X, 'tethered_warden')), watchHome.name);
+  test('watched from outside its tether it does not heal; out of its sight it goes back, heals once and settles', () => {
+    ok(H.sweep(C, watchHome, list('tethered_warden')), watchHome.name);
   });
 
   test('searching for you with you outside its tether and out of its sight, it goes back at once; within it, or with no home, it does not', () => {

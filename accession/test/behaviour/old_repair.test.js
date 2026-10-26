@@ -3,9 +3,9 @@
 // is a function of the clause's parameter (the side, as a word), run for every species whose
 // line has it (the Signal Lamps, repaired on the west), at every depth 1–7, with every
 // invariant checked after every step and a clone check; those that show the doubling must
-// fail with old_repair switched off (rulesOff, §5.3 check 3). Your Pin-Driver is W1-KIT's;
-// here, in this test's own core, a stand-in fires it through Ranged.shoot as the plan says
-// KIT's does.
+// fail with old_repair switched off (rulesOff, §5.3 check 3). Your Pin-Driver is W1-KIT's
+// real one (Kit.useInstrument, through Ranged.shoot): every scenario runs joined up, with no
+// hook stood in for (W2a-BEHAVIOUR).
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const C = loadCore();
@@ -23,10 +23,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const room = (sp, depth, opts, you, exhibits, items) => Setup.room(opts.seed, { acc: accOf(sp), depth, map: OPEN, you, exhibits, items: items || [] }, { rulesOff: opts.rulesOff, invulnerable: true });
   const lamp = (sp, depth) => ({ sp: sp.id, at: LAMP, mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 999 }) });
   const off = (d, k) => [LAMP[0] + DX[d] * k, LAMP[1] + DY[d] * k];
+  // Your real Pin-Driver, a tier 1 instrument in its slot, with its charges of record.
   const PD = 'arch_b.pd';
-  // The stand-in fires with its own damage (1–4) and Acc (1), as an instrument's bolt is made.
-  C.Kit.useAction = (state, action, ev) => Ranged.shoot(state, state.actors[0], action.x, action.y, { kind: 'shot', item: action.uid, dmin: 1, dmax: 4, acc: 1 }, ev);
-  const pinDriver = [{ uid: PD, kind: 'instrument', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.PIN_DRIVER[0], max: N.PIN_DRIVER[0] }];
+  const pinDriver = [{ uid: PD, kind: 'instrument', form: 'pin_driver', where: { at: 'kit', slot: 'instrument' }, tier: 1 }];
   // The first damage the lamp takes, and what it would be without the repair: the damage
   // less its Padding, at least DMG_MIN_ON_HIT (a beam's net).
   function first(r) {
@@ -51,7 +50,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const list = H.species(C, 'old_repair');
     assert.ok(list.length >= 7, json(list.map(x => x.sp.id)));
     for (const { sp } of list) assert.ok(C.Clauses.line(sp, { depth: 3 }).includes(`Its ${WORDS[POINTS.indexOf(sp.modParams.old_repair.side)]} side is a later repair`), sp.id);
-    assert.equal(C.Registry.MODIFIERS.old_repair.ready, 'unit');
+    assert.equal(C.Registry.MODIFIERS.old_repair.ready, true);
   });
 
   test('a blow from its repaired side deals double damage', () => sweep(H.scenario({
@@ -72,6 +71,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('a blow from the opposite side deals the usual damage', () => sweep(H.scenario({
     name: 'your blow from beside the side opposite the repair deals the usual damage', id: 'old_repair', clone: true,
+    holdsWithout: 'it shows the sides old_repair leaves as they are, which deal the usual damage with it off too',
     build: (params, sp, depth, opts) => room(sp, depth, opts, off((dirOf(params.side) + 4) % 8, 1), [lamp(sp, depth)]),
     actions: state => state.actors[1].hp === 999 ? { a: 'attack', uid: state.actors[1].uid } : null,
     expect(r) {

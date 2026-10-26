@@ -35,7 +35,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('the axis_sniper\'s clause, and its line special\'s, are on the Heliographs, at every depth', () => {
     const list = H.species(C, 'axis_sniper'), line = H.species(C, 'line');
     assert.ok(list.length >= 7 && json(list.map(x => x.sp.id + x.depth)) === json(line.map(x => x.sp.id + x.depth)));
-    assert.equal(json([C.Registry.ARCHETYPES.axis_sniper.ready, C.Registry.SPECIALS.line.ready]), json(['unit', 'unit']));
+    assert.equal(json([C.Registry.ARCHETYPES.axis_sniper.ready, C.Registry.SPECIALS.line.ready]), json([true, true]));
     const text = C.Clauses.line(list[0].sp, { depth: 3 });
     assert.ok(text.startsWith('Moves to share your row or column with no reflector between you, then aims along it') && text.includes(`up to ${N.AXIS_BEAM_RANGE} tiles`), text);
   });

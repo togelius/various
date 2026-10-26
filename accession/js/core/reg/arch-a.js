@@ -6,7 +6,9 @@
 'use strict';
 (() => {
   const R = Registry;
-  const proved = id => ({ ready: 'unit', tests: [`behaviour/${id}.test.js`], inv: 'arch-a' });
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on,
+  // and each modifier's fail with it switched off.
+  const proved = id => ({ ready: true, tests: [`behaviour/${id}.test.js`], inv: 'arch-a' });
 
   R.define('ARCHETYPES', 'darter', Object.assign({ icon: null, speed: 'fast',
     clause: 'Moves two tiles a turn; strikes from beside you for {dmg}, then at once steps back {DARTER_STEP_BACK} tile if it has room.',
@@ -26,6 +28,6 @@
   // A body made from another (a splitter's half) wakes in its parent's mode; its story
   // names how it was made (how: 'split'), its parent (from), who hit the parent (by), and a
   // copy of the parent's own waking (parent: {turn, cause}).
-  R.define('WAKE_CAUSES', 'summoned', Object.assign({ mode: 'parent', creation: true }, { ready: 'unit', tests: ['behaviour/splitter.test.js'], inv: 'arch-a' }));
+  R.define('WAKE_CAUSES', 'summoned', Object.assign({ mode: 'parent', creation: true }, { ready: true, tests: ['behaviour/splitter.test.js'], inv: 'arch-a' }));
   for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid?', how: 'str', from: 'uid', parent: 'obj?' } });
 })();
