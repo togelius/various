@@ -359,7 +359,7 @@ Event kinds (`k`):
 The list is closed and lives in the registry (`Registry.EVENT_KINDS`); `tools/lint-registry.js` fails if it and this list differ. `alerted` sends an exhibit that is not hunting to look at a noise, or, when its search ends and it may not go back, or other actors block its way home, to wander; `healed` is any gain of health but regeneration; `status` is a status put on or ended; `surface` is a surface laid (a plaster cast's dust, cause `died` by the cast; a thrown Fumigant's cloud, cause `item`), with its kind, centre, side and turns, so the log says why sight is blocked; unequipping is `equipped` with no item. Each kind has a schema (its fields and their types: uid, uids, int, str, bool, tile, tiles, obj, with `?` for an optional field), and so does each of its causes, `Registry.defineEvent(k, …)` and `Registry.defineCause(k, causeK, …)`, in the fragment of the rule that emits it (§5.1).
 
 **Sentences** are keyed by kind and cause, because many rules emit the same kind for their own reasons:
-- `Text.define(k, fn)` gives a kind's default sentence, `Text.defineCause(k, causeK, fn)` the sentence for one of its causes, and `Text.defineRefusal(code, fn)` a refusal's, each in the owner's fragment `js/core/text/<part>.js`; `Text.provide(name, fn)` supplies the clock dial's sentence and the death recap.
+- `Text.define(k, fn)` gives a kind's default sentence, `Text.defineCause(k, causeK, fn)` the sentence for one of its causes, and `Text.defineRefusal(code, fn)` a refusal's, each in the owner's fragment `js/core/text/<part>.js`; `Text.provide(name, fn)` supplies the clock dial's sentence, the death recap and the confirmations' words (§7.1; `Text.confirm`, in `js/core/text/confirm.js`).
 - `Text.event(e, nameOf)` uses the cause's sentence, and falls back to the kind's.
 - `Text.log(events, nameOf, visible)` chooses what reaches your log: it leaves out steps, closed doors, the announcement of a blow (its hit or miss is logged), waits and regeneration, and pips, statuses and doors of exhibits out of view; an exhibit that wakes straight into a hunt gets one sentence.
 
@@ -655,7 +655,7 @@ renderer.dispose()
 - leaving by an exit (a minimal confirmation: the visit ends);
 - any action that would leave you on a tile marked for damage by a special that resolves before your next decision (`Specials.threat`, §8.1), saying whose special it is and what it would deal you.
 
-A confirmation is a sheet over the board, saying what the action would do, with a button of at least 44 px that does it and one that cancels; Enter does it, and Escape or a tap beside the sheet cancels. An action `step()` would refuse is never asked about: its refusal says why.
+A confirmation is a sheet over the board, saying what the action would do in `Text.confirm`'s words (`main.js` decides when to ask, never what to say), with a button of at least 44 px that does it and one that cancels; Enter does it, and Escape or a tap beside the sheet cancels. An action `step()` would refuse is never asked about: its refusal says why.
 
 **Everything works with one button:**
 - no right-click, long-press, hover-only information or scroll wheel;

@@ -26,7 +26,7 @@ const Text = (() => {
   }
   // Text.defineRefusal(code, fn): the sentence for a refusal code, fn(data) → sentence.
   function defineRefusal(code, fn) { once(REFUSALS, code, `the refusal ${code}`); isFn(fn, code); REFUSALS[code] = fn; }
-  // Text.provide(name, fn): a named sentence maker ('clock', 'recap'), by its one owner.
+  // Text.provide(name, fn): a named sentence maker ('clock', 'recap', 'confirm'), by its one owner.
   function provide(name, fn) { once(MAKERS, name, `the sentence maker ${name}`); isFn(fn, name); MAKERS[name] = fn; }
 
   // The words a sentence uses for an actor. nameOf(uid) gives an actor's name in
@@ -52,6 +52,8 @@ const Text = (() => {
   const refusal = (code, data) => has(REFUSALS, code) ? REFUSALS[code](data === undefined ? null : data) : String(code);
   const clock = view => has(MAKERS, 'clock') ? MAKERS.clock(view) : null;
   const recap = (state, nameOf) => has(MAKERS, 'recap') ? MAKERS.recap(state, nameOf) : null;
+  // A confirmation's words (§7.1), {title, yes, line}, or null for a kind with none.
+  const confirm = (k, data, nameOf) => has(MAKERS, 'confirm') ? MAKERS.confirm(k, data, nameOf) : null;
 
   // Text.log(events, nameOf, visible): the sentences of one step for the player's log.
   // It leaves out the kinds defined with log: false, and those with log: 'seen' about an
@@ -82,5 +84,5 @@ const Text = (() => {
   }
   const logs = k => has(LOG, k) ? LOG[k] : true;
 
-  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, log, defined, refusalDefined, provided, list, logs };
+  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, confirm, log, defined, refusalDefined, provided, list, logs };
 })();

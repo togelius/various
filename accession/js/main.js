@@ -158,39 +158,34 @@ const Main = (() => {
   // ---- Confirmations (§7.1) ----
 
   const SHARDS = 'xk'; // shards, and a broken case's tile, which holds its glass
-  const SPECIAL = { line: 'beam', ring: 'ring of blows' };
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
   // What a confirmation says before an action, or null when it needs none. It asks before:
   // stepping onto shards from a tile without them; every blow at a case's glass; leaving by
   // an exit (a minimal confirmation, D4.9); and any action that would leave you on a tile
   // marked for damage by a special that goes off before your next decision (Specials.threat).
-  // An action step() would refuse is never asked about: its refusal says why.
+  // An action step() would refuse is never asked about: its refusal says why. This decides
+  // when to ask; the words are Text.confirm's (text/confirm.js), as every sentence about the
+  // rules is (§3.4). The first that applies gives the title and button; each adds its line.
   function askFor(action) {
     if (!action || state.over || !Labels.allowed(state, action)) return null;
-    const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), why = [];
-    let title = null, yes = null;
-    const say_ = (t, y, ...lines) => { if (!title) { title = t; yes = y; } why.push(...lines); };
+    const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), said = [];
+    const ask = (k, data) => { const c = Text.confirm(k, data, nameOf); if (c) said.push(c); };
     if (action.a === 'move') {
       const x = you.x + Grid.DX[action.dir], y = you.y + Grid.DY[action.dir];
-      if (SHARDS.includes(Grid.ch(m, x, y)) && !SHARDS.includes(Grid.ch(m, you.x, you.y)) && !Actors.at(state, x, y))
-        say_('Step onto the shards?', 'Step onto the shards', `Broken glass is loud underfoot: while you stand on it, your ring reaches ${N.RING_LOUD_FLOOR} tiles farther.`);
+      if (SHARDS.includes(Grid.ch(m, x, y)) && !SHARDS.includes(Grid.ch(m, you.x, you.y)) && !Actors.at(state, x, y)) ask('shards');
     }
     if (action.a === 'bash') {
       const d = Cases.describe(state, Cases.at(state, action.x, action.y));
-      if (d && d.canBreak) say_('Break the glass?', 'Strike the glass', d.blows === 1
-        ? `This blow breaks its ${d.glassName} glass, with a crash.`
-        : `This blow is loud and cracks its ${d.glassName} glass; ${d.blows - 1 === 1 ? '1 more breaks it' : `${d.blows - 1} more break it`}, the last with a crash.`);
+      if (d && d.canBreak) ask('bash', { glassName: d.glassName, blows: d.blows });
     }
-    if (action.a === 'leave') say_('Leave the department?', 'Leave', 'Your visit ends when you go through this door.');
+    if (action.a === 'leave') ask('leave');
     const t = Specials.threat(state, action);
     if (t) {
       const owner = Actors.byUid(state, t.by), sp = owner && owner.telegraph ? owner.telegraph.sp : null;
-      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null, what = SPECIAL[shape] || 'special';
-      const who = nameOf(t.by) || 'an exhibit', stay = t.x === you.x && t.y === you.y;
-      say_(stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', stay ? 'Stay' : 'Step onto it',
-        `${who.charAt(0).toUpperCase() + who.slice(1)}’s ${what} goes off on that tile before your next turn: it would deal you ${t.dmg}, with no roll.`);
+      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null;
+      ask('threat', { by: t.by, shape, dmg: t.dmg, stay: t.x === you.x && t.y === you.y });
     }
-    return title ? { title, lines: why, yes } : null;
+    return said.length ? { title: said[0].title, lines: said.map(c => c.line), yes: said[0].yes } : null;
   }
 
   // ---- Walking and resting ----
