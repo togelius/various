@@ -31,7 +31,7 @@
   // The artillery: in view (the nearest whose label says it shoots), else where it was last
   // seen (memory.gun): {uid, x, y, inView}.
   function artillery(obs, list) {
-    const mem = obs.memory, g = list.find(e => e.l.shoots && !e.l.returns);
+    const mem = obs.memory, g = list.find(e => e.l.shoots);
     if (g) { mem.gun = { uid: g.a.uid, x: g.a.x, y: g.a.y }; return { uid: g.a.uid, x: g.a.x, y: g.a.y, inView: true }; }
     return mem.gun ? { uid: mem.gun.uid, x: mem.gun.x, y: mem.gun.y, inView: false } : null;
   }

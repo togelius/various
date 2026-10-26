@@ -6,8 +6,8 @@
 //   counter  reads its label (how near it lets you come before it backs away, and how far it
 //            shoots) and fights it from behind the pillars: out of its line of fire while it
 //            is far enough to shoot, waiting out of sight for it to come looking, pressing it
-//            when it is near enough to back away (but not round a pillar for ever), and
-//            striking it when it is beside you.
+//            when it is near enough to back away (stepping out of its sight after a long chase,
+//            so that it comes looking), and striking it when it is beside you.
 // What each remembers (where it last saw the kiter, what the label said) is in obs.memory.
 'use strict';
 (() => {

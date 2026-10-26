@@ -3,12 +3,13 @@
 // (tools/policies/{kiter,axis_sniper,reflector}.js). Each stamp builds what it says at both
 // depths; the labels say what the counterplay bots read in them; each counterplay rule does
 // what its card says in a staged room; the paired smoke run on seeds 1–20, with every
-// invariant after every step, finds the counterplay bot no worse on the arena's metric; and
-// the bots decide alike twice over, and alike on a seed run alone in a fresh context and run
-// after other seeds (§10.2). The 200-seed gate is Wave 3's:
+// invariant after every step, finds the counterplay bot no worse on the arena's metric, nor
+// less far with its goal; and the bots decide alike twice over, and alike on a seed run alone
+// in a fresh context and run after other seeds (§10.2). The 200-seed gate is Wave 3's:
 //   node tools/sim.js --arena <id> --paired naive counter --seeds 1-200
 module.exports = ({ test, assert, root, path, fs }) => {
   const Sim = require(path.join(root, 'tools/sim.js'));
+  const Stats = require(path.join(root, 'tools/stats.js'));
   const C = Sim.load();
   const J = v => JSON.parse(JSON.stringify(v)), eq = (a, b, m) => assert.deepEqual(J(a), J(b), m);
   const clean = s => assert.doesNotMatch(String(s), /undefined|NaN|\[object|\bnull\b/, `not a clean sentence: ${s}`);
@@ -34,10 +35,11 @@ module.exports = ({ test, assert, root, path, fs }) => {
         const it = ks.items.find(i => i.uid === ks.you.kit[slot]);
         eq([it.tier, C.Kit.short(it, ks.run.grade)], [3, 0], `the ${slot} is tier 3, worn at the grade it needs`);
       }
-      // axis_sniper: the Heliograph asleep in the row you start in, at the far end, beside
-      // the exit door; the straight way there (a tap's) runs along its row to the last step.
+      // axis_sniper: the Heliograph set out hunting in the row you start in, at the far end,
+      // beside the exit door; the straight way there (a tap's) runs along its row to the last
+      // step.
       const as = C.Arena.build(spec('axis_sniper'), seed), a = as.actors[1], me = as.actors[0];
-      eq([as.dept.depth, as.actors.length, a.sp, a.arch, a.mode, a.trigger, a.y === me.y], [depth, 2, 'M11.1', 'axis_sniper', 'dormant', 'axis', true], `axis_sniper seed ${seed}`);
+      eq([as.dept.depth, as.actors.length, a.sp, a.arch, a.mode, a.trigger, a.y === me.y], [depth, 2, 'M11.1', 'axis_sniper', 'hunting', 'axis', true], `axis_sniper seed ${seed}`);
       eq(as.dept.exits.length, 1);
       const [ex, ey] = as.dept.exits[0], way = C.Path.to(as, ex, ey);
       assert.ok(way.length > 10 && way.slice(0, -1).every(([, y]) => y === a.y), 'the straight way runs along its row');
@@ -78,9 +80,26 @@ module.exports = ({ test, assert, root, path, fs }) => {
     }
   });
 
+  // How far a run got with its arena's goal, which HP lost cannot show, since a counterplay
+  // that never takes the goal on loses none: for a kill goal, the health the goal's exhibits
+  // lost, each from its starting health (all of it once destroyed); for leave, 1 if it left.
+  function progress(id, run) {
+    const S = spec(id);
+    if (S.goal.k === 'leave') return run.outcome.won ? 1 : 0;
+    const s0 = C.Arena.build(S, run.seed);
+    let lost = 0;
+    for (const uid of C.Arena.goal(S, s0).uids) {
+      const start = s0.actors.find(a => a.uid === uid).hp;
+      let hp = start;
+      for (const e of run.events) if (e.who === uid && (e.k === 'damaged' || e.k === 'died')) hp = e.k === 'died' ? 0 : e.hp;
+      lost += start - Math.max(0, hp);
+    }
+    return lost;
+  }
+
   // The paired smoke runs, kept for the determinism tests below.
   const smoke = {};
-  for (const id of ARENAS) test(`${id}: seeds 1–20 paired, every invariant after every step: the counterplay bot is not worse than naive`, () => {
+  for (const id of ARENAS) test(`${id}: seeds 1–20 paired, every invariant after every step: the counterplay bot is not worse than naive, in HP lost or in the goal`, () => {
     const r = Sim.paired(id, 'naive', 'counter', SEEDS, { C, check: true, log: true });
     smoke[id] = r;
     for (const side of [r.a, r.b]) for (const run of side.runs) {
@@ -94,19 +113,30 @@ module.exports = ({ test, assert, root, path, fs }) => {
     console.log(`  ${r.verdict.sentence} Won: naive ${r.stats.won.a}, counter ${r.stats.won.b} of ${SEEDS.length}.`);
     assert.ok(sum(r.b) <= sum(r.a), `${id}: counterplay lost ${sum(r.b)} HP over seeds 1–20, naive ${sum(r.a)}`);
     clean(r.verdict.sentence);
+    // A counterplay that hides and never takes the goal on loses no HP, so the goal's progress
+    // is compared too, with the same paired bootstrap: worse would be a counterplay that gets
+    // less far in total, with the interval of the per-seed difference wholly below zero.
+    const g = Stats.compare(r.a.runs.map(run => progress(id, run)), r.b.runs.map(run => progress(id, run)), { path: `bootstrap/${id}/goal` });
+    console.log(`  ${id}: the goal's progress over seeds 1–20 (${spec(id).goal.k === 'leave' ? 'runs that left' : 'health the goal\'s exhibits lost'}): naive ${g.sumA}, counter ${g.sumB}; the mean per-seed difference is ${g.mean.toFixed(2)} (95% interval ${g.lo.toFixed(2)} to ${g.hi.toFixed(2)}).`);
+    assert.ok(!(g.sumB < g.sumA && g.hi < 0), `${id}: the counterplay gets less far with the goal than naive on seeds 1–20: ${g.sumB} against ${g.sumA}, interval ${g.lo} to ${g.hi}`);
   });
 
   test('what each arena\'s counterplay avoids, from the smoke runs\' events: the beam, the kiter\'s shots, the bolts the dish sends back', () => {
     const hits = (run, f) => run.events.filter(e => e.k === 'damaged' && e.who === 'you' && f(e.cause)).length;
-    // axis_sniper: naive walks into the beam on every seed; counterplay keeps out of its row
-    // until the last steps to the door, so it wakes too late to aim.
+    // axis_sniper: naive walks on along the beam and is struck on every seed. The Heliograph
+    // comes for counterplay too and aims at it on every seed (it aims only along a line on
+    // you), and counterplay steps off the mark, is never struck, and leaves.
     const A = smoke.axis_sniper;
     assert.ok(A, 'the smoke run ran first');
-    for (const run of A.a.runs) assert.ok(hits(run, c => c.k === 'special' && c.sp === 'line') >= 1, `naive seed ${run.seed} crosses the beam`);
+    for (const run of A.a.runs) assert.ok(hits(run, c => c.k === 'special' && c.sp === 'line') >= 1, `naive seed ${run.seed} is struck by the beam`);
     for (const run of A.b.runs) {
-      eq(hits(run, () => true), 0, `counter seed ${run.seed}`);
-      assert.ok(!run.events.some(e => e.k === 'telegraphed'), `counter seed ${run.seed} is never aimed at`);
+      assert.ok(run.events.some(e => e.k === 'telegraphed'), `counter seed ${run.seed}: the Heliograph aims at it`);
+      assert.ok(run.reasons.some(x => /off the mark/.test(x)), `counter seed ${run.seed} steps off the mark`);
+      eq([hits(run, () => true), run.outcome.won], [0, true], `counter seed ${run.seed} is never struck, and leaves`);
     }
+    // Keeping off its row and column, counterplay gives it a line less often.
+    const aimed = side => side.runs.reduce((t, run) => t + run.events.filter(e => e.k === 'telegraphed').length, 0);
+    assert.ok(aimed(A.b) < aimed(A.a), `the Heliograph aimed at counterplay ${aimed(A.b)} times, at naive ${aimed(A.a)}`);
     // kiter: counterplay is shot less often in all.
     const K = smoke.kiter, shots = side => side.runs.reduce((t, run) => t + hits(run, c => c.k === 'shot'), 0);
     assert.ok(shots(K.b) < shots(K.a), `the kiter shot counterplay ${shots(K.b)} times, naive ${shots(K.a)}`);
@@ -164,6 +194,23 @@ module.exports = ({ test, assert, root, path, fs }) => {
       // strikes naive.
       const struck = action => { const t = C.State.clone(s), e = C.Step.step(t, action).concat(C.Step.step(t, { a: 'wait' })); return e.some(x => x.k === 'damaged' && x.who === 'you' && x.cause.k === 'special'); };
       eq([struck(c.action), struck(n.action)], [false, true]);
+    }
+  });
+
+  test('axis_sniper.counter steps off the row and column a sniper\'s label gives it, where a way round is shorter by the danger weight; naive walks along its row', () => {
+    // A Heliograph asleep at the end of your row, in view, and the exit door up that row: the
+    // straight way runs along its row, within its beam's reach and its axis trigger's.
+    const S = stamp(['arena: axis_sniper', 'goal: leave', 'species: axis_sniper', 'depths: 2 5', 'seen: all', 'legend: A exhibit sp'],
+      ['#######X###', '#@.......A#', '#.........#', '#.........#', '###########']);
+    for (const seed of [1, 2]) {
+      const s = C.Arena.build(S, seed), a = s.actors[1], o = obsOf(s);
+      assert.ok(a.mode === 'dormant' && o.vm.actors.some(x => x.uid === a.uid), 'it sleeps, in view');
+      const c = policy('axis_sniper.counter').decide(o), n = policy('axis_sniper.naive').decide(obsOf(s));
+      const [cx, cy] = after(s, c.action), [, ny] = after(s, n.action);
+      eq([c.action.a, n.action.a], ['move', 'move']);
+      assert.ok(cx !== a.x && cy !== a.y, `counter steps off its row and column: ${c.reason}`);
+      assert.match(c.reason, /outside the line of/);
+      assert.equal(ny, a.y, `naive walks along its row: ${n.reason}`);
     }
   });
 

@@ -1,6 +1,7 @@
 // The axis_sniper's arena (BUILD.md §10.3): cross a long gallery to the door at its far end,
-// where a Heliograph (M11.1) sleeps in the same row as the straight way there. Naive walks
-// straight across; counterplay steps off its row and column.
+// where a Heliograph (M11.1) is set out hunting, in the same row as the straight way there.
+// It comes for you, moves to share your row or column, and aims its beam along it. Naive walks
+// straight across; counterplay steps off its row and column (tools/policies/axis_sniper.js).
 arena: axis_sniper
 goal: leave
 cap: 200
@@ -8,7 +9,7 @@ species: axis_sniper
 depths: 2 5
 seen: all
 metric: hpLost <= 50%
-legend: A exhibit sp
+legend: A exhibit sp mode=hunting
 
 #####################X###
 #@.....................A#
