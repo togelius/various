@@ -1,0 +1,25 @@
+// The reflector's arena (BUILD.md §10.3): a Reflecting Dish on a Cart (M11.4, a reflector)
+// sleeps in the one doorway of a small room, and a Signal Lamp on a Walking Tripod (M11.3,
+// artillery) sleeps behind it; kill the artillery. Every line from outside to the Lamp
+// crosses the doorway, so while the Dish stands there it sends every bolt back. You carry
+// the Hand Lamp With a Signalling Shutter (M11.6, a Pin-Driver) at tier 3. Naive shoots
+// through the dish; counterplay strikes the dish down first (tools/policies/reflector.js).
+// You wear tier-3 kit at grade V with that grade's health (§8.1), as in the kiter's arena.
+arena: reflector
+goal: kill A
+cap: 200
+species: reflector
+depths: 2 5
+seen: all
+kit: weapon balanced tier=3; garment standard tier=3; instrument pin_driver tier=3 ref=M11.6
+grade: 5
+metric: hpLost <= 70%
+legend: R exhibit sp; A exhibit sp=M11.3
+
+###########
+#....#....#
+#....#....#
+#@...R..A.#
+#....#....#
+#....#....#
+###########

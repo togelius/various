@@ -1,0 +1,19 @@
+// The axis_sniper's arena (BUILD.md §10.3): cross a long gallery to the door at its far end,
+// where a Heliograph (M11.1) sleeps in the same row as the straight way there. Naive walks
+// straight across; counterplay steps off its row and column.
+arena: axis_sniper
+goal: leave
+cap: 200
+species: axis_sniper
+depths: 2 5
+seen: all
+metric: hpLost <= 50%
+legend: A exhibit sp
+
+#####################X###
+#@.....................A#
+#.......................#
+#.......................#
+#.......................#
+#.......................#
+#########################
