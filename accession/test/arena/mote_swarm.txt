@@ -1,10 +1,11 @@
 // The mote_swarm arena (BUILD.md §10.3): a 1-wide doorway; kill all. A swarm of
 // SWARM_BODIES[0] bodies (3, as its Behaviour line says) hunts you in a room whose west wall
 // has a doorway one tile wide, with a small room behind it. You start in the swarm's room,
-// one step from the doorway, in the kit a run starts with (a T1 Balanced weapon and a T1
-// Standard garment, at grade I). Naive fights in the open, where every body can reach you at
-// once; the counterplay steps into the doorway, where the walls on either side let only the
-// body in front of it strike, and each body falls to one hit.
+// one step from the doorway, with the arena's kit (§10.3: at depth d, grade d and a Balanced
+// weapon and Standard garment of the lower tier on offer there). Naive fights in the open,
+// where every body can reach you at once; the counterplay steps into the doorway, where the
+// walls on either side let only the body in front of it strike, and each body falls to one
+// hit.
 arena: mote_swarm
 goal: kill
 cap: 200

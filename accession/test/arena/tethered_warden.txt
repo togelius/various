@@ -6,18 +6,19 @@
 // gives it a blow at you. A noise draws a sleeper's pips; awake, it goes to look at the noise, as far as
 // the edge of its tether, and while it sees you outside its tether it waits at its place
 // (its Behaviour line). The pillars leave a corner of the tether, west of them, from which it
-// cannot see the item's east side: a Tuning Fork's noise there (3 charges, tier 1) sends it
-// into that corner, and the item can be taken from the east while it is there, if you keep
-// out of its sight as it goes. The item is a T1 Balanced weapon. Take it.
+// cannot see the item's east side: a Tuning Fork's noise there (3 charges) sends it into
+// that corner, and the item can be taken from the east while it is there, if you keep out
+// of its sight as it goes. The item is a Balanced weapon. You, the fork and the item have
+// the arena's kit (§10.3: at depth d, grade d and the lower tier on offer there). Take it.
 arena: tethered_warden
 goal: take I
 cap: 200
 species: tethered_warden
 depths: 2 5
 seen: all
-kit: instrument fork tier=1 charges=3
+kit: instrument fork charges=3
 metric: hpLost <= 50%
-legend: W exhibit sp guards=I; I item weapon balanced tier=1
+legend: W exhibit sp guards=I; I item weapon balanced
 
 ###############
 #.............#

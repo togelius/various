@@ -275,7 +275,9 @@ module.exports = ({ test, assert, root, path, fs }) => {
   });
 
   test('--invulnerable keeps you at 1 HP and counts the blows that would have killed you', () => {
-    const spec = C.Arena.parse('arena: brute\ngoal: kill\ncap: 60\ndepths: 7\nlegend: B exhibit role=brute mode=hunting\n\n#######\n#@...B#\n#######\n');
+    // A grade-I visitor in the T1 kit (the stamp says so, not the arena's kit), whom a depth-7
+    // brute kills.
+    const spec = C.Arena.parse('arena: brute\ngoal: kill\ncap: 60\ndepths: 7\ngrade: 1\nkit: weapon tier=1; garment tier=1\nlegend: B exhibit role=brute mode=hunting\n\n#######\n#@...B#\n#######\n');
     const make = (s, o) => C.Arena.build(spec, s, { options: o });
     const mortal = Sim.run({ make, policy: 'idle', seed: 1 });
     assert.equal(mortal.stopped, 'died'); assert.deepEqual([mortal.deaths, mortal.hpLost], [1, 20]);

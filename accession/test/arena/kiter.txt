@@ -1,17 +1,13 @@
 // The kiter's arena (BUILD.md §10.3): a hall of free-standing pillars, and a Signal Lamp on a
 // Walking Tripod (M11.3, a kiter) set out hunting where it sees you; kill it. Naive walks
 // straight at it; counterplay fights it from behind the pillars (tools/policies/kiter.js).
-// You wear tier-3 kit, the lower tier on offer at depth 5, at grade V, the grade it needs,
-// with that grade's health (§8.1), so that the fight at depth 5 can be won; at depth 2 the
-// same kit makes the Lamp easy, and the comparison rests mostly on the even seeds.
+// You wear the arena's kit (§10.3): at depth d, grade d and the lower tier on offer there.
 arena: kiter
 goal: kill
 cap: 200
 species: kiter
 depths: 2 5
 seen: all
-kit: weapon balanced tier=3; garment standard tier=3
-grade: 5
 metric: hpLost <= 70%
 legend: K exhibit sp mode=hunting
 

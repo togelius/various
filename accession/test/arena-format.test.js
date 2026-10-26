@@ -172,7 +172,7 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
     eq([it(i(4)).form, it(i(4)).tier, it(i(4)).where.x, it(i(4)).where.y], ['light', 1, 2, 4]);
     assert.equal(state.you.kit.instrument, i(1)); eq(state.you.tote, [i(2)]);
     eq([it('you.w').form, it('you.w').tier, it('you.g').form, it('you.g').level], ['heavy', 2, 'standard', 1]);
-    // A policy's kit overrides the stamp's weapon (§10.3's splitter: Light against Heavy).
+    // A policy's kit overrides the stamp's weapon (§10.3's splitter: naive's Light weapon).
     const light = A.build(spec, 3, { kit: { weapon: { form: 'light' } } });
     eq([light.items.find(x => x.uid === 'you.w').form, light.items.find(x => x.uid === 'you.w').tier], ['light', 2]);
     // The goal and the marks.
@@ -214,8 +214,8 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
   // The mimic arena of §10.3 ("two cases, one a mimic; open the real one"): the real case
   // must differ from the mimic's only in its accession number (§8.3, D3.10), so `case
   // like=M` copies the glass, lock and loan of the case the mimic M shows as, wherever the
-  // variant puts it; and `grade:` sets your grade, so that whether open works on either case
-  // is the stamp's to say.
+  // variant puts it; and `grade:` sets your grade (the tools' own tests; §10.3's arenas give
+  // none and have the depth's, the arena's kit).
   test('a case like a mimic\'s differs from it only in its number, whatever the seed and the variant; grade: sets your grade', () => {
     const text = stamp(['arena: mimic_probe', 'goal: open R', 'species: mimic_vitrine', 'grade: 7', 'legend: M exhibit sp; R case like=M', 'variants: swap M R'],
       ['#########', '#.......#', '#.M.@.R.#', '#.......#', '#########']);
@@ -233,8 +233,9 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
       seen.add(JSON.stringify([real.glass, real.lock, real.loan])); variants.add(real.x);
     }
     assert.ok(seen.size > 3 && variants.size === 2, `the cases are drawn as a mimic's are, per seed (${seen.size} kinds), in both places`);
-    // Without grade:, you are at grade I; like= must name a letter that is a case or an exhibit.
-    eq(A.build(A.parse(text.replace('grade: 7\n', '')), 1).run.grade, 1);
+    // Without grade:, your grade is the depth's (the arena's kit: seed 1 is at depth 2); like=
+    // must name a letter that is a case or an exhibit.
+    eq([1, 2].map(seed => A.build(A.parse(text.replace('grade: 7\n', '')), seed).run.grade), [2, 5]);
     assert.throws(() => A.parse(text.replace('grade: 7', 'grade: 9')), /grade is a whole number from 1 to 7/);
     assert.throws(() => A.parse(text.replace('like=M', 'like=Q')), /like=Q: that letter is not in the legend/);
     assert.throws(() => A.parse(text.replace('like=M', 'like=M glass=2')), /a case like another takes its glass, lock and loan from it/);
@@ -301,7 +302,9 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
   });
 
   test('the outcome counts HP lost, deaths and wakings from the events', () => {
-    const spec = A.parse(stamp(['arena: o', 'goal: kill', 'species: plodder', 'legend: P exhibit sp; Q exhibit role=fodder; R exhibit role=fodder mode=awake'], ['########', '#@.PQR.#', '########']));
+    // At grade I (the stamp says so), so that you have PLAYER_HP (20) whatever the depth.
+    const spec = A.parse(stamp(['arena: o', 'goal: kill', 'species: plodder', 'grade: 1', 'legend: P exhibit sp; Q exhibit role=fodder; R exhibit role=fodder mode=awake'], ['########', '#@.PQR.#', '########']));
+    assert.equal(A.build(spec, 1).actors[0].maxHp, C.N.PLAYER_HP);
     const s = A.build(spec, 1), [P, Q] = [s.actors[1].uid, s.actors[2].uid];
     const dmg = (hp, amount, saved) => ({ k: 'damaged', who: 'you', amount, hp, cause: saved ? { k: 'attack', saved: 1 } : { k: 'attack' } });
     const ev = [dmg(15, 5), { k: 'regenerated', who: 'you', hp: 17 }, dmg(13, 4), { k: 'damaged', who: P, amount: 9, hp: 1 },
@@ -374,6 +377,35 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
       assert.ok(C.Labels.ofItem(s, pin.uid).odds.includes(`Its bolt deals ${d.instrument.dmin === d.instrument.dmax ? d.instrument.dmin : d.instrument.dmin + '–' + d.instrument.dmax} damage, rolled with Acc ${d.instrument.acc < 0 ? '−' + -d.instrument.acc : d.instrument.acc}.`));
     }
     for (const bad of ['tier=null', 'tier=0', 'tier=5', 'tier=two']) assert.throws(() => A.parse(stamp(['arena: t', 'goal: take W', `legend: W item weapon heavy ${bad}`], room)), /tier is a whole number from 1 to 4/, bad);
+  });
+
+  // The arena's kit (§10.3): at depth d you are the visitor with a Certificate from each
+  // earlier department, grade d with its health (MEDIAN_MAX_HP), wearing a weapon and a
+  // garment of the lower tier on offer at d, Balanced and Standard unless the stamp or a
+  // policy names a form, at level 0. Grade d meets that tier's base grade, so only a Heavy
+  // form is short, by one grade at odd depths.
+  test('with no grade: and no tier, you carry the arena\'s kit at the depth: grade d, the lower tier on offer, worn at the grade it needs', () => {
+    const room = ['#####', '#@..#', '#####'];
+    for (let depth = 1; depth <= 7; depth++) {
+      const spec = A.parse(stamp(['arena: t', 'goal: leave', `depths: ${depth}`], room)), s = A.build(spec, 1), you = s.actors[0];
+      const t = C.N.TIER_LOW_BY_DEPTH[depth - 1], w = s.items.find(i => i.uid === s.you.kit.weapon), g = s.items.find(i => i.uid === s.you.kit.garment);
+      eq([s.run.grade, A.gradeAt(depth), you.hp, you.maxHp], [depth, depth, C.N.MEDIAN_MAX_HP[depth - 1], C.N.MEDIAN_MAX_HP[depth - 1]], `depth ${depth}: grade and health`);
+      eq([w.form, w.tier, w.level, g.form, g.tier, g.level], ['balanced', t, 0, 'standard', t, 0], `depth ${depth}: the weapon and garment`);
+      eq([C.Kit.short(w, s.run.grade), C.Kit.short(g, s.run.grade)], [0, 0], `depth ${depth}: worn at the grade they need`);
+      assert.ok(2 * t - 1 <= depth, `depth ${depth}: grade ${depth} meets tier ${t}'s base grade`);
+      // A form a policy names keeps the arena's tier; only a Heavy one can be short, and only
+      // at an odd depth (where the tier's Heavy needs one grade more than you have).
+      for (const form of ['light', 'heavy', 'reach']) {
+        const gform = form === 'reach' ? 'standard' : form, k = A.build(spec, 1, { kit: { weapon: { form }, garment: { form: gform } } });
+        const kw = k.items.find(i => i.uid === k.you.kit.weapon), kg = k.items.find(i => i.uid === k.you.kit.garment);
+        eq([kw.form, kw.tier, kg.form, kg.tier], [form, t, gform, t], `depth ${depth}: a ${form} weapon and a ${gform} garment of the arena's tier`);
+        const short = form === 'heavy' && depth % 2 === 1 ? 1 : 0;
+        eq([C.Kit.short(kw, k.run.grade), C.Kit.short(kg, k.run.grade)], [short, short], `depth ${depth}: ${form} is ${short} grades short`);
+      }
+    }
+    // The stamp may still say another grade or tier, for the tools' own tests.
+    const own = A.build(A.parse(stamp(['arena: t', 'goal: leave', 'depths: 5', 'grade: 1', 'kit: weapon tier=1; garment tier=1'], room)), 1);
+    eq([own.run.grade, own.actors[0].maxHp, own.items.find(i => i.uid === 'you.w').tier, own.items.find(i => i.uid === 'you.g').tier], [1, C.N.PLAYER_HP, 1, 1]);
   });
 
   test('tools/arena.js passes the determinism lint, like the core', () => {

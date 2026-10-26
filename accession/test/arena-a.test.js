@@ -68,11 +68,13 @@ module.exports = ({ test, assert, root, path }) => {
     return n;
   }
   // The darter's blows in a run, and those after which it did not step back (it was
-  // cornered), leaving out a blow that ended the visit.
+  // cornered), leaving out a blow that ended the visit, and those struck before your last
+  // shot (while you shoot it, you do not corner it).
   function darterBlows(run) {
     let blows = 0, stayed = 0;
-    replay(run, null, (s, ev) => {
-      if (ev.some(e => e.k === 'died' && e.who === 'you')) return;
+    const from = run.replay.actions.map(a => a.a).lastIndexOf('use');
+    replay(run, null, (s, ev, i) => {
+      if (i < from || ev.some(e => e.k === 'died' && e.who === 'you')) return;
       ev.forEach((e, i) => {
         if (e.k !== 'attacked' || e.by === 'you') return;
         blows++;
@@ -83,7 +85,7 @@ module.exports = ({ test, assert, root, path }) => {
     return { blows, stayed };
   }
 
-  test('each stamp is §10.3\'s arena: its goal, cap, depths, metric, species, exhibits hunting you, and the kit a run starts with', () => {
+  test('each stamp is §10.3\'s arena: its goal, cap, depths, metric, species, exhibits hunting you, and the arena\'s kit', () => {
     for (const id of ARENAS) {
       const sp = spec(id), T = TABLE[id];
       eq([sp.arena, sp.goal, sp.cap, sp.depths, sp.seen, metricOf(sp.metric)], [id, { k: 'kill', chars: [] }, 200, [2, 5], 'all', T.metric], id);
@@ -104,15 +106,22 @@ module.exports = ({ test, assert, root, path }) => {
           clean(label, `${id} ${a.uid}'s label`);
           assert.ok(label.includes(C.Clauses.line(C.Packs.speciesFor(s, a), { depth: s.dept.depth, rulesOff: [] })), `${id}: ${a.uid}'s label has its Behaviour line`);
         }
-        // The kit a run starts with: a T1 weapon (Balanced unless a policy brings its own) and
-        // a T1 Standard garment, at grade I, and nothing else.
+        // The arena's kit (§10.3): at depth d, grade d with its health (MEDIAN_MAX_HP, a
+        // Certificate in each earlier department), a weapon (Balanced unless a policy brings
+        // its own form) and a Standard garment of the lower tier on offer at d, at level 0;
+        // the darter's arena adds a Pin-Driver of that tier (the design's "ranged"), and
+        // nothing else.
+        const d = s.dept.depth, t = C.N.TIER_LOW_BY_DEPTH[d - 1];
         const w = s.items.find(i => i.uid === s.you.kit.weapon), g = s.items.find(i => i.uid === s.you.kit.garment);
-        eq([w.form, w.tier, w.level, g.form, g.tier, g.level, s.run.grade, s.you.tote, s.you.kit.curio, s.you.kit.instrument, you.maxHp],
-          ['balanced', 1, 0, 'standard', 1, 0, 1, [], [null, null], null, C.N.PLAYER_HP], `${id} seed ${seed}: the starting kit`);
+        eq([w.form, w.tier, w.level, g.form, g.tier, g.level, s.run.grade, s.you.tote, s.you.kit.curio, you.maxHp],
+          ['balanced', t, 0, 'standard', t, 0, d, [], [null, null], C.N.MEDIAN_MAX_HP[d - 1]], `${id} seed ${seed}: the arena's kit at depth ${d}`);
+        eq([C.Kit.short(w, s.run.grade), C.Kit.short(g, s.run.grade)], [0, 0], `${id} seed ${seed}: worn at the grade they need`);
+        const ins = s.you.kit.instrument === null ? null : s.items.find(i => i.uid === s.you.kit.instrument);
+        eq(ins && [ins.form, ins.tier, ins.charges], id === 'darter' ? ['pin_driver', t, C.N.PIN_DRIVER[0]] : null, `${id} seed ${seed}: its instrument`);
       }
       for (const s of list) for (const d of [2, 5]) assert.ok(met.includes(`${s.id}@${d}`), `${id}: ${s.id} meets depth ${d}`);
       const s = C.Arena.build(sp, 1), doors = gaps(s, 'door');
-      if (id === 'plodder' || id === 'mote_swarm') {
+      if (id !== 'darter') {
         // One doorway, one step from you, and every exhibit on your side of it.
         assert.equal(doors.length, 1, `${id}: one doorway`);
         const [dx, dy] = doors[0], you = s.actors[0];
@@ -140,10 +149,9 @@ module.exports = ({ test, assert, root, path }) => {
       assert.match(card, /\n  1\. \S/);
       assert.ok(readme.includes(`### ${id}.${k}\n\n${p.policy.card.summary}\n`), `${id}.${k} is in the README`);
     }
-    // §10.3's splitter row: Light against Heavy, and nothing else differs in the kit (the
-    // tier is the arena's, so the stamp alone says it).
-    eq([C.Policies.get('splitter.naive').policy.kit, C.Policies.get('splitter.counter').policy.kit],
-      [{ weapon: { form: 'light' } }, { weapon: { form: 'heavy' } }]);
+    // §10.3's splitter row: naive brings a Light weapon, and the counterplay keeps the arena's
+    // Balanced one; nothing else differs in the kit (the tier is the arena's).
+    eq([C.Policies.get('splitter.naive').policy.kit, C.Policies.get('splitter.counter').policy.kit], [{ weapon: { form: 'light' } }, undefined]);
     for (const id of ['plodder', 'darter', 'mote_swarm']) for (const k of ['naive', 'counter']) assert.equal(C.Policies.get(`${id}.${k}`).policy.kit, undefined, `${id}.${k} wears the arena's kit`);
   });
 
@@ -175,8 +183,8 @@ module.exports = ({ test, assert, root, path }) => {
     }
   });
 
-  test('the plodder and mote_swarm counterplay steps into the doorway and fights only from there; naive fights in the open', () => {
-    for (const id of ['plodder', 'mote_swarm']) {
+  test('the plodder, mote_swarm and splitter counterplay steps into the doorway and fights only from there; naive fights in the open', () => {
+    for (const id of ['plodder', 'mote_swarm', 'splitter']) {
       const r = pairedOf(id);
       let crowded = 0;
       for (const run of r.b.runs) {
@@ -202,12 +210,17 @@ module.exports = ({ test, assert, root, path }) => {
     }
   });
 
-  test('the darter counterplay corners it: it strikes whenever it can, and otherwise steps nearer by the step that leaves the darter the fewest tiles to step back to, so the darter is cornered on more of its blows; naive chases it and never waits while it can walk after it', () => {
+  test('the darter counterplay shoots it while it is out of reach and corners it: it strikes whenever it can, else shoots while its Pin-Driver can, and otherwise steps nearer by the step that leaves the darter the fewest tiles to step back to, so the darter is cornered on more of its blows; naive chases it, never shoots, and never waits while it can walk after it', () => {
     const r = pairedOf('darter');
+    let shots = 0;
     for (const run of r.b.runs) replay(run, (s, a, i) => {
       const you = s.actors[0], d = s.actors[1], at = `darter counter seed ${run.seed} step ${i + 1}`, legal = C.Step.legal(s);
       if (d.gone) return;
       if (legal.some(l => l.a === 'attack' && l.uid === d.uid)) { eq(a, { a: 'attack', uid: d.uid }, `${at}: it strikes the darter beside it`); return; }
+      // A shot of its Pin-Driver at the darter, worked out from the state's legal actions.
+      const shot = legal.find(l => l.a === 'use' && l.x === d.x && l.y === d.y && l.on === undefined);
+      if (shot) { eq(a, shot, `${at}: out of reach of a blow, it shoots the darter`); shots++; return; }
+      assert.notEqual(a.a, 'use', `${at}: it shoots only when a shot is legal`);
       const now = C.Actors.between(you, d), nearer = legal.filter(l => l.a === 'move').map(l => [l, you.x + C.Grid.DX[l.dir], you.y + C.Grid.DY[l.dir]])
         .filter(([, x, y]) => !C.Actors.at(s, x, y, you) && Math.max(Math.abs(x - d.x), Math.abs(y - d.y)) < now);
       assert.ok(a.a === 'move' || !nearer.length, `${at}: it waits only when no step brings it nearer (${C.Obs.say(a)})`);
@@ -216,31 +229,43 @@ module.exports = ({ test, assert, root, path }) => {
       assert.ok(nearer.some(([l]) => l.dir === a.dir), `${at}: its step brings it nearer the darter`);
       assert.equal(backRoom(s, d, x, y), least, `${at}: its step leaves the darter the fewest tiles to step back to`);
     });
+    assert.ok(shots > 0, 'the counterplay shoots the darter');
     for (const run of r.a.runs) replay(run, (s, a, i) => {
       const obs = C.Obs.make(s, [], null, null), foes = C.Obs.hostiles(obs.vm);
+      assert.notEqual(a.a, 'use', `darter naive seed ${run.seed} step ${i + 1}: it never uses its Pin-Driver`);
       if (a.a === 'wait') assert.ok(!foes.some(f => C.Obs.step(obs, f.x, f.y)), `darter naive seed ${run.seed} step ${i + 1}: it waits only with no way after the darter`);
     });
-    // The darter's own rule at the centre: against the counterplay it is cornered (no step
-    // back after its blow) on a larger share of its blows than against naive.
+    // The darter's own rule at the centre: once the counterplay has stopped shooting, the
+    // darter is cornered (no step back after its blow) on a larger share of its blows than
+    // against naive.
     const share = side => side.runs.map(darterBlows).reduce((t, b) => ({ blows: t.blows + b.blows, stayed: t.stayed + b.stayed }), { blows: 0, stayed: 0 });
     const n = share(r.a), c = share(r.b);
-    console.log(`  darter, seeds 1–20: cornered on ${c.stayed} of its ${c.blows} blows against the counterplay, ${n.stayed} of ${n.blows} against naive`);
+    console.log(`  darter, seeds 1–20: cornered on ${c.stayed} of its ${c.blows} blows against the counterplay after its last shot, ${n.stayed} of ${n.blows} against naive`);
     assert.ok(c.blows > 0 && n.blows > 0 && c.stayed * n.blows > n.stayed * c.blows, `the darter is cornered on more of its blows against the counterplay: ${c.stayed}/${c.blows} against ${n.stayed}/${n.blows}`);
   });
 
-  test('the two splitter policies wear Light and Heavy weapons and otherwise decide alike', () => {
+  test('the splitter policies wear a Light and a Balanced weapon of the arena\'s tier, and the counterplay\'s hits are harder and, by its label, no more', () => {
     const r = pairedOf('splitter');
-    const naive = C.Policies.get('splitter.naive').policy, counter = C.Policies.get('splitter.counter').policy;
-    for (const [side, form] of [[r.a, 'light'], [r.b, 'heavy']]) for (const run of side.runs) {
-      const s = Sim.rebuild(run.replay.start, run.replay.options, C), w = s.items.find(i => i.uid === s.you.kit.weapon);
-      eq([w.form, w.tier, w.level, s.run.grade], [form, 1, 0, 1], `${run.policy} seed ${run.seed} wears a T1 ${form} weapon at grade I`);
+    for (const [side, form] of [[r.a, 'light'], [r.b, 'balanced']]) for (const run of side.runs) {
+      const s = Sim.rebuild(run.replay.start, run.replay.options, C), w = s.items.find(i => i.uid === s.you.kit.weapon), d = s.dept.depth;
+      eq([w.form, w.tier, w.level, s.run.grade], [form, C.N.TIER_LOW_BY_DEPTH[d - 1], 0, d], `${run.policy} seed ${run.seed} wears a ${form} weapon of the arena's tier at depth ${d}`);
+      eq(C.Kit.short(w, s.run.grade), 0, `${run.policy} seed ${run.seed}: its weapon is not short of your grade`);
     }
-    // At every step of naive's runs, the counterplay given the same view chooses the same.
-    for (const run of r.a.runs) replay(run, (s, a, i) => {
-      const d = counter.decide(C.Obs.make(s, [], null, null, { memory: {} })), n = naive.decide(C.Obs.make(s, [], null, null, { memory: {} }));
-      eq([d.action, n.action], [a, a], `splitter seed ${run.seed} step ${i + 1}`);
-      assert.equal(d.reason.replace('Heavy', 'Light'), n.reason);
-    });
+    // The Balanced weapon hits harder at both ends of its range (§8.1), and the label's count
+    // of hits to destroy it and every half it splits off, which the counterplay reads, is no
+    // more with it than with the Light one, at every depth of the arena and for every species,
+    // and fewer somewhere.
+    const sp = spec('splitter'), hits = (s, uid) => Number(/need (\d+) hits? to destroy it/.exec(C.Obs.text(C.Labels.of(s, uid)))[1]);
+    let fewer = 0;
+    for (const x of C.Arena.speciesList(sp)) for (const depth of sp.depths) {
+      const light = C.Arena.build(sp, 1, { depth, sp: x.id, kit: { weapon: { form: 'light' } } }), bal = C.Arena.build(sp, 1, { depth, sp: x.id });
+      const [l, b] = [light.actors[0], bal.actors[0]];
+      assert.ok(b.dmin > l.dmin && b.dmax > l.dmax, `depth ${depth}: the Balanced weapon's range ${b.dmin}-${b.dmax} is above the Light one's ${l.dmin}-${l.dmax}`);
+      const hb = hits(bal, bal.actors[1].uid), hl = hits(light, light.actors[1].uid);
+      assert.ok(hb <= hl, `${x.id} at depth ${depth}: no more hits with the Balanced weapon (${hb} against ${hl})`);
+      if (hb < hl) fewer++;
+    }
+    assert.ok(fewer > 0, 'fewer hits with the Balanced weapon somewhere');
   });
 
   test('a policy decides alike on a seed run twice, and alone in a fresh context as after other seeds (its memory is its run\'s own)', () => {
@@ -256,7 +281,7 @@ module.exports = ({ test, assert, root, path }) => {
         }
         const alone = Sim.runArena(id, `${id}.${k}`, 12, { C: fresh, coreHash: 'test' });
         eq(pick(alone), pick(side.runs.find(x => x.seed === 12)), `${id}.${k} seed 12: alone in a fresh context as after seeds 1–11`);
-        assert.ok(k === 'naive' || id === 'splitter' || alone.reads.length > 0, `${id}.${k} reads the labels it says it reads`);
+        assert.ok(k === 'naive' || alone.reads.length > 0, `${id}.${k} reads the labels it says it reads`);
       }
     }
   });

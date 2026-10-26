@@ -1,13 +1,16 @@
 // ACCESSION — the darter arena's policies (BUILD.md §10.3; test/arena/darter.txt): a darter in
-// an open room. A darter steps two tiles a turn and, beside you, strikes and at once steps
-// back in the same action, to an empty tile beside it that is farther from you by walking
-// distance; with no such tile it is cornered and stays (§8.1). Naive chases it: each turn it
-// walks up to the darter, which then strikes and steps away before naive's next turn, so
-// naive strikes only when the darter happens to be cornered. The counterplay corners it, its
-// back to a wall (the design's "corner it against walls", vocabulary.md §2.1): it comes at
-// the darter from the side that leaves it the fewest tiles to step back to, so each step back
-// takes it toward a wall, until it stands with its back to the wall and you square in front
-// of it, where it has none; there it strikes and stays beside you, and is struck back.
+// an open room, and you with a Pin-Driver. A darter steps two tiles a turn and, beside you,
+// strikes and at once steps back in the same action, to an empty tile beside it that is
+// farther from you by walking distance; with no such tile it is cornered and stays (§8.1).
+// Naive chases it, and never uses its Pin-Driver: each turn it walks up to the darter, which
+// then strikes and steps away before naive's next turn, so naive strikes only when the
+// darter happens to be cornered. The counterplay does both things the design names ("corner
+// it against walls or glass; ranged", vocabulary.md §2.1): while the darter is out of reach
+// of a blow it shoots it, as long as a charge is left; otherwise it corners it, its back to a
+// wall: it comes at the darter from the side that leaves it the fewest tiles to step back
+// to, so each step back takes it toward a wall, until it stands with its back to the wall
+// and you square in front of it, where it has none; there it strikes and stays beside you,
+// and is struck back.
 //
 // A classic script, loaded after lib.js into the hardened core context. Each policy sees only
 // obs (Obs.make: the view model, the labels it reads, the legal actions) and keeps what it
@@ -28,6 +31,9 @@
       .sort((a, b) => (a.hp - b.hp) || (Obs.dist(a, me.x, me.y) - Obs.dist(b, me.x, me.y)) || byUid(a, b));
   }
   const strike = (f, where) => ({ action: { a: 'attack', uid: f.uid }, reason: `attacks ${f.uid} beside it${where}, ${f.hp} of ${f.maxHp} HP left` });
+  // The legal shot of your Pin-Driver at the exhibit f (a use of your instrument at its tile;
+  // legal only with a charge left, within its reach and with a clear line, §8.5), or null.
+  const shot = (obs, f) => Obs.legalOf(obs, 'use').find(l => l.x === f.x && l.y === f.y && l.on === undefined) || null;
 
   // The tiles a darter at d could step back to after its blow if you stood on (px, py): the
   // empty tiles beside it, not a closed door, that are farther from (px, py) than it
@@ -94,7 +100,7 @@
   Policies.add('darter', {
     naive: {
       card: {
-        summary: 'Chases the darter: strikes it when it is beside it, and otherwise walks after it.',
+        summary: 'Chases the darter: strikes it when it is beside it, and otherwise walks after it. It never uses the Pin-Driver it carries.',
         rules: [
           'If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).',
           'Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.',
@@ -117,10 +123,11 @@
     },
     counter: {
       card: {
-        summary: 'Corners the darter, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.',
+        summary: 'Shoots the darter with its Pin-Driver while it is out of reach, and corners it, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.',
         rules: [
           'Read the label of each exhibit the first time it is in view (a darter steps back after its blow only if it has room).',
           'If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).',
+          'Otherwise, if its Pin-Driver can shoot the nearest exhibit in view (a charge left, within its reach, a clear line), shoot it.',
           'Otherwise, if an exhibit is in view, step toward the nearest by the step after which it would have the fewest tiles to step back to: the empty tiles beside it, not a closed door, that are farther from you by walking distance, none when its back is to a wall and you stand square in front of it. Ties go to the step that ends nearer it, then by direction.',
           `Otherwise, if it has seen no exhibit for ${PATIENCE} turns, walk toward where it last saw one.`,
           'Otherwise, wait.',
@@ -135,7 +142,9 @@
             (r ? `with ${r === 1 ? '1 tile' : `${r} tiles`} it could step back to` : 'its back to a wall: it has no tile to step back to') };
         }
         if (foes.length) {
-          const f = foes[0], c = corner(obs, f);
+          const f = foes[0], b = shot(obs, f);
+          if (b) return { action: b, reason: `${read}shoots ${f.uid} with its Pin-Driver, ${Obs.dist(f, me.x, me.y)} tiles away and out of reach of a blow, ${f.hp} of ${f.maxHp} HP left` };
+          const c = corner(obs, f);
           if (c) {
             const where = c.dist === 1 ? `beside ${f.uid}` : `toward ${f.uid}, ${c.dist} tiles from it`;
             return { action: c.action, reason: `${read}steps ${Obs.DIRS[c.action.dir]} ${where}, where it would have ` +

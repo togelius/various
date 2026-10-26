@@ -62,7 +62,7 @@ Weights: danger weight 30.
 
 ### darter.naive
 
-Chases the darter: strikes it when it is beside it, and otherwise walks after it.
+Chases the darter: strikes it when it is beside it, and otherwise walks after it. It never uses the Pin-Driver it carries.
 
 1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
 2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
@@ -73,13 +73,14 @@ Weights: turns without an exhibit in view before it goes to look 10.
 
 ### darter.counter
 
-Corners the darter, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.
+Shoots the darter with its Pin-Driver while it is out of reach, and corners it, its back to a wall: comes at it from the side that leaves it the fewest tiles to step back to, until it has none, and strikes it whenever it is beside it.
 
 1. Read the label of each exhibit the first time it is in view (a darter steps back after its blow only if it has room).
 2. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
-3. Otherwise, if an exhibit is in view, step toward the nearest by the step after which it would have the fewest tiles to step back to: the empty tiles beside it, not a closed door, that are farther from you by walking distance, none when its back is to a wall and you stand square in front of it. Ties go to the step that ends nearer it, then by direction.
-4. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
-5. Otherwise, wait.
+3. Otherwise, if its Pin-Driver can shoot the nearest exhibit in view (a charge left, within its reach, a clear line), shoot it.
+4. Otherwise, if an exhibit is in view, step toward the nearest by the step after which it would have the fewest tiles to step back to: the empty tiles beside it, not a closed door, that are farther from you by walking distance, none when its back is to a wall and you stand square in front of it. Ties go to the step that ends nearer it, then by direction.
+5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+6. Otherwise, wait.
 
 Weights: turns without an exhibit in view before it goes to look 10.
 
@@ -141,7 +142,7 @@ Weights: exposure weight 6, chase limit (turns) 10, wait limit (turns) 12.
 Opens the nearest shut case, then the next, without reading their labels.
 
 1. Of the shut cases in view, take the nearest by the way you would walk to stand beside it (ties: the upper, then the left).
-2. Beside it, open it; otherwise take the first step of that way.
+2. Beside it, open it, or break its glass if its lock is above your grade; otherwise take the first step of that way.
 3. If no step is open (gripped), strike an exhibit beside you, else wait.
 
 Weights: none.
@@ -152,7 +153,7 @@ Reads the label of each shut case in view before opening any, and opens the near
 
 1. Read the label of every shut case in view once (reading takes no time). A case whose label has no accession number is a mimic.
 2. Of the shut cases not known to be mimics, take the nearest by the way you would walk to stand beside it (ties: the upper, then the left); if every one is a mimic, the nearest of all.
-3. Beside it, open it; otherwise take the first step of that way.
+3. Beside it, open it, or break its glass if its lock is above your grade; otherwise take the first step of that way.
 4. If no step is open (gripped), strike an exhibit beside you, else wait.
 
 Weights: none.
@@ -262,7 +263,7 @@ Weights: none.
 
 ### splitter.naive
 
-Fights the splitter with a Light weapon, of the tier the arena gives: many small hits, each of which the body or a half may survive and split on.
+Fights the splitter in the open with a Light weapon: many small hits, each of which the body or a half may survive and split on, while every half that can reach it strikes.
 
 1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
 2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
@@ -275,16 +276,16 @@ Kit: weapon light.
 
 ### splitter.counter
 
-Fights the splitter as naive does, but with a Heavy weapon, of the tier the arena gives: fewer, harder hits, which leave less of a body to split and fell its halves sooner.
+Fights the splitter from the doorway with the Balanced weapon the arena gives, which hits harder than a Light one: only the body in front of it can strike, so the halves come at it one at a time.
 
-1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
-2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
-3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
-4. Otherwise, wait.
+1. Find the doorway once, at its first decision: the nearest tile with a wall on two opposite sides and open tiles on the other two.
+2. Read the label of each exhibit the first time it is in view.
+3. If it is not standing in the doorway, and it has seen an exhibit in the last 10 turns, take the first step of the way a tap on the doorway would walk, whatever is beside it.
+4. Otherwise, if an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
+5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one, striking any it meets on the way.
+6. Otherwise, wait in the doorway for them to come to it.
 
 Weights: turns without an exhibit in view before it goes to look 10.
-
-Kit: weapon heavy.
 
 ## tethered_warden
 

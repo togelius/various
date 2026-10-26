@@ -2,17 +2,17 @@
 // sleeps in the one doorway of a small room, and a Signal Lamp on a Walking Tripod (M11.3,
 // artillery) sleeps behind it; kill the artillery. Every line from outside to the Lamp
 // crosses the doorway, so while the Dish stands there it sends every bolt back. You carry
-// the Hand Lamp With a Signalling Shutter (M11.6, a Pin-Driver) at tier 3. Naive shoots
-// through the dish; counterplay strikes the dish down first (tools/policies/reflector.js).
-// You wear tier-3 kit at grade V with that grade's health (§8.1), as in the kiter's arena.
+// the Hand Lamp With a Signalling Shutter (M11.6, a Pin-Driver), of the lower tier on offer
+// at the depth, as the arena's kit is (§10.3: at depth d, grade d and that tier). Naive
+// shoots through the dish; counterplay strikes the dish down first
+// (tools/policies/reflector.js).
 arena: reflector
 goal: kill A
 cap: 200
 species: reflector
 depths: 2 5
 seen: all
-kit: weapon balanced tier=3; garment standard tier=3; instrument pin_driver tier=3 ref=M11.6
-grade: 5
+kit: instrument pin_driver ref=M11.6
 metric: hpLost <= 70%
 legend: R exhibit sp; A exhibit sp=M11.3
 

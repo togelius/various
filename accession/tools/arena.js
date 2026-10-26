@@ -10,6 +10,7 @@
 //   Arena.won(goal, state) → bool
 //   Arena.outcome(spec, state, events, {variant, goal}) → {done, won, died, hpLost, woken, turns, …}
 //   Arena.depthFor(spec, seed), Arena.speciesFor(spec, seed), Arena.variant(spec, seed)
+//   Arena.gradeAt(depth): your grade at a depth (the arena's kit, below)
 //   Arena.start(start, options) → state: a sim replay's start rebuilt on its own (below)
 //   Arena.DUMMY: a one-room stamp with one sleeping plodder, for the tools' own tests
 //
@@ -31,8 +32,8 @@
 //                      with it) or species ids, in turn by seed (below)
 //   depths: <d>…       the depths, in turn by seed (2 5)
 //   kit: <slot> [<form>] [key=value…]; …
-//                      what you wear and carry; slots weapon and garment change the kit you
-//                      start with (form, tier, level; tier 1 unless given, as you start);
+//                      what you wear and carry beyond the arena's kit (below); slots weapon
+//                      and garment change the weapon and garment you wear (form, tier, level);
 //                      curio0, curio1 and instrument put an item in that slot; `tote <kind> …`
 //                      puts one in the tote. key=value sets any item field (ref, form, tier,
 //                      level, charges, max, rechargeAt, ck, seal, n; prims=dmg:M,quiet:S). The
@@ -43,7 +44,8 @@
 //                      numbers (a Pin-Driver's bolt) name a tier the game has.
 //   clock: none | ltour=<n> | B=<b> G=<g> count=<c>     (none)
 //   seen: none | all   whether the whole map is remembered from the start, as it is built (none)
-//   grade: <1-7>       your grade (I), so that whether a case opens is the stamp's to say
+//   grade: <1-7>       your grade, for the tools' own tests only (the arena's kit, below,
+//                      otherwise); none of BUILD.md §10.3's arenas gives one
 //   metric: <name> <= <p>% | <name> >= <p>% | died lower
 //                      the comparison §10.3 makes, counterplay against naive: a ratio of sums
 //                      (hpLost, woken or turns) at most or at least p%, or Newcombe's "death
@@ -92,6 +94,15 @@
 // Map rows are all one width; any character in Grid.TILES is that tile (E is the entrance,
 // X an exit door), and every other character must be in the legend, where it stands on the
 // floor (`on` names another tile; a case stands on a vitrine).
+//
+// THE ARENA'S KIT (BUILD.md §10.3). At depth d you are the visitor §8.10's MEDIAN_MAX_HP
+// assumes, with a Certificate from each earlier department: grade d (§8.7: I, and one more
+// per Certificate; at most GRADE_MAX), with that grade's health, wearing a weapon and a
+// garment of the lower tier on offer at d (TIER_LOW_BY_DEPTH, §8.1), Balanced and Standard
+// (the forms a run starts with) unless the stamp or a policy's kit names a form, at
+// Restoration level 0. Grade d always meets that tier's base grade (2t − 1), so only a Heavy
+// form is ever short, by one grade at odd depths. A stamp's grade: or a kit's tier= sets
+// another, for the tools' own tests.
 //
 // PER SEED. Seed s uses depths[(s − 1) mod D] and species[⌊(s − 1) / D⌋ mod S], so with the
 // default depths every species meets both depths (the plan's D6.2: depth 2 for odd seeds,
@@ -376,6 +387,9 @@ const Arena = (() => {
 
   const legendOf = (spec, ch) => spec.legend.find(e => e.ch === ch) || null;
   const mod = (a, n) => ((a % n) + n) % n;
+  // Your grade at a depth (the arena's kit): I, and one more per earlier department's
+  // Certificate (§8.7), at most GRADE_MAX.
+  const gradeAt = depth => Math.min(N.GRADE_MAX, N.GRADE_START + depth - 1);
 
   // The species a bare `sp` stands for, as records, in order.
   function speciesList(spec) {
@@ -442,19 +456,23 @@ const Arena = (() => {
     const first = ch => all.find(c => c.ch === ch) || null;
     const tileOf = ref => { if (/^\d+,\d+$/.test(ref)) return ref.split(',').map(Number); const c = first(ref); return [c.x, c.y]; };
     const room = { acc, depth, map: null, you: null, exhibits: [], fixtures: [], items: [], kit: {}, clock: spec.clock ? Object.assign({}, spec.clock) : undefined, entrance: undefined, exits: [] };
-    if (spec.grade !== null && spec.grade !== undefined) room.grade = spec.grade;
+    // The arena's kit (above): your grade is the depth's, unless the stamp gives one.
+    room.grade = spec.grade !== null && spec.grade !== undefined ? spec.grade : gradeAt(depth);
     // likes: [{x, y, from: [x, y]}], the cases whose glass, lock and loan the made room gives.
     const out = { acc, depth, sp: sp ? sp.id : null, variant: v, room, exhibits: [], items: [], cases: [], marks: [], likes: [] };
     let items = 0, cases = 0;
     const itemUid = () => `${acc}.${depth}.room.i${++items}`;
     // A weapon, garment or instrument given no tier gets the lower tier on offer at the depth.
     const tiered = rec => { if (TIERED.includes(rec.kind) && rec.tier === undefined) rec.tier = N.TIER_LOW_BY_DEPTH[depth - 1]; return rec; };
-    // The kit: the weapon and garment you start with, then the slots and the tote.
+    // The kit: the weapon and garment you wear, of the depth's lower tier unless the stamp
+    // says (the arena's kit, above), in the forms the stamp or the policy names; then the
+    // slots and the tote.
     const kit = {};
-    for (const e of spec.kit) if (e.slot === 'weapon' || e.slot === 'garment') kit[e.slot] = Object.assign({}, e.fields);
-    for (const s of ['weapon', 'garment']) if (opts.kit && opts.kit[s]) kit[s] = Object.assign({}, kit[s] || {}, opts.kit[s]);
-    if (kit.weapon) room.kit.weapon = kit.weapon;
-    if (kit.garment) room.kit.garment = kit.garment;
+    for (const s of ['weapon', 'garment']) kit[s] = { tier: N.TIER_LOW_BY_DEPTH[depth - 1] };
+    for (const e of spec.kit) if (e.slot === 'weapon' || e.slot === 'garment') Object.assign(kit[e.slot], e.fields);
+    for (const s of ['weapon', 'garment']) if (opts.kit && opts.kit[s]) Object.assign(kit[s], opts.kit[s]);
+    room.kit.weapon = kit.weapon;
+    room.kit.garment = kit.garment;
     for (const e of spec.kit) {
       if (e.slot === 'weapon' || e.slot === 'garment') continue;
       const where = e.slot === 'tote' ? { at: 'tote' } : { at: 'kit', slot: e.slot };
@@ -658,5 +676,5 @@ const Arena = (() => {
     '##########',
   ].join('\n') + '\n';
 
-  return { parse, layout, build, start, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, DUMMY, KEYS };
+  return { parse, layout, build, start, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, gradeAt, DUMMY, KEYS };
 })();

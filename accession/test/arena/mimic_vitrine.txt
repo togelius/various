@@ -2,15 +2,15 @@
 // its disguise, drawn per seed (the variant swaps the two letters, so the mimic is the
 // nearer case on about half the seeds). The real case C is `like=M`: its glass, lock and
 // loan are the disguise's, so its label differs from the mimic's only in its accession
-// number (§8.3), and both are empty. Your grade (VI) opens any lock a case can draw at
-// depth 5 (its lock is at most the depth + 1). Open the real one.
+// number (§8.3), and both are empty. You have the arena's kit (§10.3: at depth d, grade d),
+// so a lock the cases draw can be one above your grade (a lock is at most the depth + 1):
+// then the case is broken open, not opened. Open the real one.
 arena: mimic_vitrine
 goal: open C
 cap: 200
 species: mimic_vitrine
 depths: 2 5
 seen: all
-grade: 6
 metric: hpLost <= 30%
 legend: M exhibit sp; C case like=M
 variants: swap M C

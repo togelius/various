@@ -126,18 +126,21 @@ module.exports = ({ test, assert, root, path, fs }) => {
           assert.ok(inTether(ox, oy) || !C.Grid.canStep(m, ox, oy, d), `${x},${y} is a step from ${ox},${oy}, outside the tether`);
         }
       }
-      const fork = st.items.find(i => i.uid === st.you.kit.instrument);
-      eq([fork.kind, fork.form, fork.tier, fork.charges, fork.max], ['instrument', 'fork', 1, 3, 3]);
+      // The fork and the item have the arena's tier (§10.3: the lower tier on offer at the
+      // depth), and you its grade.
+      const tier = C.N.TIER_LOW_BY_DEPTH[st.dept.depth - 1], fork = st.items.find(i => i.uid === st.you.kit.instrument);
+      eq([fork.kind, fork.form, fork.tier, fork.charges, fork.max, st.run.grade], ['instrument', 'fork', tier, 3, 3, st.dept.depth]);
       const it = st.items.find(i => i.where.at === 'floor');
-      eq([it.kind, it.form, it.tier, it.where.x, it.where.y], ['weapon', 'balanced', 1, item.x, item.y]);
+      eq([it.kind, it.form, it.tier, it.where.x, it.where.y], ['weapon', 'balanced', tier, item.x, item.y]);
     }
   });
 
-  test('mimic_vitrine: two cases, one a mimic drawn per seed, the real one like it but for its accession number, both openable at your grade', () => {
+  test('mimic_vitrine: two cases, one a mimic drawn per seed, the real one like it but for its accession number; each opened at your grade where its lock allows, and else broken', () => {
     const s = spec('mimic_vitrine');
     eq(s.goal, { k: 'open', chars: ['C'] });
-    assert.equal(s.grade, 6);
+    assert.equal(s.grade, null, 'the stamp gives no grade: the arena\'s kit gives the depth\'s');
     const near = [];
+    let locked = 0;
     for (const seed of SEEDS) {
       const v = C.Arena.variant(s, seed), L = layout(s, seed), st = C.Arena.build(s, seed), you = st.actors[0];
       const [mc] = cell(s, 'M', v), [rc] = cell(s, 'C', v), mimic = byUid(st, uidOf(L, 'M')[0]);
@@ -147,12 +150,21 @@ module.exports = ({ test, assert, root, path, fs }) => {
       eq([fr.glass, fr.lock, fr.loan, fr.holds], [fm.glass, fm.lock, fm.loan, fm.holds], `seed ${seed}: the real case is like the disguise`);
       assert.ok(typeof fr.num === 'string' && fr.num !== '', 'the real case has its accession number');
       assert.equal(fm.holds, null);
-      assert.ok(st.run.grade >= fm.lock, `seed ${seed}: your grade opens its lock`);
+      // Your grade is the depth's (the arena's kit, §10.3), and a lock can be one above it (§8.3:
+      // at most the depth + 1): then the case is refused to open (case_locked) and broken
+      // instead, as alike for the mimic as for the real case; the weapon breaks any glass.
+      assert.equal(st.run.grade, st.dept.depth, `seed ${seed}: your grade is the depth's`);
       const vm = C.ViewModel.derive(st, {});
+      for (const f of [fm, fr]) {
+        const shown = vm.cases.find(c => c.x === f.x && c.y === f.y);
+        eq([shown.canOpen, shown.canBreak], [st.run.grade >= f.lock, true], `seed ${seed}: the case at ${f.x},${f.y} opens as its lock allows, and can be broken`);
+      }
+      if (st.run.grade < fm.lock) locked++;
       eq(J(vm.cases.find(c => c.x === mc.x && c.y === mc.y)), Object.assign(J(vm.cases.find(c => c.x === rc.x && c.y === rc.y)), { x: mc.x, y: mc.y, num: null }), 'the board shows the two alike but for the number');
       near.push(C.Grid.chebyshev(you.x, you.y, mc.x, mc.y) < C.Grid.chebyshev(you.x, you.y, rc.x, rc.y));
     }
     assert.ok(near.includes(true) && near.includes(false), 'over seeds 1–20 the mimic is the nearer case on some and the farther on others');
+    assert.ok(locked > 0 && locked < SEEDS.length, `over seeds 1–20 the cases are locked above your grade on some (${locked}) and not on others`);
   });
 
   test('night_watchman: the clock one count short of the night watch, the Watchman coming in at the entrance behind you at the first boundary, the exit further than a night-watch bell, and sleepers out of the gallery\'s ring for the bells', () => {
@@ -229,8 +241,11 @@ module.exports = ({ test, assert, root, path, fs }) => {
       eq(x.reads.slice(0, 2).map(r => r.turn), [0, 0]);
       assert.ok(x.reads.slice(0, 2).every(r => /^case:\d+,\d+$/.test(r.target)));
       assert.equal(events(x, 'status').filter(e => e.cause.k === 'grip').length, 0, `counter seed ${x.seed}: gripped`);
-      const [rc] = cell(s, 'C', x.variant), opened = events(x, 'case_opened');
-      eq(opened.map(e => [e.x, e.y]), [[rc.x, rc.y]], `counter seed ${x.seed}: it opens the real case, and only it`);
+      // It opens the real case, or breaks it where its lock is above your grade, and touches
+      // nothing else.
+      const [rc] = cell(s, 'C', x.variant), opened = events(x, 'case_opened').concat(events(x, 'glass_broke')), cracked = events(x, 'glass_cracked');
+      eq(opened.map(e => [e.x, e.y]), [[rc.x, rc.y]], `counter seed ${x.seed}: it opens or breaks the real case, and only it`);
+      assert.ok(cracked.every(e => e.x === rc.x && e.y === rc.y), `counter seed ${x.seed}: it bashes only the real case`);
     }
     for (const x of R('mimic_vitrine').a.runs) {
       const st = C.Arena.build(s, x.seed), you = st.actors[0], [mc] = cell(s, 'M', x.variant), [rc] = cell(s, 'C', x.variant);

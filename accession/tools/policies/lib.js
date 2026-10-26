@@ -35,7 +35,7 @@
 // card = { summary: one sentence, rules: [its rules, in the order it applies them],
 //          weights: [[name, value]…] (optional) }, printed in tools/policies/README.md and in
 // every report; a policy may also carry kit ({weapon: {form, tier, level}, garment: {…}}),
-// the kit an arena gives it (§10.3's splitter: Light against Heavy).
+// which changes the kit an arena gives it (§10.3's splitter: naive's Light weapon).
 'use strict';
 const Obs = (() => {
   const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];

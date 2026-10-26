@@ -26,14 +26,15 @@ module.exports = ({ test, assert, root, path, fs }) => {
   test('each stamp builds what it says, at depth 2 on odd seeds and 5 on even ones', () => {
     for (const seed of [1, 2]) {
       const depth = seed === 1 ? 2 : 5;
-      // kiter: the Signal Lamp set out hunting where it sees you; tier-3 kit at grade V, with
-      // grade V's health.
-      const ks = C.Arena.build(spec('kiter'), seed), k = ks.actors[1], you = ks.actors[0];
+      // kiter: the Signal Lamp set out hunting where it sees you; the arena's kit (§10.3): at
+      // depth d, grade d with that grade's health, and a Balanced weapon and a Standard
+      // garment of the lower tier on offer at d, worn at the grade they need.
+      const ks = C.Arena.build(spec('kiter'), seed), k = ks.actors[1], you = ks.actors[0], tier = C.N.TIER_LOW_BY_DEPTH[depth - 1];
       eq([ks.dept.depth, ks.actors.length, k.sp, k.arch, k.mode, C.AI.sees(ks, k)], [depth, 2, 'M11.3', 'kiter', 'hunting', true], `kiter seed ${seed}`);
-      eq([ks.run.grade, you.maxHp, you.hp], [5, C.Health.maxHp(5), C.Health.maxHp(5)]);
-      for (const slot of ['weapon', 'garment']) {
+      eq([ks.run.grade, you.maxHp, you.hp], [depth, C.Health.maxHp(depth), C.Health.maxHp(depth)]);
+      for (const [slot, form] of [['weapon', 'balanced'], ['garment', 'standard']]) {
         const it = ks.items.find(i => i.uid === ks.you.kit[slot]);
-        eq([it.tier, C.Kit.short(it, ks.run.grade)], [3, 0], `the ${slot} is tier 3, worn at the grade it needs`);
+        eq([it.form, it.tier, C.Kit.short(it, ks.run.grade)], [form, tier, 0], `the ${slot} is ${form} and tier ${tier}, worn at the grade it needs`);
       }
       // axis_sniper: the Heliograph set out hunting in the row you start in, at the far end,
       // beside the exit door; the straight way there (a tap's) runs along its row to the last
@@ -43,12 +44,13 @@ module.exports = ({ test, assert, root, path, fs }) => {
       eq(as.dept.exits.length, 1);
       const [ex, ey] = as.dept.exits[0], way = C.Path.to(as, ex, ey);
       assert.ok(way.length > 10 && way.slice(0, -1).every(([, y]) => y === a.y), 'the straight way runs along its row');
-      // reflector: the Dish asleep in the one doorway, the Lamp asleep behind it; a tier-3
-      // Hand Lamp (a Pin-Driver) in your instrument slot, full.
+      // reflector: the Dish asleep in the one doorway, the Lamp asleep behind it; the Hand
+      // Lamp (a Pin-Driver) of the arena's tier in your instrument slot, full, and the arena's
+      // grade and health.
       const rs = C.Arena.build(spec('reflector'), seed), dish = rs.actors[1], gun = rs.actors[2];
       eq([rs.dept.depth, rs.actors.length, dish.sp, dish.arch, dish.mode, gun.sp, gun.mode], [depth, 3, 'M11.4', 'reflector', 'dormant', 'M11.3', 'dormant'], `reflector seed ${seed}`);
       const pd = rs.items.find(i => i.uid === rs.you.kit.instrument);
-      eq([pd.form, pd.ref, pd.tier, pd.charges, rs.actors[0].maxHp], ['pin_driver', 'M11.6', 3, C.N.PIN_DRIVER[0], C.Health.maxHp(5)]);
+      eq([pd.form, pd.ref, pd.tier, pd.charges, rs.run.grade, rs.actors[0].maxHp], ['pin_driver', 'M11.6', tier, C.N.PIN_DRIVER[0], depth, C.Health.maxHp(depth)]);
       eq(J(C.Arena.goal(spec('reflector'), rs)).uids, [gun.uid], 'the goal is the Lamp alone');
       // Every bolt from a tile outside its room, within the Pin-Driver's reach of the Lamp,
       // meets the Dish first, which sends it back.
@@ -273,7 +275,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     for (const id of ARENAS) assert.ok(readme.includes(`## ${id}\n`), `the README has the ${id} cards`);
   });
 
-  test('a room made at a grade above I gives you that grade\'s health (§8.1: HP 20, +5 a grade above I), as the arenas\' grade V does', () => {
+  test('a room made at a grade above I gives you that grade\'s health (§8.1: HP 20, +5 a grade above I), as an arena\'s grade at depth 5 does', () => {
     for (const g of [1, 3, 5, 7]) {
       const s = C.Setup.room(1, { acc: 'T0', depth: 2, map: ['#####', '#...#', '#####'], you: [1, 1], grade: g });
       eq([s.run.grade, s.actors[0].hp, s.actors[0].maxHp], [g, C.N.PLAYER_HP + C.N.HP_PER_GRADE * (g - 1), C.N.PLAYER_HP + C.N.HP_PER_GRADE * (g - 1)], `grade ${g}`);
