@@ -16,8 +16,9 @@ const Main = (() => {
     text: store.get('text', '1'), font: store.get('font', 'book'), motion: store.get('motion', 'full'), boardNote: '',
   };
   // ui: what the view model needs from the interface (the selection, the path preview and
-  // the last step's events, for one-turn cues). history: the log's recent sentences.
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null;
+  // the events of your last action that took time, for the noise rings and one-turn cues).
+  // last: the last step's events, whatever it took. history: the log's recent sentences.
+  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null, last = [];
   const history = [], HISTORY = 6;
 
   function newVisit() {
@@ -89,8 +90,12 @@ const Main = (() => {
     // After death nothing more happens, and nothing pushes the cause out of the log.
     if (state.over) { draw(); return []; }
     fresh = false;
-    const ev = Step.step(state, action);
-    ui.events = ev;
+    const tick = state.tick, ev = Step.step(state, action);
+    // The noise rings and one-turn cues are those of your last action that took time (§6.1,
+    // §8.2): a step that takes none (a refusal, such as a bump into a wall, or a free read)
+    // leaves them as they were, as it leaves your ring (§8.2).
+    last = ev;
+    if (state.tick !== tick) ui.events = ev;
     // The log's sentences (Text.log): an event about an exhibit out of view is left out
     // where its kind says so.
     const nameOf = Labels.nameOf(state), vm = ViewModel.derive(state, ui), inView = new Set(vm.actors.map(a => a.uid));
@@ -251,7 +256,7 @@ const Main = (() => {
   draw();
   window.ACCESSION = {
     get state() { return state; }, act: act_, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
-    get events() { return (ui.events || []).slice(); }, stops: [...STOPS],
+    get events() { return last.slice(); }, stops: [...STOPS],
     views: Views, setZoom, busy: () => !!walking, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };

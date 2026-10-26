@@ -3,7 +3,8 @@
 // tile, approach an exhibit, examine it, read its label from close by, close the label,
 // open "How the museum works" from the top bar and from Settings, zoom, switch "Walk" to
 // tap twice and walk with two taps, and switch the board view from Settings. Then, staged:
-// an exhibit whose label is open leaves your sight, and its label closes.
+// an exhibit whose label is open leaves your sight, and its label closes; and a step that is
+// refused and takes no time leaves the last action's noise rings as they were.
 import { open } from './lib.mjs';
 import { nextStep, labelVisible, logVisible, freeTile as freeTileIn } from './measure.mjs';
 
@@ -230,6 +231,47 @@ for (const [W, Hh] of SIZES) {
       else if (after.inView) bad(`${tag}: the staged exhibit ${staged.uid} is still in view`);
       else if (after.shown === staged.uid || after.sel === staged.uid) bad(`${tag}: ${staged.uid} left your sight, but its label is still ${after.shown === staged.uid ? 'open' : 'selected'}${after.sheet.includes(staged.hp) ? `, showing its health ${staged.hp}` : ''}`);
       else lines.push(`${tag}: an exhibit that left your sight took its label with it`);
+    }
+    // The noise rings and one-turn cues are those of your last action that took time (§6.1,
+    // §8.2): staged on the page, you stand beside a shut case and break at its glass (a loud
+    // noise, its rings drawn), then press the key for a step into a wall or a case, which is
+    // refused and takes no time: the rings stay as they were. A wait then takes time and
+    // its own events replace them.
+    const noisy = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, ring = () => JSON.stringify(A.vm().marks.filter(q => q.kind === 'noise'));
+      UI.closeLabel();
+      for (const f of s.dept.fixtures) {
+        if (f.k !== 'case' || f.st !== 'shut') continue;
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          const x = f.x + dx, y = f.y + dy;
+          if (!Grid.walkable(s.dept, x, y) || Grid.ch(s.dept, x, y) === 'v' || Actors.at(s, x, y)) continue;
+          s.actors[0].x = x; s.actors[0].y = y;
+          if (!Labels.allowed(s, { a: 'bash', x: f.x, y: f.y })) continue;
+          A.act({ a: 'bash', x: f.x, y: f.y });
+          if (!A.events.some(e => e.k === 'noise')) return { why: 'breaking at the glass made no noise' };
+          for (let d = 0; d < 8; d++) {
+            const t = State.clone(s), ev = Step.step(t, { a: 'move', dir: d });
+            if (ev.length === 1 && ev[0].k === 'refused' && t.tick === s.tick) return { rings: ring(), d, tick: s.tick };
+          }
+          return { why: 'no step beside the case is refused' };
+        }
+      }
+      return { why: 'no shut case to stand beside' };
+    });
+    if (noisy.why) bad(`${tag}: could not stage a noise: ${noisy.why}`);
+    else if (noisy.rings === '[]') bad(`${tag}: breaking at the glass drew no noise rings`);
+    else {
+      await page.keyboard.press(['k', 'u', 'l', 'n', 'j', 'b', 'h', 'y'][noisy.d]); await settle();
+      const after = await page.evaluate(() => ({ rings: JSON.stringify(window.ACCESSION.vm().marks.filter(q => q.kind === 'noise')), tick: window.ACCESSION.state.tick, last: window.ACCESSION.events.map(e => e.k + (e.reason ? ':' + e.reason : '')) }));
+      if (after.tick !== noisy.tick || !after.last.length || !after.last[0].startsWith('refused')) bad(`${tag}: the step into the wall was not a refusal that took no time: ${after.last.join()}`);
+      else if (after.rings !== noisy.rings) bad(`${tag}: a refused step that took no time ${after.rings === '[]' ? 'wiped' : 'changed'} the noise rings of the last action`);
+      else {
+        await page.keyboard.press('.'); await settle();
+        const waited = await page.evaluate(() => { const A = window.ACCESSION; return { tick: A.state.tick, rings: JSON.stringify(A.vm().marks.filter(q => q.kind === 'noise')), own: JSON.stringify(ViewModel.derive(A.state, { events: A.events }).marks.filter(q => q.kind === 'noise')) }; });
+        if (waited.tick === noisy.tick) bad(`${tag}: '.' did not wait`);
+        else if (waited.rings !== waited.own) bad(`${tag}: after a wait the noise rings are not the wait's own`);
+        else lines.push(`${tag}: a refused step kept the last action's noise rings; a wait replaced them`);
+      }
     }
     lines.push(`${tag}: label closed, how-it-works from the top bar and from Settings, zoom stepped, two-tap walk done`);
   }

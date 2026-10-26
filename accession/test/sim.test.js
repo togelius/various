@@ -32,6 +32,22 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.ok(logged.events.length > r.steps && logged.events.every(e => typeof e.k === 'string'));
   });
 
+  test('a policy sees the noise rings a player sees: those of its last action that took time, kept across a refused step that took none', () => {
+    // You at (1, 1), a sleeping fodder beside you: strike it (a soft noise), step into the
+    // wall to the north (refused, no time), then wait.
+    const spec = C.Arena.parse('arena: rings\ngoal: kill\ndepths: 2\nlegend: F exhibit role=fodder\n\n#######\n#@F...#\n#.....#\n#######\n');
+    const seen = [], plan = [{ a: 'attack', uid: 'T0.2.room.1' }, { a: 'move', dir: 0 }, { a: 'wait' }, { a: 'wait' }];
+    const rings = vm => JSON.stringify(vm.marks.filter(m => m.kind === 'noise'));
+    const p = policy(obs => { seen.push({ rings: rings(obs.vm), log: obs.log.join(' '), vm: obs.vm }); return { action: plan[seen.length - 1], reason: 'as planned' }; });
+    Sim.run({ make: (seed, o) => C.Arena.build(spec, seed, { options: o }), policy: p, name: 'test.rings', seed: 1, maxSteps: plan.length });
+    assert.equal(seen.length, plan.length);
+    assert.equal(seen[0].rings, '[]', 'nothing heard yet');
+    assert.notEqual(seen[1].rings, '[]', 'the blow\'s noise is drawn');
+    assert.equal(seen[2].log, 'Something is in the way.', 'the log tells the refusal');
+    assert.equal(seen[2].rings, seen[1].rings, 'a refused step that took no time leaves the rings as they were');
+    assert.notEqual(seen[3].rings, seen[1].rings, 'a wait, which takes time, replaces them');
+  });
+
   test('a replay replays: its actions on a fresh state end on the same hash', () => {
     for (const seed of [1, 2, 3]) {
       const r = Sim.run({ make: dummy, policy: 'random', seed, cap: 60 });

@@ -7,7 +7,8 @@
 // vm, so its label may stay open (§7.2, §8.8).
 //
 // ViewModel.derive(state, ui) → vm. ui is what the interface adds (all optional):
-//   events        the last step's events, for the one-turn cues and the noise rings;
+//   events        the events of your last action that took time (main.js keeps them across
+//                 a step that takes none), for the one-turn cues and the noise rings;
 //   path          the path preview, [[x, y]…];  selection  an actor's uid;  selectedTile {x, y};
 //   aim           {x, y, uid?, size?}: the tile you are aiming at, and the item you aim (a
 //                 Solution's square is drawn round it, its own size once its kind is known,
@@ -101,7 +102,7 @@ const ViewModel = (() => {
       if (!visible(k.x, k.y)) continue;
       mark(k.kind === 'telegraph' ? { kind: 'telegraph', x: k.x, y: k.y, dmg: k.dmg, by: k.by } : { kind: 'call', x: k.x, y: k.y, by: k.by });
     }
-    // The noise rings of the last step (§8.2, "What is shown"): every tile an exhibit could
+    // The noise rings of those events (§8.2, "What is shown"): every tile an exhibit could
     // stand on within each noise's walking reach (Noise.reach, as hearing measures it, a case
     // one beyond its nearest open neighbour), on tiles you see or remember, the loudest
     // class where two noises reach a tile. Each is measured on the map as it stood when the
@@ -139,7 +140,7 @@ const ViewModel = (() => {
       if (known(aim.x, aim.y)) mark({ kind: 'aim', x: aim.x, y: aim.y });
     }
 
-    // One-turn cues (§6.1), from the last step's events: the tile each listed actor moved from
+    // One-turn cues (§6.1), from the same events: the tile each listed actor moved from
     // (the first such tile in view, if it made several moves; none from a tile out of view,
     // which would show what lies there), who was hit, glass that broke on a tile in view,
     // and whose special resolved.

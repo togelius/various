@@ -150,7 +150,9 @@ function run(o) {
   // The policy's own stream, on a holder of its own: never in the state.
   const rng = C.Rng.stream({ seed, rng: {} }, `policy/${name}/${seed}`);
   const events = [], reasons = [], actions = [], reads = [], violations = [];
-  let last = [], steps = 0, refusals = 0, inRow = 0, stopped = null, error = null;
+  // last: the last step's events, which the log tells; drawn: those of the last action that
+  // took time, which the view model draws (a step that takes none leaves them, as main.js does).
+  let last = [], drawn = [], steps = 0, refusals = 0, inRow = 0, stopped = null, error = null;
   const startHash = C.State.hash(state);
   const fail = (text, v) => { error = text; stopped = 'error'; if (v) violations.push(Object.assign(v, { text })); };
   for (;;) {
@@ -160,7 +162,7 @@ function run(o) {
     if (now.done) { stopped = 'done'; break; }
     if (state.turn >= cap) { stopped = 'cap'; break; }
     if (steps >= maxSteps) { stopped = 'steps'; break; }
-    const obs = C.Obs.make(state, last, reads, rng), turn = state.turn, n = steps + 1;
+    const obs = C.Obs.make(state, last, reads, rng, { drawn }), turn = state.turn, n = steps + 1;
     // The legal actions as they were shown, kept apart from what the policy is handed.
     const legal = obs.legal.map(l => C.State.canon(l));
     const before = checker ? C.State.canon(state) : null;
@@ -173,10 +175,11 @@ function run(o) {
     const action = JSON.parse(JSON.stringify(d.action));
     if (!legal.includes(C.State.canon(action))) violations.push({ id: 'policy', step: n, text: `${name} chose ${C.Obs.say(action)} at turn ${turn}, which is not legal then` });
     const pre = checker ? JSON.parse(before) : null;
-    const ev = C.Step.step(state, action);
+    const tick = state.tick, ev = C.Step.step(state, action);
     actions.push(action); reasons.push(`turn ${turn}: ${d.reason}`);
     for (const e of ev) events.push(e);
     last = ev; steps = n;
+    if (state.tick !== tick) drawn = ev;
     const bad = C.State.plainData(state);
     if (bad) { fail(`the state is not plain data at ${bad} after step ${n}, ${C.Obs.say(action)}`, { id: 'plain_data', step: n }); break; }
     if (checker) for (const v of checker(pre, action, ev, state)) violations.push(Object.assign({}, v, { step: n }));

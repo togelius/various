@@ -436,6 +436,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(J(Labels.you(s).actions.map(a => a.id)), ['wait', 'rest']);
     s.over = { k: 'left', turn: 1, by: null, door: 0, cause: null };
     assert.deepEqual(J(Labels.you(s).actions), [], 'nothing once the visit is over');
+    // BUILD.md lists the same actions on yourself in §7.1 (the input model) and §8.8 (your
+    // label), so the interface is built from one list.
+    const build = require('node:fs').readFileSync(path.join(root, 'BUILD.md'), 'utf8');
+    const listed = re => { const m = re.exec(build); assert.ok(m, `BUILD.md: ${re}`); return m[1].replace(/\.$/, ''); };
+    const inputs = listed(/^- \*\*Yourself:\*\* (.*)$/m), label = listed(/^- \*\*You:\*\* .*?; (Wait.*)$/m);
+    assert.equal(inputs, label, '§7.1 and §8.8 list the same actions on yourself');
+    for (const word of ['Wait', 'Rest', 'Sit', 'Leave']) assert.ok(inputs.includes(word), `§7.1 lists ${word}: ${inputs}`);
   });
 
   test('the strip: hunting or awake exhibits, then sleeping ones, then cases, then plaques, nearest first; a mimic in its disguise only as its case', () => {

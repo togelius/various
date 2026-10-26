@@ -6,9 +6,11 @@
 //
 // A POLICY sees only what a player sees (§10.2; the plan's D7.7):
 //   obs = { vm, read(target), legal, rng, log }
-//     vm      ViewModel.derive(state, {events}): the board as drawn, with the last step's
-//             events, so its noise rings and one-turn cues are there; a frozen copy (its
-//             typed arrays as plain lists), so nothing a policy does to it reaches the game;
+//     vm      ViewModel.derive(state, {events}): the board as drawn, with the events of
+//             your last action that took time, so its noise rings and one-turn cues are
+//             there as a player sees them (a step that takes none, a refusal or a free read,
+//             leaves them as they were, §6.1); a frozen copy (its typed arrays as plain
+//             lists), so nothing a policy does to it reaches the game;
 //     read    read(target) → the label's text as the panel shows it, or null for something
 //             not in view; target is an exhibit's uid, 'case:x,y', 'item:<uid>',
 //             'plaque:x,y', 'staff:x,y' or 'you'. Each read is logged;
@@ -95,12 +97,13 @@ const Obs = (() => {
     return Object.freeze(out);
   }
 
-  // What a policy sees now (above). events: the last step's (none before the first);
-  // readLog: a list each read is appended to, as {turn, target, text}; rng: the policy's
-  // stream (Rng.stream on the policy's own holder).
-  function make(state, events, readLog, rng) {
-    const ev = events || [];
-    const drawn = ViewModel.derive(state, { events: ev });
+  // What a policy sees now (above). events: the last step's (none before the first), which
+  // the log tells; readLog: a list each read is appended to, as {turn, target, text}; rng:
+  // the policy's stream (Rng.stream on the policy's own holder); opts.drawn: the events the
+  // view model draws, those of your last action that took time (the events, if not given).
+  function make(state, events, readLog, rng, opts) {
+    const ev = events || [], drawnEv = opts && opts.drawn ? opts.drawn : ev;
+    const drawn = ViewModel.derive(state, { events: drawnEv });
     const shown = drawn.actors.map(a => a.uid);
     const log = Object.freeze(Text.log(ev, Labels.nameOf(state), uid => shown.includes(uid)));
     const read = target => {
