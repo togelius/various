@@ -1,10 +1,11 @@
-// ACCESSION — the overlays both board views share (BUILD.md §6.2): surfaces, your ring, the
-// marks of the view model (calls, noise rings, a thrown Solution's area, the path preview,
-// telegraphs), what stands or lies on a tile (case glyphs, staff-door grades, labels, items),
-// one-turn cues, actors with the hostile mark and their glyphs, the aim, the selection and
-// edge arrows. Each view supplies rectOf(x, y), a tile's rectangle in canvas CSS pixels, and
-// actorRect(a), an actor's sprite square, so the same marks look the same in top-down and
-// 3D, and in 3D nothing in the scene can hide them.
+// ACCESSION — the overlays both board views share (BUILD.md §6.2), in this order: surfaces,
+// your ring, calls, noise rings and a thrown Solution's area, the moved-from cue, the path
+// preview, telegraph fills, what stands or lies on a tile (case glyphs, staff-door grades,
+// labels, items), actors, each actor's marks (its bar, its glyph row, its hit cue, the cue of
+// its special gone off, its selection), the aim, glass just broken, a selected tile, edge
+// arrows, and the telegraph numbers last. Each view supplies rectOf(x, y), a tile's rectangle
+// in canvas CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look
+// the same in top-down and 3D, and in 3D nothing in the scene can hide them.
 //
 // list() returns a display list in drawing order: { kind, id, group, x, y, rect, paint(ctx) }.
 // A view paints it, keeps it for renderer.inspect(), and the 3D view repaints items one at
@@ -255,9 +256,10 @@ const Marks = (() => {
     // Each actor's marks: the reserved base bar (hostile red, your blue), its glyph row (an
     // exhibit in a case shows the glass, then its state glyph or pips, then the special it is
     // marking), a hit cue, a cue when its special has just gone off, and the selection bracket.
-    // The glyph row sits above the actor or, where another actor stands there, beside its head,
-    // so it never covers another exhibit (§6.3: actors are never hidden), and along the top of
-    // its own square only where every side is taken.
+    // The glyph row sits above the actor (just over its head, or clear above its square) or,
+    // where another actor stands there, beside its head, so it never covers another exhibit
+    // (§6.3: actors are never hidden); only where every side is taken does it go along the
+    // top of its own square, its glyphs shrunk to fit inside it.
     group = null;
     // An actor counts as on the board when at least a quarter of its square shows each way
     // in the clear part; a hostile on the board keeps its bar inside the part that shows, and
@@ -280,25 +282,32 @@ const Marks = (() => {
       });
       if (a.hostile) {
         const pips = a.mode === 'dormant' && a.pips, id = glyphOf(a.mode);
+        // Each part of the row is n glyphs wide; draw(ctx, x, y, k) paints it at glyph size k.
         const parts = [];
-        if (a.encased) parts.push({ id: 'encased:' + a.uid, w: g, draw: (ctx, x, y) => Pictograms.draw(ctx, 'glass', x, y, g) });
-        parts.push(pips ? { id: 'state:' + a.uid, w: 3 * g, draw: (ctx, x, y) => { for (let i = 0; i < 3; i++) Pictograms.draw(ctx, i < a.pips ? 'pip' : 'pip_empty', x + i * g, y, g); } }
-          : { id: 'state:' + a.uid, w: g, draw: (ctx, x, y) => Pictograms.draw(ctx, id, x, y, g) });
-        if (a.telegraphing) parts.push({ id: 'telegraphing:' + a.uid, w: g, draw: (ctx, x, y) => Pictograms.draw(ctx, 'special', x, y, g, col('special')) });
-        const total = parts.reduce((s, p) => s + p.w, 0);
+        if (a.encased) parts.push({ id: 'encased:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, 'glass', x, y, k) });
+        parts.push(pips ? { id: 'state:' + a.uid, n: 3, draw: (ctx, x, y, k) => { for (let i = 0; i < 3; i++) Pictograms.draw(ctx, i < a.pips ? 'pip' : 'pip_empty', x + i * k, y, k); } }
+          : { id: 'state:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, id, x, y, k) });
+        if (a.telegraphing) parts.push({ id: 'telegraphing:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, 'special', x, y, k, col('special')) });
+        const units = parts.reduce((s, p) => s + p.n, 0), total = units * g;
         // Alone, a sleeper's glyph sits at the right; anything else is centred.
-        let x = parts.length === 1 && !pips && id === 'asleep' ? r.x + r.w - g : r.x + r.w / 2 - total / 2;
-        // Above it; where another actor stands there, beside its head, right then left; where
-        // both sides are taken too, along the top of its own square.
-        const spots = [{ x, y: r.y - g + 2 }, { x: r.x + r.w, y: r.y + 1 }, { x: r.x - total, y: r.y + 1 }];
-        const spot = spots.find(q => !placed.some(p => p.a !== a && meets({ x: q.x, y: q.y, w: total, h: g }, p.r))) || { x, y: r.y + 1 };
-        x = spot.x;
+        const x0 = parts.length === 1 && !pips && id === 'asleep' ? r.x + r.w - g : r.x + r.w / 2 - total / 2;
+        // Above it (just over its head, else clear above its square); where another actor or
+        // another's row is there, beside its head, right then left; where both sides are taken
+        // too, along the top of its own square, shrunk to fit inside it.
+        const spots = [{ x: x0, y: r.y - g + 2 }, { x: x0, y: r.y - g }, { x: r.x + r.w, y: r.y + 1 }, { x: r.x - total, y: r.y + 1 }];
+        const clear = q => { const c = { x: q.x, y: q.y, w: total, h: g }; return !placed.some(p => p.a !== a && meets(c, p.r)) && ![...rows.values()].some(o => meets(c, o)); };
+        let k = g, spot = spots.find(clear);
+        if (!spot) {
+          k = Math.max(1, Math.min(g, Math.floor((r.w - 2) / units)));
+          spot = { x: total <= r.w - 2 ? Math.max(r.x + 1, Math.min(x0, r.x + r.w - 1 - total)) : r.x + (r.w - units * k) / 2, y: r.y + 1 };
+        }
+        let x = spot.x;
         const y = spot.y;
-        rows.set(a.uid, { x, y, w: total, h: g });
+        rows.set(a.uid, { x, y, w: units * k, h: k });
         for (const p of parts) {
-          const q = { x, y, w: p.w, h: g }, draw = p.draw;
-          add('mark', p.id, a.x, a.y, q, ctx => draw(ctx, q.x, q.y));
-          x += p.w;
+          const q = { x, y, w: p.n * k, h: k }, draw = p.draw;
+          add('mark', p.id, a.x, a.y, q, ctx => draw(ctx, q.x, q.y, k));
+          x += p.n * k;
         }
       }
       if (hit.has(a.uid)) {

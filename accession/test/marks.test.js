@@ -3,15 +3,16 @@
 // part that shows, or has an edge arrow; no arrow lies on another or on a visible actor. M3's
 // marks: every mark of the view model is drawn as an item with its own id, in the order §6.2
 // and §6.3 give (calls, noise rings and a Solution's area beneath the telegraph fills, all of
-// them beneath the actors, the telegraph numbers last); case glyphs, staff-door grades,
-// labels, items and surfaces under the actors; and an exhibit's glyph row never covers
-// another actor.
+// them beneath the actors, the telegraph numbers last), the whole list in §6.2's order; case
+// glyphs (a lock painting one bar per grade), staff-door grades, labels, items and surfaces
+// under the actors; the one-turn cues; and an exhibit's glyph row never covers another actor
+// or another's row, shrunk inside its own square where it is hemmed in.
 module.exports = ({ test, assert, root, fs, path, loadCore }) => {
   const vm = require('node:vm');
   const ctx = vm.createContext({ ART: { palettes: { semantic: { hostile: '#d61e05', hazard: '#d59356', readable: '#f3f1e8', item: '#f0d50f', player: '#7092d8' } } }, Math });
   vm.runInContext(fs.readFileSync(path.join(root, 'js/view/pictograms.js'), 'utf8') + '\nthis.Pictograms = Pictograms;', ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'js/view/marks.js'), 'utf8') + '\nthis.Marks = Marks;', ctx);
-  const Marks = ctx.Marks, Pictograms = ctx.Pictograms, t = 32, W = 390, H = 600, json = JSON.stringify;
+  const Marks = ctx.Marks, Pictograms = ctx.Pictograms, t = 32, W = 390, H = 600, json = JSON.stringify, same = (a, b, m) => assert.equal(json(a), json(b), m);
   const board = (you, others, clearBottom) => {
     const actors = [{ uid: 'you', x: you[0], y: you[1], size: 1, hostile: false, mode: 'you', pips: 0 }]
       .concat(others.map(([x, y, size], i) => ({ uid: 'h' + i, x, y, size: size || 1, hostile: true, mode: 'dormant', pips: 0 })));
@@ -131,6 +132,33 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
     const h = draw(flat({ actors: hemmed })), row = h.find(d => d.id === 'state:m').rect, own = sq(hemmed[3]);
     assert.ok(row.y >= own.y && row.x >= own.x && row.x + row.w <= own.x + own.w, json(row));
     for (const b of hemmed) if (b.uid !== 'm') assert.ok(!meets(row, sq(b)), `the row covers ${b.uid}`);
+    // A row of vitrines: three encased sleepers with pips side by side, each row four glyphs
+    // wide, wider than a tile; then one hemmed in on every side. At both zoom steps, no row
+    // covers another actor or another's row, and a hemmed-in row is shrunk to fit inside its
+    // own square.
+    for (const tile of [32, 48]) {
+      const at = (x, y) => ({ x: x * tile, y: y * tile, w: tile, h: tile });
+      const own = a => at(a.x, a.y), sleeper = (uid, x, y) => actor(uid, x, y, { mode: 'dormant', pips: 2, encased: true });
+      for (const [what, crowd] of [['a row of vitrines', [sleeper('a', 4, 2), sleeper('b', 5, 2), sleeper('c', 6, 2)]],
+        ['a row of vitrines with one above', [sleeper('a', 4, 2), sleeper('b', 5, 2), sleeper('c', 6, 2), actor('n', 5, 1)]],
+        ['hemmed in', [actor('n', 5, 1), sleeper('w', 4, 2), sleeper('e', 6, 2), sleeper('m', 5, 2)]]]) {
+        const all = crowd.concat([actor('you', 9, 9)]);
+        const list = Marks.list(flat({ actors: all }), at, own, tile, 640, 640, 640);
+        const row = uid => list.filter(d => /^(state|encased|telegraphing):/.test(d.id) && d.id.endsWith(':' + uid));
+        for (const a of all) for (const d of row(a.uid)) {
+          assert.ok(d.rect.w > 0 && d.rect.h > 0, `${what} at ${tile}: ${d.id} has no size`);
+          for (const b of all) if (b !== a) {
+            assert.ok(!meets(d.rect, own(b)), `${what} at ${tile}: ${d.id} ${json(d.rect)} covers ${b.uid}`);
+            for (const e of row(b.uid)) assert.ok(!meets(d.rect, e.rect), `${what} at ${tile}: ${d.id} lies on ${e.id}`);
+          }
+        }
+        if (what === 'hemmed in') {
+          const o = own(crowd[3]);
+          for (const d of row('m')) assert.ok(d.rect.x >= o.x && d.rect.y >= o.y && d.rect.x + d.rect.w <= o.x + o.w && d.rect.y + d.rect.h <= o.y + o.h, `at ${tile}: ${d.id} ${json(d.rect)} leaves its own square`);
+          assert.equal(row('m').length, 2, 'the glass and the pips');
+        }
+      }
+    }
     // The modes fold as §8.2's table does: searching shows the hunting glyph, reinstalling the returning one.
     for (const [mode, glyph] of [['searching', 'hunting'], ['reinstalling', 'returning'], ['awake', 'alert'], ['dormant', 'asleep'], ['hunting', 'hunting'], ['returning', 'returning']])
       assert.equal(Marks.glyphOf(mode), glyph, mode);
@@ -146,6 +174,82 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
     const soft = dashes('soft'), loud = dashes('loud'), crash = dashes('crash');
     assert.ok(soft !== loud && loud !== crash && soft !== crash, [soft, loud, crash].join(' / '));
     assert.equal((crash.match(/stroke/g) || []).length, 2, 'a crash is drawn twice over');
+  });
+
+  test('the one-turn cues are drawn: the tile an actor left, a hit, glass that has just broken and a special gone off, each under its own id; and a lock paints one bar per grade', () => {
+    const cues = { movedFrom: [{ uid: 'a', x: 4, y: 4 }], hit: ['a'], broke: [{ x: 7, y: 2 }], special: ['a'] };
+    const v = flat({ actors: [actor('you', 2, 2), actor('a', 4, 3)], cues });
+    const items = draw(v), byId = id => items.find(d => d.id === id);
+    for (const id of ['moved:a', 'hit:a', 'broke:7,2', 'special:a']) {
+      const d = byId(id);
+      assert.ok(d, `${id} is not drawn`);
+      let strokes = 0;
+      const c = new Proxy({}, { get: (o, k) => k === 'stroke' || k === 'strokeRect' ? (() => { strokes++; }) : (k in o ? o[k] : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
+      d.paint(c);
+      assert.ok(strokes > 0, `${id} paints nothing`);
+    }
+    same(byId('broke:7,2').rect, rects.rectOf(7, 2), 'the burst is over the case\'s tile');
+    for (const [list, id] of [['movedFrom', 'moved:a'], ['hit', 'hit:a'], ['broke', 'broke:7,2'], ['special', 'special:a']]) {
+      const none = draw(flat({ actors: v.actors, cues: Object.assign({}, cues, { [list]: [] }) }));
+      assert.ok(!none.some(d => d.id === id), `${id} is drawn with no cue`);
+    }
+    // A lock's bars: one for each grade it needs, on a case and on a staff door alike.
+    const readable = '#f3f1e8';
+    for (let grade = 1; grade <= 7; grade++) {
+      const list = draw(flat({ cases: [{ x: 2, y: 2, glass: 1, hits: 0, need: 1, lock: grade, st: 'shut', loan: false, holds: null, canOpen: false, num: '1.1.1' }], staff: [{ x: 5, y: 2, grade, open: false }] }));
+      for (const id of ['lock:2,2', 'lock:5,2']) {
+        let style = null, bars = 0;
+        const c = new Proxy({}, { get: (o, k) => k === 'fillRect' ? (() => { if (style === readable) bars++; }) : (k in o ? o[k] : () => {}), set: (o, k, v) => { if (k === 'fillStyle') style = v; o[k] = v; return true; } });
+        const orig = Pictograms.draw; Pictograms.draw = () => {};
+        try { list.find(d => d.id === id).paint(c); } finally { Pictograms.draw = orig; }
+        assert.equal(bars, grade, `${id} at grade ${grade} paints ${bars} bars`);
+      }
+    }
+  });
+
+  // §6.2's display list, in its order: one board with something of every kind, and the
+  // drawing order of their groups checked against the list as BUILD.md gives it.
+  test('the display list is drawn in §6.2\'s order', () => {
+    const v = flat({
+      ring: (() => { const r = new Uint8Array(400); r[2 * 20 + 2] = 1; return r; })(),
+      marks: [{ kind: 'call', x: 6, y: 6, by: 'h' }, { kind: 'noise', x: 6, y: 7, cls: 'loud' }, { kind: 'area', x: 8, y: 8 }, { kind: 'aim', x: 8, y: 8 }, { kind: 'telegraph', x: 3, y: 3, dmg: 4, by: 'a' }],
+      path: [[2, 3]], selection: 'a', selectedTile: { x: 9, y: 9 },
+      actors: [actor('you', 2, 2), actor('a', 3, 3, { encased: true, telegraphing: 'line' }), actor('far', 19, 19)],
+      cues: { movedFrom: [{ uid: 'a', x: 4, y: 4 }], hit: ['a'], broke: [{ x: 7, y: 2 }], special: ['a'] },
+      cases: [{ x: 7, y: 2, glass: 2, hits: 1, need: 2, lock: 2, st: 'shut', loan: false, holds: { uid: 'c', kind: 'curio', icon: 'curio' }, canOpen: false, num: '1.1.1' }],
+      staff: [{ x: 9, y: 2, grade: 3, open: false }], plaques: [{ x: 0, y: 5 }], items: [{ uid: 'q', x: 5, y: 5, icon: 'weapon', kind: 'weapon', inCase: false }],
+      surfaces: [{ kind: 'dust', x: 7, y: 7 }] });
+    // A board 12 tiles wide, so the actor at 19,19 is off it and gets an edge arrow.
+    const items = Marks.list(v, rects.rectOf, rects.actorRect, t, 12 * t, 12 * t, 12 * t);
+    const group = (d, i) => {
+      const id = d.id;
+      if (id.startsWith('surface:')) return 'surfaces';
+      if (id.startsWith('ring:')) return 'ring';
+      if (id.startsWith('call:')) return 'calls';
+      if (id.startsWith('noise:')) return 'noise';
+      if (id.startsWith('area:')) return 'area';
+      if (id.startsWith('moved:')) return 'moved-from cue';
+      if (id.startsWith('path:')) return 'path';
+      if (id.startsWith('telegraph:')) return i === items.findIndex(e => e.id === id) ? 'telegraph fills' : 'telegraph numbers';
+      if (/^(holds|loan|cracks):/.test(id) || id === 'lock:7,2') return 'case glyphs';
+      if (id === 'lock:9,2') return 'staff-door grades';
+      if (id.startsWith('plaque:')) return 'labels';
+      if (id.startsWith('item:')) return 'items';
+      if (d.kind === 'actor') return 'actors';
+      if (/^(hostile:|you-bar$|state:|encased:|telegraphing:|hit:|special:)/.test(id) || (id === 'selection' && d.x === 3)) return 'each actor\'s marks';
+      if (id.startsWith('aim:')) return 'aim';
+      if (id.startsWith('broke:')) return 'broken glass';
+      if (id === 'selection') return 'selected tile';
+      if (id.startsWith('edge:')) return 'edge arrows';
+      return 'unknown ' + id;
+    };
+    const seq = [];
+    items.forEach((d, i) => { const k = group(d, i); if (seq[seq.length - 1] !== k) seq.push(k); });
+    same(seq, ['surfaces', 'ring', 'calls', 'noise', 'area', 'moved-from cue', 'path', 'telegraph fills', 'case glyphs', 'staff-door grades', 'labels', 'items', 'actors',
+      'each actor\'s marks', 'aim', 'broken glass', 'selected tile', 'edge arrows', 'telegraph numbers']);
+    // Within one actor's marks: its bar, its glyph row, its hit cue, its special's cue, its selection.
+    const mine = items.filter(d => d.group === 'a' && d.kind !== 'actor').map(d => d.id);
+    same(mine, ['hostile:a', 'encased:a', 'state:a', 'telegraphing:a', 'hit:a', 'special:a', 'selection']);
   });
 
   // The view model a real department gives, drawn: every mark has its item, so a view drawing

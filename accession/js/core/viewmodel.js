@@ -89,19 +89,23 @@ const ViewModel = (() => {
     // The noise rings of the last step (§8.2, "What is shown"): every tile an exhibit could
     // stand on within each noise's walking reach (Noise.reach, as hearing measures it, a case
     // one beyond its nearest open neighbour), on tiles you see or remember, the loudest
-    // class where two noises reach a tile. Reach is measured on the map as it is after the
-    // step.
+    // class where two noises reach a tile. Each is measured on the map as it stood when the
+    // noise was made (undo, below): a door an exhibit opens later in the step does not widen
+    // a ring that was heard through it shut.
     const loud = new Uint8Array(n), reached = [];
-    for (const e of events) {
-      if (e.k !== 'noise' || !inside(e.x, e.y) || !Number.isInteger(e.range)) continue;
+    let then = m;
+    for (let j = events.length - 1; j >= 0; j--) {
+      const e = events[j];
+      if (e.k !== 'noise') { then = undo(state, then, e); continue; }
+      if (!inside(e.x, e.y) || !Number.isInteger(e.range)) continue;
       const rank = LOUDNESS.indexOf(e.cls) + 1;
       if (rank <= 0) continue;
-      const d = Noise.reach(m, e.x, e.y, e.range);
+      const d = Noise.reach(then, e.x, e.y, e.range);
       for (let y = Math.max(0, e.y - e.range); y <= Math.min(m.h - 1, e.y + e.range); y++)
         for (let x = Math.max(0, e.x - e.range); x <= Math.min(m.w - 1, e.x + e.range); x++) {
           const i = y * m.w + x;
-          if (!vis[i] || !Grid.hold(m, x, y)) continue;
-          const dist = Grid.reachDist(d, m, x, y);
+          if (!vis[i] || !Grid.hold(then, x, y)) continue;
+          const dist = Grid.reachDist(d, then, x, y);
           if (dist < 0 || dist > e.range) continue;
           if (!loud[i]) reached.push(i);
           if (rank > loud[i]) loud[i] = rank;
@@ -121,12 +125,15 @@ const ViewModel = (() => {
     }
 
     // One-turn cues (§6.1), from the last step's events: the tile each listed actor moved from
-    // (its first move, if it made several), who was hit, glass that broke on a tile in view,
+    // (the first such tile in view, if it made several moves; none from a tile out of view,
+    // which would show what lies there), who was hit, glass that broke on a tile in view,
     // and whose special resolved.
     const cues = { movedFrom: [], hit: [], broke: [], special: [] };
     for (const e of events) {
-      if (e.k === 'moved' && listed.includes(e.who) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: e.from[0], y: e.from[1] });
-      else if (e.k === 'damaged' && listed.includes(e.who)) once(cues.hit, e.who);
+      if (e.k === 'moved') {
+        const from = Array.isArray(e.from) ? e.from : [];
+        if (listed.includes(e.who) && visible(from[0], from[1]) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: from[0], y: from[1] });
+      } else if (e.k === 'damaged' && listed.includes(e.who)) once(cues.hit, e.who);
       else if (e.k === 'glass_broke' && visible(e.x, e.y) && !cues.broke.some(c => c.x === e.x && c.y === e.y)) cues.broke.push({ x: e.x, y: e.y });
       else if (e.k === 'special' && !e.cancelled && listed.includes(e.who)) once(cues.special, e.who);
     }
@@ -174,6 +181,37 @@ const ViewModel = (() => {
       plan, known: cv.known, pending: cv.pending,
       path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
     };
+  }
+
+  // undo(state, map, e) → the map as it stood just before event e: e's change to a tile
+  // that walking reads undone (a fresh copy is made the first time, so the state's map is
+  // never written). Every such change a rule makes is told by an event (§4.1's list of tile
+  // changes): a door or staff door opened ('opened') or closed ('closed'); a case opened
+  // ('case_opened', its tile u), broken or dissolved ('glass_broke', k or u, or the floor of
+  // a mimic's case); a mimic shown by a touch or a blow ('woke', its case revealed, its tile
+  // floor again). Shards turn floor or archway into shards, which walking reads alike.
+  // Walked back from the last event, so each noise meets the map of its moment.
+  const SHUT = '+S', OPEN = "'s"; // a door and a staff door, shut and open
+  function undo(state, map, e) {
+    let at = null, ch = null;
+    const here = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < map.w && y < map.h ? map.tiles[y][x] : null;
+    if (e.k === 'opened' || e.k === 'closed') {
+      const c = here(e.x, e.y), from = e.k === 'opened' ? OPEN : SHUT, to = e.k === 'opened' ? SHUT : OPEN, i = c === null ? -1 : from.indexOf(c);
+      if (i >= 0) { at = [e.x, e.y]; ch = to[i]; }
+    } else if (e.k === 'case_opened' || e.k === 'glass_broke') {
+      if (here(e.x, e.y) !== null && here(e.x, e.y) !== 'v') { at = [e.x, e.y]; ch = 'v'; }
+    } else if (e.k === 'woke' && e.cause && (e.cause.k === 'touch_case' || e.cause.k === 'damage')) {
+      // A mimic shows itself as it wakes: from its disguise, its case tile was a vitrine.
+      // (One that had shown itself before, gone back to sleep on its old case's tile and is
+      // struck awake again is read the same way; no event tells the two apart.)
+      const f = ((state.dept && state.dept.fixtures) || []).find(q => q.k === 'case' && q.mimic === e.who && q.st === 'revealed');
+      if (f && here(f.x, f.y) !== null && here(f.x, f.y) !== 'v') { at = [f.x, f.y]; ch = 'v'; }
+    }
+    if (!at) return map;
+    const out = map === state.dept ? { w: map.w, h: map.h, tiles: map.tiles.slice() } : map;
+    const row = out.tiles[at[1]];
+    out.tiles[at[1]] = row.slice(0, at[0]) + ch + row.slice(at[0] + 1);
+    return out;
   }
 
   // The side of the square a thrown Solution would cover round ui.aim, or 0 for none: its
