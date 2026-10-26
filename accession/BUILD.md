@@ -814,8 +814,10 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - Its chance to hit you, in percent.
 - "Typically" = 100 × Σ d(r) ÷ (n × your current HP), rounded half up, as a percentage of your current health.
 - "At worst" = ceilDiv(your HP, max d(r)) hits.
-- Your chance to hit it, and hits needed = ceilDiv(its HP × n, Σ d(r)) with your rolls against its Padding; a body that loses all its health to any hit (a swarm's) needs 1.
-- Its surprise figure, while a blow now would surprise it.
+- An archetype that shoots and has a blow (the kiter): a line with its shots' reach (`ROLE_ARTILLERY_RANGE`) and their chance, which is its blow's, for its blow's damage.
+- Your chance to hit it, and hits needed = ceilDiv(its HP × n, Σ d(r)) with your rolls against its Padding; a body that loses all its health to any hit (a swarm's) needs 1. Your figures (the hits needed, the surprise figure and the Attack button's damage) are those of a blow from your tile as its archetype and modifiers take it (`Archetypes.adjustDamage`), so through an `old_repair` exhibit's repaired side each d(r) is doubled.
+- With a Reach weapon, a line saying that it also strikes from `REACH_RANGE` away in a straight line, over a clear tile.
+- Its surprise figure, while a blow now would surprise it; with a Reach weapon, when a surprise Reach blow from `REACH_RANGE` away would deal otherwise (only a Light weapon's blow beside it deals ×1.5), both figures.
 - One line per special, with its exact net damage and cadence.
 - An exhibit with no blow (its archetype says so through `Archetypes.readout`: the axis_sniper, which "never strikes") shows none of the first three lines, nor its Acc and damage among its pictograms, since it never uses them: what it threatens you with is told by its special's line. Your chance to hit it, the hits needed and the surprise line stay. An exhibit in an intact case, which never strikes out (§8.3), keeps its lines: they say what its blows would do once it is out.
 
@@ -825,7 +827,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - **After the bell** the interval is multiplied by `REGEN_BELL_MULT`, so it doubles (1 unit a turn; 2 on a bench). Regeneration runs before the clock's step, so on the bell's own boundary it is still the open rate.
 - **In the night watch,** and while a Centrepiece hall is sealed, regeneration stops (no units).
 - **Healing** that is not regeneration (Consolidant, restoring, a warden back home) is a `healed` event with its cause, and never takes anyone past their maximum; when nothing is regained, nothing is said.
-- **Death** opens the death label and its recap: what killed you, why it was awake, and when and how it woke, read from the killer's own story (§3.4).
+- **Death** opens the death label and its recap: what killed you, why it was awake, and when and how it woke, read from the killer's own story (§3.4). `Text.recap(state, nameOf)` gives the killer (the killing cause's `by`, so a bolt or beam a reflector sent back is the reflector's), the turn and cause of its most recent waking, the turn its hunt began, and the lines: who defeated you and on which turn; the blow that did it, as the log told it; then its story, oldest first, in its causes' own sentences: for a body split from another, how that body woke and then how it split; how it woke; and when it began hunting you, if that came later. The story is the killer's own, never the cause records, so it is the same however much has happened since.
 
 ### 8.2 Waking
 
@@ -1097,7 +1099,7 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 
 *"Every exhibit and object has one: a plain Behaviour line that states exactly what it does, and a paragraph that is only for reading."*
 
-**Examining** anything visible is free. The strip shows the nearest readable thing within 2 tiles, in this priority: hunting or awake exhibit, sleeping exhibit, case contents, plaque.
+**Examining** anything visible is free. The strip shows the nearest readable thing within 2 tiles, in this priority: hunting or awake exhibit, sleeping exhibit, case contents (a case, by what it holds, an object on loan elsewhere, or nothing), plaque; nearest first within each, then the actors' and the fixtures' order. A mimic in its disguise is on it only as a case.
 
 **The full panel shows:**
 1. the title, with the state and pips;
@@ -1109,6 +1111,14 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 7. action buttons.
 
 **Distance:** the paragraph and identification need you within 2 tiles. Farther away, the panel shows what sight gives and "Come closer to read".
+
+**What each label holds** (`js/core/labels.js`). Every label has the panel's fields, and its buttons are only actions `step()` would take now: each is checked against its action's own legal list and your statuses, as `Step.legal` checks them.
+- **An exhibit:** as above. Its Attack button names the blow you would make now (beside it, or with Reach) and what it would do, a surprise blow's certain hit included. A body split from another is named "a split of" its species, on its label and in every sentence.
+- **A case:** what it holds, that its object is on loan elsewhere, that it is empty, or the exhibit standing in it; its glass, its lock and its cracks as pictograms; its rules (its fixture's and its glass's clauses); whether your grade opens its lock, and in how many blows your weapon breaks it; its accession number on its tombstone. Its buttons are "Open: Grade III" and "Break the glass: 2 blows, loud, the last a crash", or Take once it is no longer shut. A mimic's case gives exactly the label of a real empty case with its glass, lock and loan, but no number (§8.3).
+- **A staff door:** its grade, and whether yours opens it; Open (a step into it) or Close.
+- **An identifying label** (a plaque): the seal of the kind it describes, and its rule; Read, within reach. Its text, which names the kind, shows only once the kind is identified.
+- **An item:** a consumable's local name, its seal and its line (its kind's clause once identified, else the rule for a first use); any other item's name, tombstone and Behaviour line, its own numbers at your grade before any bonus, the grade it needs and how far short of it you are, its bonuses, and an instrument's charges. Its buttons are the actions that need no target (take, equip, take off, drop, drink, read); one that needs a target (a throw, an instrument's tile, a Restoration kit's item) is aimed in the Bag.
+- **You:** your grade, your numbers, your ring now, and your statuses with the turns each still covers; Wait, Rest, Sit on a bench, and Leave on an exit.
 
 **Pictograms:**
 - about 40 in the slice, among them one for each status and each surface, keyed by its id, so the top bar and a label show what is on you or on a tile;
