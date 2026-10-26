@@ -123,6 +123,9 @@ const Main = (() => {
       else if (UI.labelShown() === ui.selection) UI.label(l);
     }
     if (state.over) finish(ev, nameOf);
+    // Anything tried while a choice waits (a Catalogue Card's, closed in the Bag) is refused,
+    // and the Bag opens again with the choice at its top.
+    if (ev.some(e => e.k === 'refused' && e.reason === 'choice_pending')) Bag.open();
     draw();
     return ev;
   }
@@ -478,12 +481,15 @@ const Main = (() => {
     bag() { stop(); Bag.open(); draw(); },
     map() { stop(); Bag.map(); draw(); },
     quick(n) { stop(); Bag.quick(n); draw(); },
-    // Enter: yes to a waiting confirmation; else go on a previewed walk; else the selected
-    // thing's first action, as a second tap on it would do: so only for something a tap can
-    // reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
+    // Enter: yes to a waiting confirmation; else, while the Bag aims, a second tap on the tile
+    // it previews (nothing before a tile is previewed); else go on a previewed walk; else the
+    // selected thing's first action, as a second tap on it would do: so only for something a
+    // tap can reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
     confirm() {
       if (asking) { answer(true); return; }
       if (UI.overlayOpen() || state.over) return;
+      const aim = Bag.aiming();
+      if (aim) { if (Number.isInteger(aim.x) && Number.isInteger(aim.y)) tap({ x: aim.x, y: aim.y }); return; }
       if (preview && ui.path) { tap(preview); return; }
       if (ui.selection && (ui.selection === 'you' || Actors.byUid(state, ui.selection) || tileOf(ui.selection))) {
         const l = labelOf(ui.selection), first = l && l.actions.find(a => a.act);
