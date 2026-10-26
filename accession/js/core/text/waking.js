@@ -6,7 +6,7 @@
   // A noise is told as its caption (§8.2): "Crash: glass breaking, heard 10 tiles away."
   // Each noise's own cause says what made it; this is the sentence for one that does not.
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.define('noise', e => `${CLS[e.cls] || 'A noise'}: a noise, heard ${e.range} tiles away.`);
+  Text.define('noise', e => `${CLS[e.cls] || 'A noise'}: a noise, heard ${Text.tiles(e.range)} away.`);
 
   // A pip is shown only for an exhibit in view, so the log never tells you about one you
   // cannot see (§8.2's pips are shown on the exhibit).
@@ -14,9 +14,9 @@
   const stir = (e, w, why) => `${w.Name(e.who)} ${e.delta < 0 ? 'settles' : 'stirs'} (${pips(e)})${why ? ': ' + why : ''}.`;
   const ally = (e, w) => e.cause.ally ? `${w.name(e.cause.ally)}, one of its group, took damage` : 'one of its group took damage';
   Text.define('pip', (e, w) => stir(e, w, ''), { log: 'seen' });
-  Text.defineCause('pip', 'ring', (e, w) => stir(e, w, `you are inside your ring, ${e.cause.dist} tiles away`));
-  Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${e.cause.dist} tiles away`));
-  Text.defineCause('pip', 'axis', (e, w) => stir(e, w, `you are in its row or column, ${e.cause.dist} tiles away`));
+  Text.defineCause('pip', 'ring', (e, w) => stir(e, w, `you are inside your ring, ${Text.tiles(e.cause.dist)} away`));
+  Text.defineCause('pip', 'noise', (e, w) => stir(e, w, `it heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away`));
+  Text.defineCause('pip', 'axis', (e, w) => stir(e, w, `you are in its row or column, ${Text.tiles(e.cause.dist)} away`));
   Text.defineCause('pip', 'decay', (e, w) => stir(e, w, `nothing has disturbed it for ${N.PIP_DECAY_TURNS} turns`));
   Text.defineCause('pip', 'quiet', (e, w) => stir(e, w, '“Quiet, Please” was read'));
   Text.defineCause('pip', 'tether', (e, w) => stir(e, w, `you came within ${N.TETHER_RANGE} tiles of what it guards`));
@@ -50,5 +50,5 @@
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
   Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
-  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${e.cause.dist} tiles away, and goes to look.`);
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, and goes to look.`);
 })();

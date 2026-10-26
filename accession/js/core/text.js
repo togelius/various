@@ -52,6 +52,8 @@ const Text = (() => {
   const refusal = (code, data) => has(REFUSALS, code) ? REFUSALS[code](data === undefined ? null : data) : String(code);
   const clock = view => has(MAKERS, 'clock') ? MAKERS.clock(view) : null;
   const recap = (state, nameOf) => has(MAKERS, 'recap') ? MAKERS.recap(state, nameOf) : null;
+  // A count of tiles in words: '1 tile', '3 tiles' (a distance or a range from an event can be 1).
+  const tiles = n => n === 1 ? '1 tile' : `${n} tiles`;
   // A confirmation's words (§7.1), {title, yes, line}, or null for a kind with none.
   const confirm = (k, data, nameOf) => has(MAKERS, 'confirm') ? MAKERS.confirm(k, data, nameOf) : null;
 
@@ -84,5 +86,5 @@ const Text = (() => {
   }
   const logs = k => has(LOG, k) ? LOG[k] : true;
 
-  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, confirm, log, defined, refusalDefined, provided, list, logs };
+  return { define, defineCause, defineRefusal, provide, event, refusal, clock, recap, confirm, tiles, log, defined, refusalDefined, provided, list, logs };
 })();

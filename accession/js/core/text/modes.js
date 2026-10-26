@@ -24,11 +24,11 @@
   Text.define('returned', back);
   Text.defineCause('returned', 'home', back);
 
-  Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${e.cause.dist} tiles away.`);
+  Text.defineCause('woke', 'seen', (e, w) => `${w.Name(e.who)} woke: it saw you ${Text.tiles(e.cause.dist)} away.`);
   Text.defineCause('hunting', 'seen', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: it saw you.` : `${w.Name(e.who)} saw you and is hunting you.`);
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'door', noise('a door opening'));
   Text.defineCause('noise', 'close', noise('a door closing'));
 

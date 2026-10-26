@@ -54,7 +54,7 @@
   });
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${Text.tiles(e.range)} away.`);
 
   // The Pin-Driver's bolt (§8.1): rolled as a blow is, with its own damage. Through an
   // old_repair exhibit's repaired side (cause.side, §5.5) the damage is doubled, and the sum

@@ -264,8 +264,8 @@ module.exports = ({ test, assert, loadCore }) => {
     const k = SPECIES.find(x => x.sp.archetype === 'kiter'), s = room(k.acc, k.sp, 3), lines = Labels.odds(s, s.actors[1]), e = M.expected(s, s.actors[0], s.actors[1]);
     const [range, chance, typ, worst] = e.nums;
     assert.equal(range, N.ROLE_ARTILLERY_RANGE);
-    assert.equal(lines[0], `It shoots at you within ${range} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst} ${worst === 1 ? 'hit' : 'hits'}.`);
-    assert.ok(!lines.some(l => /^It has a \d+% chance|also shoots/.test(l)), lines.join(' '));
+    assert.equal(lines[0], `It shoots at you within ${range} tiles: ${chance === 11 || chance === 18 || String(chance)[0] === '8' ? 'an' : 'a'} ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst} ${worst === 1 ? 'hit' : 'hits'}.`);
+    assert.ok(!lines.some(l => /^It has an? \d+% chance|also shoots/.test(l)), lines.join(' '));
   });
 
   test('with Reach, from a Reach weapon or from another with the reach primitive (a Light one included), the readout says your weapon strikes with Reach', () => {

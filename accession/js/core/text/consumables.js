@@ -46,7 +46,7 @@
   const lasts = n => Number.isInteger(n) ? ` for ${n === 1 ? '1 turn' : `${n} turns`}` : '';
   Text.defineCause('status', 'item', (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${state(e.id)}${lasts(e.turns)}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${state(e.id)}.`);
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.defineCause('noise', 'throw', e => `${own(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: a thrown phial landing, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'throw', e => `${own(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: a thrown phial landing, heard ${Text.tiles(e.range)} away.`);
 
   // Refusals (§4.2). A first throw refused for being too near names no kind.
   const REFUSALS = {

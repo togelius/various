@@ -186,6 +186,8 @@ const Labels = (() => {
   // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
   // wakes it (§8.3), so no blow could ever catch it as the line would say.
   const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
+  // A chance with its article, as it is said: 'an 80%', 'an 11%', 'a 75%'.
+  const aChance = n => `${n === 11 || n === 18 || String(n).charAt(0) === '8' ? 'an' : 'a'} ${n}%`;
   function odds(state, a) {
     const you = state.actors[0], hp = Math.max(1, you.hp), at = [you.x, you.y];
     const said = Archetypes.readout(state, a, you), noBlow = said.some(r => r.k === 'noBlow'), set = said.find(r => r.k === 'hits');
@@ -195,10 +197,10 @@ const Labels = (() => {
     if (!noBlow) {
       const theirs = rolls(state, a, you, fromTile(a, you.x, you.y)), chance = Combat.hitChance(a, you);
       const typ = halfUp(100 * theirs.sum, theirs.n * hp), worst = hits(Int.ceilDiv(hp, theirs.max));
-      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
-        : `It has a ${chance}% chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
+      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: ${aChance(chance)} chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
+        : `It has ${aChance(chance)} chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
     }
-    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
+    lines.push(`You have ${aChance(Combat.hitChance(you, a))} chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
     if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
     if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;

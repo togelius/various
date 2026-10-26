@@ -49,7 +49,7 @@
   // Every blow is announced as `attacked` before it lands or misses; the log shows the result.
   Text.define('attacked', (e, w) => `${w.Name(e.by)} attacked ${w.name(e.at)}.`, { log: false });
   Text.defineCause('attacked', 'attack', (e, w) => e.cause.how && e.cause.how.kind === 'reach'
-    ? `${w.Name(e.by)} struck at ${w.name(e.at)} with Reach, from ${e.cause.dist} tiles away.`
+    ? `${w.Name(e.by)} struck at ${w.name(e.at)} with Reach, from ${Text.tiles(e.cause.dist)} away.`
     : `${w.Name(e.by)} attacked ${w.name(e.at)}.`);
   Text.define('missed', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}.`);
   Text.defineCause('missed', 'attack', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}${reach(e.cause)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
@@ -92,7 +92,7 @@
   Text.define('healed', (e, w) => `${w.Name(e.who)} regained ${e.amount} health: now ${e.hp}.`);
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'attack', noise('a blow'));
   Text.defineCause('noise', 'destroyed', noise('an exhibit destroyed'));
   Text.defineCause('noise', 'special', noise('a special'));

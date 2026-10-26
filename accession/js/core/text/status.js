@@ -27,7 +27,7 @@
   Text.defineCause('pip', 'fumigant', (e, w) => `${w.Name(e.who)} settles (${e.pips} of ${N.PIPS_TO_WAKE} pips): the Fumigant cloud calms it.`);
   const CLS = { soft: 'a soft', loud: 'a loud', crash: 'a crashing' };
   const who = (e, w) => !e.cause.by ? 'A cough' : e.cause.by === 'you' ? 'You cough' : `${w.Name(e.cause.by)} coughs`;
-  Text.defineCause('noise', 'cough', (e, w) => `${who(e, w)}: ${CLS[e.cls] || 'a'} noise, heard ${e.range} tiles away.`);
+  Text.defineCause('noise', 'cough', (e, w) => `${who(e, w)}: ${CLS[e.cls] || 'a'} noise, heard ${Text.tiles(e.range)} away.`);
 
   // A surface laid (§8.1): what it is, how big, and that it blocks sight, for how long; a
   // Fumigant cloud also calms sleepers. Told whether or not you see it, as a death is.
@@ -36,7 +36,7 @@
   const NAMES = { fumigant: 'A Fumigant cloud', dust: 'Plaster dust' };
   const named = e => Object.prototype.hasOwnProperty.call(NAMES, e.kind) ? NAMES[e.kind] : `A ${e.kind}`;
   const blocks = e => Registry.SURFACES[e.kind] && Registry.SURFACES[e.kind].blocksSight ? 'it blocks sight' : 'it lies';
-  Text.define('surface', (e, w) => `${named(e)} lies here, ${e.size} tiles a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
-  Text.defineCause('surface', 'died', (e, w) => `${w.Name(e.cause.by)} crumbles into dust: ${blocks(e)}, ${e.size} tiles a side, for ${turns(e.turns)}${after(e)}.`);
-  Text.defineCause('surface', 'item', (e, w) => `${named(e)} rises, ${e.size} tiles a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
+  Text.define('surface', (e, w) => `${named(e)} lies here, ${Text.tiles(e.size)} a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
+  Text.defineCause('surface', 'died', (e, w) => `${w.Name(e.cause.by)} crumbles into dust: ${blocks(e)}, ${Text.tiles(e.size)} a side, for ${turns(e.turns)}${after(e)}.`);
+  Text.defineCause('surface', 'item', (e, w) => `${named(e)} rises, ${Text.tiles(e.size)} a side: ${blocks(e)} for ${turns(e.turns)}${after(e)}.`);
 })();

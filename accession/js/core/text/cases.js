@@ -33,7 +33,7 @@
 
   // The noise a case or a staff door makes, from its tile.
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${e.range} tiles away.`;
+  const noise = what => e => `${CLS[e.cls] || 'A noise'}: ${what}, heard ${Text.tiles(e.range)} away.`;
   Text.defineCause('noise', 'staff_door', noise('a staff door opening'));
   Text.defineCause('noise', 'case_opened', noise('a case opening'));
   Text.defineCause('noise', 'bash', noise('glass bashed'));
