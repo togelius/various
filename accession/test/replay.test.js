@@ -305,7 +305,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     Golden.markPending(file, 'testing');
     g = Golden.read(file);
     for (const n of ['mk', 'rp']) { assert.equal(g[n].pending, 'testing'); assert.equal(g[n].hash, before[n].hash); assert.equal(g[n].steps, before[n].steps); }
-    g.rp.actions[3] = { a: 'wait' };
+    // An action that changes where the replay goes, as at step 121 above: a wait where it did
+    // something else, and where it waited, a step north (taken, or refused at no cost; either
+    // way not a turn spent waiting where it stands).
+    g.rp.actions[3] = g.rp.actions[3].a === 'wait' ? { a: 'move', dir: 0 } : { a: 'wait' };
     Golden.write(file, g);
     const pc = Golden.check(C, file);
     assert.equal(pc.bad, 0);

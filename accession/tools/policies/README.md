@@ -310,3 +310,19 @@ Lures the warden with the Tuning Fork into a corner of its tether from which it 
 6. With no warden read, no plan, or once the warden is seen hunting before you have the item, walk in as the naive policy does.
 
 Weights: pips that wake an exhibit (PIPS_TO_WAKE) 3, the fork's range (TUNING_FORK) 8, the reach of a soft noise, walking tiles (NOISE_SOFT) 3.
+
+## wander
+
+### wander.wander
+
+Explores the department and fights whatever it meets, so the battery sees whole visits and the deaths they end in; it never leaves.
+
+1. If an exhibit in view can be struck, strike the one with the least health (then the nearest, then by uid).
+2. Otherwise, if an exhibit in view stands outside a case, walk toward the nearest (then by uid), the way a tap on it would.
+3. Otherwise, if a case beside you can be opened, open it (the first in direction order).
+4. Otherwise, if an item beside you or under you can be taken, take it.
+5. Otherwise explore: walk toward the nearest tile you have seen beside one you have not (then the upper, then the left), trying the nearest 6.
+6. Otherwise roam: walk toward a tile you have seen, drawn at random among those you can reach, for at most 40 decisions, then draw another.
+7. Otherwise, wait.
+
+Weights: frontier tiles tried 6, decisions toward one roaming tile 40.
