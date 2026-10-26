@@ -1,11 +1,15 @@
 // The death recap (BUILD.md §3.4, §8.1; Text.recap, js/core/text/recap.js): what killed you,
-// why it was awake, and when and how it woke, read from the killer's own story. Six deaths,
+// why it was awake, and when and how it woke, read from the killer's own story. Nine deaths,
 // each played through step(): an exhibit woken by your ring; one woken, settled back home and
-// woken again by the axis trigger (the recap tells the second waking); one whose waking lies
-// more than 64 cause records back; the Night Watchman, on its rounds; a splitter's half; and
-// your own Pin-Driver bolt sent back by a reflector, which is the reflector's (D2.16). Each
-// recap is compared with one rebuilt from the full event log, as W2b-BATTERY's
-// Recap.fromLog will do after every death in the battery (criterion 6).
+// woken again by the axis trigger (the recap tells the second waking); one woken by noise
+// that saw you later; one woken into a hunt by your ring that lost you and saw you again
+// (its waking still reads as a hunt, and the blow is the fatal one, not an earlier one still
+// on record); one made awake that saw you on that same turn (a waking and a hunt on one turn
+// with two causes); one whose waking lies more than 64 cause records back; the Night
+// Watchman, on its rounds; a splitter's half; and your own Pin-Driver bolt sent back by a
+// reflector, which is the reflector's (D2.16). Each recap is compared with one rebuilt from
+// the full event log, as W2b-BATTERY's Recap.fromLog will do after every death in the
+// battery (criterion 6).
 module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore();
   const { Setup, Step, State, Text, Labels, Roles, N } = C;
@@ -121,6 +125,47 @@ module.exports = ({ test, assert, loadCore }) => {
     const names = Labels.nameOf(s);
     assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke: it heard a soft noise, and goes to look.`,
       `On turn ${r.huntTurn}, ${names(a.uid)} saw you and is hunting you.`]);
+  });
+
+  test('woken into a hunt by your ring, it lost you and later saw you: the waking reads as a hunt, the later hunt follows it, and the blow is the fatal one, not an earlier one still on record', () => {
+    // The Trolley in the north room. It wakes hunting and hits you twice; you are then put in
+    // the south room until it loses you, and back 2 tiles from it, where it sees you again.
+    const MAP = ['###########', '#.........#', '#.........#', '#########+#', '#.........#', '#.........#', '###########'];
+    const sp = C.Packs.species('M11', 'M11.5');
+    const s = Setup.room(1, { acc: 'M11', depth: 3, map: MAP, you: [3, 1], exhibits: [ex(sp, [5, 1])] });
+    const you = s.actors[0], a = s.actors[1];
+    you.hp = you.maxHp = 999;
+    const start = State.clone(s), events = [];
+    for (let i = 0; i < 20 && a.mode === 'dormant'; i++) events.push(...Step.step(s, { a: 'wait' }));
+    assert.equal(a.woke.cause.k, 'ring');
+    for (let i = 0; i < 12 && events.filter(e => e.k === 'damaged' && e.who === 'you').length < 2; i++) events.push(...Step.step(s, { a: 'wait' }));
+    you.x = 1; you.y = 5;
+    for (let i = 0; i < 200 && a.mode === 'hunting'; i++) events.push(...Step.step(s, { a: 'wait' }));
+    assert.ok(events.some(e => e.k === 'lost' && e.who === a.uid), 'it lost you');
+    you.x = a.x + 2; you.y = a.y; you.hp = 1;
+    events.push(...play(s, { a: 'wait' }, 100));
+    const r = recapped(start, s, events, 'lost and seen'), names = Labels.nameOf(s);
+    assert.equal(r.wakeTrigger, 'ring');
+    assert.equal(a.hunted.cause.k, 'seen');
+    assert.ok(r.huntTurn > r.wakeTurn, `${r.wakeTurn}, ${r.huntTurn}`);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn ${r.wakeTurn}, ${names(a.uid)} woke and is hunting you: you stayed inside your ring.`,
+      `On turn ${r.huntTurn}, ${names(a.uid)} saw you and is hunting you.`]);
+    // The fatal blow, though earlier ones are still among the cause records and read otherwise.
+    const told = s.causes.filter(c => c.k === 'damaged' && c.who === 'you').map(c => Text.event(c, names));
+    assert.ok(told.length >= 3 && told[0] !== told[told.length - 1], told.join('\n'));
+    assert.equal(r.lines[1], blow(events, s));
+    assert.equal(r.lines[1], told[told.length - 1]);
+  });
+
+  test('made awake, it saw you on its first turn: the waking and the hunt share a turn but not a cause, so the recap tells both', () => {
+    // The Trolley with the `awake` trigger, so that "it never sleeps" is true of it.
+    const sp = C.Packs.species('M11', 'M11.5');
+    const s = Setup.room(1, { acc: 'M11', depth: 3, map: OPEN, you: [2, 2], exhibits: [ex(sp, [7, 2], { mode: 'awake', trigger: 'awake' })] });
+    s.actors[0].hp = 1;
+    const a = s.actors[1], start = State.clone(s), events = play(s, { a: 'wait' }, 80);
+    const r = recapped(start, s, events, 'awake then seen'), names = Labels.nameOf(s);
+    assert.deepEqual([r.wakeTurn, r.wakeTrigger, r.huntTurn, a.hunted.cause.k], [0, 'awake', 0, 'seen']);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} is awake: it never sleeps.`, `On turn 0, ${names(a.uid)} saw you and is hunting you.`]);
   });
 
   test('a waking more than 64 cause records back: the recap still reads it, from the killer\'s own story', () => {

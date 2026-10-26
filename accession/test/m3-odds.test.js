@@ -232,6 +232,25 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(lines[1], `It also shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles, with the same ${chance}% chance and the same damage.`);
   });
 
+  test('with Reach, from a Reach weapon or from another with the reach primitive (a Light one included), the readout says your weapon strikes with Reach', () => {
+    // §8.5: the reach primitive's blows "reach … as a Reach weapon's do", on any form; so the
+    // line names the Reach, not the weapon's form.
+    const k = SPECIES.find(x => x.sp.archetype === 'plodder'), stamp = ITEMS.find(r => r.id === 'A4.6');
+    assert.ok(stamp && stamp.form === 'light' && stamp.prims.some(q => q.id === 'reach'), 'the Long-Handled Date Stamp: Light, with reach');
+    const line = `Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`;
+    for (const rec of [stamp, { id: null, kind: 'weapon', form: 'reach', prims: [] }]) {
+      const s = room(k.acc, k.sp, 3), a = s.actors[1], you = s.actors[0];
+      wear(s, { slot: 'weapon', rec, tier: 1, level: 0, grade: Kit.needs({ kind: 'weapon', form: rec.form, tier: 1 }) });
+      assert.ok(you.reach && you.weaponForm === rec.form, `${rec.form}: you have Reach`);
+      for (const [x, mode] of [[5, 'hunting'], [6, 'dormant']]) {
+        you.x = x; a.mode = mode;
+        const lines = Labels.odds(s, a);
+        assert.ok(lines.includes(line), `${rec.form} at ${x}: ${lines.join(' ')}`);
+        assert.ok(!lines.some(l => /Reach weapon/.test(l)), `${rec.form}: ${lines.join(' ')}`);
+      }
+    }
+  });
+
   test('an old repair\'s side doubles your figures only from that side, and not with old_repair switched off', () => {
     const lamp = SPECIES.find(x => (x.sp.modifiers || []).includes('old_repair'));
     assert.ok(lamp, 'a pack species with old_repair');

@@ -38,7 +38,14 @@ const Labels = (() => {
   const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
   const num = n => (n < 0 ? '−' : '') + Math.abs(n);
   const yourGrade = state => (state.run && state.run.grade) || N.GRADE_START;
-  const chebyshev = (a, x, y) => Math.max(Math.abs(a.x - x), Math.abs(a.y - y));
+  // Reading distance (§8.8). An exhibit (from its nearest tile, Actors.dist, as since M2), a
+  // case and an item are read within READ_RANGE tiles counted as a king moves, a diagonal
+  // step counting one, so in the square of side 2 × READ_RANGE + 1 round you. A plaque is
+  // read with read(x, y), whose reach §8.6 sets as the disc of "within r" (§8.2); its label
+  // follows that action (readable, below), so its Read button is offered exactly when step()
+  // takes it.
+  const steps = (a, x, y) => Math.max(Math.abs(a.x - x), Math.abs(a.y - y));
+  const inReach = (you, x, y) => steps(you, x, y) <= N.READ_RANGE;
 
   // ---- What a label may offer ----
 
@@ -78,8 +85,11 @@ const Labels = (() => {
     return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
   }
 
-  // A body split from another (a splitter's half, §8.1): its story says so.
-  const split = a => !!(a && a.woke && a.woke.cause && a.woke.cause.k === 'summoned' && a.woke.cause.how === 'split');
+  // A body split from another (a splitter's half, §8.1): a splitter whose uid is its body's
+  // and a count, <body uid>/<k> (§3.2). Neither ever changes, so a half keeps its name
+  // however often it settles back and is woken again, though each waking writes over its
+  // story (`woke`), which first said how it split.
+  const split = a => !!a && a.arch === 'splitter' && typeof a.uid === 'string' && /\/\d+$/.test(a.uid);
   // The species name in mid-sentence ('the Dawn-Caller on a Perch'), a split body's as 'a
   // split of …'.
   const theName = sp => 'the ' + sp.name.replace(/^The /, '');
@@ -146,8 +156,10 @@ const Labels = (() => {
   // odds (Archetypes.readout) changes two lines: an exhibit with no blow (noBlow, the
   // axis_sniper) gets no line on its hitting you, and one that needs a set number of hits
   // (hits, a swarm body) says so. A ranged archetype that strikes (the kiter) shoots with its
-  // blow's chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot); a Reach weapon
-  // strikes from REACH_RANGE away as from beside it (§8.1); and each special has its line.
+  // blow's chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot); with Reach (a Reach
+  // weapon, or any weapon with the reach primitive, whose blows reach as a Reach weapon's do,
+  // Kit.derive's you.reach) you strike from REACH_RANGE away as from beside it (§8.1); and
+  // each special has its line.
   // An exhibit in an intact case keeps its lines: they say what its blows would do once out.
   const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
   function odds(state, a) {
@@ -162,7 +174,7 @@ const Labels = (() => {
       if (A && A.ranged) lines.push(`It also shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles, with the same ${chance}% chance and the same damage.`);
     }
     lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it.`);
-    if (you.reach) lines.push(`Your Reach weapon also strikes it from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
+    if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
     if (Combat.surprised(you, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;
       lines.push(r.min === m.min && r.max === m.max ? `A surprise attack now would hit for certain, for ${range(m)}.`
@@ -240,8 +252,11 @@ const Labels = (() => {
     if ((it.kind === 'weapon' || it.kind === 'garment') && typeof it.form === 'string') return `A ${cap(it.form)} ${it.kind}` + (Number.isInteger(it.tier) ? `, tier ${it.tier}` : '');
     return /^[aeiou]/.test(it.kind) ? 'An ' + it.kind : 'A ' + it.kind;
   }
-  // An item's pictogram is its kind's (a consumable's, its seal: §8.8, D5.11).
-  const itemIcon = it => it.kind === 'consumable' ? 'seal' : it.kind;
+  // A seal's pictogram is its shape's, seal_<shape> (D5.11: seals are told apart by shape;
+  // Registry.SEALS[seal].shape), or the plain seal for one with no shape.
+  const sealIcon = seal => own(Registry.SEALS, seal) && typeof Registry.SEALS[seal].shape === 'string' ? 'seal_' + Registry.SEALS[seal].shape : 'seal';
+  // An item's pictogram is its kind's; a consumable's is its seal's (§8.8, D5.11).
+  const itemIcon = (state, it) => it.kind === 'consumable' ? sealIcon(Consumables.name(state, it).seal) : it.kind;
   const BONUS = { dmg: 'damage', acc: 'Acc', eva: 'Eva', pad: 'Padding' };
   // What kind of thing it is, beside its pictogram: a weapon's or garment's form and tier, an
   // instrument's tier, a curio's rank; and its Restoration levels.
@@ -284,13 +299,13 @@ const Labels = (() => {
     const it = itemByUid(state, uid);
     if (!it || !it.where || it.where.at === 'gone') return null;
     const you = state.actors[0], w = it.where, carried = w.at === 'tote' || w.at === 'kit';
-    const close = carried || chebyshev(you, w.x, w.y) <= N.READ_RANGE;
+    const close = carried || inReach(you, w.x, w.y);
     const base = { uid: 'item:' + uid, kind: 'item', title: itemName(state, it), stateIcons: [], tomb: null, number: '', pictos: [], behaviour: '',
       odds: [], paragraph: '', far: '', closeup: null, actions: itemActions(state, it) };
     if (it.kind === 'consumable') {
       const nm = Consumables.name(state, it), n = it.n === null || it.n === undefined ? 1 : it.n;
       if (n > 1) base.title += ` (${n})`;
-      if (nm.seal && own(Registry.SEALS, nm.seal)) base.pictos.push({ icon: 'seal', text: Registry.SEALS[nm.seal].name });
+      if (nm.seal && own(Registry.SEALS, nm.seal)) base.pictos.push({ icon: sealIcon(nm.seal), text: Registry.SEALS[nm.seal].name });
       base.behaviour = Consumables.line(state, it);
       base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].name}.` : 'Not identified: which kind it is is not known yet.');
       return base;
@@ -300,7 +315,7 @@ const Labels = (() => {
     base.tomb = d.tomb;
     base.number = d.tomb && typeof d.ref === 'string' ? d.ref.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '';
     base.behaviour = d.line;
-    base.pictos.push({ icon: itemIcon(it), text: itemKind(it, d) });
+    base.pictos.push({ icon: itemIcon(state, it), text: itemKind(it, d) });
     if (d.stats && it.kind === 'weapon') {
       base.pictos.push({ icon: 'damage', text: `${d.stats.dmin}–${d.stats.dmax}` }, { icon: 'acc', text: num(d.stats.acc) });
       base.odds.push(`At your grade, before any bonus: ${d.stats.dmin}–${d.stats.dmax} damage and Acc ${num(d.stats.acc)}; a blow takes ${d.stats.cost} ticks.`);
@@ -338,7 +353,7 @@ const Labels = (() => {
   function ofCase(state, f) {
     const d = Cases.describe(state, f);
     if (!d || d.k !== 'case') return null;
-    const you = state.actors[0], close = chebyshev(you, d.x, d.y) <= N.READ_RANGE, shut = d.st === 'shut';
+    const you = state.actors[0], close = inReach(you, d.x, d.y), shut = d.st === 'shut';
     const held = d.holds ? itemByUid(state, d.holds.uid) : null, what = held ? itemName(state, held) : null;
     const rec = held && held.kind !== 'consumable' ? Kit.describe(state, held.uid) : null;
     // An exhibit standing in it, seen through the glass, is named; a mimic in its disguise is
@@ -351,7 +366,7 @@ const Labels = (() => {
     else title = (own(ST, d.st) ? ST[d.st] : 'A case') + (what ? `: ${what}` : '');
     const pictos = [{ icon: 'glass', text: `${d.glassName || 'unknown'} glass` }, { icon: 'lock', text: grade(d.lock) }];
     if (shut && d.hits > 0) pictos.push({ icon: 'shards', text: `cracked, ${d.hits} of ${count(d.need, 'bash', 'bashes')}` });
-    if (held) pictos.push({ icon: itemIcon(held), text: held.kind });
+    if (held) pictos.push({ icon: itemIcon(state, held), text: held.kind });
     const lines = [];
     if (shut) {
       lines.push(d.canOpen ? `Your grade (${grade(yourGrade(state))}) opens its lock (${grade(d.lock)}).` : `Its lock needs ${grade(d.lock)}; you are ${grade(yourGrade(state))}.`);
@@ -401,7 +416,7 @@ const Labels = (() => {
     const known = Consumables.known(state, f.ck), seal = Consumables.sealFor(state, f.ck), close = readable(state, f.x, f.y);
     const pack = Packs.get(state.dept.acc), text = pack && pack.consumables && own(pack.consumables.labels, f.ck) ? pack.consumables.labels[f.ck] : '';
     const P = Registry.FIXTURES.plaque, pictos = [{ icon: 'reads', text: 'label' }];
-    if (seal && own(Registry.SEALS, seal)) pictos.push({ icon: 'seal', text: Registry.SEALS[seal].name });
+    if (seal && own(Registry.SEALS, seal)) pictos.push({ icon: sealIcon(seal), text: Registry.SEALS[seal].name });
     return {
       uid: `plaque:${f.x},${f.y}`, kind: 'plaque', x: f.x, y: f.y,
       title: known ? `An identifying label: ${Registry.CONSUMABLES[f.ck].name}` : 'An identifying label', stateIcons: [], tomb: null, number: '',
@@ -437,13 +452,17 @@ const Labels = (() => {
   // ---- The strip ----
 
   // The strip (§8.8): the nearest readable thing within READ_RANGE, in this priority: hunting
-  // or awake exhibits (every mode but dormant), sleeping exhibits, cases (what they hold, or
-  // that they hold nothing), plaques; nearest first within each, then spawn order, then
-  // fixture order. An exhibit counts from its nearest tile, with any tile in sight; a case
-  // from its tile, in sight; a plaque where it can be read (a disc, in sight). An exhibit that
-  // shows as something else (a mimic in its disguise, Archetypes.present) is not an exhibit
-  // here: it reaches the strip only as its case. The strip shows the label's title, state,
-  // first two pictograms and Behaviour line (a case's: what you can do to it).
+  // or awake exhibits (every mode but dormant), sleeping exhibits, case contents, plaques;
+  // nearest first (in king moves) within each, then spawn order, then fixture order. An
+  // exhibit counts from its nearest tile, with any tile in sight; a case from its tile, in
+  // sight; a plaque where it can be read (its disc, in sight; readable). Case contents are a
+  // shut case, by what it holds, its object on loan, or nothing, and a case no longer shut
+  // that still holds its object: an opened, broken or dissolved case that holds nothing has
+  // nothing left to read, and does not keep a plaque off the strip. An exhibit that shows as
+  // something else (a mimic in its disguise, Archetypes.present) is not an exhibit here: it
+  // reaches the strip only as its case, which is shut, as a real empty shut case would. The
+  // strip shows the label's title, state, first two pictograms and Behaviour line (a case's:
+  // what you can do to it).
   function strip(state) {
     const you = state.actors[0];
     let best = null, bestKey = -1;
@@ -456,10 +475,9 @@ const Labels = (() => {
       consider((a.mode === 'dormant' ? 1 : 0) * TIER + d, () => of(state, a.uid));
     }
     for (const f of (state.dept && state.dept.fixtures) || []) {
-      if (f.k === 'case' && f.st !== 'revealed') {
-        const d = chebyshev(you, f.x, f.y);
-        if (d <= N.READ_RANGE && Grid.los(state.dept, you.x, you.y, f.x, f.y)) consider(2 * TIER + d, () => ofCase(state, f));
-      } else if (f.k === 'plaque' && readable(state, f.x, f.y)) consider(3 * TIER + chebyshev(you, f.x, f.y), () => ofPlaque(state, f));
+      if (f.k === 'case' && f.st !== 'revealed' && (f.st === 'shut' || !!f.holds)) {
+        if (inReach(you, f.x, f.y) && Grid.los(state.dept, you.x, you.y, f.x, f.y)) consider(2 * TIER + steps(you, f.x, f.y), () => ofCase(state, f));
+      } else if (f.k === 'plaque' && readable(state, f.x, f.y)) consider(3 * TIER + steps(you, f.x, f.y), () => ofPlaque(state, f));
     }
     if (!best) return null;
     const l = best();

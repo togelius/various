@@ -1,7 +1,10 @@
 // M3's labels (BUILD.md §8.8, §8.3, §8.5, §8.6, §5.3): the labels of cases, staff doors,
-// plaques, items and you; the strip's priority; the mimic's one tell, the missing accession
-// number, through the labels and through what a policy reads (Obs.read); names for split
-// bodies; and Behaviour lines that show their numbers at depth. Every button a label offers
+// plaques, items and you; the strip's priority, case contents before plaques; reading
+// distance (a king's moves for exhibits, cases and items, the disc of read(x, y) for a
+// plaque); seals drawn by their shapes; the mimic's one tell, the missing accession number,
+// through the labels and through what a policy reads (Obs.read); names for split bodies,
+// kept however often they sleep and wake; and Behaviour lines that show their numbers at
+// depth. Every button a label offers
 // is one step() takes, and no label says "undefined", "NaN" or "[object". The expected
 // words are written out here from BUILD.md's text.
 module.exports = ({ test, assert, loadCore, root, path }) => {
@@ -204,7 +207,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(l.far, 'Read it to learn which kind it describes.');
       assert.ok(!json(l).includes(kind) && !json(l).includes(pack.consumables.labels[f.ck]), `${acc}: the unread label names its kind: ${json(l)}`);
       assert.deepEqual(J(l.actions), [{ id: 'read', text: 'Read the label', act: { a: 'read', x: f.x, y: f.y } }]);
-      assert.deepEqual(J(l.pictos[1]), { icon: 'seal', text: Registry.SEALS[Consumables.sealFor(t, f.ck)].name }, 'the seal of the kind it describes');
+      const seal = Registry.SEALS[Consumables.sealFor(t, f.ck)];
+      assert.deepEqual(J(l.pictos[1]), { icon: 'seal_' + seal.shape, text: seal.name }, 'the seal of the kind it describes, by its shape');
       Step.step(t, l.actions[0].act);
       assert.ok(Consumables.known(t, f.ck));
       l = Labels.ofPlaque(t, f);
@@ -247,7 +251,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     let l = Labels.ofItem(s, c.uid);
     const nm = Consumables.name(s, c);
     assert.equal(l.title, nm.local);
-    assert.deepEqual(J(l.pictos), [{ icon: 'seal', text: Registry.SEALS[nm.seal].name }]);
+    assert.deepEqual(J(l.pictos), [{ icon: 'seal_' + Registry.SEALS[nm.seal].shape, text: Registry.SEALS[nm.seal].name }]);
     assert.equal(l.behaviour, Consumables.line(s, c));
     assert.deepEqual(J(l.odds), ['Not identified: which kind it is is not known yet.']);
     assert.deepEqual(J(l.actions), [{ id: 'take', text: 'Take', act: { a: 'take', uid: c.uid } }]);
@@ -331,6 +335,92 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(/^(An empty case|A case: its object is on loan elsewhere)$/.test(ms.title), ms.title);
   });
 
+  test('the strip: case contents before a plaque, even a nearer one; a plaque once the case is out of reach, or opened with nothing left in it', () => {
+    // A plaque on the north wall at (6, 0), for the Catalogue Card; a case at (4, 2), lock I.
+    const MAP = ['##########', '#........#', '#...v....#', '#........#', '##########'];
+    const make = (you, items) => {
+      const s = room(MAP, you, { fixtures: [kase(4, 2, items ? { holds: items[0].uid } : {}), { k: 'plaque', x: 6, y: 0, ck: 'card' }], items });
+      Consumables.startRun(s);
+      return s;
+    };
+    const put = (s, x, y) => { s.actors[0].x = x; s.actors[0].y = y; const t = Labels.strip(s); return t && t.uid; };
+    let s = make([6, 1]);
+    assert.ok(Labels.ofPlaque(s, Cases.at(s, 6, 0)).actions.some(a => a.id === 'read'), 'the plaque beside you can be read');
+    assert.equal(put(s, 6, 1), 'case:4,2', 'a shut case 2 tiles off before a plaque beside you');
+    assert.equal(put(s, 7, 1), 'plaque:6,0', 'the case 3 tiles off: the plaque');
+    // Opened, the empty case has nothing left to read: the plaque.
+    put(s, 4, 1);
+    Step.step(s, { a: 'open', x: 4, y: 2 });
+    assert.equal(Cases.at(s, 4, 2).st, 'open');
+    assert.equal(put(s, 6, 1), 'plaque:6,0', 'an opened empty case does not keep the plaque off the strip');
+    assert.equal(put(s, 5, 3), null, 'with no plaque in reach, nothing: the opened empty case has nothing to read');
+    assert.equal(Labels.ofCase(s, Cases.at(s, 4, 2)).title, 'An open case', 'though it keeps its label, for a tap on it');
+    // Opened with its object still in it, it is case contents: before the plaque, until taken.
+    s = make([4, 1], [{ uid: 'T0.1.room.i1', kind: 'curio', where: { at: 'case', x: 4, y: 2 }, prims: [{ id: 'acc', cls: 'M' }] }]);
+    Step.step(s, { a: 'open', x: 4, y: 2 });
+    assert.equal(put(s, 6, 1), 'case:4,2', 'an opened case that still holds its object');
+    put(s, 4, 1);
+    Step.step(s, { a: 'take', uid: 'T0.1.room.i1' });
+    assert.equal(put(s, 6, 1), 'plaque:6,0', 'once it is taken, the plaque');
+    // Broken and empty: the plaque too.
+    s = make([4, 1]);
+    for (let i = 0; i < 4 && Cases.at(s, 4, 2).st === 'shut'; i++) Step.step(s, { a: 'bash', x: 4, y: 2 });
+    assert.equal(Cases.at(s, 4, 2).st, 'broken');
+    assert.equal(put(s, 6, 1), 'plaque:6,0', 'a broken empty case does not keep the plaque off the strip');
+  });
+
+  test('reading distance: an exhibit, a case and an item 2 tiles off on both axes are read, counted as a king moves; a plaque there is not, since read(x, y) reaches only its disc', () => {
+    const sp = Packs.species('A4', 'A4.1'), rec = Packs.get('A4').items.find(r => r.id === 'A4.6');
+    const OPEN = ['#######', '#.....#', '#.....#', '#.....#', '#.....#', '#######'];
+    const CASE = ['#######', '#.....#', '#.....#', '#...v.#', '#.....#', '#######'];
+    const at = (s, x, y) => { s.actors[0].x = x; s.actors[0].y = y; return s; };
+    const strip = s => { const t = Labels.strip(s); return t && t.uid; };
+    // An exhibit at (4, 3): from (2, 1) its nearest tile is 2 off on both axes.
+    const e = room(OPEN, [2, 1], { acc: 'A4', exhibits: [{ sp: sp.id, at: [4, 3], mode: 'dormant', stats: Roles.stats(sp.role, 1) }] });
+    assert.equal(Labels.of(e, e.actors[1].uid).paragraph, sp.paragraph);
+    assert.equal(strip(e), e.actors[1].uid);
+    assert.equal(Labels.of(at(e, 1, 1), e.actors[1].uid).far, 'Come closer to read the label.', '3 off');
+    // A case at (4, 3) holding the Long-Handled Date Stamp: its paragraph, and the strip.
+    const c = room(CASE, [2, 1], { acc: 'A4', fixtures: [kase(4, 3, { holds: 'A4.1.room.i1' })],
+      items: [{ uid: 'A4.1.room.i1', kind: 'weapon', ref: rec.id, form: rec.form, tier: 1, where: { at: 'case', x: 4, y: 3 }, prims: rec.prims.map(q => ({ id: q.id, cls: q.cls })) }] });
+    assert.equal(Labels.ofCase(c, Cases.at(c, 4, 3)).paragraph, rec.paragraph);
+    assert.equal(strip(c), 'case:4,3');
+    at(c, 1, 1);
+    assert.deepEqual([Labels.ofCase(c, Cases.at(c, 4, 3)).paragraph, Labels.ofCase(c, Cases.at(c, 4, 3)).far, strip(c)], ['', 'Come closer to read the label.', null], '3 off');
+    // The same weapon lying at (4, 3).
+    const i = room(OPEN, [2, 1], { acc: 'A4', items: [{ uid: 'A4.1.room.i1', kind: 'weapon', ref: rec.id, form: rec.form, tier: 1, where: { at: 'floor', x: 4, y: 3 }, prims: rec.prims.map(q => ({ id: q.id, cls: q.cls })) }] });
+    assert.equal(Labels.ofItem(i, 'A4.1.room.i1').paragraph, rec.paragraph);
+    assert.deepEqual([Labels.ofItem(at(i, 1, 1), 'A4.1.room.i1').paragraph, Labels.ofItem(i, 'A4.1.room.i1').far], ['', 'Come closer to read the label.'], '3 off');
+    // A plaque at (4, 3): from (2, 1), 2² + 2² = 8 > 6, outside its disc (§8.6), so it is not
+    // on the strip and offers no Read; from (2, 2), 2² + 1² = 5, it is and does.
+    const p = room(OPEN, [2, 1], { acc: 'A4', fixtures: [{ k: 'plaque', x: 4, y: 3, ck: 'card' }] });
+    Consumables.startRun(p);
+    const f = Cases.at(p, 4, 3);
+    assert.equal(strip(p), null);
+    assert.deepEqual([Labels.ofPlaque(p, f).far, J(Labels.ofPlaque(p, f).actions)], ['Come closer to read the label.', []]);
+    assert.equal(Step.step(State.clone(p), { a: 'read', x: 4, y: 3 })[0].reason, 'label_far', 'read(x, y) refuses it there too');
+    at(p, 2, 2);
+    assert.equal(strip(p), 'plaque:4,3');
+    assert.deepEqual(J(Labels.ofPlaque(p, f).actions), [{ id: 'read', text: 'Read the label', act: { a: 'read', x: 4, y: 3 } }]);
+  });
+
+  test('a consumable\'s seal is drawn by its shape (D5.11): eight seals, eight pictograms, on its label, on its plaque and in its case', () => {
+    const MAP = ['#########', '#.......#', '#.v.....#', '#.......#', '#########'];
+    const s = room(MAP, [3, 1], { acc: 'A4', fixtures: [kase(2, 2)] });
+    Consumables.startRun(s);
+    const icons = new Set(), f = Cases.at(s, 2, 2);
+    for (const ck of Registry.order('CONSUMABLES')) {
+      const seal = Consumables.sealFor(s, ck), want = 'seal_' + Registry.SEALS[seal].shape;
+      const it = Consumables.make(s, ck, { at: 'case', x: 2, y: 2 });
+      assert.equal(Labels.ofItem(s, it.uid).pictos[0].icon, want, `${ck}: its label`);
+      assert.ok(Labels.ofCase(s, f).pictos.some(q => q.icon === want), `${ck}: its case: ${json(Labels.ofCase(s, f).pictos)}`);
+      assert.equal(Labels.ofPlaque(s, { k: 'plaque', x: 3, y: 0, ck }).pictos[1].icon, want, `${ck}: its plaque`);
+      icons.add(want);
+      it.where = { at: 'gone' }; f.holds = null;
+    }
+    assert.equal(icons.size, 8, json([...icons]));
+  });
+
   test('names: a body split from another is "a split of" its species, in the log and on its label', () => {
     const sp = Packs.species('A4', 'A4.4');
     const s = Setup.room(5, { acc: 'A4', depth: 3, map: ['#######', '#.....#', '#.....#', '#######'], you: [2, 1], exhibits: [{ sp: 'A4.4', at: [3, 1], mode: 'hunting', stats: Roles.stats('brute', 3) }] });
@@ -346,6 +436,36 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Labels.of(s, s.actors[1].uid).title, sp.name);
     const made = C.Text.log(ev, names).join(' ');
     assert.ok(made.includes(`${the.charAt(0).toUpperCase() + the.slice(1)} splits in two`), made);
+  });
+
+  test('a split half keeps its name after it settles back and is woken again, though that waking writes over the story that said how it split', () => {
+    const sp = Packs.species('A4', 'A4.4'), the = 'the ' + sp.name.replace(/^The /, ''), The = the.charAt(0).toUpperCase() + the.slice(1);
+    // The Trustee in the west room, struck until it splits; you then go far off, east past
+    // a door, until the half has gone back and settled; then you stand 2 tiles from it.
+    const MAP = ['###############', '#.....#.......#', '#.....+.......#', '#.....#.......#', '###############'];
+    const s = Setup.room(5, { acc: 'A4', depth: 3, map: MAP, you: [2, 2], exhibits: [{ sp: 'A4.4', at: [3, 2], mode: 'hunting', stats: Roles.stats('brute', 3) }] });
+    const you = s.actors[0];
+    you.hp = you.maxHp = 9999; you.acc = 99;
+    for (let k = 0; k < 30 && s.actors.length < 3; k++) Step.step(s, { a: 'attack', uid: s.actors[1].uid });
+    const half = s.actors[2], names = () => Labels.nameOf(s);
+    assert.equal(half.woke.cause.how, 'split');
+    assert.equal(names()(half.uid), 'a split of ' + the);
+    you.x = 12; you.y = 2;
+    for (let i = 0; i < 600 && half.mode !== 'dormant'; i++) Step.step(s, { a: 'wait' });
+    assert.equal(half.mode, 'dormant', 'it settled back');
+    assert.equal(names()(half.uid), 'a split of ' + the, 'asleep');
+    const spot = [[2, 0], [-2, 0], [0, 2], [0, -2]].map(([dx, dy]) => [half.x + dx, half.y + dy])
+      .find(([x, y]) => Grid.inside(s.dept, x, y) && Grid.walkable(s.dept, x, y) && !Actors.at(s, x, y) && Grid.los(s.dept, x, y, half.x, half.y));
+    [you.x, you.y] = spot;
+    const ev = [];
+    for (let i = 0; i < 20 && half.mode === 'dormant'; i++) ev.push(...Step.step(s, { a: 'wait' }));
+    assert.equal(half.woke.cause.k, 'ring', `woken again, by your ring: ${json(half.woke)}`);
+    assert.equal(names()(half.uid), 'a split of ' + the);
+    assert.equal(Labels.of(s, half.uid).title, 'A split of ' + the);
+    assert.equal(names()(s.actors[1].uid), the, 'the body it split from keeps its own name');
+    const log = C.Text.log(ev, names());
+    assert.ok(log.includes(`A split of ${the} woke and is hunting you: you stayed inside your ring.`), log.join('\n'));
+    assert.ok(!log.some(l => l.startsWith(The + ' woke')), log.join('\n'));
   });
 
   test('Behaviour lines show their numbers at depth, every part Clauses.of gives appears in the line, and a rule switched off leaves its part out', () => {
