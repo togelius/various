@@ -1,8 +1,11 @@
 // The Night Watchman arena (BUILD.md §10.3, §8.4): the clock is one count short of the night
 // watch (B 220, G 60, count 279), so at the first turn boundary the night watch begins and
-// the Night Watchman (the shared species) comes in at the entrance E. Four sleeping fodder
-// (M11.5) by the entrance are there for the night-watch bells, each of which wakes the
-// three sleepers nearest you every 30 counts. Reach the exit X and leave.
+// the Night Watchman (the shared species) comes in at the entrance E, behind you. The exit X
+// is 37 steps away along a gallery, so the first night-watch bell (30 counts after the night
+// watch begins) rings before you can reach it, and wakes the three sleepers nearest you, who
+// hunt you. Eight sleeping fodder (M11.5) wait in side rooms off the gallery, each beyond
+// your ring from every tile of the way out, so as you leave only the bells wake them. Reach
+// X and leave.
 arena: night_watchman
 goal: leave
 cap: 200
@@ -13,10 +16,10 @@ clock: B=220 G=60 count=279
 metric: died lower
 legend: F exhibit sp=M11.5
 
-#################
-#..F.F..........#
-#...............#
-#E......@......X#
-#...............#
-#..F.F..........#
-#################
+#############################################
+###F...#F...#F...#F...#F...#F...#F...#F...###
+###....#....#....#....#....#....#....#....###
+######.####.####.####.####.####.####.####.###
+#E.....@....................................X
+#...........................................#
+#############################################

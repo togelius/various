@@ -1,11 +1,14 @@
-// The tethered warden arena (BUILD.md §10.3): a warden (the species in turn: S9.4) asleep
-// beside the item it guards (guards=I), on the side you come from, within its tether of 2
-// tiles round the item; its place (home), where it goes back to, is h, on the far side of
-// the item and within its tether too. Walking in, you wake it beside you. A noise wakes it
-// awake and sends it to look, and hunting you while you stand outside its tether it goes
-// back to its place instead of fighting (its Behaviour line), so a noise from outside the
-// tether, on the far side, draws it aside. You carry a Tuning Fork with 3 charges (tier 1).
-// The item is a T1 Balanced weapon. Take it.
+// The tethered warden arena (BUILD.md §10.3): a warden (the species in turn: S9.4) asleep at
+// its place W, beside the item it guards (guards=I), its tether the tiles within 2 of the
+// item. Its place is where it is made, as a department makes it, so going back is going to
+// W. Pillars stand north and west of the item and south-east of W: every tile you could take
+// the item from is one W strikes, and none is a step from outside the tether, so walking in
+// gives it a blow at you. A noise draws a sleeper's pips; awake, it goes to look at the noise, as far as
+// the edge of its tether, and while it sees you outside its tether it waits at its place
+// (its Behaviour line). The pillars leave a corner of the tether, west of them, from which it
+// cannot see the item's east side: a Tuning Fork's noise there (3 charges, tier 1) sends it
+// into that corner, and the item can be taken from the east while it is there, if you keep
+// out of its sight as it goes. The item is a T1 Balanced weapon. Take it.
 arena: tethered_warden
 goal: take I
 cap: 200
@@ -14,15 +17,20 @@ depths: 2 5
 seen: all
 kit: instrument fork tier=1 charges=3
 metric: hpLost <= 50%
-legend: W exhibit sp guards=I home=h; I item weapon balanced tier=1; h mark
+legend: W exhibit sp guards=I; I item weapon balanced tier=1
 
-#############
-#...........#
-#...........#
-#...h.......#
-#.....I.....#
-#......W....#
-#...........#
-#...........#
-#.........@.#
-#############
+###############
+#.............#
+#.............#
+#.............#
+#.............#
+#.............#
+#......#......#
+#.....#I......#
+#......W......#
+#.......#...@.#
+#.............#
+#.............#
+#.............#
+#.............#
+###############

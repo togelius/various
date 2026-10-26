@@ -1,7 +1,9 @@
 // The herald arena (BUILD.md §10.3): a herald (the species in turn: S9.3, A4.3) asleep by the
-// way to the far door D, and three sleeping fodder (M11.5) within its call's 6 tiles. The
-// straight way to the door passes beside the herald; a wall hides a way round below, four
-// steps longer, that no straight line from the herald reaches within its sight. Reach D.
+// straight way to the far door D, and three sleeping fodder (M11.5) within its call's 6 tiles
+// but behind a wall, in a gallery whose only opening is beside the herald, so that no tile of
+// the way is in their ring: walking past wakes only the herald, and the fodder wake only if
+// it calls (a call needs no line to them). Below the way, a wall hides a way round, four steps
+// longer, within the herald's sight range but out of its line of sight. Reach D.
 arena: herald
 goal: reach D
 cap: 200
@@ -12,8 +14,10 @@ metric: woken <= 50%
 legend: C exhibit sp; F exhibit sp=M11.5; D mark on='
 
 #####################
-#.....F......F......#
-#.........C.....F...#
+#...................#
+#....F..F.....F.....#
+##########.##########
+#.........C.........#
 #@..................D
 #.#################.#
 #...................#

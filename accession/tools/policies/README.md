@@ -300,12 +300,13 @@ Weights: none.
 
 ### tethered_warden.counter
 
-Lures the warden aside with the Tuning Fork: wakes it from outside its tether with a noise on the far side of the item, then steps in to take the item only when the warden is too far from that tile to strike first.
+Lures the warden with the Tuning Fork into a corner of its tether from which it cannot see the far side of the item, then, while it is there, goes round out of its sight and takes the item from that side.
 
-1. Read the label of every exhibit in view once; one whose Behaviour line says it stays within r tiles of what it guards is the warden, and the item in view is what it guards. Its tether is the tiles within r of the item.
+1. Read the label of every exhibit in view once; one whose Behaviour line says it stays within r tiles of what it guards is the warden, the item in view is what it guards, and its tether is the tiles within r of the item. Remember where the warden sleeps (its place) and its pips.
 2. Beside the item (or on it), take it.
-3. While the warden sleeps, the fork has a charge and you stand outside the tether: use the fork on the tile of the tether farthest from you of those it can reach from where you stand (within its range, in your sight).
-4. Otherwise (the warden awake, the fork spent, or no tile of the tether in its reach): of the tiles you could take the item from that you can step onto from a tile outside the tether, choose the one farthest from the warden. Go round the outside of the tether to the tile a step from it, and step onto it while the warden sleeps or is at least 3 tiles from it. Until then wait outside the tether, stepping away from the warden if it is beside you or you are inside the tether.
-5. Without a warden in view, or after waiting 10 turns, walk in as the naive policy does.
+3. Plan the lure once: a tile to take the item from, a tile of the tether a step from it, and a tile outside the tether a step from that; a pocket of the tether from which the warden could not see those three tiles and would need at least two steps to strike you on the first; a pocket tile whose soft noise reaches the warden's place; a spot outside the tether and outside the warden's ring, with a line to that tile within the fork's range; and a way from the spot to the tile outside, a tile an action, on which the warden, walking from its place to the noise and looking at each of its actions, would not see you, and which ends no sooner than it gets there and soon enough that it cannot then reach you before you are done. Prefer the deepest pocket, then the largest, then the shortest way, then the nearest spot.
+4. While the warden sleeps, go to the spot round the outside of the tether and of its ring, and use the fork on the pocket tile until the pips it has wake it.
+5. Once it is awake, follow the way an action a tile, then step onto the tile of the tether, then the tile to take the item from, and take it.
+6. With no warden read, no plan, or once the warden is seen hunting before you have the item, walk in as the naive policy does.
 
-Weights: tiles between the warden and the take tile before stepping in 3, turns it waits before walking in regardless 10.
+Weights: pips that wake an exhibit (PIPS_TO_WAKE) 3, the fork's range (TUNING_FORK) 8, the reach of a soft noise, walking tiles (NOISE_SOFT) 3.

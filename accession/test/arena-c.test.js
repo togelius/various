@@ -1,9 +1,14 @@
 // The arenas of W2b-ARENA-C (BUILD.md §10.3): herald, tethered_warden, mimic_vitrine and
 // night_watchman, with their naive and counterplay policies (tools/policies/<id>.js). Each
-// stamp is the arena §10.3 names, built as the plan chose it; seeds 1–20 run paired, every
-// invariant checked after every step, as a smoke test (the counterplay is not worse, and
-// reaches the goal at least as often); each counterplay does what its card says; and the
-// policies are deterministic, whatever ran before them. The 200-seed gate is Wave 3's.
+// stamp is the arena §10.3 names, built as the plan chose it, and a fair test of its rule:
+// what naive meets comes from the archetype (the herald's call, not your ring, wakes the
+// fodder; the warden strikes every tile the item can be taken from; the night-watch bell rings
+// before the exit is reached), and what the counterplay wins comes from its counterplay (the
+// warden's lure is the fork's: without it, or late, the same moves are struck); seeds 1–20
+// run paired, every invariant checked after every step, as a smoke test (the counterplay is
+// not worse, and reaches the goal at least as often); each counterplay does what its card
+// says; and the policies are deterministic, whatever ran before them. The 200-seed gate is
+// Wave 3's.
 module.exports = ({ test, assert, root, path, fs }) => {
   const Sim = require(path.join(root, 'tools/sim.js'));
   const C = Sim.load();
@@ -48,7 +53,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     }
   });
 
-  test('herald: a herald and three sleeping fodder (M11.5) within its call, beside the straight way to the far door, with a hidden way round', () => {
+  test('herald: a herald and three sleeping fodder (M11.5) within its call but out of the ring of every tile of the straight way, beside which it sleeps, with a hidden way round', () => {
     const s = spec('herald');
     eq(s.goal, { k: 'reach', chars: ['D'] });
     const [door] = cell(s, 'D', 0);
@@ -57,35 +62,70 @@ module.exports = ({ test, assert, root, path, fs }) => {
       assert.equal(C.Grid.ch(st.dept, door.x, door.y), "'", 'the far door is an open door');
       eq([h.sp, h.arch, h.mode], [L.sp, 'herald', 'dormant'], `seed ${seed}`);
       assert.equal(fodder.length, 3);
+      const m = st.dept, you = st.actors[0], way = C.Path.to(st, door.x, door.y);
+      // A sleeper gains a ring pip on a tile within RING_MOVING walking tiles of you with a line
+      // to you (§8.2): the straight way passes the herald so, and none of the fodder.
+      const inRing = (a, x, y) => C.Grid.distances(m, [[x, y]], N.RING_MOVING)[a.y * m.w + a.x] >= 0 && C.Grid.los(m, a.x, a.y, x, y);
+      assert.ok(way.some(([x, y]) => inRing(h, x, y)), 'the straight way passes within the herald\'s ring');
       for (const f of fodder) {
         eq([f.sp, f.role, f.mode], ['M11.5', 'fodder', 'dormant']);
         assert.ok(C.Grid.disc(f.x - h.x, f.y - h.y, N.HERALD_RANGE), `${f.uid} is within the call's ${N.HERALD_RANGE} tiles`);
+        assert.ok(!way.some(([x, y]) => inRing(f, x, y)) && !inRing(f, you.x, you.y), `${f.uid} is out of the ring of every tile of the straight way, so only the call wakes it`);
       }
-      // The straight way to the door passes within the herald's sight; another way, out of it,
-      // is a few steps longer.
-      const m = st.dept, you = st.actors[0];
+      // The straight way passes within the herald's sight; another way, out of it, is a few
+      // steps longer.
       const sees = (x, y) => C.Grid.disc(x - h.x, y - h.y, N.SIGHT_EXHIBIT) && C.Grid.los(m, h.x, h.y, x, y);
-      const way = C.Path.to(st, door.x, door.y);
       assert.ok(way.some(([x, y]) => sees(x, y)), 'the shortest way is in its sight');
       const hidden = { dept: { w: m.w, h: m.h, tiles: m.tiles.map((r, y) => r.split('').map((c, x) => sees(x, y) ? '#' : c).join('')), fixtures: [] }, actors: st.actors, run: st.run };
       const round = C.Path.to(hidden, door.x, door.y);
       assert.ok(round.length > way.length && round.length <= way.length + 4, `the hidden way is a few steps longer: ${round.length} against ${way.length}`);
+      assert.ok(round.some(([x, y]) => C.Grid.disc(x - h.x, y - h.y, N.SIGHT_EXHIBIT)), 'the hidden way passes within its sight range, behind a wall');
       assert.equal(sees(you.x, you.y), false, 'you start out of its sight');
+      assert.ok(C.Grid.disc(h.x - you.x, h.y - you.y, N.SIGHT_PLAYER) && C.Grid.los(m, you.x, you.y, h.x, h.y), 'you can see it, and read it, from the start');
     }
   });
 
-  test('tethered_warden: a warden asleep beside the item it guards, its place on the far side, and a Tuning Fork of 3 charges', () => {
+  test('herald: what naive wakes is the call — with a plain fodder in the herald\'s place, walking the straight way wakes only that one', () => {
+    const text = fs.readFileSync(path.join(root, 'test/arena/herald.txt'), 'utf8');
+    const plain = C.Arena.parse(text.replace(/^legend: C exhibit sp;/m, 'legend: C exhibit sp=M11.5;'));
+    for (const seed of [1, 2, 3, 4]) {
+      const withHerald = Sim.runArena('herald', 'naive', seed, { C }), without = Sim.runArena(plain, 'naive', seed, { C });
+      eq([withHerald.outcome.woken, without.outcome.woken], [4, 1], `seed ${seed}: woken with the herald and with a plain fodder in its place`);
+    }
+  });
+
+  test('tethered_warden: a warden asleep at its own place beside the item it guards, every tile you could take it from one the warden strikes from there and none a step from outside its tether, and a Tuning Fork of 3 charges', () => {
     const s = spec('tethered_warden');
     eq(s.goal, { k: 'take', chars: ['I'] });
-    const [item] = cell(s, 'I', 0), [home] = cell(s, 'h', 0);
+    const [item] = cell(s, 'I', 0), [wc] = cell(s, 'W', 0);
     for (const seed of [1, 2]) {
-      const L = layout(s, seed), st = C.Arena.build(s, seed), [w] = uidOf(L, 'W').map(u => byUid(st, u)), you = st.actors[0];
+      const L = layout(s, seed), st = C.Arena.build(s, seed), [w] = uidOf(L, 'W').map(u => byUid(st, u)), you = st.actors[0], m = st.dept;
       eq([w.sp, w.arch, w.mode, w.trigger], ['S9.4', 'tethered_warden', 'dormant', 'tether'], `seed ${seed}`);
-      eq([w.guards, w.home], [[item.x, item.y], [home.x, home.y]]);
+      // Its place (home) is where it is made, as in a department (§8.2): going back is going there.
+      eq([w.guards, w.home, [w.x, w.y]], [[item.x, item.y], [wc.x, wc.y], [wc.x, wc.y]]);
       const inTether = (x, y) => C.Grid.disc(x - item.x, y - item.y, N.TETHER_RANGE);
-      assert.ok(inTether(w.x, w.y) && inTether(home.x, home.y), 'it starts, and its place is, within its tether');
-      assert.ok(C.Grid.chebyshev(w.x, w.y, item.x, item.y) === 1 && C.Grid.chebyshev(home.x, home.y, item.x, item.y) === 2, 'it sleeps beside the item; its place is 2 tiles from it');
-      assert.ok(C.Grid.chebyshev(you.x, you.y, w.x, w.y) < C.Grid.chebyshev(you.x, you.y, home.x, home.y), 'it sleeps on the side you come from');
+      assert.ok(inTether(w.x, w.y) && C.Grid.chebyshev(w.x, w.y, item.x, item.y) === 1, 'it sleeps beside the item');
+      assert.ok(!inTether(you.x, you.y), 'you start outside its tether');
+      const sees = (x0, y0, x1, y1) => C.Grid.disc(x1 - x0, y1 - y0, N.SIGHT_PLAYER) && C.Grid.los(m, x0, y0, x1, y1);
+      assert.ok(sees(you.x, you.y, w.x, w.y) && sees(you.x, you.y, item.x, item.y), 'you can see the warden and the item from the start');
+      // The tiles you could take the item from (its own and those beside it, past no corner).
+      const takes = [[item.x, item.y]];
+      for (let d = 0; d < 8; d++) {
+        const x = item.x + C.Grid.DX[d], y = item.y + C.Grid.DY[d];
+        if (C.Grid.walkable(m, x, y) && (!C.Grid.DX[d] || !C.Grid.DY[d] || (C.Grid.walkable(m, item.x, y) && C.Grid.walkable(m, x, item.y)))) takes.push([x, y]);
+      }
+      for (const [x, y] of takes) {
+        if (x === w.x && y === w.y) continue;
+        // A blow from its place, past no corner (§8.1): walking in costs one.
+        const dx = x - w.x, dy = y - w.y;
+        assert.ok(Math.max(Math.abs(dx), Math.abs(dy)) === 1 && (!dx || !dy || (C.Grid.walkable(m, w.x, y) && C.Grid.walkable(m, x, w.y))), `${x},${y}: the warden strikes it from its place`);
+        // No step from outside the tether lands on it, so stepping in and taking at once, in
+        // the beat after the tether wakes it, is not open.
+        for (let d = 0; d < 8; d++) {
+          const ox = x - C.Grid.DX[d], oy = y - C.Grid.DY[d];
+          assert.ok(inTether(ox, oy) || !C.Grid.canStep(m, ox, oy, d), `${x},${y} is a step from ${ox},${oy}, outside the tether`);
+        }
+      }
       const fork = st.items.find(i => i.uid === st.you.kit.instrument);
       eq([fork.kind, fork.form, fork.tier, fork.charges, fork.max], ['instrument', 'fork', 1, 3, 3]);
       const it = st.items.find(i => i.where.at === 'floor');
@@ -115,23 +155,33 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.ok(near.includes(true) && near.includes(false), 'over seeds 1–20 the mimic is the nearer case on some and the farther on others');
   });
 
-  test('night_watchman: the clock one count short of the night watch, the Watchman coming in at the entrance at the first boundary, and sleepers for the bells', () => {
+  test('night_watchman: the clock one count short of the night watch, the Watchman coming in at the entrance behind you at the first boundary, the exit further than a night-watch bell, and sleepers out of the gallery\'s ring for the bells', () => {
     const s = spec('night_watchman');
     eq(s.goal, { k: 'leave', chars: [] });
     eq(s.clock, { B: 220, G: 60, count: 279 });
     for (const seed of [1, 2]) {
-      const L = layout(s, seed), st = C.Arena.build(s, seed);
-      eq([st.dept.clock.B, st.dept.clock.G, st.dept.clock.count, st.dept.clock.stage], [220, 60, 279, 1]);
-      assert.ok(st.dept.entrance && st.dept.exits.length === 1, 'an entrance and an exit');
+      const L = layout(s, seed), st = C.Arena.build(s, seed), m = st.dept, you = st.actors[0];
+      eq([m.clock.B, m.clock.G, m.clock.count, m.clock.stage], [220, 60, 279, 1]);
+      assert.ok(m.entrance && m.exits.length === 1, 'an entrance and an exit');
+      // The way out takes longer than the first bell, which rings NIGHT_WAKE_EVERY counts after
+      // the night watch begins (§8.4), so leaving meets it.
+      const [ex, ey] = m.exits[0], out = C.Path.to(st, ex, ey);
+      assert.ok(out.length > N.NIGHT_WAKE_EVERY + 1, `the exit is ${out.length} steps away`);
       const sleepers = uidOf(L, 'F').map(u => byUid(st, u));
-      assert.equal(sleepers.length, 4);
-      for (const f of sleepers) eq([f.sp, f.mode], ['M11.5', 'dormant']);
+      assert.equal(sleepers.length, 8);
+      for (const f of sleepers) {
+        eq([f.sp, f.mode], ['M11.5', 'dormant']);
+        // Out of your ring from every tile of the way out (and where you start), so only the
+        // bells wake them as you leave.
+        assert.ok(![[you.x, you.y], ...out].some(([x, y]) => C.Grid.distances(m, [[x, y]], N.RING_MOVING)[f.y * m.w + f.x] >= 0 && C.Grid.los(m, f.x, f.y, x, y)), `${f.uid} is in the ring of the way out`);
+      }
       const ev = C.Step.step(st, { a: 'wait' });
-      assert.equal(st.dept.clock.stage, 2, 'the night watch has begun');
+      assert.equal(m.clock.stage, 2, 'the night watch has begun');
       const entered = ev.filter(e => e.k === 'entered');
       assert.equal(entered.length, 1);
       const w = byUid(st, entered[0].who);
-      eq([w.sp, w.arch, w.mode, w.x, w.y], ['night_watchman', 'night_watchman', 'hunting', st.dept.entrance[0], st.dept.entrance[1]]);
+      eq([w.sp, w.arch, w.mode, w.x, w.y], ['night_watchman', 'night_watchman', 'hunting', m.entrance[0], m.entrance[1]]);
+      assert.ok(Math.abs(w.x - ex) > Math.abs(you.x - ex), 'it comes in behind you');
     }
   });
 
@@ -165,7 +215,13 @@ module.exports = ({ test, assert, root, path, fs }) => {
       const L = layout(spec('herald'), x.seed), [h] = uidOf(L, 'C');
       assert.ok(x.reads.some(r => r.turn === 0 && r.target === h && /the first time it sees you it calls/.test(r.text)), `counter seed ${x.seed}: it reads the herald's label at its first decision`);
     }
-    for (const x of R('herald').a.runs) assert.ok(events(x, 'telegraphed').some(e => e.sp === 'call'), `naive seed ${x.seed}: the herald calls`);
+    // naive walks into the herald's ring and sight: it wakes, calls, and the call wakes the
+    // three fodder, which nothing else wakes.
+    for (const x of R('herald').a.runs) {
+      assert.ok(events(x, 'telegraphed').some(e => e.sp === 'call'), `naive seed ${x.seed}: the herald calls`);
+      const woke = events(x, 'woke').filter(e => e.was === 'dormant').map(e => e.cause.k).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      eq(woke, ['herald', 'herald', 'herald', 'ring'], `naive seed ${x.seed}: what woke`);
+    }
     // mimic: the counterplay reads both cases before it opens any, is never gripped, and opens
     // the real one; naive is gripped on every seed where the mimic is the nearer case.
     const s = spec('mimic_vitrine');
@@ -182,29 +238,61 @@ module.exports = ({ test, assert, root, path, fs }) => {
       assert.equal(events(x, 'status').some(e => e.cause.k === 'grip' && e.on), mimicNear, `naive seed ${x.seed}: gripped exactly when the mimic is nearer`);
       assert.equal(x.outcome.won, true);
     }
-    // warden: the counterplay uses the fork from outside the tether before it steps in, and
-    // the warden never strikes it; naive is struck on some seeds.
+    // warden: the counterplay uses the fork three times from outside the tether, and its noise
+    // wakes the warden, which goes to look and is not hunting when you step in; the warden
+    // never strikes it; naive is struck on some seeds.
     const t = spec('tethered_warden'), [item] = cell(t, 'I', 0);
     for (const x of R('tethered_warden').b.runs) {
       const forks = events(x, 'used').filter(e => e.how === 'fork');
-      assert.ok(forks.length >= 1 && forks.length <= 3, `counter seed ${x.seed}: ${forks.length} uses of the fork`);
-      const st = Sim.rebuild(x.replay.start, x.replay.options, C);
-      let inside = false, forkInside = false;
+      assert.equal(forks.length, 3, `counter seed ${x.seed}: ${forks.length} uses of the fork`);
+      eq(events(x, 'woke').map(e => [e.cause.k, e.mode]), [['noise', 'awake']], `counter seed ${x.seed}: the fork's noise wakes it, to look`);
+      const st = Sim.rebuild(x.replay.start, x.replay.options, C), w = st.actors.find(a => a.arch === 'tethered_warden');
+      let inside = false;
       for (const act of x.replay.actions) {
-        const you = st.actors[0];
-        if (act.a === 'use' && C.Grid.disc(you.x - item.x, you.y - item.y, C.N.TETHER_RANGE)) forkInside = true;
+        if (act.a === 'use') assert.equal(C.Grid.disc(st.actors[0].x - item.x, st.actors[0].y - item.y, N.TETHER_RANGE), false, `counter seed ${x.seed}: it used the fork inside the tether`);
+        const wasInside = inside;
         C.Step.step(st, act);
-        if (C.Grid.disc(st.actors[0].x - item.x, st.actors[0].y - item.y, C.N.TETHER_RANGE)) inside = true;
-        if (act.a === 'use') assert.equal(inside, false, `counter seed ${x.seed}: it used the fork after stepping into the tether`);
+        inside = C.Grid.disc(st.actors[0].x - item.x, st.actors[0].y - item.y, N.TETHER_RANGE);
+        if (inside && !wasInside) assert.equal(w.mode, 'awake', `counter seed ${x.seed}: the warden saw it coming in`);
       }
-      assert.equal(forkInside, false);
       assert.equal(events(x, 'damaged').filter(e => e.who === 'you').length, 0, `counter seed ${x.seed}: the warden struck it`);
       assert.equal(x.outcome.won, true);
     }
     assert.ok(R('tethered_warden').a.runs.filter(x => x.outcome.hpLost > 0).length >= 10, 'naive is struck on at least half the seeds');
     // night watch: the counterplay leaves on every seed; naive stays and dies.
-    for (const x of R('night_watchman').b.runs) eq([x.stopped, x.outcome.left, x.outcome.died], ['won', true, false], `counter seed ${x.seed}`);
+    // On its way out the first night-watch bell rings, and wakes the three sleepers nearest it.
+    for (const x of R('night_watchman').b.runs) {
+      eq([x.stopped, x.outcome.left, x.outcome.died], ['won', true, false], `counter seed ${x.seed}`);
+      assert.ok(events(x, 'stage').length >= 1, `counter seed ${x.seed}: no night-watch bell rang before it left`);
+      eq(events(x, 'woke').filter(e => e.was === 'dormant').map(e => e.cause.k), Array(N.NIGHT_WAKE_COUNT).fill('night_bell'), `counter seed ${x.seed}: what the bell woke`);
+    }
     for (const x of R('night_watchman').a.runs) assert.equal(events(x, 'left').length, 0, `naive seed ${x.seed} left`);
+  });
+
+  test('tethered_warden: the lure is what wins — the counterplay\'s own moves with each use of the fork made a wait, or with two waits before it steps into the tether, are struck', () => {
+    const t = spec('tethered_warden'), [item] = cell(t, 'I', 0);
+    const R = paired().find(p => p.a.id === 'tethered_warden').r;
+    const play = (x, acts) => {
+      const st = Sim.rebuild(x.replay.start, x.replay.options, C), hp = st.actors[0].hp;
+      for (const a of acts) { if (st.over) break; C.Step.step(st, a); }
+      return hp - st.actors[0].hp;
+    };
+    let noFork = 0, late = 0;
+    for (const x of R.b.runs) {
+      const acts = x.replay.actions;
+      noFork += play(x, acts.map(a => a.a === 'use' ? { a: 'wait' } : a)) > 0 ? 1 : 0;
+      // The first step into the tether, two waits before it.
+      const st = Sim.rebuild(x.replay.start, x.replay.options, C);
+      let k = 0;
+      for (; k < acts.length; k++) {
+        const you = st.actors[0], d = acts[k].a === 'move' ? acts[k].dir : -1;
+        if (d >= 0 && C.Grid.disc(you.x + C.Grid.DX[d] - item.x, you.y + C.Grid.DY[d] - item.y, N.TETHER_RANGE)) break;
+        C.Step.step(st, acts[k]);
+      }
+      late += play(x, acts.slice(0, k).concat([{ a: 'wait' }, { a: 'wait' }], acts.slice(k))) > 0 ? 1 : 0;
+    }
+    assert.ok(noFork >= 10, `without the fork its way is struck on ${noFork} of 20 seeds`);
+    assert.ok(late >= 5, `two actions late it is struck on ${late} of 20 seeds`);
   });
 
   test('two runs of each policy on a seed make identical decisions: the same reasons, actions and reads', () => {
