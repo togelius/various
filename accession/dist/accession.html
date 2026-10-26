@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="accession-core-hash" content="e23dd956">
-<meta name="accession-vm-hash" content="fb9a2db1">
+<meta name="accession-core-hash" content="d862c539">
+<meta name="accession-vm-hash" content="d50dd3e2">
 <meta name="accession-build" content="dev">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -738,13 +738,20 @@ const Vision = (() => {
   // [M4] Is a observed, for unobserved_motion and the Lamp's `observing`? Never in M3.
   const observed = (state, a) => false;
 
-  // Marks what you can see now as seen, in state.dept.seen (one character a tile).
+  // Remembers what you can see now, in state.dept.seen: the map as you last saw it, one
+  // character a tile in row-major order, ' ' where you have never seen the tile (BUILD.md
+  // §4.1, §6.1). Each tile in view takes its character now, so a door an exhibit opened out
+  // of sight stays shut in your memory until you see it again.
   function remember(state) {
     const m = state.dept, v = visible(state);
-    let seen = m.seen && m.seen.length === m.w * m.h ? m.seen : '0'.repeat(m.w * m.h);
+    const seen = m.seen && m.seen.length === m.w * m.h ? m.seen : ' '.repeat(m.w * m.h);
     let changed = false;
     const chars = seen.split('');
-    for (let i = 0; i < v.length; i++) if (v[i] && chars[i] !== '1') { chars[i] = '1'; changed = true; }
+    for (let i = 0; i < v.length; i++) {
+      if (!v[i]) continue;
+      const ch = m.tiles[Int.idiv(i, m.w)][i % m.w];
+      if (chars[i] !== ch) { chars[i] = ch; changed = true; }
+    }
     if (changed || seen !== m.seen) m.seen = chars.join('');
   }
 
@@ -870,13 +877,18 @@ const Registry = (() => {
 
   // Refusal codes (§4.2). step() refuses an illegal action with a code, and text/system.js
   // gives each its sentence. A rule that refuses with a code of its own defines it in its
-  // own fragment. not_built is the code of an action whose rules a later part builds (no
-  // M3 handler returns it; m3-backbone plants one that does); no_use is use(uid) of
-  // something that is not an instrument, a kit or a consumable. m3-backbone makes each one
-  // refuse, with nothing changed and nothing drawn; their invariant is
-  // test/behaviour/system.inv.js (a refused step has no other event and changes nothing).
+  // own fragment. no_use is use(uid) of something that is not an instrument, a kit or a
+  // consumable. m3-backbone makes each one refuse, with nothing changed and nothing drawn;
+  // their invariant is test/behaviour/system.inv.js (a refused step has no other event and
+  // changes nothing). The real game makes each refuse in test/behaviour/refusals.test.js
+  // (ready true). not_built is the code of an action whose rules a later part builds: no M3
+  // action gives it (push and view, the actions M4 builds, have no handler in M3, so they
+  // are refused unknown_action, §4.2), so it is built: 'M4', and M4, which builds them,
+  // either refuses with it or removes it; m3-backbone plants a handler that returns it, to
+  // show its refusal and sentence.
   for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
-    'not_built', 'no_use']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' });
+    'not_built', 'no_use']) R.define('REFUSALS', code, code === 'not_built' ? { built: 'M4', ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' }
+    : { ready: true, tests: ['m3-backbone.test.js', 'behaviour/refusals.test.js'], inv: 'system' });
   R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
 
   // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until
@@ -926,10 +938,11 @@ const Registry = (() => {
 (() => {
   const R = Registry;
   // Where each entry is proved: its scenarios and unit tests, and its invariants
-  // (test/behaviour/waking.inv.js).
+  // (test/behaviour/waking.inv.js). ready true (W2a-BEHAVIOUR): its scenarios pass joined up,
+  // in the real core with every rule in place and every package's invariants.
   const WAKE_TESTS = ['m3-waking.test.js', 'm3-ring.test.js', 'behaviour/wake.test.js'];
   const TRIGGER_TESTS = ['m3-waking.test.js', 'behaviour/triggers.test.js'];
-  const proved = tests => ({ ready: 'unit', tests, inv: 'waking' });
+  const proved = tests => ({ ready: true, tests, inv: 'waking' });
 
   // The generic wake clause ends every sleeping species' Behaviour line, joined to its
   // special trigger's clause (§5.3): your ring gives a pip a turn, and so does a noise it
@@ -982,10 +995,14 @@ const Registry = (() => {
   R.define('WAKE_CAUSES', 'tether', Object.assign({ mode: 'hunting', creation: false }, proved(TRIGGER_TESTS)));
   R.define('WAKE_CAUSES', 'ally_hit', Object.assign({ mode: 'hunting', creation: false }, proved(TRIGGER_TESTS)));
   R.define('WAKE_CAUSES', 'awake', Object.assign({ mode: 'awake', creation: true }, proved(TRIGGER_TESTS)));
+  // An exhibit that can sleep, made awake (or hunting) by a room for tests or an arena stamp
+  // rather than by any rule (Setup.settleActors; §3.4): its story says the room set it out
+  // awake, never that it never sleeps, which only `awake` says.
+  R.define('WAKE_CAUSES', 'placed', Object.assign({ mode: 'awake', creation: true }, proved(['recap.test.js', 'behaviour/wake.test.js'])));
   const wake = extra => Object.assign({ by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' }, extra);
   // The ring names its radius; noise its class; ally_hit the ally that was hurt.
-  const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({ ally: 'uid?' }), awake: wake({}) };
-  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
+  const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({ ally: 'uid?' }), awake: wake({}), placed: wake({}) };
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
   // The triggers that wake at once do it through Wake.addPips +3, whose pip event carries the
   // same cause as the woke and hunting events that follow (lint-registry checks every waking
   // trigger has its pip schema).
@@ -1000,12 +1017,14 @@ const Registry = (() => {
 'use strict';
 (() => {
   const R = Registry;
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on;
+  // seen is also the herald's and the kiter's, which see you after a noise woke them.
   const TESTS = ['behaviour/plodder.test.js', 'm3-modes.test.js', 'm3-movement.test.js'];
 
   // The plodder is AI.byMode with nothing of its own (rules/arch/plodder.js): one step or one
   // blow per action, the blow from beside you.
   R.define('ARCHETYPES', 'plodder', { icon: null, clause: 'Walks one tile at a time and strikes from beside you for {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: 'unit', tests: TESTS, inv: 'modes' });
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: true, tests: TESTS, inv: 'modes' });
 
   // Events (§4.3). Moving and closing are exempt from the cause check (§3.4).
   R.defineEvent('moved', { fields: { who: 'uid', from: 'tile', to: 'tile' }, exempt: true });
@@ -1034,13 +1053,13 @@ const Registry = (() => {
   R.defineCause('noise', 'close', { fields: { by: 'uid?', item: 'uid?' } });
 
   // Being seen turns any waking mode into a hunt (§8.2).
-  R.define('WAKE_CAUSES', 'seen', { mode: 'hunting', creation: false, ready: 'unit', tests: TESTS, inv: 'modes' });
+  R.define('WAKE_CAUSES', 'seen', { mode: 'hunting', creation: false, ready: true, tests: TESTS.concat(['behaviour/joined.test.js']), inv: 'modes' });
   R.defineCause('woke', 'seen', { fields: { dist: 'int' } });
   R.defineCause('hunting', 'seen', { fields: { dist: 'int' } });
 
   // Closing a door (rules/doors.js): refused if there is no open door beside you, or an actor
   // stands in its doorway. A door past a corner is refused with the backbone's corner.
-  for (const code of ['no_door', 'doorway_occupied']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-movement.test.js'], inv: 'modes' });
+  for (const code of ['no_door', 'doorway_occupied']) R.define('REFUSALS', code, { ready: true, tests: ['m3-movement.test.js', 'behaviour/refusals.test.js'], inv: 'modes' });
 })();
 
 </script>
@@ -1054,17 +1073,19 @@ const Registry = (() => {
   const R = Registry;
   // Where these rules are tested, and the invariant file that checks them on every step
   // (test/behaviour/combat.inv.js).
-  const tested = more => Object.assign({ ready: 'unit', tests: ['m3-combat.test.js', 'm3-health.test.js', 'behaviour/specials.test.js'], inv: 'combat' }, more);
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on.
+  const tested = more => Object.assign({ ready: true, tests: ['m3-combat.test.js', 'm3-health.test.js', 'behaviour/specials.test.js'], inv: 'combat' }, more);
 
   // A role's own rule (§5.3): a role adds a part to a Behaviour line, after its archetype's,
   // only when it has a rule of its own. The brute's blow costs COST_ATTACK_HEAVY, not
   // COST_ATTACK (Actors.attackCost, §8.1); the invariant combat_brute_blow checks it.
   R.define('CLAUSES', 'role_brute', { icon: null, clause: 'Each of its blows takes {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}.',
-    params: { COST_ATTACK_HEAVY: 'N:COST_ATTACK_HEAVY', COST_ATTACK: 'N:COST_ATTACK' }, covers: [], ready: 'unit', tests: ['behaviour/role_brute.test.js'], inv: 'combat' });
+    params: { COST_ATTACK_HEAVY: 'N:COST_ATTACK_HEAVY', COST_ATTACK: 'N:COST_ATTACK' }, covers: [], ready: true, tests: ['behaviour/role_brute.test.js'], inv: 'combat' });
 
   // Refusals (§4.2): sit needs a bench under you, and you not seated on it already.
-  R.define('REFUSALS', 'no_bench', tested({}));
-  R.define('REFUSALS', 'seated', tested({}));
+  const refusal = () => tested({ tests: ['m3-combat.test.js', 'm3-health.test.js', 'behaviour/refusals.test.js'] });
+  R.define('REFUSALS', 'no_bench', refusal());
+  R.define('REFUSALS', 'seated', refusal());
 
   // Events (§4.3).
   R.defineEvent('attacked', { fields: { by: 'uid', at: 'uid', how: 'obj' } });
@@ -1101,7 +1122,7 @@ const Registry = (() => {
   R.defineCause('regenerated', 'regen', { fields: { units: 'int', need: 'int', bench: 'bool' } });
   for (const k of ['attack', 'destroyed', 'special']) R.defineCause('noise', k, { fields: { by: 'uid?', item: 'uid?' } });
 
-  R.define('WAKE_CAUSES', 'damage', tested({ mode: 'hunting', creation: false }));
+  R.define('WAKE_CAUSES', 'damage', tested({ mode: 'hunting', creation: false, tests: ['m3-combat.test.js', 'm3-health.test.js', 'behaviour/specials.test.js', 'behaviour/herald.test.js'] }));
   const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   R.defineCause('woke', 'damage', { fields: wake });
   R.defineCause('hunting', 'damage', { fields: wake });
@@ -1119,7 +1140,11 @@ const Registry = (() => {
   // Where each entry is proved: its scenarios and rule tests, and the invariants checked
   // after every step of every scenario, monkey and bot (test/behaviour/cases.inv.js).
   const TESTS = ['m3-cases.test.js', 'm3-cases-sweep.test.js', 'behaviour/touch_case.test.js'];
-  const proved = extra => Object.assign({ ready: 'unit', tests: TESTS.slice(), inv: 'cases' }, extra);
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on;
+  // each refusal is also made to happen in behaviour/refusals.test.js, and Solvent's
+  // dissolving in behaviour/consumables.test.js.
+  const proved = extra => Object.assign({ ready: true, tests: TESTS.slice(), inv: 'cases' }, extra);
+  const refusal = () => proved({ tests: TESTS.concat(['behaviour/refusals.test.js']) });
 
   // A species' trigger (§8.2): opening its case, or any bash at it, adds PIPS_TO_WAKE pips,
   // so it wakes at once, hunting, before the action's noise; Solvent never touches it.
@@ -1131,11 +1156,11 @@ const Registry = (() => {
   // and bash(x, y) need an intact case beside you, past no corner (no_case; the backbone's
   // out_of_reach and corner), a lock within your grade to open it, and glass your weapon can
   // break to bash it; a staff door above your grade is a wall to you.
-  R.define('REFUSALS', 'behind_glass', proved({}));
-  R.define('REFUSALS', 'no_case', proved({}));
-  R.define('REFUSALS', 'case_locked', proved({}));
-  R.define('REFUSALS', 'glass_too_strong', proved({}));
-  R.define('REFUSALS', 'staff_grade', proved({}));
+  R.define('REFUSALS', 'behind_glass', refusal());
+  R.define('REFUSALS', 'no_case', refusal());
+  R.define('REFUSALS', 'case_locked', refusal());
+  R.define('REFUSALS', 'glass_too_strong', refusal());
+  R.define('REFUSALS', 'staff_grade', refusal());
 
   // The fixtures, each with the clause of its rules that its label shows (Cases.rules).
   R.define('FIXTURES', 'case', proved({ icon: null,
@@ -1170,7 +1195,7 @@ const Registry = (() => {
   // mimic, whose case is the mimic itself.
   R.define('WAKE_CAUSES', 'touch_case', proved({ mode: 'hunting', creation: false }));
   R.define('WAKE_CAUSES', 'case_broken', proved({ mode: 'hunting', creation: false }));
-  R.define('WAKE_CAUSES', 'dissolved', proved({ mode: 'hunting', creation: false }));
+  R.define('WAKE_CAUSES', 'dissolved', proved({ mode: 'hunting', creation: false, tests: TESTS.concat(['behaviour/consumables.test.js']) }));
   const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?', itself: 'bool?' };
   for (const k of ['touch_case', 'case_broken', 'dissolved']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
   // touch_case wakes at once, through Wake.addPips +3, whose pip event carries the same cause.
@@ -1185,13 +1210,14 @@ const Registry = (() => {
 'use strict';
 (() => {
   const R = Registry;
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on.
   const TESTS = ['m3-clock.test.js', 'behaviour/night_watchman.test.js'];
 
   R.define('ARCHETYPES', 'night_watchman', { icon: null,
     clause: 'Comes for you across the whole department, always knowing where you are, and strikes from beside you for {dmg}; it is never caught by surprise. ' +
       'Staff doors stop it: when it cannot reach you, it waits as near to you as it can. If defeated, another comes {WATCHMAN_RETURN} turns later.',
     params: { dmg: 'role:DMG', WATCHMAN_RETURN: 'N:WATCHMAN_RETURN' }, covers: ['attacked', 'missed', 'entered'],
-    ready: 'unit', tests: TESTS, inv: 'night_watchman' });
+    ready: true, tests: TESTS, inv: 'night_watchman' });
 
   // Events (§4.3). A stage is 'bell', 'night_watch' or 'night_bell'; a night-watch bell
   // carries its number (n, from 1) and the exhibits it woke.
@@ -1209,15 +1235,15 @@ const Registry = (() => {
 
   // The night-watch bell wakes the sleepers nearest you, hunting (n: the bell's number, dist:
   // the walking distance); the Watchman is made hunting (n: which Watchman it is).
-  R.define('WAKE_CAUSES', 'night_bell', { mode: 'hunting', creation: false, ready: 'unit', tests: TESTS, inv: 'night_watchman' });
-  R.define('WAKE_CAUSES', 'night_watch', { mode: 'hunting', creation: true, ready: 'unit', tests: TESTS, inv: 'night_watchman' });
+  R.define('WAKE_CAUSES', 'night_bell', { mode: 'hunting', creation: false, ready: true, tests: TESTS, inv: 'night_watchman' });
+  R.define('WAKE_CAUSES', 'night_watch', { mode: 'hunting', creation: true, ready: true, tests: TESTS, inv: 'night_watchman' });
   const wake = { by: 'uid?', n: 'int?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   for (const k of ['night_bell', 'night_watch']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
 
   // leave(i)'s refusals (§4.2): no exit door i, or you are not standing on it. Their
   // invariant is clock.leave, in night_watchman.inv.js: a leave is refused with exactly the
   // code its door and your tile give, and a refused leave changes nothing.
-  for (const code of ['no_exit', 'not_on_exit']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-clock.test.js'], inv: 'night_watchman' });
+  for (const code of ['no_exit', 'not_on_exit']) R.define('REFUSALS', code, { ready: true, tests: ['m3-clock.test.js', 'behaviour/refusals.test.js'], inv: 'night_watchman' });
 })();
 
 </script>
@@ -1231,7 +1257,9 @@ const Registry = (() => {
 (() => {
   const R = Registry;
   const TESTS = ['m3-kit.test.js', 'behaviour/items.test.js'];
-  const rule = (clause, params, covers) => ({ icon: null, clause, params: params || {}, covers: covers || [], ready: 'unit', tests: TESTS, inv: 'kit' });
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (the real bolt, the real cases),
+  // every package's invariants on; each refusal is made to happen in behaviour/refusals.test.js.
+  const rule = (clause, params, covers) => ({ icon: null, clause, params: params || {}, covers: covers || [], ready: true, tests: TESTS, inv: 'kit' });
   const sizes = row => ({ S: `N:${row}[0]`, M: `N:${row}[1]`, L: `N:${row}[2]` });
   // A signed number in a clause, its words chosen by its value now so that the line reads
   // well: a form's offset after "its tier" is " + {name}" above 0, " {name}" below it ("its
@@ -1305,7 +1333,7 @@ const Registry = (() => {
   // Refusal codes of the item actions (§4.2); the sentences are in text/items.js.
   for (const code of ['no_item', 'carried', 'not_carried', 'worn', 'tote_full', 'not_equippable', 'curio_slots_full', 'weapon_slot', 'slot_empty', 'bad_slot',
     'not_equipped', 'no_charges', 'out_of_range', 'no_line', 'no_aim', 'own_tile', 'not_a_place', 'bad_use', 'no_exhibit', 'too_big', 'in_case', 'marked', 'cannot_move',
-    'nothing_to_take', 'cannot_restore']) R.define('REFUSALS', code, { ready: 'unit', tests: TESTS, inv: 'kit' });
+    'nothing_to_take', 'cannot_restore']) R.define('REFUSALS', code, { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'kit' });
 
   // Events (§4.3). Unequipping is `equipped` with item null. Each cause carries what the item
   // was (its kind, and its form, tier, level and count when it has them), so its sentence
@@ -1352,7 +1380,12 @@ const Registry = (() => {
   const R = Registry;
   const TESTS = ['m3-status.test.js', 'behaviour/status.test.js'];
   // Each status's and surface's pictogram is keyed by its own id (js/view/pictograms.js).
-  const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: 'unit', tests: TESTS.slice(), inv: 'status' });
+  // ready true (W2a-BEHAVIOUR): behaviour/status.test.js's joined-up scenarios, every
+  // package's invariants on. Each status and surface the game puts on is put on as the game
+  // puts it on (Fixative, Fumigant and Consolidant from your tote, the mimic's grip, a cast's
+  // dust); slowed and dazed, which nothing in M3 puts on, are given to you as the room is
+  // made, and then hold through real actions.
+  const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: true, tests: TESTS.slice(), inv: 'status' });
 
   // A status's clause continues the clause of the archetype that inflicts it (§5.3), so it
   // starts lower-case and has no full stop; its numbers are those of record (§8.10).
@@ -1371,7 +1404,7 @@ const Registry = (() => {
   // Surfaces: a square of `size` tiles a side for `turns` turns (the N keys Surfaces.add is
   // called with); both block sight (§8.2). The clause is a sentence of its own, for the label
   // of a tile it covers.
-  const surface = (clause, params, covers, extra) => Object.assign({ blocksSight: true, icon: null, clause, params, covers, ready: 'unit', tests: TESTS.slice(), inv: 'status' }, extra);
+  const surface = (clause, params, covers, extra) => Object.assign({ blocksSight: true, icon: null, clause, params, covers, ready: true, tests: TESTS.slice(), inv: 'status' }, extra);
   R.define('SURFACES', 'fumigant', surface('A Fumigant cloud {FUMIGANT_SIZE} tiles a side blocks sight for {FUMIGANT_TURNS} turns, and every sleeping exhibit inside it with a pip loses one each turn.',
     { FUMIGANT_SIZE: 'N:FUMIGANT_SIZE', FUMIGANT_TURNS: 'N:FUMIGANT_TURNS' }, ['pip'], { size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS', icon: 'fumigant' }));
   R.define('SURFACES', 'dust', surface('Plaster dust {PLASTER_DUST_SIZE} tiles a side blocks sight for {PLASTER_DUST_TURNS} turns.',
@@ -1379,8 +1412,8 @@ const Registry = (() => {
 
   // What a status forbids you (Status.blocks, §4.2): fixed allows only wait, rest and the
   // answer to a waiting choice; rooted refuses a move that would change your tile.
-  R.define('REFUSALS', 'fixed', { ready: 'unit', tests: TESTS.slice(), inv: 'status' });
-  R.define('REFUSALS', 'rooted', { ready: 'unit', tests: TESTS.slice(), inv: 'status' });
+  R.define('REFUSALS', 'fixed', { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'status' });
+  R.define('REFUSALS', 'rooted', { ready: true, tests: TESTS.concat(['behaviour/refusals.test.js']), inv: 'status' });
 
   // Events (§4.3): a status put on (on: true, for `turns` turns, settled once the action that
   // put it on is over) or ended (on: false, at the boundary of turn `until`).
@@ -1409,7 +1442,10 @@ const Registry = (() => {
 (() => {
   const R = Registry;
   const TESTS = ['m3-consumables.test.js', 'behaviour/consumables.test.js'], INV = 'consumables';
-  const unit = { ready: 'unit', tests: TESTS, inv: INV };
+  // ready true (W2a-BEHAVIOUR): every kind, the seals, the deck and the labels pass joined up,
+  // in the real core (the real healing, quieting, losing, dissolving and tote), every
+  // package's invariants on; each refusal is made to happen in behaviour/refusals.test.js.
+  const proved = { ready: true, tests: TESTS, inv: INV };
 
   // The eight kinds, in the order of the DECK row (§8.10): `deck` indexes it. cls: Solutions
   // are drunk or thrown, Ephemera are read. `area` names the side of a thrown Solution's
@@ -1442,7 +1478,7 @@ const Registry = (() => {
       {}, ['used', 'identified', 'lost', 'special']],
   ];
   kinds.forEach(([id, cls, name, area, harmfulDrink, clause, params, covers], deck) =>
-    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, unit)));
+    R.define('CONSUMABLES', id, Object.assign({ cls, name, deck, area, harmfulDrink, icon: 'seal', clause, params, covers }, proved)));
 
   // The seals: 4 wax seals shuffled over the Solutions and 4 ink stamps over the Ephemera,
   // each run (§8.6). A seal is a position; `n` indexes run.seals.sol or run.seals.eph, and
@@ -1450,27 +1486,27 @@ const Registry = (() => {
   // speaks of it, and `shape` the pictogram that tells it apart (D5.11).
   const seals = [['round', 'round seal'], ['square', 'square seal'], ['diamond', 'diamond seal'], ['star', 'star seal']];
   const stamps = [['anchor', 'anchor stamp'], ['key', 'key stamp'], ['bell', 'bell stamp'], ['hand', 'hand stamp']];
-  seals.forEach(([shape, name], n) => R.define('SEALS', 'wax' + (n + 1), Object.assign({ cls: 'solution', n, shape, name }, unit)));
-  stamps.forEach(([shape, name], n) => R.define('SEALS', 'ink' + (n + 1), Object.assign({ cls: 'ephemera', n, shape, name }, unit)));
+  seals.forEach(([shape, name], n) => R.define('SEALS', 'wax' + (n + 1), Object.assign({ cls: 'solution', n, shape, name }, proved)));
+  stamps.forEach(([shape, name], n) => R.define('SEALS', 'ink' + (n + 1), Object.assign({ cls: 'ephemera', n, shape, name }, proved)));
 
   // An identifying label on a wall (§8.6, §8.8): reading it, close and in sight, identifies
   // the kind it describes.
   R.define('FIXTURES', 'plaque', Object.assign({ icon: 'reads', clause: 'An identifying label: read within {range} tiles, in sight, it identifies the kind it describes, for the rest of the run, at no cost in time. A department hangs {labels} on its walls, each for a different kind you do not know, one by the Intro or the first section, and each beside a floor tile you can walk to from the entrance.',
-    params: { range: 'N:READ_RANGE', labels: 'N:ID_LABELS_PER_DEPT' }, covers: ['identified'] }, unit));
+    params: { range: 'N:READ_RANGE', labels: 'N:ID_LABELS_PER_DEPT' }, covers: ['identified'] }, proved));
 
   // The rules every kind shares (§8.6), each a sentence of its own.
   R.define('CLAUSES', 'consumable_seals', Object.assign({ icon: 'seal', clause: 'Each run shuffles four wax seals over the four Solutions and four ink stamps over the four Ephemera; a seal identified once is known for the rest of the run.',
-    covers: ['identified'] }, unit));
+    covers: ['identified'] }, proved));
   R.define('CLAUSES', 'consumable_deck', Object.assign({ icon: 'seal', clause: 'A department’s consumables are drawn from the run’s one deck of cards, without replacement, and the deck is refilled when it is empty. A department lays {n} of them on free floor tiles of its sections and studies, each one you can walk to from the entrance without passing a staff door.',
-    params: { n: 'N:CONSUMABLES_PER_DEPT' }, covers: [] }, unit));
+    params: { n: 'N:CONSUMABLES_PER_DEPT' }, covers: [] }, proved));
   R.define('CLAUSES', 'consumable_throw', Object.assign({ icon: 'seal', clause: 'A Solution is thrown, for the time of a use, onto a tile within {range} tiles that you can see and that does not block sight. It reaches every creature with a tile in its square, you included, except one inside an intact case, which is behind glass. Every thrown Solution but Solvent lands with a soft noise, after what it does.',
-    params: { range: 'N:THROW_RANGE' }, covers: ['used', 'noise', 'refused'] }, unit));
+    params: { range: 'N:THROW_RANGE' }, covers: ['used', 'noise', 'refused'] }, proved));
   R.define('CLAUSES', 'consumable_unknown', Object.assign({ icon: 'seal', clause: 'Unidentified, a first use never harms you: a harmful drink is identified and does nothing, and a throw is refused if the {area}×{area} square centred where it lands would include you; any other first use does what its kind does, and identifies it.',
-    params: { area: 'N:FUMIGANT_SIZE' }, covers: ['used', 'identified', 'refused'] }, unit));
+    params: { area: 'N:FUMIGANT_SIZE' }, covers: ['used', 'identified', 'refused'] }, proved));
 
   // Refusals (§4.2), each with its sentence in text/consumables.js.
   for (const code of ['consumable_not_carried', 'use_no_target', 'throw_not_solution', 'throw_far', 'throw_unseen', 'throw_unknown_near',
-    'label_none', 'label_far', 'label_known', 'card_all_known', 'ticket_no_entrance', 'choice_none', 'choice_bad']) R.define('REFUSALS', code, Object.assign({}, unit));
+    'label_none', 'label_far', 'label_known', 'card_all_known', 'ticket_no_entrance', 'choice_none', 'choice_bad']) R.define('REFUSALS', code, Object.assign({}, proved, { tests: TESTS.concat(['behaviour/refusals.test.js']) }));
 
   // Events (§4.3): a kind identified for this run.
   R.defineEvent('identified', { fields: { seal: 'str', ck: 'str' } });
@@ -1493,7 +1529,9 @@ const Registry = (() => {
 'use strict';
 (() => {
   const R = Registry;
-  const proved = id => ({ ready: 'unit', tests: [`behaviour/${id}.test.js`], inv: 'arch-a' });
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up, every package's invariants on,
+  // and each modifier's fail with it switched off.
+  const proved = id => ({ ready: true, tests: [`behaviour/${id}.test.js`], inv: 'arch-a' });
 
   R.define('ARCHETYPES', 'darter', Object.assign({ icon: null, speed: 'fast',
     clause: 'Moves two tiles a turn; strikes from beside you for {dmg}, then at once steps back {DARTER_STEP_BACK} tile if it has room.',
@@ -1513,7 +1551,7 @@ const Registry = (() => {
   // A body made from another (a splitter's half) wakes in its parent's mode; its story
   // names how it was made (how: 'split'), its parent (from), who hit the parent (by), and a
   // copy of the parent's own waking (parent: {turn, cause}).
-  R.define('WAKE_CAUSES', 'summoned', Object.assign({ mode: 'parent', creation: true }, { ready: 'unit', tests: ['behaviour/splitter.test.js'], inv: 'arch-a' }));
+  R.define('WAKE_CAUSES', 'summoned', Object.assign({ mode: 'parent', creation: true }, { ready: true, tests: ['behaviour/splitter.test.js'], inv: 'arch-a' }));
   for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid?', how: 'str', from: 'uid', parent: 'obj?' } });
 })();
 
@@ -1545,31 +1583,34 @@ const Registry = (() => {
 'use strict';
 (() => {
   const R = Registry;
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (your real Pin-Driver), every
+  // package's invariants on, and each modifier's fail with it switched off; the kiter's also
+  // wakes to your noise and finds you by sight (behaviour/joined.test.js).
   const tests = id => ['behaviour/' + id + '.test.js'];
 
   R.define('ARCHETYPES', 'kiter', { icon: null, ranged: true,
     clause: 'Keeps {KITER_HOLD0} to {KITER_HOLD1} tiles from you and shoots within {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its shots hit the first body in their way and stop at glass; backs away when you are beside it.',
     params: { KITER_HOLD0: 'N:KITER_HOLD[0]', KITER_HOLD1: 'N:KITER_HOLD[1]', ROLE_ARTILLERY_RANGE: 'N:ROLE_ARTILLERY_RANGE', dmg: 'role:DMG' },
-    covers: ['attacked', 'missed'], ready: 'unit', tests: tests('kiter'), inv: 'arch-b' });
+    covers: ['attacked', 'missed'], ready: true, tests: tests('kiter').concat(['behaviour/joined.test.js']), inv: 'arch-b' });
   R.define('ARCHETYPES', 'axis_sniper', { icon: null, ranged: true, special: 'line',
     clause: 'Moves to share your row or column with no reflector between you, then {special}. It never strikes.',
-    params: {}, covers: ['telegraphed', 'special'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
+    params: {}, covers: ['telegraphed', 'special'], ready: true, tests: tests('axis_sniper'), inv: 'arch-b' });
   R.define('ARCHETYPES', 'reflector', { icon: null,
     clause: 'Walks one tile at a time; sends beams back along their line, and shots back into whoever fired them, so nothing behind it is hit; a beam marked before it stepped into its line goes on through it; strikes from beside you for only {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: 'unit', tests: tests('reflector'), inv: 'arch-b' });
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'], ready: true, tests: tests('reflector'), inv: 'arch-b' });
 
   // A special: its shape, its effect, the §8.10 rows for its gross damage (a role curve),
   // its range and its cadence (null: whenever its archetype chooses).
   R.define('SPECIALS', 'line', { icon: 'special', shape: 'line', effect: 'damage', curve: 'ROLE_ARTILLERY_SPECIAL', range: 'AXIS_BEAM_RANGE', every: null,
     clause: 'aims along it for a turn, with the line shown, then fires a beam up to {AXIS_BEAM_RANGE} tiles that passes through glass, for {gross} before your Padding',
-    params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
+    params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: true, tests: tests('axis_sniper'), inv: 'arch-b' });
 
   // A glass body sends shots back, and a shot it sends back that misses is its `missed`.
   R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed; sends shots back along their line, and beams marked while it is in their way.',
-    params: {}, covers: ['missed'], ready: 'unit', tests: tests('glass'), inv: 'arch-b' });
+    params: {}, covers: ['missed'], ready: true, tests: tests('glass'), inv: 'arch-b' });
   // The repaired side is a compass side from the species' modParams.old_repair.side.
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows, shots and beams from that side deal double damage.',
-    params: { side: 'mod:side' }, covers: [], ready: 'unit', tests: tests('old_repair'), inv: 'arch-b' });
+    params: { side: 'mod:side' }, covers: [], ready: true, tests: tests('old_repair'), inv: 'arch-b' });
 
   // Shots are rolled like blows and carry their range (Combat.attack makes k 'shot' when
   // how.kind is 'shot', with from the last tile the bolt crossed, how.via). A shot a
@@ -1599,14 +1640,17 @@ const Registry = (() => {
 'use strict';
 (() => {
   const R = Registry;
-  const unit = tests => ({ ready: 'unit', tests, inv: 'arch-c' });
-  const HERALD = ['behaviour/herald.test.js'], WARDEN = ['behaviour/tethered_warden.test.js'], MIMIC = ['behaviour/mimic_vitrine.test.js'];
+  // ready true (W2a-BEHAVIOUR): the scenarios pass joined up (the real open, bash and going
+  // back), every package's invariants on; the herald and the warden also wake to your noise
+  // (behaviour/joined.test.js), and the mimic is touched in every S.9 department.
+  const proved = tests => ({ ready: true, tests, inv: 'arch-c' });
+  const HERALD = ['behaviour/herald.test.js', 'behaviour/joined.test.js'], WARDEN = ['behaviour/tethered_warden.test.js', 'behaviour/joined.test.js'], MIMIC = ['behaviour/mimic_vitrine.test.js', 'behaviour/joined.test.js'];
 
   // The herald calls once each time it wakes, the first time it then sees you (§8.2); its
   // blows are the plodder's.
   R.define('ARCHETYPES', 'herald', Object.assign({ icon: null, special: 'call',
     clause: 'Each time it wakes, the first time it sees you it {special}; it strikes from beside you for {dmg}.',
-    params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'] }, unit(HERALD)));
+    params: { dmg: 'role:DMG' }, covers: ['telegraphed', 'special', 'attacked', 'missed'] }, proved(HERALD)));
   // The tethered_warden keeps within TETHER_RANGE of what it guards; hunting you (searching
   // for you included: §8.2's hunting row) while you are outside its tether, it goes back: it
   // waits at its place while it sees you, and heals and settles once it does not (an exhibit
@@ -1618,26 +1662,26 @@ const Registry = (() => {
   R.define('ARCHETYPES', 'tethered_warden', Object.assign({ icon: null, special: 'ring',
     clause: 'Stays within {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead of starting a fight, waits there while it sees you, then heals fully and settles, unless it has no home. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}.',
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
-    covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, unit(WARDEN)));
+    covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, proved(WARDEN)));
   // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
   // its line takes the pipless wake clause; it is slow at everything (§8.1).
   R.define('ARCHETYPES', 'mimic_vitrine', Object.assign({ icon: null, speed: 'slow', inflicts: ['rooted'], wake: 'wake_pipless',
     clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
-    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, unit(MIMIC)));
+    params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, proved(MIMIC)));
 
   // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call
   // wakes only the sleepers that can hear: a pipless one (a sleeping mimic) hears nothing
   // (§8.2), so the call's clause says "that can hear", and gives no mimic away.
   R.define('SPECIALS', 'ring', Object.assign({ icon: 'special', shape: 'ring', effect: 'damage', curve: 'ROLE_WARDEN_SPECIAL', range: null, every: 'ROLE_WARDEN_SPECIAL_EVERY',
     clause: 'marks the tiles round it for a turn, then strikes everything on them for {gross} before Padding',
-    params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, unit(WARDEN)));
+    params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, proved(WARDEN)));
   R.define('SPECIALS', 'call', Object.assign({ icon: 'special', shape: 'call', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null,
     clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it that can hear, which come to look where you stood as the call went off',
-    params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, unit(HERALD)));
+    params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, proved(HERALD)));
 
   // A pipless species' wake clause, in place of the generic one (§5.3): only these wake it.
   R.define('CLAUSES', 'wake_pipless', Object.assign({ icon: null, clause: 'Wakes only when it is opened, bashed, dissolved or struck.', params: {},
-    covers: ['woke', 'hunting'] }, unit(MIMIC)));
+    covers: ['woke', 'hunting'] }, proved(MIMIC)));
 
   // Causes this fragment's rules give events of other kinds (§4.3): the mimic's grip
   // (rooted), the warden's heal at home, and its going back when you leave its tether.
@@ -1647,7 +1691,7 @@ const Registry = (() => {
 
   // A herald's call wakes sleepers awake, to look where you were (§8.2): `by` is the herald,
   // dist its distance, x and y the tile they go to look at.
-  R.define('WAKE_CAUSES', 'herald', Object.assign({ mode: 'awake', creation: false }, unit(HERALD)));
+  R.define('WAKE_CAUSES', 'herald', Object.assign({ mode: 'awake', creation: false }, proved(HERALD)));
   const wake = { by: 'uid', dist: 'int?', x: 'int?', y: 'int?' };
   for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'herald', { fields: wake });
 })();
@@ -2238,7 +2282,10 @@ const Actors = (() => {
 //   readout(state, a, you) → [{k, …}]    every hook's lines, in turn, for the odds readout
 //                                        (Labels): {k: 'noBlow'}, it has no blow (no chance
 //                                        of hitting you is given; the axis_sniper); {k: 'hits',
-//                                        n}, it needs n hits whatever its health (a swarm body)
+//                                        n}, it needs n hits whatever its health (a swarm body);
+//                                        {k: 'hits', n, halves: true}, n counts the hits on it
+//                                        and on every half it splits off (a splitter that can
+//                                        still split), and its line says so
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',
@@ -2799,10 +2846,15 @@ const Combat = (() => {
 
   // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
   // how many there are, their sum, and the least and most. The odds readout uses these.
-  function netRolls(att, def) {
+  // Given the state and the tile `from` the blow comes from, each is also as the defender's
+  // archetype and modifiers take it (Archetypes.adjustDamage, with a scratch cause that is
+  // never kept), so a hit through an old repair's side reads doubled and a swarm body's any
+  // hit reads all its health.
+  function netRolls(att, def, state, from) {
     let n = 0, sum = 0, min = 0, max = 0;
     for (let r = att.dmin; r <= att.dmax; r++) {
-      const d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      let d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      if (state) d = Archetypes.adjustDamage(state, def, d, { k: 'attack', by: att.uid, at: def.uid, from: [from[0], from[1]] });
       if (!n || d < min) min = d;
       if (d > max) max = d;
       n++; sum += d;
@@ -5102,6 +5154,10 @@ const Consumables = (() => {
   // square, in spawn order; one inside an intact case is behind glass and is not reached.
   const reached = (state, sq) => state.actors.filter(a => !a.gone && Actors.footprint(a).some(([x, y]) => Grid.covers(sq, x, y)) && !Cases.encased(state, a));
 
+  // What a consumable action costs you: COST_USE, doubled while you are slowed (Actors.cost,
+  // §8.1: "slowed, every action takes 200% of its time"), as the kit's item actions are.
+  const paid = state => Actors.cost(state, state.actors[0], N.COST_USE, 'act');
+
   // Throw one of uid at (x, y) (§8.6): it is used, identified if it was not known, and does
   // what its kind does there; every thrown Solution but Solvent lands with a soft noise, after
   // its other effects (§8.2: an action's noise comes last). Check throwRefusal first.
@@ -5121,7 +5177,7 @@ const Consumables = (() => {
       for (const f of state.dept.fixtures.slice()) if (f.k === 'case' && f.st === 'shut' && Grid.covers(sq, f.x, f.y)) Cases.dissolve(state, f, { k: 'solvent', by: 'you', item: uid }, ev);
     }
     if (ck !== 'solvent') Noise.emit(state, x, y, 'soft', { k: 'throw', by: 'you', item: uid }, ev);
-    return N.COST_USE;
+    return paid(state);
   }
 
   // ---- Drinking and reading ----
@@ -5136,7 +5192,7 @@ const Consumables = (() => {
     consume(state, it);
     Causes.emit(state, ev, 'used', { who: 'you', item: uid, how: 'drink' }, gentle ? { k: 'consume', ck, seal, known: was, gentle: true } : { k: 'consume', ck, seal, known: was });
     if (!was) identify(state, seal, { k: 'use', by: 'you' }, ev);
-    if (gentle) return N.COST_USE;
+    if (gentle) return paid(state);
     if (ck === 'consolidant') {
       Health.heal(state, you, Int.pct(you.maxHp, N.CONSOLIDANT_NOW_PCT), cause, ev);
       Status.apply(state, you, 'restoring', N.CONSOLIDANT_HOT_TURNS, cause, ev);
@@ -5151,7 +5207,7 @@ const Consumables = (() => {
       }
       you.statuses = keep;
     }
-    return N.COST_USE;
+    return paid(state);
   }
 
   // Where a Re-admission Ticket puts you: the department's entrance, or, if someone stands
@@ -5209,7 +5265,7 @@ const Consumables = (() => {
       if (options.length === 1) identify(state, options[0], { k: 'card', by: 'you' }, ev);
       else if (options.length > 1) state.ui.pendingChoice = { k: 'seal', options };
     } else if (ck === 'plan') {
-      m.seen = '1'.repeat(m.w * m.h);
+      m.seen = m.tiles.join('');   // the whole map, as it is now (§8.6, §6.1)
       m.planRead = state.turn;
     } else if (ck === 'quiet') Wake.quiet(state, you.x, you.y, N.QUIET_RANGE, { k: 'quiet', by: 'you' }, ev);
     else if (ck === 'ticket' && to) {
@@ -5217,7 +5273,7 @@ const Consumables = (() => {
       you.x = to[0]; you.y = to[1];
       Wake.lose(state, { k: 'ticket', by: 'you' }, ev);
     }
-    return N.COST_USE;
+    return paid(state);
   }
 
   // ---- use(uid) ----
@@ -6222,6 +6278,8 @@ const AI = (() => {
 //   - Its story (§3.4) is the creation cause summoned {how: 'split', from: the body, by: who
 //     hit it, parent: a copy of the body's own woke}, with a creation woke event, and it first
 //     acts one action after it appears (Wake.created's beat, §8.1), never in the same instant.
+//   - The odds readout's hits needed (readout, §8.1) count it and every half it splits off,
+//     each hit dealing your mean net hit, as the plain count does for any other exhibit.
 'use strict';
 (() => {
   // The first free tile beside a, in direction order, or null.
@@ -6258,7 +6316,38 @@ const AI = (() => {
     Wake.created(state, half, 'summoned', extra, ev);
   }
 
-  Archetypes.add('splitter', { onDamaged });
+  // The hits that destroy a body and every half it splits off (BUILD.md §8.1), with each hit
+  // dealing the mean net hit, sum ÷ n: health is counted in n-ths of a point (h), so the mean
+  // stays exact in integers. A hit the body survives with 2 or more health below generation
+  // SPLIT_MAX passes SPLIT_HP_PCT% of what it has left (rounded down, at least 1 health) to a
+  // new half, both a generation on, and that half is fought the same way; each body's last
+  // hit is spent on it whole. It assumes room beside it for every split. {hits, halves}.
+  function fought(h, gen, n, sum) {
+    let hits = 0, halves = 0;
+    for (;;) {
+      h -= sum; hits++;
+      if (h <= 0) return { hits, halves };
+      if (h < 2 * n || gen >= N.SPLIT_MAX) continue;
+      const share = Math.max(n, Int.pct(h, N.SPLIT_HP_PCT));
+      h -= share; gen += 1;
+      const half = fought(share, gen, n, sum);
+      hits += half.hits; halves += 1 + half.halves;
+    }
+  }
+  // The odds readout's lines (Archetypes.readout, read by Labels): while it can still split,
+  // the hits needed count the hits on it and on every half it splits off, from your rolls
+  // against it from your tile (Combat.netRolls, as the label reckons them); a body that would
+  // not split before it falls (one hit fells it, or it is too small or too deep to split)
+  // gets the plain count, which is the same number.
+  function readout(state, a, you) {
+    if ((a.size || 1) !== 1 || a.gen >= N.SPLIT_MAX) return [];
+    const r = Combat.netRolls(you, a, state, [you.x, you.y]);
+    if (!r.n || r.sum < 1) return [];
+    const f = fought(a.hp * r.n, a.gen, r.n, r.sum);
+    return f.halves ? [{ k: 'hits', n: f.hits, halves: true }] : [];
+  }
+
+  Archetypes.add('splitter', { onDamaged, readout });
 })();
 
 </script>
@@ -8410,13 +8499,20 @@ const Setup = (() => {
   // The actors removed for this visit (options.without, by uid) are marked gone: each has
   // already taken its uid and its place, so nothing else is renumbered or moved (§3.2). Then
   // each archetype's init runs, in spawn order, for actors not gone; then each exhibit made
-  // awake gets its story from the starting state (Wake.created, with no event or beat).
+  // awake gets its story from the starting state (Wake.created, with no event or beat): the
+  // cause `awake` ("it never sleeps") for one whose trigger stands for the wake clause (the
+  // `awake` trigger), and `placed` ("it was set out awake when the room was made") for any
+  // other, which a room for tests or an arena stamp made awake but which can sleep (§3.4).
+  const createdAs = a => {
+    const T = typeof a.trigger === 'string' && Object.prototype.hasOwnProperty.call(Registry.TRIGGERS, a.trigger) ? Registry.TRIGGERS[a.trigger] : null;
+    return T && T.replacesWake ? 'awake' : 'placed';
+  };
   function settleActors(state, from) {
     const without = state.options.without || [];
     for (const a of state.actors) if (without.includes(a.uid)) a.gone = 1;
     const made = state.actors.slice(from);
     for (const a of made) if (!a.gone) Archetypes.init(state, a);
-    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, 'awake', {}, null);
+    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, createdAs(a), {}, null);
   }
 
   // A state for one room, for tests, scenarios and arenas. spec:
@@ -8741,8 +8837,9 @@ const Text = (() => {
     tether: e => 'you came near what it guards',
     ally_hit: (e, w) => ally(e, w),
     awake: e => 'it never sleeps',
+    placed: e => 'it was set out awake when the room was made',
   };
-  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) {
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
     // Woken by a noise, it goes to look where the noise was.
     const then = k === 'noise' ? ', and goes to look' : '';
@@ -9361,46 +9458,308 @@ const Text = (() => {
 <script>
 // ACCESSION — the death recap (BUILD.md §3.4, §8.1), owned by W2a-LABELS: what killed you,
 // why it was awake, and when and how it woke, read from the killer's own story.
+//
+// Text.recap(state, nameOf) → null, unless you died; then {killer, wakeTurn, wakeTrigger,
+// huntTurn, lines}:
+//   killer       the killing cause's `by` (state.over.cause): the exhibit whose blow, shot or
+//                special it was; for a bolt a reflector sent back, the reflector, which
+//                `shooter` says who fired (§8.1, D2.16); null if the cause names no one;
+//   wakeTurn, wakeTrigger   the turn and cause of the killer's most recent waking (its
+//                `woke`: a waking out of sleep, or its making for an actor made awake);
+//   huntTurn     the turn it last began hunting you (its `hunted`), or null;
+//   lines        the recap in sentences, in order: who defeated you and when; the blow that
+//                did it (its cause record, as the log told it); and the killer's story,
+//                oldest first: for a body split from another, how that body woke first, then
+//                how it split; how it woke; and when it began hunting you, if that came later.
+// The story is the actor's own (woke, hunted), never the 64 cause records, so it says the
+// same however much has happened since it woke (§3.4). The sentences of each waking, split
+// and hunt are their causes' own (Text.event), so the recap and the log say the same thing.
 'use strict';
 (() => {
-  // [stub → W2a-LABELS] Text.recap(state, nameOf) → {killer, wakeTurn, wakeTrigger, huntTurn,
-  // lines}; null until built.
-  Text.provide('recap', () => null);
+  const own = (o, k) => typeof k === 'string' && o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
+  // A sentence, its first letter made small, after "On turn N, ": every story sentence starts
+  // with an actor's name, 'The …', 'A split of …' or 'You'.
+  const on = (turn, s) => `On turn ${turn}, ` + (/^(The|A|You) /.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  const creation = k => own(Registry.WAKE_CAUSES, k) && Registry.WAKE_CAUSES[k].creation === true;
+  const same = (p, q) => JSON.stringify(p) === JSON.stringify(q);
+
+  // The sentence for one waking of uid, as the log told it: a creation's woke (was null); a
+  // waking straight into a hunt (woke, then hunting, which the log tells by the hunting
+  // sentence); or a waking into awake.
+  function waking(uid, woke, huntedThen, nameOf) {
+    const c = woke.cause, k = c && c.k;
+    if (creation(k)) return Text.event({ k: 'woke', turn: woke.turn, who: uid, was: null, mode: huntedThen ? 'hunting' : 'awake', cause: c }, nameOf);
+    if (huntedThen) return Text.event({ k: 'hunting', turn: woke.turn, who: uid, was: 'dormant', cause: c }, nameOf);
+    return Text.event({ k: 'woke', turn: woke.turn, who: uid, was: 'dormant', mode: 'awake', cause: c }, nameOf);
+  }
+  // Did a waking start a hunt? It did if the hunt began then, for the same cause; else its
+  // cause says (Registry.WAKE_CAUSES[k].mode): a body split from another is made in that
+  // body's mode, which is hunting, since the blow that split it made it hunt first (§8.1).
+  function intoHunt(woke, hunted) {
+    if (hunted && hunted.turn === woke.turn && same(hunted.cause, woke.cause)) return true;
+    const k = woke.cause && woke.cause.k, W = own(Registry.WAKE_CAUSES, k) ? Registry.WAKE_CAUSES[k] : null;
+    if (!W) return false;
+    return W.mode === 'parent' ? woke.cause.how === 'split' : W.mode === 'hunting';
+  }
+
+  // The killer's story, oldest first: a split body's ancestors' wakings (cause.parent, the
+  // copy of the body's own waking that a split keeps, §8.1), then its own waking, then its hunt.
+  function story(a, nameOf) {
+    const out = [];
+    if (!a.woke) { out.push(`${cap(name(a.uid, nameOf))} had not woken.`); return out; }
+    const chain = [];
+    for (let c = a.woke.cause, k = 0; c && c.k === 'summoned' && c.parent && typeof c.from === 'string' && k < 8; k++) {
+      chain.unshift({ uid: c.from, woke: c.parent });
+      c = c.parent.cause;
+    }
+    for (const p of chain) {
+      const s = waking(p.uid, p.woke, intoHunt(p.woke, null), nameOf);
+      if (s) out.push(on(p.woke.turn, s));
+    }
+    const hunts = intoHunt(a.woke, a.hunted), s = waking(a.uid, a.woke, hunts, nameOf);
+    if (s) out.push(on(a.woke.turn, s));
+    const h = a.hunted;
+    if (h && !(h.turn === a.woke.turn && hunts)) {
+      const t = Text.event({ k: 'hunting', turn: h.turn, who: a.uid, was: 'awake', cause: h.cause }, nameOf);
+      if (t) out.push(on(h.turn, t));
+    }
+    return out;
+  }
+  // The words for an actor, as Text.event's sentences use them.
+  const name = (uid, nameOf) => uid === 'you' ? 'you' : (typeof nameOf === 'function' && nameOf(uid)) || 'the training dummy';
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+  function recap(state, nameOf) {
+    const over = state && state.over;
+    if (!over || over.k !== 'died') return null;
+    if (typeof nameOf !== 'function' && typeof Labels !== 'undefined') nameOf = Labels.nameOf(state);
+    const cause = over.cause || {}, by = typeof cause.by === 'string' ? cause.by : typeof over.by === 'string' ? over.by : null;
+    const a = by && by !== 'you' ? Actors.byUid(state, by) : null;
+    const out = { killer: by, wakeTurn: a && a.woke ? a.woke.turn : null, wakeTrigger: a && a.woke && a.woke.cause ? a.woke.cause.k : null,
+      huntTurn: a && a.hunted ? a.hunted.turn : null, lines: [] };
+    out.lines.push(a ? `${cap(name(a.uid, nameOf))} defeated you on turn ${over.turn}.` : `You fell on turn ${over.turn}.`);
+    // The blow that did it: the newest damage to you in the cause records (damaged is
+    // recorded, and the visit ends at your death, so it is the killing one).
+    for (let i = state.causes.length - 1; i >= 0; i--) {
+      const r = state.causes[i];
+      if (r.k === 'damaged' && r.who === 'you') { const s = Text.event(r, nameOf); if (s) out.lines.push(s); break; }
+    }
+    if (a) out.lines.push(...story(a, nameOf));
+    return out;
+  }
+  Text.provide('recap', recap);
 })();
 
 </script>
 <script>
 // ACCESSION — what a label says about a thing on the board (BUILD.md §8.8): the title,
-// state, tombstone, pictograms, Behaviour line, odds readout and paragraph, built from the
-// pack, the registry and the rules' own numbers.
+// state, tombstone, pictograms, Behaviour line, odds readout, paragraph and action buttons,
+// built from the pack, the registry and the rules' own numbers. Owned by W2a-LABELS.
+//
+// Every label has one shape, the panel's (§8.8), so the interface and the policies read them
+// alike: {uid, kind, title, stateIcons, tomb, number, pictos: [{icon, text}], behaviour,
+// odds: [sentences], paragraph, far, closeup, actions: [{id, text, act?, aim?}]}. An action
+// with `act` is a step() action that step() takes now: a label offers it only when the
+// action's own legal list has it and nothing forbids it (allowed(), as Step.legal checks),
+// so no button a label shows is refused. An action with `aim` instead needs a target, a
+// tile or an item, chosen in the Bag (W2b-UI-BAG). The labels:
+//   Labels.of(state, uid)            an exhibit's (or, given a selection id such as
+//                                    'case:x,y', that thing's); null for one shown as
+//                                    something else (a mimic in its disguise is a case)
+//   Labels.ofCase(state, f)          a case fixture's: its glass, lock and contents, and its
+//                                    accession number, which a mimic's case lacks (§8.3)
+//   Labels.ofStaffDoor(state, f), Labels.ofPlaque(state, f), Labels.ofItem(state, uid),
+//   Labels.you(state)
+//   Labels.strip(state)              the nearest readable thing within READ_RANGE (§8.8)
+//   Labels.odds(state, a)            the odds readout (§8.1)
+//   Labels.nameOf(state)             names for Text.event
+//   Labels.allowed(state, act)       would step() take act now (the test every button passes)
+// None of them changes the state or draws on a stream: a label is read, never acted on.
 'use strict';
 const Labels = (() => {
+  const own = (o, k) => typeof k === 'string' && o !== null && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k);
   // The species an actor was made from: its department's, its Centrepiece, or a shared one
   // (the Night Watchman); null for you and the test room's dummies.
   const speciesOf = (state, a) => Packs.speciesFor(state, a);
 
+  // Words. Grades as on the badge (§8.7): Grade I … Grade VII, the highest (GRADE_MAX). A
+  // need above it (a T4 Heavy weapon or garment, §8.1) is never written as a grade: needs()
+  // says it in words.
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const grade = n => 'Grade ' + (Number.isInteger(n) && n >= 1 && n < ROMAN.length ? ROMAN[n] : String(n));
+  // What an item needs, for its label: its grade, or, above the highest, that it is always
+  // worn at least that many grades short.
+  const needs = n => n > N.GRADE_MAX
+    ? `more than ${grade(N.GRADE_MAX)}, the highest grade, so it is always worn at least ${count(n - N.GRADE_MAX, 'grade', 'grades')} short`
+    : grade(n);
+  const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const hits = n => count(n, 'hit', 'hits');
+  const turns = n => count(n, 'turn', 'turns');
+  const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
+  const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+  const num = n => (n < 0 ? '−' : '') + Math.abs(n);
+  const yourGrade = state => (state.run && state.run.grade) || N.GRADE_START;
+  // Reading distance (§8.8). An exhibit (from its nearest tile, Actors.dist, as since M2), a
+  // case and an item are read within READ_RANGE tiles counted as a king moves, a diagonal
+  // step counting one, so in the square of side 2 × READ_RANGE + 1 round you. A plaque is
+  // read with read(x, y), whose reach §8.6 sets as the disc of "within r" (§8.2); its label
+  // follows that action (readable, below), so its Read button is offered exactly when step()
+  // takes it.
+  const steps = (a, x, y) => Math.max(Math.abs(a.x - x), Math.abs(a.y - y));
+  const inReach = (you, x, y) => steps(you, x, y) <= N.READ_RANGE;
+
+  // ---- What a label may offer ----
+
+  // Two actions are the same when they have the same fields with the same values.
+  function same(p, q) {
+    const kp = Object.keys(p), kq = Object.keys(q);
+    return kp.length === kq.length && kp.every(k => own(q, k) && p[k] === q[k]);
+  }
+  // Would step() take act now? Exactly when Step.legal would list it: the visit is not over,
+  // no choice waits (unless act answers it), its handler's legal list has it, and no status
+  // of yours forbids it (Status.blocks).
+  function allowed(state, act) {
+    if (state.over || (state.ui && state.ui.pendingChoice && act.a !== 'choose')) return false;
+    const h = Actions.get(act.a);
+    if (!h || Status.blocks(state, state.actors[0], act)) return false;
+    return h.legal(state).some(l => same(l, act));
+  }
+  const offer = (state, id, text, act) => allowed(state, act) ? [{ id, text, act }] : [];
+
+  // The pictograms of the statuses on an actor, each keyed by its registry icon (§8.8), with
+  // the turns it still covers (Status.left).
+  function statusPictos(state, a) {
+    const out = [];
+    for (const s of a.statuses || []) {
+      const S = own(Registry.STATUSES, s.id) ? Registry.STATUSES[s.id] : null;
+      if (!S) continue;
+      out.push({ icon: S.icon, text: `${S.words}, ${turns(Status.left(state, a, s.id))}` });
+    }
+    return out;
+  }
+
+  // ---- Exhibits ----
+
+  // The state icon of each mode, as §8.2's table shows it: searching is shown as hunting (!!)
+  // and reinstalling as returning (↩), D1.1. The board draws the same glyph (Marks.GLYPH,
+  // which a test holds equal to this table); a sleeper with pips shows its pips instead.
+  const MODE_ICON = Object.freeze({ dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' });
   function stateIcons(a) {
     if (a.uid === 'you') return [];
-    if (a.mode === 'dormant') return a.pips ? Array.from({ length: 3 }, (_, i) => i < a.pips ? 'pip' : 'pip_empty') : ['asleep'];
-    return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
+    if (a.mode === 'dormant' && a.pips) return Array.from({ length: N.PIPS_TO_WAKE }, (_, i) => i < a.pips ? 'pip' : 'pip_empty');
+    return [own(MODE_ICON, a.mode) ? MODE_ICON[a.mode] : 'alert'];
+  }
+
+  // The wake pictograms of an exhibit (§8.2, §8.8), from the same entries as its Behaviour
+  // line's wake and trigger parts (Clauses.of): the ring, labelled 'ring', beside the wake
+  // clause that has the ring's icon (the generic one; a mimic's pipless clause has none, since
+  // the ring never touches it), unless its trigger stands instead of that clause (`awake`);
+  // then its trigger's icon, in its words: 'never sleeps' for one that stands instead of the
+  // wake clause, else 'wakes'. An actor with no species (a test room's dummy) is read by its
+  // own archetype and trigger.
+  function wakePictos(sp, a) {
+    const R = Registry, arch = sp ? sp.archetype : a.arch, trigger = sp ? sp.trigger : a.trigger;
+    const A = own(R.ARCHETYPES, arch) ? R.ARCHETYPES[arch] : null, T = own(R.TRIGGERS, trigger) ? R.TRIGGERS[trigger] : null, out = [];
+    if (!(T && T.replacesWake)) {
+      const w = (A && A.wake) || 'wake', W = own(R.CLAUSES, w) ? R.CLAUSES[w] : null;
+      if (W && W.icon) out.push({ icon: W.icon, text: 'ring' });
+    }
+    if (T) out.push({ icon: T.icon, text: T.replacesWake ? 'never sleeps' : 'wakes' });
+    return out;
+  }
+
+  // A body split from another (a splitter's half, §8.1): a splitter whose uid is its body's
+  // and a count, <body uid>/<k> (§3.2). Neither ever changes, so a half keeps its name
+  // however often it settles back and is woken again, though each waking writes over its
+  // story (`woke`), which first said how it split.
+  const split = a => !!a && a.arch === 'splitter' && typeof a.uid === 'string' && /\/\d+$/.test(a.uid);
+  // The species name in mid-sentence ('the Dawn-Caller on a Perch'), a split body's as 'a
+  // split of …'.
+  const theName = sp => 'the ' + sp.name.replace(/^The /, '');
+  const midName = (a, sp) => (split(a) ? 'a split of ' : '') + theName(sp);
+
+  // The tile of a's footprint nearest (x, y), ties in row-major order: where its blow comes
+  // from (Combat.attack's fromTile).
+  function fromTile(a, x, y) {
+    let best = null, bd = -1;
+    for (const t of Actors.footprint(a)) { const d = Math.max(Math.abs(t[0] - x), Math.abs(t[1] - y)); if (bd < 0 || d < bd) { best = t; bd = d; } }
+    return best;
+  }
+  // What a hit of att's would take from def for a damage of `amount` after Padding: what
+  // def's archetype and modifiers make of it (Archetypes.adjustDamage), the blow coming from
+  // the tile `from`. So a hit through an old repair's side reads doubled, and a body that any
+  // hit destroys reads all its health (§8.1). The cause is a scratch copy, never kept.
+  const adjusted = (state, att, def, amount, from) =>
+    Archetypes.adjustDamage(state, def, amount, { k: 'attack', by: att.uid, at: def.uid, from: [from[0], from[1]] });
+  // Every roll att could make against def, after Padding and adjustDamage, from `from`: how
+  // many there are, their sum, and the least and most (Combat.netRolls, adjusted).
+  const rolls = (state, att, def, from) => Combat.netRolls(att, def, state, from);
+  const MELEE = { kind: 'melee' }, REACH = { kind: 'reach' };
+  // The blow you would make at a now, as attack(uid) makes it: a blow beside it if one is
+  // allowed, else a Reach blow if your weapon has Reach and one is allowed, else none.
+  function blowNow(state, you, a) {
+    if (Combat.canStrike(state, you, a, MELEE) === null) return 'melee';
+    if (you.reach && Combat.canStrike(state, you, a, REACH) === null) return 'reach';
+    return null;
+  }
+  // A surprise blow's figure now, after Padding and adjustDamage (§8.1): the most a blow of
+  // this kind deals (×1.5 for a Light weapon's blow beside it, never for Reach), or against a
+  // Centrepiece the rolled range, since its surprise blow rolls damage.
+  function surprise(state, you, a, kind, at) {
+    if (Actors.centrepiece(a)) { const r = rolls(state, you, a, at); return { min: r.min, max: r.max }; }
+    const d = adjusted(state, you, a, Math.max(N.DMG_MIN_ON_HIT, Combat.surpriseRaw(you, { kind }) - a.pad), at);
+    return { min: d, max: d };
+  }
+
+  // What a special is called in its line, by its shape (Specials.SHAPES).
+  const SPECIAL = { ring: 'ring of blows', line: 'beam', call: 'call' };
+  // The odds readout's line for a special (§8.1; Specials.readout): what it would deal you now
+  // through your Padding, its gross number, with no roll, its reach, and its cadence.
+  function specialLine(r) {
+    const name = own(SPECIAL, r.shape) ? SPECIAL[r.shape] : 'special';
+    if (r.net === null) return `Its ${name} deals no damage: it wakes the sleeping exhibits within ${r.range} tiles of it that can hear.`;
+    const where = r.shape === 'ring' ? ', on the tiles round it' : r.range !== null ? `, up to ${r.range} tiles along a row or column` : '';
+    const cadence = r.every !== null ? `, at most one action in ${r.every}` : '';
+    return `Its ${name} would deal you ${r.net} (${r.gross} before your Padding), with no roll${where}${cadence}.`;
   }
 
   // The odds readout (BUILD.md §8.1), by exact enumeration of the rolls, all integer.
-  // "Typically" is the mean net hit as a share of your current health, rounded half up.
-  // What its archetype says of its odds (Archetypes.readout) changes two lines: an exhibit
-  // with no blow (noBlow, the axis_sniper) gets no line on its hitting you, and one that
-  // needs a set number of hits (hits, a swarm body, which any hit destroys) says so.
-  const halfUp = (num, den) => Int.idiv(2 * num + den, 2 * den);
-  const hits = n => n + (n === 1 ? ' hit' : ' hits');
+  // "Typically" is the mean net hit as a share of your current health, rounded half up. Your
+  // figures are those of a blow from your tile (cause.from), so an old repair's doubled side
+  // and a swarm body's any-hit rule read truly (adjustDamage). What its archetype says of its
+  // odds (Archetypes.readout) changes two lines: an exhibit with no blow (noBlow, the
+  // axis_sniper) gets no line on its hitting you, and one that needs a set number of hits
+  // (hits) says so: a swarm body 1; a splitter that can still split the hits on it and on
+  // every half it splits off (halves), which its line names. A ranged archetype with a blow's
+  // numbers (the kiter) never strikes: its only attack is its shot, made with its blow's
+  // chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot), so its first line says it
+  // shoots. With Reach (a Reach weapon, or any weapon with the reach primitive, whose blows
+  // reach as a Reach weapon's do, Kit.derive's you.reach) you strike from REACH_RANGE away as
+  // from beside it (§8.1); and each special has its line.
+  // An exhibit in an intact case keeps its lines, which say what its blows would do once out,
+  // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
+  // wakes it (§8.3), so no blow could ever catch it as the line would say.
+  const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
   function odds(state, a) {
-    const you = state.actors[0], hp = Math.max(1, you.hp);
-    const theirs = Combat.netRolls(a, you), mine = Combat.netRolls(you, a);
+    const you = state.actors[0], hp = Math.max(1, you.hp), at = [you.x, you.y];
     const said = Archetypes.readout(state, a, you), noBlow = said.some(r => r.k === 'noBlow'), set = said.find(r => r.k === 'hits');
-    const need = set ? set.n : Int.ceilDiv(a.hp * mine.n, mine.sum);
+    const A = own(Registry.ARCHETYPES, a.arch) ? Registry.ARCHETYPES[a.arch] : null;
+    const mine = rolls(state, you, a, at), need = set ? set.n : Int.ceilDiv(a.hp * mine.n, mine.sum);
     const lines = [];
-    if (!noBlow) lines.push(`It has a ${Combat.hitChance(a, you)}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`);
-    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it.`);
-    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${range(Combat.surpriseNet(you, a))}.`);
+    if (!noBlow) {
+      const theirs = rolls(state, a, you, fromTile(a, you.x, you.y)), chance = Combat.hitChance(a, you);
+      const typ = halfUp(100 * theirs.sum, theirs.n * hp), worst = hits(Int.ceilDiv(hp, theirs.max));
+      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
+        : `It has a ${chance}% chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
+    }
+    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
+    if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
+    if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
+      const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;
+      lines.push(r.min === m.min && r.max === m.max ? `A surprise attack now would hit for certain, for ${range(m)}.`
+        : `A surprise attack now would hit for certain, for ${range(m)} from beside it, or ${range(r)} with Reach from ${N.REACH_RANGE} tiles away.`);
+    }
+    for (const r of Specials.readout(state, a, you)) lines.push(specialLine(r));
     return lines;
   }
 
@@ -9408,19 +9767,33 @@ const Labels = (() => {
   // clauses of rules switched off for this visit.
   const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [] });
 
-  // The Attack button says what a blow would do now (§7.1): a surprise blow hits for
-  // certain (§8.1), so it shows no chance.
-  const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
-  function attackText(you, a) {
-    if (Combat.surprised(you, a)) return `Attack: certain hit, ${range(Combat.surpriseNet(you, a))} damage`;
-    return `Attack: ${Combat.hitChance(you, a)}%, ${range(Combat.netRolls(you, a))} damage`;
+  // The Attack button says what the blow you would make now does (§7.1): a surprise blow hits
+  // for certain (§8.1), so it shows no chance; a Reach blow says so.
+  function attackText(state, you, a, kind) {
+    const at = [you.x, you.y], what = kind === 'reach' ? 'Attack with Reach' : 'Attack';
+    if (Combat.surprised(you, a)) return `${what}: certain hit, ${range(surprise(state, you, a, kind, at))} damage`;
+    return `${what}: ${Combat.hitChance(you, a)}%, ${range(rolls(state, you, a, at))} damage`;
   }
 
   // An exhibit's label, or null: for you, for one gone, and for one that shows as something
   // else (Archetypes.present: a mimic in its disguise is a case, whose label is its case's,
-  // §8.3). Its Attack button is offered only for a blow step() would allow
-  // (Combat.canStrike), so an exhibit in an intact case, beside you, gets none.
+  // §8.3). A selection id names a thing that is not an exhibit ('case:x,y', 'plaque:x,y',
+  // 'staff:x,y', 'item:<uid>'), and gives that thing's label. Its Attack button is offered
+  // only for a blow step() would take now (allowed), beside it or with Reach.
+  const SELECTED = /^(case|plaque|staff):(-?\d+),(-?\d+)$/;
+  // An exhibit's accession number (§8.8, D40): its pack id read as family letter, department
+  // and item ('S9.5' → 'S.9.5'). A shared species (the Night Watchman), which no department
+  // accessioned, has none, and nor has an actor with no species.
+  const accession = sp => sp && /^[A-Z]+\d+\./.test(sp.id) ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '';
   function of(state, uid) {
+    if (typeof uid !== 'string') return null;
+    const m = SELECTED.exec(uid);
+    if (m) {
+      const f = Cases.at(state, Number(m[2]), Number(m[3]));
+      if (!f || f.k !== m[1]) return null;
+      return m[1] === 'case' ? ofCase(state, f) : m[1] === 'plaque' ? ofPlaque(state, f) : ofStaffDoor(state, f);
+    }
+    if (uid.startsWith('item:')) return ofItem(state, uid.slice(5));
     const a = Actors.byUid(state, uid);
     if (!a || a.gone || a.uid === 'you' || Archetypes.present(state, a) !== null) return null;
     const sp = speciesOf(state, a), you = state.actors[0];
@@ -9432,57 +9805,282 @@ const Labels = (() => {
       { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
       { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
     ].filter(p => blow || (p.icon !== 'acc' && p.icon !== 'damage'));
-    if (sp && sp.trigger && Registry.TRIGGERS[sp.trigger]) pictos.unshift({ icon: Registry.TRIGGERS[sp.trigger].icon, text: 'wakes' });
-    pictos.unshift({ icon: 'ring', text: 'ring' });
-    const strike = Combat.canStrike(state, you, a, { kind: 'melee' }) === null;
+    pictos.unshift(...wakePictos(sp, a));
+    pictos.push(...statusPictos(state, a));
+    const kind = blowNow(state, you, a);
+    const title = sp ? (split(a) ? 'A split of ' + theName(sp) : sp.name) : a.sp;
     return {
-      uid, title: sp ? sp.name : a.sp, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
+      uid, kind: 'exhibit', title, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: accession(sp),
       pictos, behaviour: sp ? behaviour(state, sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
-      actions: strike ? [{ id: 'attack', text: attackText(you, a) }] : [],
+      actions: kind ? offer(state, 'attack', attackText(state, you, a, kind), { a: 'attack', uid: a.uid }) : [],
     };
   }
 
-  // The strip (§8.8): the nearest readable exhibit within 2 tiles of its nearest tile and
-  // with any tile in sight, in this priority: hunting or awake exhibits (every mode but
-  // dormant), then sleeping ones; nearest first within each, then spawn order. Case
-  // contents and plaques join in M3. An exhibit that shows as something else (a mimic in its
-  // disguise, Archetypes.present) is not an exhibit here: it reaches the strip only as a case.
+  // ---- Items ----
+
+  const items = state => state.items || [];
+  const itemByUid = (state, uid) => { for (const i of items(state)) if (i.uid === uid) return i; return null; };
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // An item's name: a consumable's local name (Consumables.name), a pack item's own, else
+  // what it is ('A Balanced weapon, tier 1'; 'A Restoration kit').
+  function itemName(state, it) {
+    if (it.kind === 'consumable') return Consumables.name(state, it).local;
+    if (it.kind === 'kit') return 'A Restoration kit';
+    const d = Kit.describe(state, it.uid);
+    if (d && d.title) return d.title;
+    if (it.kind === 'instrument' && own(Registry.INSTRUMENTS, it.form)) return `A ${Registry.INSTRUMENTS[it.form].name}` + (Number.isInteger(it.tier) ? `, tier ${it.tier}` : '');
+    if ((it.kind === 'weapon' || it.kind === 'garment') && typeof it.form === 'string') return `A ${cap(it.form)} ${it.kind}` + (Number.isInteger(it.tier) ? `, tier ${it.tier}` : '');
+    return /^[aeiou]/.test(it.kind) ? 'An ' + it.kind : 'A ' + it.kind;
+  }
+  // A seal's pictogram is its shape's, seal_<shape> (D5.11: seals are told apart by shape;
+  // Registry.SEALS[seal].shape), or the plain seal for one with no shape.
+  const sealIcon = seal => own(Registry.SEALS, seal) && typeof Registry.SEALS[seal].shape === 'string' ? 'seal_' + Registry.SEALS[seal].shape : 'seal';
+  // An item's pictogram is its kind's; a consumable's is its seal's (§8.8, D5.11).
+  const itemIcon = (state, it) => it.kind === 'consumable' ? sealIcon(Consumables.name(state, it).seal) : it.kind;
+  const BONUS = { dmg: 'damage', acc: 'Acc', eva: 'Eva', pad: 'Padding' };
+  // What kind of thing it is, beside its pictogram: a weapon's or garment's form and tier, an
+  // instrument's tier, a curio's rank; and its Restoration levels. An item with no tier (one
+  // an arena or a test made without one) names none, as its title does.
+  function itemKind(it, d) {
+    const level = d.level ? `, level ${d.level}` : '', tier = Number.isInteger(it.tier) ? `, tier ${it.tier}` : '';
+    if ((it.kind === 'weapon' || it.kind === 'garment') && typeof it.form === 'string') return `${cap(it.form)} ${it.kind}${tier}${level}`;
+    if (it.kind === 'instrument') return `instrument${tier}${level}` + (d.instrument ? `, ${d.instrument.charges}/${d.instrument.max} charges` : '');
+    if (it.kind === 'curio') return d.rank ? `curio, rank ${d.rank}` : 'curio';
+    return it.kind === 'kit' ? 'Restoration kit' : it.kind;
+  }
+  const FEATURE = { reach: 'Reach', quiet: 'Quiet', breaker: 'Breaker', charges: 'Charges' };
+  // What you can do with an item now: the step() actions that need nothing more (take, drop,
+  // equip, take off, a consumable's drink or read), and those that need a target (an
+  // instrument's tile, a throw's tile, a Restoration kit's item), as `aim`.
+  const VERB = { take: 'Take', drop: 'Drop', equip: 'Equip', unequip: 'Take off' };
+  function itemActions(state, it) {
+    if (state.over || (state.ui && state.ui.pendingChoice)) return [];
+    const out = [], legal = Step.legal(state);
+    const mine = legal.filter(l => l.uid === it.uid);
+    for (const id of ['take', 'equip', 'drop']) { const l = mine.find(q => q.a === id); if (l) out.push({ id, text: VERB[id], act: l }); }
+    if (it.where.at === 'kit') { const l = legal.find(q => q.a === 'unequip' && q.slot === it.where.slot); if (l) out.push({ id: 'unequip', text: VERB.unequip, act: l }); }
+    const use = mine.filter(q => q.a === 'use');
+    const plain = use.find(q => q.x === undefined && q.on === undefined && q.how === undefined);
+    if (plain) {
+      const cls = it.kind === 'consumable' && own(Registry.CONSUMABLES, it.ck) ? Registry.CONSUMABLES[it.ck].cls : null;
+      out.push({ id: 'use', text: cls === 'ephemera' ? 'Read' : cls === 'solution' ? 'Drink' : 'Use', act: plain });
+    }
+    if (use.some(q => q.x !== undefined)) out.push({ id: 'aim', text: 'Use at a tile…', aim: 'tile' });
+    if (use.some(q => q.on !== undefined)) out.push({ id: 'restore', text: 'Use on an item…', aim: 'item' });
+    if (mine.some(q => q.a === 'throw')) out.push({ id: 'throw', text: 'Throw…', aim: 'tile' });
+    return out;
+  }
+
+  // An item's label (§8.8): a consumable's local name, seal and line (its kind's once
+  // identified, Consumables.line); any other item's name, tombstone and the parts of its
+  // Behaviour line (Kit.describe), with its own numbers at your grade, its bonuses and, for an
+  // instrument, its charges. Carried or worn, it is read wherever you are; on the floor or in
+  // a case, its paragraph needs you within READ_RANGE. null for an item that is gone.
+  function ofItem(state, uid) {
+    const it = itemByUid(state, uid);
+    if (!it || !it.where || it.where.at === 'gone') return null;
+    const you = state.actors[0], w = it.where, carried = w.at === 'tote' || w.at === 'kit';
+    const close = carried || inReach(you, w.x, w.y);
+    const base = { uid: 'item:' + uid, kind: 'item', title: itemName(state, it), stateIcons: [], tomb: null, number: '', pictos: [], behaviour: '',
+      odds: [], paragraph: '', far: '', closeup: null, actions: itemActions(state, it) };
+    if (it.kind === 'consumable') {
+      const nm = Consumables.name(state, it), n = it.n === null || it.n === undefined ? 1 : it.n;
+      if (n > 1) base.title += ` (${n})`;
+      if (nm.seal && own(Registry.SEALS, nm.seal)) base.pictos.push({ icon: sealIcon(nm.seal), text: Registry.SEALS[nm.seal].name });
+      base.behaviour = Consumables.line(state, it);
+      base.odds.push(nm.kind && own(Registry.CONSUMABLES, nm.kind) ? `Identified: it is ${Registry.CONSUMABLES[nm.kind].name}.` : 'Not identified: which kind it is is not known yet.');
+      return base;
+    }
+    const d = Kit.describe(state, uid);
+    if (!d) return null;
+    base.tomb = d.tomb;
+    base.number = d.tomb && typeof d.ref === 'string' ? d.ref.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '';
+    base.behaviour = d.line;
+    base.pictos.push({ icon: itemIcon(state, it), text: itemKind(it, d) });
+    if (d.stats && it.kind === 'weapon') {
+      base.pictos.push({ icon: 'damage', text: `${d.stats.dmin}–${d.stats.dmax}` }, { icon: 'acc', text: num(d.stats.acc) });
+      base.odds.push(`At your grade, before any bonus: ${d.stats.dmin}–${d.stats.dmax} damage and Acc ${num(d.stats.acc)}; a blow takes ${d.stats.cost} ticks.`);
+    } else if (d.stats) {
+      base.pictos.push({ icon: 'padding', text: String(d.stats.pad) }, { icon: 'eva', text: signed(d.stats.eva) });
+      base.odds.push(`At your grade, before any bonus: Padding ${d.stats.pad} and Eva ${signed(d.stats.eva)}.`);
+    }
+    if (d.needs !== null) base.odds.push(`It needs ${needs(d.needs)}; you are ${grade(yourGrade(state))}` + (d.short ? `, ${count(d.short, 'grade', 'grades')} short.` : '.'));
+    const bonus = [];
+    for (const b of d.bonuses) {
+      if (own(BONUS, b.id) && Number.isInteger(b.n)) bonus.push(`${signed(b.n)} ${BONUS[b.id]}`);
+      else if (own(FEATURE, b.id)) bonus.push(FEATURE[b.id]);
+    }
+    if (bonus.length) base.odds.push(`It gives ${bonus.join(', ')}.`);
+    if (d.level) base.odds.push(it.kind === 'curio' ? `Restored ${count(d.level, 'level', 'levels')}: rank ${d.rank}.` : `Restored ${count(d.level, 'level', 'levels')}.`);
+    const I = d.instrument;
+    if (I) {
+      const next = I.back === null ? 'it is full' : `the next comes back in ${turns(I.back)}`;
+      base.odds.push(`${count(I.charges, 'charge', 'charges')} of ${I.max}; one comes back every ${turns(I.recharge)}, and ${next}. It reaches ${I.range} tiles.`);
+      if (Number.isInteger(I.dmin)) base.odds.push(`Its bolt deals ${I.dmin === I.dmax ? I.dmin : I.dmin + '–' + I.dmax} damage, rolled with Acc ${num(I.acc)}.`);
+    }
+    if (d.paragraph) { if (close) base.paragraph = d.paragraph; else base.far = 'Come closer to read the label.'; }
+    return base;
+  }
+
+  // ---- Cases, staff doors and plaques ----
+
+  // A case's label (§8.3, §8.8): what it holds, or that its object is on loan, or that it is
+  // empty; its glass and lock, and its cracks; its rules (Cases.rules: the case's and its
+  // glass's clauses); what you can do to it now with your grade and weapon; its tombstone,
+  // which carries its accession number. A mimic in its disguise gives exactly what a real
+  // empty case with its glass, lock and loan gives, but no number: its one tell (§8.3, D3.10).
+  // null for a fixture that is not a case, or a revealed mimic's.
+  const ST = { open: 'An open case', broken: 'A broken case', dissolved: 'A case with its glass dissolved' };
+  function ofCase(state, f) {
+    const d = Cases.describe(state, f);
+    if (!d || d.k !== 'case') return null;
+    const you = state.actors[0], close = inReach(you, d.x, d.y), shut = d.st === 'shut';
+    const held = d.holds ? itemByUid(state, d.holds.uid) : null, what = held ? itemName(state, held) : null;
+    const rec = held && held.kind !== 'consumable' ? Kit.describe(state, held.uid) : null;
+    // An exhibit standing in it, seen through the glass, is named; a mimic in its disguise is
+    // the case itself, not something in it.
+    const inside = shut ? state.actors.find(a => !a.gone && a.uid !== 'you' && Actors.covers(a, d.x, d.y) && Archetypes.present(state, a) === null) : null;
+    const sp = inside ? speciesOf(state, inside) : null;
+    let title;
+    if (inside) title = `A case, with ${sp ? midName(inside, sp) : 'an exhibit'} inside`;
+    else if (shut) title = what ? `A case: ${what}` : d.loan ? 'A case: its object is on loan elsewhere' : 'An empty case';
+    else title = (own(ST, d.st) ? ST[d.st] : 'A case') + (what ? `: ${what}` : '');
+    const pictos = [{ icon: 'glass', text: `${d.glassName || 'unknown'} glass` }, { icon: 'lock', text: grade(d.lock) }];
+    if (shut && d.hits > 0) pictos.push({ icon: 'shards', text: `cracked, ${d.hits} of ${count(d.need, 'bash', 'bashes')}` });
+    if (held) pictos.push({ icon: itemIcon(state, held), text: held.kind });
+    const lines = [];
+    if (shut) {
+      lines.push(d.canOpen ? `Your grade (${grade(yourGrade(state))}) opens its lock (${grade(d.lock)}).` : `Its lock needs ${grade(d.lock)}; you are ${grade(yourGrade(state))}.`);
+      lines.push(!d.canBreak ? `A Light weapon cannot break ${d.glassName} glass.` : d.blows === 1 ? `Your weapon breaks its ${d.glassName} glass in 1 blow, with a crash.`
+        : `Your weapon breaks its ${d.glassName} glass in ${d.blows} blows: each before the last is loud, and the last makes a crash.`);
+    } else if (held) lines.push('It is no longer shut: what it holds can be taken.');
+    const actions = shut ? offer(state, 'open', `Open: ${grade(d.lock)}`, { a: 'open', x: d.x, y: d.y })
+      .concat(offer(state, 'bash', d.blows === 1 ? 'Break the glass: 1 blow, a crash' : `Break the glass: ${d.blows} blows, loud, the last a crash`, { a: 'bash', x: d.x, y: d.y }))
+      : held ? offer(state, 'take', `Take ${what}`, { a: 'take', uid: held.uid }) : [];
+    return {
+      uid: `case:${d.x},${d.y}`, kind: 'case', x: d.x, y: d.y, title, stateIcons: [],
+      tomb: rec && rec.tomb ? rec.tomb : {}, number: d.num || '', pictos, behaviour: d.rules.join(' '), odds: lines,
+      paragraph: close && rec && rec.paragraph ? rec.paragraph : '', far: !close && rec && rec.paragraph ? 'Come closer to read the label.' : '',
+      closeup: null, actions,
+    };
+  }
+
+  // The tile beside you in direction d toward (x, y), as a move: the direction, or -1.
+  function dirTo(you, x, y) {
+    for (let d = 0; d < 8; d++) if (you.x + Grid.DX[d] === x && you.y + Grid.DY[d] === y) return d;
+    return -1;
+  }
+  // A staff door's label (§8.3): its grade, its rule, and whether your grade opens it; you
+  // open it by stepping into it, and close it with close(x, y).
+  function ofStaffDoor(state, f) {
+    const d = Cases.describe(state, f);
+    if (!d || d.k !== 'staff') return null;
+    const you = state.actors[0], g = yourGrade(state), dir = dirTo(you, d.x, d.y);
+    const actions = d.open ? offer(state, 'close', 'Close', { a: 'close', x: d.x, y: d.y })
+      : d.canOpen && dir >= 0 ? offer(state, 'open', `Open: ${grade(d.grade)}`, { a: 'move', dir }) : [];
+    return {
+      uid: `staff:${d.x},${d.y}`, kind: 'staff', x: d.x, y: d.y, title: d.open ? 'An open staff door' : 'A staff door', stateIcons: [],
+      tomb: null, number: '', pictos: [{ icon: 'lock', text: grade(d.grade) }], behaviour: d.rules.join(' '),
+      odds: [d.canOpen ? `Your grade (${grade(g)}) opens it.` : `It needs ${grade(d.grade)}; you are ${grade(g)}, so to you it is a wall.`],
+      paragraph: '', far: '', closeup: null, actions,
+    };
+  }
+
+  // Is a plaque at (x, y) within reading distance (READ_RANGE, a disc) and in sight (§8.6)?
+  const readable = (state, x, y) => { const you = state.actors[0]; return Grid.disc(x - you.x, y - you.y, N.READ_RANGE) && Grid.los(state.dept, you.x, you.y, x, y); };
+  // An identifying label on a wall (§8.6): the seal of the kind it describes, its rule, and,
+  // once that kind is identified, its text (the pack's consumables.labels). Reading it
+  // (read(x, y), free) is what identifies the kind, so before that the label offers Read and
+  // does not show the text, whose words name the kind.
+  function ofPlaque(state, f) {
+    if (!f || f.k !== 'plaque' || !own(Registry.CONSUMABLES, f.ck)) return null;
+    const known = Consumables.known(state, f.ck), seal = Consumables.sealFor(state, f.ck), close = readable(state, f.x, f.y);
+    const pack = Packs.get(state.dept.acc), text = pack && pack.consumables && own(pack.consumables.labels, f.ck) ? pack.consumables.labels[f.ck] : '';
+    const P = Registry.FIXTURES.plaque, pictos = [{ icon: 'reads', text: 'label' }];
+    if (seal && own(Registry.SEALS, seal)) pictos.push({ icon: sealIcon(seal), text: Registry.SEALS[seal].name });
+    return {
+      uid: `plaque:${f.x},${f.y}`, kind: 'plaque', x: f.x, y: f.y,
+      title: known ? `An identifying label: ${Registry.CONSUMABLES[f.ck].name}` : 'An identifying label', stateIcons: [], tomb: null, number: '',
+      pictos, behaviour: Clauses.fill(P.clause, Clauses.params(P.params, null, { depth: state.dept.depth })), odds: [],
+      paragraph: known && close ? text : '', far: !close ? 'Come closer to read the label.' : known ? '' : 'Read it to learn which kind it describes.',
+      closeup: null, actions: offer(state, 'read', 'Read the label', { a: 'read', x: f.x, y: f.y }),
+    };
+  }
+
+  // ---- You ----
+
+  // Your label: your grade, your numbers as Kit.derive makes them (with your weapon's blow
+  // cost), your ring now (Vision.ringRadius), your statuses and the turns each still covers,
+  // and what you can do on your own tile: wait, rest, sit on a bench, leave by an exit.
+  function yours(state) {
+    const you = state.actors[0], r = Vision.ringRadius(state);
+    const pictos = [
+      { icon: 'heart', text: `${you.hp}/${you.maxHp}` }, { icon: 'acc', text: String(you.acc) }, { icon: 'eva', text: String(you.eva) },
+      { icon: 'padding', text: String(you.pad) }, { icon: 'damage', text: `${you.dmin}–${you.dmax}` }, { icon: 'ring', text: count(r, 'tile', 'tiles') },
+    ].concat(statusPictos(state, you));
+    if (you.seated) pictos.push({ icon: 'bench', text: 'seated' });
+    const lines = [`Handling Clearance, ${grade(yourGrade(state))}.`,
+      `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${you.acc}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
+      `You have Padding ${you.pad} and Eva ${you.eva}.`,
+      `Your ring reaches ${count(r, 'tile', 'tiles')} now.`];
+    for (const s of you.statuses || []) if (own(Registry.STATUSES, s.id)) lines.push(`You are ${Registry.STATUSES[s.id].words}: ${turns(Status.left(state, you, s.id))} left.`);
+    const actions = offer(state, 'wait', 'Wait', { a: 'wait' }).concat(offer(state, 'rest', 'Rest', { a: 'rest' }), offer(state, 'sit', 'Sit on the bench', { a: 'sit' }));
+    const exits = (state.dept && state.dept.exits) || [];
+    for (let i = 0; i < exits.length; i++) actions.push(...offer(state, 'leave', 'Leave by this door', { a: 'leave', i }));
+    return { uid: 'you', kind: 'you', title: 'You', stateIcons: [], tomb: null, number: '', pictos, behaviour: '', odds: lines, paragraph: '', far: '', closeup: null, actions };
+  }
+
+  // ---- The strip ----
+
+  // The strip (§8.8): the nearest readable thing within READ_RANGE, in this priority: hunting
+  // or awake exhibits (every mode but dormant), sleeping exhibits, case contents, plaques;
+  // nearest first (in king moves) within each, then spawn order, then fixture order. An
+  // exhibit counts from its nearest tile, with any tile in sight; a case from its tile, in
+  // sight; a plaque where it can be read (its disc, in sight; readable). Case contents are a
+  // shut case, by what it holds, its object on loan, or nothing, and a case no longer shut
+  // that still holds its object: an opened, broken or dissolved case that holds nothing has
+  // nothing left to read, and does not keep a plaque off the strip. An exhibit that shows as
+  // something else (a mimic in its disguise, Archetypes.present) is not an exhibit here: it
+  // reaches the strip only as its case, which is shut, as a real empty shut case would. The
+  // strip shows the label's title, state, first two pictograms and Behaviour line (a case's:
+  // what you can do to it).
   function strip(state) {
     const you = state.actors[0];
-    let best = null, bestKey = null;
+    let best = null, bestKey = -1;
+    const consider = (key, make) => { if (best === null || key < bestKey) { best = make; bestKey = key; } };
+    const TIER = 100;
     for (const a of state.actors) {
       if (a.gone || a.uid === 'you' || Archetypes.present(state, a) !== null) continue;
       const d = Actors.dist(a, you.x, you.y);
       if (d > N.READ_RANGE || !Actors.inSight(state, a, you.x, you.y)) continue;
-      const key = (a.mode === 'dormant' ? 1 : 0) * 100 + d;
-      if (best === null || key < bestKey) { best = a; bestKey = key; }
+      consider((a.mode === 'dormant' ? 1 : 0) * TIER + d, () => of(state, a.uid));
+    }
+    for (const f of (state.dept && state.dept.fixtures) || []) {
+      if (f.k === 'case' && f.st !== 'revealed' && (f.st === 'shut' || !!f.holds)) {
+        if (inReach(you, f.x, f.y) && Grid.los(state.dept, you.x, you.y, f.x, f.y)) consider(2 * TIER + steps(you, f.x, f.y), () => ofCase(state, f));
+      } else if (f.k === 'plaque' && readable(state, f.x, f.y)) consider(3 * TIER + steps(you, f.x, f.y), () => ofPlaque(state, f));
     }
     if (!best) return null;
-    const l = of(state, best.uid);
-    return { uid: best.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: l.behaviour };
+    const l = best();
+    if (!l) return null;
+    const short = l.kind === 'case' ? l.odds.join(' ') : l.behaviour;
+    return { uid: l.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: short };
   }
 
-  // Names for Text.event: nameOf(state) → (uid → 'the' and the species name as written, or
-  // null for you and for anything with no species in a pack, such as the test room's dummies).
+  // Names for Text.event: nameOf(state) → (uid → 'the' and the species name as written, a
+  // split body's as 'a split of the …', or null for you and for anything with no species in a
+  // pack or shared, such as the test room's dummies).
   function nameOf(state) {
     return uid => {
       if (uid === 'you') return null;
       const a = Actors.byUid(state, uid), sp = a ? speciesOf(state, a) : null;
-      return sp ? 'the ' + sp.name.replace(/^The /, '') : null;
+      return sp ? midName(a, sp) : null;
     };
   }
 
-  // [stub → W2a-LABELS] The labels of things that are not exhibits (§8.8): a case (with its
-  // accession number), an item, a plaque, a staff door, and you. null for now.
-  const ofCase = (state, f) => null;
-  const ofItem = (state, uid) => null;
-  const ofPlaque = (state, f) => null;
-  const ofStaffDoor = (state, f) => null;
-  const yours = state => null;
-
-  return { of, strip, speciesOf, stateIcons, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours };
+  return { of, strip, odds, speciesOf, stateIcons, MODE_ICON, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours, allowed };
 })();
 
 </script>
@@ -9579,44 +10177,271 @@ const Dept = (() => {
 </script>
 <script>
 // ACCESSION — the view model: a plain description of what to draw, derived from the state
-// (BUILD.md §6.1). Both board views read this and nothing else, and bots see only this.
+// (BUILD.md §6.1). Both board views read this and nothing else, and bots see only this, so
+// it shows what a player sees and no more: unseen tiles are masked, and what lies on a tile
+// (an exhibit, a case, an item, a mark) is listed only where the tile is in view.
+//
+// ViewModel.shows(vm, id) → bool: whether the thing a label's selection id names is in view in
+// vm, so its label may stay open (§7.2, §8.8).
+//
+// ViewModel.derive(state, ui) → vm. ui is what the interface adds (all optional):
+//   events        the events of your last action that took time (main.js keeps them across
+//                 a step that takes none), for the one-turn cues and the noise rings;
+//   path          the path preview, [[x, y]…];  selection  an actor's uid;  selectedTile {x, y};
+//   aim           {x, y, uid?, size?}: the tile you are aiming at, and the item you aim (a
+//                 Solution's square is drawn round it, its own size once its kind is known,
+//                 the largest Solution's while it is not); size, given, sets that square.
+// vm:
+//   dept, w, h, turn, over
+//   tiles         the map's rows as you know them: a tile in view as it is now, a remembered
+//                 tile as you last saw it (dept.seen), and one you have never seen as ' '
+//                 (§6.1, §10.2, D7.7)
+//   vis           per tile: 0 unseen, 1 remembered, 2 visible now;  ring  1 inside your ring
+//   actors        you (always first), then each actor on a visible tile, never one that shows
+//                 as something else (a mimic in its disguise): {uid, sprite, x, y, size, mode,
+//                 pips, hostile, hp, maxHp, telegraphing, statuses, encased}
+//   marks         unique by kind:x,y — {kind: 'telegraph', x, y, dmg, by} and {kind: 'call', x,
+//                 y, by} on visible tiles (Specials.marks); {kind: 'noise', x, y, cls} on visible
+//                 or remembered tiles, the loudest class where two noises of the step reach
+//                 one; {kind: 'area', x, y} and {kind: 'aim', x, y} from ui.aim
+//   cues          {movedFrom: [{uid, x, y}], hit: [uid], broke: [{x, y}], special: [uid]}
+//   cases, staff, items, plaques, surfaces   what stands or lies on visible tiles
+//   you           {x, y, hp, maxHp, grade, statuses, kit, tote, consumables, charges, seated,
+//                 acc, eva, pad}
+//   clock         Clock.view(state), and turn (its count, where the dial's hand points), or null
+//   plan          null, or once a Floor Plan has been read here the rooms that still hold a
+//                 Highlight, [{key, number, x0, y0, x1, y1}]
+//   known, pending   the seals identified, with their kinds; the choice waiting, if any
+//   camera        the tile to centre: you, leaning towards a telegraph that covers you
+//   path, selection, selectedTile   as ui gave them
 'use strict';
 const ViewModel = (() => {
+  // How far, in tiles each way, the camera leans from you towards a telegraph that covers you
+  // (§7.2, "Auto-pan when a telegraph targets you"): little enough that you stay in view at
+  // every zoom step of both views (the narrowest shows about 7 tiles across).
+  const LEAN = 2;
+  // Noise classes from quietest to loudest; a tile two noises reach shows the louder.
+  const LOUDNESS = ['soft', 'loud', 'crash'];
+
+  // A cue list holds each uid once, in the order the events give them.
+  const once = (list, v) => { if (!list.includes(v)) list.push(v); };
+
   function derive(state, ui) {
     ui = ui || {};
-    const m = state.dept, you = state.actors[0], n = m.w * m.h;
+    const m = state.dept, you = state.actors[0], n = m.w * m.h, events = ui.events || [];
     const now = Vision.visible(state), vis = new Uint8Array(n);
-    for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (m.seen && m.seen.charCodeAt(i) === 49 ? 1 : 0);
+    // What you remember of each tile (Vision.remember): its character when you last saw it,
+    // ' ' (32) where you never have.
+    const mem = m.seen && m.seen.length === n ? m.seen : '';
+    for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (mem && mem.charCodeAt(i) !== 32 ? 1 : 0);
+    const inside = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < m.w && y < m.h;
+    const visible = (x, y) => inside(x, y) && vis[y * m.w + x] === 2;
+    const known = (x, y) => inside(x, y) && vis[y * m.w + x] > 0;
     const ring = Vision.ring(state);
-    // The observed actors: never one that shows as something else, a mimic in its disguise,
-    // which is a case to everything you see (Archetypes.present; §8.3).
+
+    // The map as you know it: a tile in view as it is now; a remembered one as you last saw it,
+    // so a door an exhibit opened out of sight shows shut until you see it again; and one you
+    // have never seen as ' ', which nothing can walk on or see through. So a board rebuilt
+    // from the view model shows only what a player has seen.
+    const tiles = [];
+    for (let y = 0; y < m.h; y++) {
+      const row = m.tiles[y];
+      let out = '', from = 0;
+      for (let x = 0; x < m.w; x++) {
+        const i = y * m.w + x, v = vis[i];
+        if (v === 2 || (v === 1 && mem[i] === row[x])) continue;
+        out += row.slice(from, x) + (v === 1 ? mem[i] : ' ');
+        from = x + 1;
+      }
+      tiles.push(from === 0 ? row : out + row.slice(from));
+    }
+
+    // The observed actors: you, and each actor with a tile in view; never one that shows as
+    // something else, a mimic in its disguise, which is a case to everything you see
+    // (Archetypes.present; §8.3).
     const actors = [];
     for (const a of state.actors) {
-      if (a.gone || (a.uid !== 'you' && Archetypes.present(state, a) !== null)) continue;
-      const size = a.size || 1;
-      let seen = false;
-      for (let dy = 0; dy < size && !seen; dy++) for (let dx = 0; dx < size; dx++) if (now[(a.y + dy) * m.w + a.x + dx]) { seen = true; break; }
-      if (!seen && a.uid !== 'you') continue;
-      const sp = a.uid === 'you' ? null : Labels.speciesOf(state, a);
-      actors.push({ uid: a.uid, sprite: a.uid === 'you' ? 'visitor' : (sp ? sp.sprite : 'seated_clerk'), x: a.x, y: a.y, size,
-        mode: a.uid === 'you' ? 'you' : a.mode, pips: a.pips || 0, hostile: a.uid !== 'you', hp: a.hp, maxHp: a.maxHp });
+      const me = a.uid === 'you';
+      if (a.gone || (!me && Archetypes.present(state, a) !== null)) continue;
+      if (!me && !Actors.footprint(a).some(([x, y]) => visible(x, y))) continue;
+      const sp = me ? null : Packs.speciesFor(state, a);
+      actors.push({ uid: a.uid, sprite: me ? 'visitor' : (sp ? sp.sprite : 'seated_clerk'), x: a.x, y: a.y, size: a.size || 1,
+        mode: me ? 'you' : a.mode, pips: a.pips || 0, hostile: !me, hp: a.hp, maxHp: a.maxHp,
+        telegraphing: a.telegraph ? a.telegraph.sp : null, statuses: (a.statuses || []).map(s => s.id), encased: Cases.encased(state, a) });
     }
-    // One-turn animation cues (§6.1), from ui.events, the events of the last step: the tile
-    // each listed actor moved from (its first move, if it made several) and who was hit.
-    const listed = actors.map(a => a.uid), cues = { movedFrom: [], hit: [] };
-    for (const e of ui.events || []) {
-      if (e.k === 'moved' && listed.includes(e.who) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: e.from[0], y: e.from[1] });
-      else if (e.k === 'damaged' && listed.includes(e.who) && !cues.hit.includes(e.who)) cues.hit.push(e.who);
+    const listed = actors.map(a => a.uid);
+
+    // The marks. Pending specials first, in spawn order, each tile once per kind: a damage
+    // mark shows what you would take there (Specials.marks: net of your Padding now); calls
+    // never block one another, so two heralds' calls on one tile make one call mark.
+    const marks = [], ids = new Set();
+    const mark = rec => { const id = rec.kind + ':' + rec.x + ',' + rec.y; if (ids.has(id)) return; ids.add(id); marks.push(rec); };
+    for (const k of Specials.marks(state)) {
+      if (!visible(k.x, k.y)) continue;
+      mark(k.kind === 'telegraph' ? { kind: 'telegraph', x: k.x, y: k.y, dmg: k.dmg, by: k.by } : { kind: 'call', x: k.x, y: k.y, by: k.by });
     }
+    // The noise rings of those events (§8.2, "What is shown"): every tile an exhibit could
+    // stand on within each noise's walking reach (Noise.reach, as hearing measures it, a case
+    // one beyond its nearest open neighbour), on tiles you see or remember, the loudest
+    // class where two noises reach a tile. Each is measured on the map as it stood when the
+    // noise was made (undo, below): a door an exhibit opens later in the step does not widen
+    // a ring that was heard through it shut.
+    const loud = new Uint8Array(n), reached = [];
+    let then = m;
+    for (let j = events.length - 1; j >= 0; j--) {
+      const e = events[j];
+      if (e.k !== 'noise') { then = undo(state, then, e); continue; }
+      if (!inside(e.x, e.y) || !Number.isInteger(e.range)) continue;
+      const rank = LOUDNESS.indexOf(e.cls) + 1;
+      if (rank <= 0) continue;
+      const d = Noise.reach(then, e.x, e.y, e.range);
+      for (let y = Math.max(0, e.y - e.range); y <= Math.min(m.h - 1, e.y + e.range); y++)
+        for (let x = Math.max(0, e.x - e.range); x <= Math.min(m.w - 1, e.x + e.range); x++) {
+          const i = y * m.w + x;
+          if (!vis[i] || !Grid.hold(then, x, y)) continue;
+          const dist = Grid.reachDist(d, then, x, y);
+          if (dist < 0 || dist > e.range) continue;
+          if (!loud[i]) reached.push(i);
+          if (rank > loud[i]) loud[i] = rank;
+        }
+    }
+    reached.sort((a, b) => a - b);
+    for (const i of reached) mark({ kind: 'noise', x: i % m.w, y: Int.idiv(i, m.w), cls: LOUDNESS[loud[i] - 1] });
+    // What you are aiming at: the area a thrown Solution would cover, then the aimed tile.
+    const aim = ui.aim && inside(ui.aim.x, ui.aim.y) ? ui.aim : null;
+    if (aim) {
+      const size = areaOf(state, aim);
+      if (size) {
+        const h = Int.idiv(size, 2);
+        for (let y = aim.y - h; y <= aim.y + h; y++) for (let x = aim.x - h; x <= aim.x + h; x++) if (known(x, y)) mark({ kind: 'area', x, y });
+      }
+      if (known(aim.x, aim.y)) mark({ kind: 'aim', x: aim.x, y: aim.y });
+    }
+
+    // One-turn cues (§6.1), from the same events: the tile each listed actor moved from
+    // (the first such tile in view, if it made several moves; none from a tile out of view,
+    // which would show what lies there), who was hit, glass that broke on a tile in view,
+    // and whose special resolved.
+    const cues = { movedFrom: [], hit: [], broke: [], special: [] };
+    for (const e of events) {
+      if (e.k === 'moved') {
+        const from = Array.isArray(e.from) ? e.from : [];
+        if (listed.includes(e.who) && visible(from[0], from[1]) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: from[0], y: from[1] });
+      } else if (e.k === 'damaged' && listed.includes(e.who)) once(cues.hit, e.who);
+      else if (e.k === 'glass_broke' && visible(e.x, e.y) && !cues.broke.some(c => c.x === e.x && c.y === e.y)) cues.broke.push({ x: e.x, y: e.y });
+      else if (e.k === 'special' && !e.cancelled && listed.includes(e.who)) once(cues.special, e.who);
+    }
+
+    // What stands or lies on the tiles in view: cases (a mimic in its disguise exactly as a
+    // real case, with no number), staff doors, items (in state order: the kit's kinds, and
+    // consumables with their seal's shape), identifying labels and surfaces.
+    const cases = Cases.view(state, now);
+    const staff = Cases.staffView(state, now);
+    const kv = Kit.view(state, now), cv = Consumables.view(state, now);
+    const lying = kv.items.concat(cv.items), items = [];
+    for (const it of state.items || []) { const e = lying.find(l => l.uid === it.uid); if (e) items.push(e); }
+    const surfaces = [];
+    for (const s of m.surfaces || []) {
+      const h = Int.idiv(s.size, 2);
+      for (let y = s.y - h; y <= s.y + h; y++) for (let x = s.x - h; x <= s.x + h; x++)
+        if (visible(x, y) && !surfaces.some(q => q.kind === s.kind && q.x === x && q.y === y)) surfaces.push({ kind: s.kind, x, y });
+    }
+
+    // The camera: on you, leaning towards a damage telegraph that covers your tile, so the
+    // part of its marks in view shows with you.
+    const camera = { x: you.x, y: you.y };
+    const onYou = marks.find(k => k.kind === 'telegraph' && k.x === you.x && k.y === you.y);
+    if (onYou) {
+      let x0 = you.x, x1 = you.x, y0 = you.y, y1 = you.y;
+      for (const k of marks) if (k.kind === 'telegraph' && k.by === onYou.by) { x0 = Math.min(x0, k.x); x1 = Math.max(x1, k.x); y0 = Math.min(y0, k.y); y1 = Math.max(y1, k.y); }
+      camera.x = Math.max(you.x - LEAN, Math.min(you.x + LEAN, Int.idiv(x0 + x1, 2)));
+      camera.y = Math.max(you.y - LEAN, Math.min(you.y + LEAN, Int.idiv(y0 + y1, 2)));
+    }
+
     const pack = typeof Packs !== 'undefined' ? Packs.get(m.acc) : null;
-    const clock = m.ltour ? Object.assign({ turn: state.turn }, Clock.budget(m.ltour)) : null;
+    const cl = Clock.view(state);
+    const plan = cv.plan === null ? null : cv.plan.map(key => {
+      const r = (m.rooms || []).find(q => q.key === key);
+      return r ? { key, number: r.number === undefined ? null : r.number, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 } : { key, number: null, x0: null, y0: null, x1: null, y1: null };
+    });
     return {
-      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [], cues,
-      you: { x: you.x, y: you.y, hp: you.hp, maxHp: you.maxHp, grade: you.grade || 1 }, turn: state.turn, over: state.over,
-      camera: { x: you.x, y: you.y }, clock, path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
+      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles, vis, ring, actors, marks, cues,
+      cases, staff: staff.map(f => ({ x: f.x, y: f.y, grade: f.grade, open: f.open, canOpen: f.canOpen })),
+      items, plaques: cv.plaques, surfaces,
+      you: { x: you.x, y: you.y, hp: you.hp, maxHp: you.maxHp, grade: state.run.grade, statuses: (you.statuses || []).map(s => s.id),
+        kit: kv.kit, tote: kv.tote, consumables: cv.tote, charges: kv.charges, seated: !!you.seated, acc: you.acc, eva: you.eva, pad: you.pad },
+      turn: state.turn, over: state.over, camera,
+      clock: cl ? Object.assign({ turn: cl.count }, cl) : null,
+      plan, known: cv.known, pending: cv.pending,
+      path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
     };
   }
-  return { derive };
+
+  // undo(state, map, e) → the map as it stood just before event e: e's change to a tile
+  // that walking reads undone (a fresh copy is made the first time, so the state's map is
+  // never written). Every such change a rule makes is told by an event (§4.1's list of tile
+  // changes): a door or staff door opened ('opened') or closed ('closed'); a case opened
+  // ('case_opened', its tile u), broken or dissolved ('glass_broke', k or u, or the floor of
+  // a mimic's case); a mimic shown by a touch or a blow ('woke', its case revealed, its tile
+  // floor again). Shards turn floor or archway into shards, which walking reads alike.
+  // Walked back from the last event, so each noise meets the map of its moment.
+  const SHUT = '+S', OPEN = "'s"; // a door and a staff door, shut and open
+  function undo(state, map, e) {
+    let at = null, ch = null;
+    const here = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < map.w && y < map.h ? map.tiles[y][x] : null;
+    if (e.k === 'opened' || e.k === 'closed') {
+      const c = here(e.x, e.y), from = e.k === 'opened' ? OPEN : SHUT, to = e.k === 'opened' ? SHUT : OPEN, i = c === null ? -1 : from.indexOf(c);
+      if (i >= 0) { at = [e.x, e.y]; ch = to[i]; }
+    } else if (e.k === 'case_opened' || e.k === 'glass_broke') {
+      if (here(e.x, e.y) !== null && here(e.x, e.y) !== 'v') { at = [e.x, e.y]; ch = 'v'; }
+    } else if (e.k === 'woke' && e.cause && (e.cause.k === 'touch_case' || e.cause.k === 'damage')) {
+      // A mimic shows itself as it wakes: from its disguise, its case tile was a vitrine.
+      // (One that had shown itself before, gone back to sleep on its old case's tile and is
+      // struck awake again is read the same way; no event tells the two apart.)
+      const f = ((state.dept && state.dept.fixtures) || []).find(q => q.k === 'case' && q.mimic === e.who && q.st === 'revealed');
+      if (f && here(f.x, f.y) !== null && here(f.x, f.y) !== 'v') { at = [f.x, f.y]; ch = 'v'; }
+    }
+    if (!at) return map;
+    const out = map === state.dept ? { w: map.w, h: map.h, tiles: map.tiles.slice() } : map;
+    const row = out.tiles[at[1]];
+    out.tiles[at[1]] = row.slice(0, at[0]) + ch + row.slice(at[0] + 1);
+    return out;
+  }
+
+  // The side of the square a thrown Solution would cover round ui.aim, or 0 for none: its
+  // kind's area once identified, else the largest Solution's (so the square says nothing of
+  // the kind); aim.size, given, sets it.
+  function areaOf(state, aim) {
+    if (Number.isInteger(aim.size) && aim.size > 0) return aim.size;
+    if (typeof aim.uid !== 'string') return 0;
+    const it = (state.items || []).find(i => i.uid === aim.uid);
+    if (!it || it.kind !== 'consumable' || !Object.prototype.hasOwnProperty.call(Registry.CONSUMABLES, it.ck)) return 0;
+    const c = Registry.CONSUMABLES[it.ck];
+    if (c.cls !== 'solution') return 0;
+    return Consumables.known(state, it.ck) ? N[c.area] : Consumables.AREA;
+  }
+
+  // ViewModel.shows(vm, id): whether what a label's selection id names is in view, so that its
+  // label may be shown and kept up to date, since a label shows only what sight gives (§7.2,
+  // §8.8): an actor vm lists (you always); a case, staff door or identifying label
+  // ('case:x,y', 'staff:x,y', 'plaque:x,y') on a tile in view; an item ('item:<uid>') you
+  // carry, or one vm lists, which lies on a tile in view. Anything else is not.
+  const FIXTURE = /^(case|plaque|staff):(-?\d+),(-?\d+)$/;
+  function shows(vm, id) {
+    if (typeof id !== 'string' || !id) return false;
+    const f = FIXTURE.exec(id);
+    if (f) {
+      const x = Number(f[2]), y = Number(f[3]);
+      return x >= 0 && y >= 0 && x < vm.w && y < vm.h && vm.vis[y * vm.w + x] === 2;
+    }
+    if (id.startsWith('item:')) {
+      const uid = id.slice(5), k = vm.you.kit;
+      return vm.items.some(i => i.uid === uid) || vm.you.tote.includes(uid) || [k.weapon, k.garment, k.instrument].concat(k.curio).includes(uid);
+    }
+    return vm.actors.some(a => a.uid === id);
+  }
+
+  return { derive, shows, LEAN };
 })();
 
 </script>
@@ -10089,6 +10914,26 @@ const Pictograms = (() => {
     grade:     ['.xxx....', 'x...x...', 'x...x...', '.xxx....', '..x.....', '..xxx...', '..x.....', '..xx....'],
     reads:     ['xxxxxxx.', 'x.....xx', 'x.xxx.xx', 'x.....xx', 'x.xx..xx', 'x....xxx', 'xxxxxxx.', '.....xx.'],
     bench:     ['........', '........', 'xxxxxxxx', 'xxxxxxxx', '.x....x.', '.x....x.', '.x....x.', '........'],
+    // cases and glass
+    lock:      ['..xxxx..', '.x....x.', '.x....x.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', 'xxxxxxxx'],
+    glass:     ['xxxxxxxx', 'x......x', 'x.x....x', 'x..x...x', 'x...x..x', 'x......x', 'x......x', 'xxxxxxxx'],
+    shards:    ['x.....x.', '.x...xx.', '..x.....', '......x.', '.xx..x..', '..x.....', 'x....xx.', '....x...'],
+    loan:      ['x.x.x.x.', '........', 'x......x', '........', 'x......x', '........', '.x.x.x.x', '........'],
+    // the item kinds (an item's icon is its kind, Kit.view; a Restoration kit is 'kit' above)
+    weapon:    ['...xx...', '...xx...', '...xx...', '...xx...', '...xx...', '.xxxxxx.', '...xx...', '...xx...'],
+    garment:   ['.xx..xx.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.'],
+    curio:     ['........', '.xxxxxx.', 'xx.xx.xx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '...xx...', '........'],
+    instrument:['.x....x.', '.x....x.', '.x....x.', '.x....x.', '..xxxx..', '...xx...', '...xx...', '...xx...'],
+    // the seals, keyed seal_<shape> by Registry.SEALS[id].shape (D5.11, §8.8): four wax seals
+    // over the Solutions, four ink stamps over the Ephemera, told apart by shape
+    seal_round: ['..xxxx..', '.xxxxxx.', 'xxxxxxxx', 'xxx..xxx', 'xxx..xxx', 'xxxxxxxx', '.xxxxxx.', '..xxxx..'],
+    seal_square: ['........', '.xxxxxx.', '.xxxxxx.', '.xx..xx.', '.xx..xx.', '.xxxxxx.', '.xxxxxx.', '........'],
+    seal_diamond: ['...xx...', '..xxxx..', '.xx..xx.', 'xx....xx', 'xx....xx', '.xx..xx.', '..xxxx..', '...xx...'],
+    seal_star: ['...xx...', '...xx...', 'xxxxxxxx', '.xxxxxx.', '..xxxx..', '.xxxxxx.', '.xx..xx.', 'x......x'],
+    seal_anchor: ['...xx...', '..x..x..', '...xx...', '.xxxxxx.', '...xx...', 'x..xx..x', '.x.xx.x.', '..xxxx..'],
+    seal_key:  ['........', '.xxx....', 'x...x...', 'x...xxxx', 'x...x.xx', '.xxx..x.', '........', '........'],
+    seal_bell: ['...xx...', '..x..x..', '.x....x.', '.x....x.', '.x....x.', 'xxxxxxxx', '........', '...xx...'],
+    seal_hand: ['.x.x.x..', '.x.x.x..', '.x.x.x.x', '.xxxxx.x', '.xxxxxxx', '.xxxxxx.', '..xxxx..', '..xxxx..'],
     // statuses and surfaces, keyed by their registry ids (Registry.STATUSES, .SURFACES)
     fixed:     ['.xxxxxx.', '..xxxx..', '..xxxx..', '.xxxxxx.', '...xx...', '...xx...', '...xx...', '...x....'],
     rooted:    ['...xx...', '...xx...', '...xx...', '...xx...', '..xxxx..', '.x.xx.x.', 'x..xx..x', '.x.x..x.'],
@@ -10107,6 +10952,10 @@ const Pictograms = (() => {
     alert: 'hostile', hunting: 'hostile', returning: 'readable', heart: 'hostile', acc: 'readable', eva: 'readable', padding: 'readable',
     damage: 'readable', ranged: 'readable', fast: 'readable', slow: 'readable', special: 'hazard', seal: 'item', kit: 'item',
     certificate: 'item', highlight: 'item', grade: 'readable', reads: 'readable', bench: 'readable',
+    lock: 'readable', glass: 'readable', shards: 'hazard', loan: 'item',
+    weapon: 'item', garment: 'item', curio: 'item', instrument: 'item',
+    seal_round: 'item', seal_square: 'item', seal_diamond: 'item', seal_star: 'item',
+    seal_anchor: 'item', seal_key: 'item', seal_bell: 'item', seal_hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
   };
@@ -10175,43 +11024,149 @@ const Views = (() => {
 
 </script>
 <script>
-// ACCESSION — the overlays both board views share (BUILD.md §6.2): your ring, the path
-// preview, telegraphs, one-turn cues, actors with the hostile mark and state glyphs, the
-// selection and edge arrows. Each view supplies rectOf(x, y), a tile's rectangle in canvas
-// CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look the same
-// in top-down and 3D, and in 3D nothing in the scene can hide them.
+// ACCESSION — the overlays both board views share (BUILD.md §6.2), in this order: surfaces,
+// your ring, calls, noise rings and a thrown Solution's area, the moved-from cue, the path
+// preview, telegraph fills, what stands or lies on a tile (case glyphs, staff-door grades,
+// labels, items), actors, each actor's marks (its bar, its glyph row, its hit cue, the cue of
+// its special gone off, its selection), the aim, glass just broken, a selected tile, edge
+// arrows, and the telegraph numbers last. Each view supplies rectOf(x, y), a tile's rectangle
+// in canvas CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look
+// the same in top-down and 3D, and in 3D nothing in the scene can hide them.
 //
 // list() returns a display list in drawing order: { kind, id, group, x, y, rect, paint(ctx) }.
 // A view paints it, keeps it for renderer.inspect(), and the 3D view repaints items one at
 // a time to build its id buffer, so what the checks measure is exactly what was drawn. An
 // actor and its own marks share a group, as do a telegraph's fill and its number.
 //
+// Every colour that carries meaning is one of the reserved five (§7.2, §9.1), named in
+// COLOURS, and every mark's meaning is in its shape too: a telegraph is a filled, outlined
+// tile with its number; a call a dashed outline round the tiles it reaches; a noise ring a
+// faint fill whose edge is dotted (soft), dashed (loud) or solid and double (crash); a
+// Solution's area a dotted square; the aim four inward ticks; a case's lock a padlock with
+// one bar per grade; cracks jagged lines, one per blow taken; a surface hatching with its
+// pictogram. White and black are used only for outlines, cues and numbers.
+//
 // clearBottom is how far down the board is uncovered (the phone's label sheet covers the
 // rest). A hostile whose centre is outside the clear part gets an edge arrow inside it.
 'use strict';
 const Marks = (() => {
   const S = () => ART.palettes.semantic;
+  // The reserved colour each kind of mark or glyph is drawn in (pictograms take theirs from
+  // Pictograms.COLOUR). test/colours.test.js checks every one is a reserved colour.
+  const COLOURS = {
+    ring: 'player', path: 'player', area: 'player', aim: 'player', you: 'player',
+    telegraph: 'hazard', call: 'hazard', surface: 'hazard', special: 'hazard',
+    noise: 'readable', lock: 'readable', cracks: 'readable', selection: 'readable',
+    hostile: 'hostile', edge: 'hostile',
+  };
+  const col = k => S()[COLOURS[k]];
+  // The dark backing every glyph of what stands or lies on a tile sits on (§6.2), so that no
+  // wall, floor or glass, however pale, hides it: a square one pixel larger all round, or for
+  // a line (a crack) a wider dark line beneath it. A lock sits on black.
+  const BACKING = 'rgba(0,0,0,0.45)';
+  const backed = (ctx, q) => { ctx.fillStyle = BACKING; ctx.fillRect(q.x - 1, q.y - 1, q.w + 2, q.h + 2); };
+  // The state glyph of an exhibit's mode (§8.2's table folds searching into hunting and
+  // reinstalling into returning, D1.1); a sleeper with pips shows its pips instead. A label's
+  // state icon is the same (Labels.MODE_ICON; m3-labels holds the two tables equal).
+  const GLYPH = { dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' };
+  const glyphOf = mode => GLYPH[mode] || 'alert';
+  // An item's pictogram: a consumable's seal shape, seal_<shape> (D5.11, §8.8), else its kind's.
+  const iconOf = it => (it && it.shape ? 'seal_' + it.shape : null) || (it && it.icon === 'consumable' ? 'seal' : (it && it.icon) || 'seal');
+  const NOISE = { soft: 1, loud: 2, crash: 3 };
 
   function list(vm, rectOf, actorRect, tile, width, height, clearBottom) {
     const out = [];
     let group = null;
     const add = (kind, id, x, y, rect, paint) => out.push({ kind, id, group: group || id, x, y, rect, paint });
     const bottom = clearBottom == null ? height : Math.min(height, clearBottom);
-    const ringAt = (i, j) => i >= 0 && j >= 0 && i < vm.w && j < vm.h && vm.ring[j * vm.w + i];
+    const g = Math.max(8, Math.floor(tile / 3));
+    const off = r => r.x + r.w < 0 || r.y + r.h < 0 || r.x > width || r.y > height;
+    const marks = vm.marks || [];
+    const ofKind = k => marks.filter(m => m.kind === k);
+    // A set of tiles, for drawing a region's edges: at(x, y) → the value stored, or 0.
+    const tileSet = (list, value) => {
+      const t = new Map();
+      for (const m of list) t.set(m.y * vm.w + m.x, value ? value(m) : 1);
+      return (x, y) => (x < 0 || y < 0 || x >= vm.w || y >= vm.h ? 0 : t.get(y * vm.w + x) || 0);
+    };
+    // The edges of tile (x, y) whose neighbour `at` holds less than `v`, as one path.
+    const edges = (ctx, r, x, y, at, v, inset) => {
+      const k = inset || 0.5;
+      ctx.beginPath();
+      if (at(x, y - 1) < v) { ctx.moveTo(r.x, r.y + k); ctx.lineTo(r.x + r.w, r.y + k); }
+      if (at(x, y + 1) < v) { ctx.moveTo(r.x, r.y + r.h - k); ctx.lineTo(r.x + r.w, r.y + r.h - k); }
+      if (at(x - 1, y) < v) { ctx.moveTo(r.x + k, r.y); ctx.lineTo(r.x + k, r.y + r.h); }
+      if (at(x + 1, y) < v) { ctx.moveTo(r.x + r.w - k, r.y); ctx.lineTo(r.x + r.w - k, r.y + r.h); }
+      ctx.stroke();
+    };
+
+    // Surfaces (a Fumigant cloud, plaster dust): hatching over each tile in view that one
+    // covers, with the surface's pictogram in the tile's corner.
+    for (const s of vm.surfaces || []) {
+      const r = rectOf(s.x, s.y);
+      if (off(r)) continue;
+      add('mark', `surface:${s.kind}:${s.x},${s.y}`, s.x, s.y, r, ctx => {
+        ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
+        ctx.globalAlpha = 0.5; ctx.strokeStyle = col('surface'); ctx.lineWidth = 1; ctx.beginPath();
+        for (let d = -r.h; d < r.w; d += 6) { ctx.moveTo(r.x + d, r.y + r.h); ctx.lineTo(r.x + d + r.h, r.y); }
+        ctx.stroke(); ctx.restore();
+        Pictograms.draw(ctx, Pictograms.G[s.kind] ? s.kind : 'dust', r.x + r.w - g, r.y, g);
+      });
+    }
 
     // Your ring: a faint fill and an outline round the tiles that count as close.
+    const ringAt = (i, j) => (i >= 0 && j >= 0 && i < vm.w && j < vm.h && vm.ring[j * vm.w + i] ? 1 : 0);
     for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) {
       if (!vm.ring[y * vm.w + x]) continue;
       const r = rectOf(x, y);
-      if (r.x + r.w < 0 || r.y + r.h < 0 || r.x > width || r.y > height) continue;
+      if (off(r)) continue;
       add('ring', 'ring:' + x + ',' + y, x, y, r, ctx => {
-        ctx.globalAlpha = 0.08; ctx.fillStyle = S().player; ctx.fillRect(r.x, r.y, r.w, r.h);
-        ctx.globalAlpha = 0.55; ctx.strokeStyle = S().player; ctx.lineWidth = 1; ctx.beginPath();
-        if (!ringAt(x, y - 1)) { ctx.moveTo(r.x, r.y + 0.5); ctx.lineTo(r.x + r.w, r.y + 0.5); }
-        if (!ringAt(x, y + 1)) { ctx.moveTo(r.x, r.y + r.h - 0.5); ctx.lineTo(r.x + r.w, r.y + r.h - 0.5); }
-        if (!ringAt(x - 1, y)) { ctx.moveTo(r.x + 0.5, r.y); ctx.lineTo(r.x + 0.5, r.y + r.h); }
-        if (!ringAt(x + 1, y)) { ctx.moveTo(r.x + r.w - 0.5, r.y); ctx.lineTo(r.x + r.w - 0.5, r.y + r.h); }
-        ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.globalAlpha = 0.08; ctx.fillStyle = col('ring'); ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.globalAlpha = 0.55; ctx.strokeStyle = col('ring'); ctx.lineWidth = 1;
+        edges(ctx, r, x, y, ringAt, 1); ctx.globalAlpha = 1;
+      });
+    }
+
+    // A herald's call, beneath every other mark and the actors (§6.3's exemption, as the
+    // telegraph fill): a faint fill, with a dashed outline round the tiles it reaches.
+    const calls = ofKind('call'), callAt = tileSet(calls);
+    for (const m of calls) {
+      const r = rectOf(m.x, m.y);
+      if (off(r)) continue;
+      add('mark', 'call:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
+        ctx.globalAlpha = 0.12; ctx.fillStyle = col('call'); ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = col('call'); ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+        edges(ctx, r, m.x, m.y, callAt, 1, 1); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      });
+    }
+
+    // The noise rings of the last step: a faint fill over every tile a noise reached, edged
+    // where a quieter noise or none reached the next tile: dotted for soft, dashed for loud,
+    // solid and double for a crash.
+    const noises = ofKind('noise'), noiseAt = tileSet(noises, m => NOISE[m.cls] || 1);
+    for (const m of noises) {
+      const r = rectOf(m.x, m.y), v = NOISE[m.cls] || 1;
+      if (off(r)) continue;
+      add('mark', 'noise:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
+        ctx.globalAlpha = 0.1; ctx.fillStyle = col('noise'); ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.globalAlpha = 0.85; ctx.strokeStyle = col('noise');
+        ctx.lineWidth = v === 3 ? 2 : 1.5; ctx.setLineDash(v === 1 ? [1.5, 3] : v === 2 ? [5, 3] : []);
+        edges(ctx, r, m.x, m.y, noiseAt, v, 1);
+        if (v === 3) { ctx.lineWidth = 1; edges(ctx, { x: r.x + 3, y: r.y + 3, w: r.w - 6, h: r.h - 6 }, m.x, m.y, noiseAt, v, 1); }
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      });
+    }
+
+    // The square a thrown Solution would cover, round where you aim it: a dotted outline
+    // round a faint fill.
+    const area = ofKind('area'), areaAt = tileSet(area);
+    for (const m of area) {
+      const r = rectOf(m.x, m.y);
+      if (off(r)) continue;
+      add('mark', 'area:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
+        ctx.globalAlpha = 0.18; ctx.fillStyle = col('area'); ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.globalAlpha = 1; ctx.strokeStyle = col('area'); ctx.lineWidth = 2; ctx.setLineDash([2, 2]);
+        edges(ctx, r, m.x, m.y, areaAt, 1, 1); ctx.setLineDash([]);
       });
     }
 
@@ -10228,19 +11183,103 @@ const Marks = (() => {
     // The path preview.
     for (const [x, y] of vm.path || []) {
       const t = rectOf(x, y), r = { x: t.x + t.w / 2 - 2, y: t.y + t.h / 2 - 2, w: 4, h: 4 };
-      add('mark', 'path:' + x + ',' + y, x, y, r, ctx => { ctx.fillStyle = S().player; ctx.fillRect(r.x, r.y, r.w, r.h); });
+      add('mark', 'path:' + x + ',' + y, x, y, r, ctx => { ctx.fillStyle = col('path'); ctx.fillRect(r.x, r.y, r.w, r.h); });
     }
 
     // A telegraphed tile: the hazard fill under the actors; its number goes on last.
-    const tele = vm.marks.filter(m => m.kind === 'telegraph');
+    const tele = ofKind('telegraph');
     for (const m of tele) {
       const r = rectOf(m.x, m.y);
       group = 'telegraph:' + m.x + ',' + m.y;
       add('mark', 'telegraph:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
-        ctx.globalAlpha = 0.35; ctx.fillStyle = S().hazard; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = 1;
-        ctx.strokeStyle = S().hazard; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+        ctx.globalAlpha = 0.35; ctx.fillStyle = col('telegraph'); ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = 1;
+        ctx.strokeStyle = col('telegraph'); ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
       });
       group = null;
+    }
+
+    // What stands or lies on a tile, beneath the actors (an exhibit in a case stands over its
+    // case's glyphs). A case: its lock (a padlock with one bar per grade it needs) while it is
+    // shut, cracks for the blows its glass has taken, and what it holds or, on loan, the empty
+    // frame. A closed staff door: its lock and grade. An identifying label: its pictogram.
+    // Each sits on a dark backing (BACKING; the lock on black).
+    // One bar per grade beside the padlock, each at least 2 pixels wide with a pixel between,
+    // so the bars can be counted at every zoom; as wide as the tile allows, up to a fifth of
+    // the glyph size plus one. w is the bars' width, from the first bar's left edge to the
+    // last one's right edge.
+    const bars = (r, grade) => {
+      const n = Math.max(1, grade), per = Math.max(3, Math.min(Math.floor(g / 5) + 1, Math.floor((r.w - g - 1) / n)));
+      return { n, q: per - 1, gap: 1, w: n * per - 1 };
+    };
+    const lockRect = (r, grade) => ({ x: r.x + 1, y: r.y + r.h - g - 1, w: g + 1 + bars(r, grade).w, h: g });
+    const lockGlyph = (ctx, r, grade) => {
+      const { n, q, gap, w } = bars(r, grade), y = r.y + r.h - g - 1, top = Math.floor(g / 4);
+      // The black plate under the padlock and its bars, a pixel round them, kept to the tile.
+      ctx.fillStyle = '#000000'; ctx.fillRect(r.x, y - 1, Math.min(g + 3 + w, r.w), g + 2);
+      Pictograms.draw(ctx, 'lock', r.x + 1, y, g, col('lock'));
+      ctx.fillStyle = col('lock');
+      for (let i = 0; i < n; i++) ctx.fillRect(r.x + g + 2 + i * (q + gap), y + top, q, g - top);
+    };
+    const centre = r => ({ x: r.x + r.w / 2 - g / 2, y: r.y + r.h / 2 - g / 2 - Math.floor(g / 4), w: g, h: g });
+    for (const c of vm.cases || []) {
+      const r = rectOf(c.x, c.y);
+      if (off(r)) continue;
+      const at = c.x + ',' + c.y;
+      if (c.holds) {
+        const q = centre(r), shown = (vm.items || []).find(i => i.uid === c.holds.uid) || c.holds;
+        add('mark', 'holds:' + at, c.x, c.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, iconOf(shown), q.x, q.y, g); });
+      } else if (c.loan) {
+        const q = centre(r);
+        add('mark', 'loan:' + at, c.x, c.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, 'loan', q.x, q.y, g); });
+      }
+      if (c.st === 'shut' && c.hits > 0) {
+        const q = { x: r.x + 2, y: r.y + 2, w: r.w - 4, h: r.h - g - 4 };
+        const crack = ctx => {
+          ctx.beginPath();
+          for (let i = 0; i < c.hits; i++) {
+            const x0 = q.x + q.w * (0.2 + 0.3 * i), steps = 4;
+            ctx.moveTo(x0, q.y);
+            for (let k = 1; k <= steps; k++) ctx.lineTo(x0 + (k % 2 ? 0.12 : -0.04) * q.w, q.y + q.h * k / steps);
+          }
+        };
+        add('mark', 'cracks:' + at, c.x, c.y, q, ctx => {
+          // Each crack a readable line over a wider dark one, its backing.
+          ctx.strokeStyle = BACKING; ctx.lineWidth = 3.5; crack(ctx); ctx.stroke();
+          ctx.strokeStyle = col('cracks'); ctx.lineWidth = 1.5; crack(ctx); ctx.stroke();
+        });
+      }
+      if (c.st === 'shut') { const q = lockRect(r, c.lock); add('mark', 'lock:' + at, c.x, c.y, q, ctx => lockGlyph(ctx, r, c.lock)); }
+    }
+    for (const f of vm.staff || []) {
+      const r = rectOf(f.x, f.y);
+      if (f.open || off(r)) continue;
+      const q = lockRect(r, f.grade);
+      add('mark', 'lock:' + f.x + ',' + f.y, f.x, f.y, q, ctx => lockGlyph(ctx, r, f.grade));
+    }
+    for (const p of vm.plaques || []) {
+      const r = rectOf(p.x, p.y), q = { x: r.x + r.w / 2 - g / 2, y: r.y + r.h / 2 - g / 2, w: g, h: g };
+      if (off(r)) continue;
+      add('mark', 'plaque:' + p.x + ',' + p.y, p.x, p.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, 'reads', q.x, q.y, g); });
+    }
+    // Items on the floor (and in a case that does not list them): the first on each tile, with
+    // a second outline behind it where there are more.
+    const caseHolds = new Set((vm.cases || []).filter(c => c.holds).map(c => c.holds.uid));
+    const firstOn = new Map();
+    for (const it of vm.items || []) {
+      if (caseHolds.has(it.uid)) continue;
+      const k = it.y * vm.w + it.x;
+      if (firstOn.has(k)) firstOn.get(k).more = true; else firstOn.set(k, { it, more: false });
+    }
+    for (const it of vm.items || []) {
+      const e = firstOn.get(it.y * vm.w + it.x);
+      if (!e || e.it !== it) continue;
+      const r = rectOf(it.x, it.y), k = Math.round(g * 1.25), q = { x: r.x + r.w / 2 - k / 2, y: r.y + r.h / 2 - k / 2, w: k, h: k };
+      if (off(r)) continue;
+      add('mark', 'item:' + it.x + ',' + it.y, it.x, it.y, q, ctx => {
+        backed(ctx, q);
+        if (e.more) { ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.strokeRect(q.x + 2.5, q.y - 2.5, q.w, q.h); }
+        Pictograms.draw(ctx, iconOf(it), q.x, q.y, k);
+      });
     }
 
     // Actors, back to front: northern ones first, so a nearer one is drawn over a farther one.
@@ -10255,8 +11294,13 @@ const Marks = (() => {
       });
     }
 
-    // Each actor's marks: the reserved base bar (hostile red, your blue), its state glyph or
-    // pips above it, a hit cue, and the selection bracket.
+    // Each actor's marks: the reserved base bar (hostile red, your blue), its glyph row (an
+    // exhibit in a case shows the glass, then its state glyph or pips, then the special it is
+    // marking), a hit cue, a cue when its special has just gone off, and the selection bracket.
+    // The glyph row sits above the actor (just over its head, or clear above its square) or,
+    // where another actor stands there, beside its head, so it never covers another exhibit
+    // (§6.3: actors are never hidden); only where every side is taken does it go along the
+    // top of its own square, its glyphs shrunk to fit inside it.
     group = null;
     // An actor counts as on the board when at least a quarter of its square shows each way
     // in the clear part; a hostile on the board keeps its bar inside the part that shows, and
@@ -10264,7 +11308,9 @@ const Marks = (() => {
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(Math.max(lo, hi), v));
     const shows = r => ({ x0: Math.max(0, r.x), x1: Math.min(width, r.x + r.w), y0: Math.max(0, r.y), y1: Math.min(bottom, r.y + r.h) });
     const inClear = r => { const v = shows(r); return v.x1 - v.x0 >= r.w / 4 && v.y1 - v.y0 >= r.h / 4; };
-    const hit = new Set((vm.cues && vm.cues.hit) || []);
+    const meets = (p, q) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+    const hit = new Set((vm.cues && vm.cues.hit) || []), went = new Set((vm.cues && vm.cues.special) || []);
+    const rows = new Map();
     for (const { a, r } of placed) {
       group = a.uid;
       let bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
@@ -10273,17 +11319,36 @@ const Marks = (() => {
         bar = { x: clamp(bar.x, v.x0, v.x1 - w), y: clamp(bar.y, v.y0, v.y1 - 3), w, h: 2 };
       }
       add(a.hostile ? 'mark' : 'own', a.hostile ? 'hostile:' + a.uid : 'you-bar', a.x, a.y, bar, ctx => {
-        ctx.fillStyle = a.hostile ? S().hostile : S().player; ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
+        ctx.fillStyle = a.hostile ? col('hostile') : col('you'); ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
       });
       if (a.hostile) {
-        const g = Math.max(8, Math.floor(tile / 3)), y = r.y - g + 2;
-        if (a.mode === 'dormant' && a.pips) {
-          const q = { x: r.x + r.w / 2 - 1.5 * g, y, w: 3 * g, h: g };
-          add('mark', 'state:' + a.uid, a.x, a.y, q, ctx => { for (let i = 0; i < 3; i++) Pictograms.draw(ctx, i < a.pips ? 'pip' : 'pip_empty', q.x + i * g, y, g); });
-        } else {
-          const id = a.mode === 'dormant' ? 'asleep' : a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert';
-          const q = id === 'asleep' ? { x: r.x + r.w - g, y, w: g, h: g } : { x: r.x + r.w / 2 - g / 2, y, w: g, h: g };
-          add('mark', 'state:' + a.uid, a.x, a.y, q, ctx => Pictograms.draw(ctx, id, q.x, q.y, g));
+        const pips = a.mode === 'dormant' && a.pips, id = glyphOf(a.mode);
+        // Each part of the row is n glyphs wide; draw(ctx, x, y, k) paints it at glyph size k.
+        const parts = [];
+        if (a.encased) parts.push({ id: 'encased:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, 'glass', x, y, k) });
+        parts.push(pips ? { id: 'state:' + a.uid, n: 3, draw: (ctx, x, y, k) => { for (let i = 0; i < 3; i++) Pictograms.draw(ctx, i < a.pips ? 'pip' : 'pip_empty', x + i * k, y, k); } }
+          : { id: 'state:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, id, x, y, k) });
+        if (a.telegraphing) parts.push({ id: 'telegraphing:' + a.uid, n: 1, draw: (ctx, x, y, k) => Pictograms.draw(ctx, 'special', x, y, k, col('special')) });
+        const units = parts.reduce((s, p) => s + p.n, 0), total = units * g;
+        // Alone, a sleeper's glyph sits at the right; anything else is centred.
+        const x0 = parts.length === 1 && !pips && id === 'asleep' ? r.x + r.w - g : r.x + r.w / 2 - total / 2;
+        // Above it (just over its head, else clear above its square); where another actor or
+        // another's row is there, beside its head, right then left; where both sides are taken
+        // too, along the top of its own square, shrunk to fit inside it.
+        const spots = [{ x: x0, y: r.y - g + 2 }, { x: x0, y: r.y - g }, { x: r.x + r.w, y: r.y + 1 }, { x: r.x - total, y: r.y + 1 }];
+        const clear = q => { const c = { x: q.x, y: q.y, w: total, h: g }; return !placed.some(p => p.a !== a && meets(c, p.r)) && ![...rows.values()].some(o => meets(c, o)); };
+        let k = g, spot = spots.find(clear);
+        if (!spot) {
+          k = Math.max(1, Math.min(g, Math.floor((r.w - 2) / units)));
+          spot = { x: total <= r.w - 2 ? Math.max(r.x + 1, Math.min(x0, r.x + r.w - 1 - total)) : r.x + (r.w - units * k) / 2, y: r.y + 1 };
+        }
+        let x = spot.x;
+        const y = spot.y;
+        rows.set(a.uid, { x, y, w: units * k, h: k });
+        for (const p of parts) {
+          const q = { x, y, w: p.n * k, h: k }, draw = p.draw;
+          add('mark', p.id, a.x, a.y, q, ctx => draw(ctx, q.x, q.y, k));
+          x += p.n * k;
         }
       }
       if (hit.has(a.uid)) {
@@ -10297,9 +11362,38 @@ const Marks = (() => {
           ctx.stroke();
         });
       }
+      if (went.has(a.uid)) {
+        const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 }, k = r.w * 0.5;
+        add('cue', 'special:' + a.uid, a.x, a.y, { x: c.x - k, y: c.y - k, w: 2 * k, h: 2 * k }, ctx => {
+          ctx.strokeStyle = col('special'); ctx.lineWidth = 2; ctx.setLineDash([3, 2]);
+          ctx.beginPath(); ctx.arc(c.x, c.y, k - 1, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        });
+      }
       if (vm.selection === a.uid) add('mark', 'selection', a.x, a.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
     group = null;
+
+    // The aim: four ticks pointing in from the middle of each edge of the tile you aim at.
+    for (const m of ofKind('aim')) {
+      const r = rectOf(m.x, m.y), k = Math.max(4, Math.floor(Math.min(r.w, r.h) / 4));
+      add('mark', 'aim:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
+        ctx.strokeStyle = '#000000'; ctx.lineWidth = 4; ticks(ctx, r, k);
+        ctx.strokeStyle = col('aim'); ctx.lineWidth = 2; ticks(ctx, r, k);
+      });
+    }
+
+    // One-turn cue: glass that has just broken, as a burst over its tile.
+    for (const c of (vm.cues && vm.cues.broke) || []) {
+      const r = rectOf(c.x, c.y), cx = r.x + r.w / 2, cy = r.y + r.h / 2, k = Math.min(r.w, r.h) * 0.48;
+      add('cue', 'broke:' + c.x + ',' + c.y, c.x, c.y, r, ctx => {
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const ang = i * Math.PI / 3 + 0.3;
+          ctx.moveTo(cx + Math.cos(ang) * k * 0.3, cy + Math.sin(ang) * k * 0.3); ctx.lineTo(cx + Math.cos(ang) * k, cy + Math.sin(ang) * k);
+        }
+        ctx.stroke();
+      });
+    }
 
     if (vm.selectedTile) {
       const r = rectOf(vm.selectedTile.x, vm.selectedTile.y);
@@ -10310,10 +11404,14 @@ const Marks = (() => {
     // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
     // moved along the edge to the nearest spot that covers no visible actor and no other arrow
     // (or, if the whole edge is taken, where it overlaps least).
-    // An actor that shows takes its square, and a hostile's state glyph above it too.
-    const g = Math.max(8, Math.floor(tile / 3));
+    // An actor that shows takes its square, and a hostile's glyph row too.
     const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; })
-      .map(p => p.a.hostile ? { x: p.r.x, y: p.r.y - g + 2, w: p.r.w, h: p.r.h + g - 2 } : p.r);
+      .map(p => {
+        const q = rows.get(p.a.uid);
+        if (!q) return p.r;
+        const x0 = Math.min(p.r.x, q.x), y0 = Math.min(p.r.y, q.y);
+        return { x: x0, y: y0, w: Math.max(p.r.x + p.r.w, q.x + q.w) - x0, h: Math.max(p.r.y + p.r.h, q.y + q.h) - y0 };
+      });
     const overlap = (x, y) => taken.reduce((n, q) => n + Math.max(0, Math.min(x + k, q.x + q.w) - Math.max(x - k, q.x)) * Math.max(0, Math.min(y + k, q.y + q.h) - Math.max(y - k, q.y)), 0);
     for (const { a, r } of placed) {
       if (!a.hostile || inClear(r)) continue;
@@ -10335,7 +11433,7 @@ const Marks = (() => {
       const ang = Math.atan2(cy - ey, cx - ex), at = { x: ex, y: ey };
       add('mark', 'edge:' + a.uid, a.x, a.y, { x: at.x - k, y: at.y - k, w: 2 * k, h: 2 * k }, ctx => {
         ctx.save(); ctx.translate(at.x, at.y); ctx.rotate(ang);
-        ctx.fillStyle = S().hostile; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
+        ctx.fillStyle = col('edge'); ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(-k * 0.7, -k * 0.8); ctx.lineTo(-k * 0.7, k * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.restore();
       });
@@ -10355,8 +11453,19 @@ const Marks = (() => {
     return out;
   }
 
+  // Four short ticks pointing in from the middle of each edge of r.
+  function ticks(ctx, r, k) {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, r.y + 1); ctx.lineTo(cx, r.y + 1 + k);
+    ctx.moveTo(cx, r.y + r.h - 1); ctx.lineTo(cx, r.y + r.h - 1 - k);
+    ctx.moveTo(r.x + 1, cy); ctx.lineTo(r.x + 1 + k, cy);
+    ctx.moveTo(r.x + r.w - 1, cy); ctx.lineTo(r.x + r.w - 1 - k, cy);
+    ctx.stroke();
+  }
+
   function bracket(ctx, px, py, w, h) {
-    ctx.strokeStyle = S().readable; ctx.lineWidth = 2;
+    ctx.strokeStyle = S()[COLOURS.selection]; ctx.lineWidth = 2;
     const k = Math.floor(Math.min(w, h) / 4);
     ctx.beginPath();
     ctx.moveTo(px + 1, py + k); ctx.lineTo(px + 1, py + 1); ctx.lineTo(px + k, py + 1);
@@ -10375,7 +11484,7 @@ const Marks = (() => {
       .map(d => ({ kind: d.kind, id: d.id, x: d.x, y: d.y, rect: { x: left + d.rect.x, y: top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
   }
 
-  return { list, inspected, bracket, order };
+  return { list, inspected, bracket, order, COLOURS, GLYPH, glyphOf, iconOf };
 })();
 
 </script>
@@ -10390,7 +11499,7 @@ Views.register('topdown', 'Flat', host => {
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'u', 's'];
+  const PLAIN = ['.', ','];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page
@@ -10414,10 +11523,13 @@ Views.register('topdown', 'Flat', host => {
   function drawTile(vm, P, x, y, px, py) {
     const ch = vm.tiles[y][x], t = tile, below = y + 1 < vm.h ? vm.tiles[y + 1][x] : '#';
     const floor = ((x + y) & 1) ? P.floor2 : P.floor;
+    // A tile you have never seen is masked in the view model (' '): drawn as the dark
+    // around the board, and a wall above one shows no face, which would say what lies there.
+    if (ch === ' ') { ctx.fillStyle = '#0d0c10'; ctx.fillRect(px, py, t, t); return; }
     const isWall = ch === '#';
     if (isWall) {
       ctx.fillStyle = P.wallTop; ctx.fillRect(px, py, t, t);
-      if (below !== '#') { ctx.fillStyle = P.wall; ctx.fillRect(px, py + t * 0.45, t, t * 0.55); ctx.fillStyle = shade(P.wall, 0.75); ctx.fillRect(px, py + t - 2, t, 2); }
+      if (below !== '#' && below !== ' ') { ctx.fillStyle = P.wall; ctx.fillRect(px, py + t * 0.45, t, t * 0.55); ctx.fillStyle = shade(P.wall, 0.75); ctx.fillRect(px, py + t - 2, t, 2); }
       return;
     }
     ctx.fillStyle = floor; ctx.fillRect(px, py, t, t);
@@ -10430,6 +11542,12 @@ Views.register('topdown', 'Flat', host => {
           ctx.strokeStyle = shade(P.glass, 1.15); ctx.lineWidth = 1; ctx.strokeRect(px + u + 0.5, py + u + 0.5, t - 2 * u - 1, t - 4 * u - 1);
           ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.6; ctx.fillRect(px + 3 * u, py + 3 * u, u, 4 * u); ctx.globalAlpha = 1;
         } else { ctx.fillStyle = P.glass; for (let i = 0; i < 5; i++) ctx.fillRect(px + ((x * 7 + i * 5) % 12 + 2) * u, py + ((y * 5 + i * 3) % 10 + 4) * u, u, u); }
+        break;
+      // An opened or dissolved case: its base and empty well, with no glass on it.
+      case 'u':
+        ctx.fillStyle = shade(P.floor, 0.7); ctx.fillRect(px + u, py + 3 * u, t - 2 * u, t - 3 * u);
+        ctx.fillStyle = shade(P.floor, 0.5); ctx.fillRect(px + 3 * u, py + 5 * u, t - 6 * u, t - 7 * u);
+        ctx.strokeStyle = P.glass; ctx.globalAlpha = 0.6; ctx.lineWidth = 1; ctx.strokeRect(px + u + 0.5, py + 3 * u + 0.5, t - 2 * u - 1, t - 3 * u - 1); ctx.globalAlpha = 1;
         break;
       case 'x':
         ctx.fillStyle = P.glass; for (let i = 0; i < 6; i++) ctx.fillRect(px + ((x * 7 + i * 5) % 13 + 1) * u, py + ((y * 5 + i * 7) % 13 + 1) * u, u, u);
@@ -10468,9 +11586,10 @@ Views.register('topdown', 'Flat', host => {
         ctx.fillStyle = ch === 'S' ? '#5c5560' : '#7a5232'; ctx.fillRect(px + 2 * u, py + 3 * u, t - 4 * u, t - 3 * u);
         ctx.fillStyle = ART.palettes.semantic.readable; ctx.fillRect(px + 10 * u, py + 9 * u, u, u);
         break;
-      case "'":
+      // An open door, ordinary or staff: the leaf swung back against the west jamb.
+      case "'": case 's':
         ctx.fillStyle = shade(floor, 0.8); ctx.fillRect(px, py, t, t);
-        ctx.fillStyle = '#7a5232'; ctx.fillRect(px, py, 2 * u, t);
+        ctx.fillStyle = ch === 's' ? '#5c5560' : '#7a5232'; ctx.fillRect(px, py, 2 * u, t);
         break;
       case '=':
         ctx.fillStyle = '#9a2a3a'; ctx.fillRect(px, py + 7 * u, t, u * 1.5);
@@ -14383,7 +15502,7 @@ void main() {
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'u', 's'];
+  const PLAIN = ['.', ','];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -14498,7 +15617,7 @@ const Board3D = (() => {
         case '#': case '+': case 'S': return H.wall;
         case 'o': return H.column;
         case 'H': case '|': return H.partition;
-        case 'v': case 'k': return H.caseBase;
+        case 'v': case 'k': case 'u': return H.caseBase;
         case 'p': case 'C': return H.plinth;
         case 'f': case 'c': return H.furniture;
         case 'l': return H.lectern;
@@ -14518,6 +15637,8 @@ const Board3D = (() => {
         const v = vm.vis[y * vm.w + x];
         if (!v) continue;
         const k = v === 1 ? 0.45 : 1, ch = vm.tiles[y][x], i = y * vm.w + x, fid = 1 + i, oid = 1 + n + i;
+        // A tile you have never seen is masked (' ') and has no geometry (vis is 0 there).
+        if (ch === ' ') continue;
         const C = hex => scale(lin(hex), k);
         const top = C(P.wallTop), face = C(P.wall);
         if (ch === '#') { block(so, x, y, x + 1, y + 1, 0, H.wall, top, face, oid); continue; }
@@ -14537,15 +15658,25 @@ const Board3D = (() => {
             quad(fl, [[x + 0.15, 0.004, y + 0.06], [x + 0.85, 0.004, y + 0.06], [x + 0.85, 0.004, z1], [x + 0.15, 0.004, z1]], scale(lin(ART.palettes.semantic.readable), 0.55 * k), oid);
             break;
           }
-          // An open door: the leaf swung back against the west jamb.
-          case "'": block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, C('#7a5232'), C('#7a5232'), oid); break;
+          // An open door, ordinary or staff: the leaf swung back against the west jamb.
+          case "'": case 's': { const leaf = C(ch === 's' ? '#5c5560' : '#7a5232'); block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, leaf, leaf, oid); break; }
           // Shards: glass specks on the floor.
           case 'x': for (let j = 0; j < 6; j++) { const u = ((x * 7 + j * 5) % 13 + 1) / 16, w = ((y * 5 + j * 7) % 13 + 1) / 16;
             quad(fl, [[x + u, 0.004, y + w], [x + u + 0.07, 0.004, y + w], [x + u + 0.07, 0.004, y + w + 0.07], [x + u, 0.004, y + w + 0.07]], C(P.glass), fid); } break;
           case 'C': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
           case 'v': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
             block(gl_, x + 0.08, y + 0.08, x + 0.92, y + 0.92, H.caseBase, H.caseTop, C(P.glass), C(P.glass), oid); break;
-          case 'k': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid); break;
+          // A broken case: its base, with glass specks lying on it.
+          case 'k': { block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
+            const top = H.caseBase + 0.004;
+            for (let j = 0; j < 5; j++) { const u = ((x * 7 + j * 5) % 12 + 2) / 16, w = ((y * 5 + j * 3) % 10 + 3) / 16;
+              quad(so, [[x + u, top, y + w], [x + u + 0.07, top, y + w], [x + u + 0.07, top, y + w + 0.07], [x + u, top, y + w + 0.07]], C(P.glass), oid); }
+            break; }
+          // An opened or dissolved case: its base, with its glass gone, and the empty well in it.
+          case 'u': { block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
+            const top = H.caseBase + 0.004;
+            quad(so, [[x + 0.2, top, y + 0.2], [x + 0.8, top, y + 0.2], [x + 0.8, top, y + 0.8], [x + 0.2, top, y + 0.8]], scale(C(P.floor), 0.5), oid);
+            break; }
           case 'p': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
           case 'o': column(so, x + 0.5, y + 0.5, 0.32, H.column, top, face, oid); break;
           case 'b': block(so, x + 0.1, y + 0.3, x + 0.9, y + 0.7, 0, H.bench, C('#8a6440'), wood, oid); break;
@@ -15014,8 +16145,9 @@ const Main = (() => {
     text: store.get('text', '1'), font: store.get('font', 'book'), motion: store.get('motion', 'full'), boardNote: '',
   };
   // ui: what the view model needs from the interface (the selection, the path preview and
-  // the last step's events, for one-turn cues). history: the log's recent sentences.
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null;
+  // the events of your last action that took time, for the noise rings and one-turn cues).
+  // last: the last step's events, whatever it took. history: the log's recent sentences.
+  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null, last = [];
   const history = [], HISTORY = 6;
 
   function newVisit() {
@@ -15078,23 +16210,29 @@ const Main = (() => {
   }
 
   // Everything the player does goes through here. An action from anywhere but a walk stops
-  // the walk and drops the path preview; afterwards the open label is brought up to date,
-  // or closed if its exhibit is gone.
+  // the walk and drops the path preview; afterwards the open label is brought up to date
+  // while what it names is in view (ViewModel.shows), or else closed, and the selection
+  // dropped: a label shows only what sight gives, so it never follows an exhibit out of
+  // sight (§7.2, §8.8).
   function act_(action, fromWalk) {
     if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
     // After death nothing more happens, and nothing pushes the cause out of the log.
     if (state.over) { draw(); return []; }
     fresh = false;
-    const ev = Step.step(state, action);
-    ui.events = ev;
+    const tick = state.tick, ev = Step.step(state, action);
+    // The noise rings and one-turn cues are those of your last action that took time (§6.1,
+    // §8.2): a step that takes none (a refusal, such as a bump into a wall, or a free read)
+    // leaves them as they were, as it leaves your ring (§8.2).
+    last = ev;
+    if (state.tick !== tick) ui.events = ev;
     // The log's sentences (Text.log): an event about an exhibit out of view is left out
     // where its kind says so.
-    const nameOf = Labels.nameOf(state), inView = new Set(ViewModel.derive(state, ui).actors.map(a => a.uid));
+    const nameOf = Labels.nameOf(state), vm = ViewModel.derive(state, ui), inView = new Set(vm.actors.map(a => a.uid));
     const lines = Text.log(ev, nameOf, uid => inView.has(uid));
     if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {
-      const l = Labels.of(state, ui.selection);
+      const l = ViewModel.shows(vm, ui.selection) ? Labels.of(state, ui.selection) : null;
       if (!l) { ui.selection = null; UI.closeLabel(); }
       else if (UI.labelShown() === ui.selection) UI.label(l);
     }
@@ -15247,7 +16385,7 @@ const Main = (() => {
   draw();
   window.ACCESSION = {
     get state() { return state; }, act: act_, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
-    get events() { return (ui.events || []).slice(); }, stops: [...STOPS],
+    get events() { return last.slice(); }, stops: [...STOPS],
     views: Views, setZoom, busy: () => !!walking, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };
