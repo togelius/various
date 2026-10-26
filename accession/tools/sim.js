@@ -424,7 +424,9 @@ Counterfactuals:
                         actor of a visit has removes nothing there, and that is reported
   --invulnerable        keep your HP at least 1, and count the would-be deaths
 Output:
-  --check               run every invariant (test/behaviour/*.inv.js) after every step
+  --check               run every invariant (test/behaviour/*.inv.js) after every step, and
+                        fail (status 1) on a paired verdict that is not a pass, a run's
+                        error or a violation: §10.3's gate, scripted
   --log                 include every event of every run
   --out <file>          write the JSON there (stdout otherwise); a summary goes to stderr
 Cards:
@@ -486,9 +488,29 @@ function main(argv) {
   else if (body.a) console.error(`${body.arena || body.dept}: ${body.a.said} won on ${body.stats.won.a} and ${body.b.said} on ${body.stats.won.b} of ${seeds.length} seeds; no metric is set, so there is no verdict.` +
     (body.notes.length ? ` Note: ${body.notes.join('; ')}.` : ''));
   else console.error(`${body.arena || body.dept}: ${body.policy} won on ${body.summary.won.k} and died on ${body.summary.died.k} of ${seeds.length} seeds` +
-    (o.invulnerable ? `, with ${body.summary.deaths} ${body.summary.deaths === 1 ? 'blow' : 'blows'} that would have killed it` : '') + `; mean HP lost ${body.summary.meanHpLost.toFixed(2)}; ${body.summary.violations} violations.` +
+    (o.invulnerable ? `, with ${body.summary.deaths} ${body.summary.deaths === 1 ? 'blow' : 'blows'} that would have killed it` : '') + `; mean HP lost ${body.summary.meanHpLost.toFixed(2)}; ${body.summary.violations} ${body.summary.violations === 1 ? 'violation' : 'violations'}.` +
     (body.notes.length ? ` Note: ${body.notes.join('; ')}.` : ''));
+  // With --check the command is a gate (§10.3's, run in a script): it fails, in words and with
+  // status 1, when a paired verdict is not a pass, or a run met an error or has a violation.
+  if (o.check) {
+    const f = failures(body);
+    for (const line of f) console.error(`sim: ${line}`);
+    if (f.length) return 1;
+  }
   return 0;
+}
+
+// failures(body) → [sentence]: why a run of the command line fails its check, or [] when it
+// passes: a paired verdict that is not a pass; runs that stopped on an error; runs with a
+// violation (a broken invariant, an illegal action). A without that removed nothing is a
+// note, which the verdict already gives, not a failure.
+function failures(body) {
+  const out = [], runs = body.a ? body.a.runs.concat(body.b.runs) : body.runs || [];
+  if (body.verdict && !body.verdict.pass) out.push('the verdict is not a pass.');
+  const errors = runs.filter(r => r.error).length, broken = runs.filter(r => r.violations.some(v => v.id !== 'without')).length;
+  if (errors) out.push(`${errors} ${errors === 1 ? 'run' : 'runs'} stopped on an error, the first: ${runs.find(r => r.error).error}.`);
+  if (broken) out.push(`${broken} ${broken === 1 ? 'run has' : 'runs have'} a violation, the first: ${runs.find(r => r.violations.some(v => v.id !== 'without')).violations.find(v => v.id !== 'without').text}.`);
+  return out;
 }
 
 // JSON has no infinity: an interval's limit without bound (a ratio whose resample had no
@@ -496,7 +518,7 @@ function main(argv) {
 // stays "no value" (a ratio that does not exist).
 const jsonValue = (k, v) => typeof v === 'number' && !Number.isFinite(v) ? String(v) : v;
 
-module.exports = { load, context, policyFiles, hashes, arenaHash, parseSeeds, parseArgs, resolve, run, rebuild, runArena, paired, single, arenaSpec, arm, removed, compare, jsonValue, HELP, README, POLICY_DIR, ARENA_DIR };
+module.exports = { load, context, policyFiles, hashes, arenaHash, parseSeeds, parseArgs, resolve, run, rebuild, runArena, paired, single, arenaSpec, arm, removed, compare, failures, jsonValue, HELP, README, POLICY_DIR, ARENA_DIR };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (e) { console.error((e && e.message) || String(e)); process.exitCode = 1; }

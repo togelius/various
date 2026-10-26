@@ -375,4 +375,24 @@ module.exports = ({ test, assert, root, path, fs }) => {
       assert.equal(e.status, 1, args.join(' ')); assert.match(e.stderr, re); clean(e.stderr);
     }
   });
+
+  // §10.3's gate in a script (Wave 3's criterion 4): with --check, a paired verdict that is not
+  // a pass fails the command, and so does a run's error or violation; without --check the
+  // command only reports, for exploring. A without that removed nothing stays a note.
+  test('with --check the command line is a gate: status 1 for a verdict that is not a pass, an error or a violation, 0 for a pass', () => {
+    const pass = cli(['--arena', 'dummy', '--paired', 'fighter', 'idle', '--seeds', '1-4', '--check']);
+    assert.equal(pass.status, 0, pass.stderr); assert.match(pass.stderr, /that is a pass/); clean(pass.stderr);
+    const fail = cli(['--arena', 'dummy', '--paired', 'fighter', 'fighter', '--seeds', '1-4', '--check']);
+    assert.equal(fail.status, 1, fail.stderr); assert.match(fail.stderr, /that is not a pass[^]*\nsim: the verdict is not a pass\.$/m); clean(fail.stderr);
+    assert.equal(cli(['--arena', 'dummy', '--paired', 'fighter', 'fighter', '--seeds', '1-4']).status, 0, 'without --check it only reports');
+    const noop = cli(['--arena', 'dummy', '--policy', 'idle', '--without', 'no.such.uid', '--seeds', '1', '--cap', '3', '--check']);
+    assert.equal(noop.status, 0, noop.stderr); assert.match(noop.stderr, /won on 0 and died on 0 of 1 seeds; mean HP lost 0\.00; 1 violation\. Note: /);
+    // What fails a check, from a command's output: each kind of failure on its own.
+    const run = (error, ids) => ({ error, violations: ids.map(id => ({ id, step: 1, text: `${id} broke` })) });
+    const verdict = pass => ({ pass, sentence: '' });
+    eq(Sim.failures({ verdict: verdict(true), a: { runs: [run(null, [])] }, b: { runs: [run(null, ['without'])] } }), []);
+    eq(Sim.failures({ verdict: verdict(false), a: { runs: [run(null, [])] }, b: { runs: [run(null, [])] } }), ['the verdict is not a pass.']);
+    eq(Sim.failures({ verdict: verdict(true), a: { runs: [run('basic.x failed to decide at turn 3', [])] }, b: { runs: [run(null, [])] } }), ['1 run stopped on an error, the first: basic.x failed to decide at turn 3.']);
+    eq(Sim.failures({ runs: [run(null, ['without', 'invariant']), run(null, ['policy'])] }), ['2 runs have a violation, the first: invariant broke.']);
+  });
 };

@@ -210,5 +210,15 @@ module.exports = ({ test, assert, loadCore }) => {
     const t = X.Setup.room(1, { acc: 'T0', depth: 1, map, you: [1, 3], exhibits: [big([4, 5]), big([5, 1])] });
     const ev2 = X.Step.step(t, { a: 'move', dir: 2 });
     assert.equal(json(ev2.filter(e => e.k === 'pip').map(e => [e.who, e.cause.dist, e.cause.r])), json([[t.actors[1].uid, 2, 3], [t.actors[2].uid, 3, 3]]));
+    // Any one of its tiles, not only its first: you at (6, 4), still after a wait (radius 2),
+    // and three bodies whose first tiles inside are their second, third and fourth in
+    // footprint order (the body at (3, 4) has its second and fourth inside). Each gains one
+    // pip, 2 tiles away.
+    const u = X.Setup.room(1, { acc: 'T0', depth: 1, map, you: [6, 4], exhibits: [big([3, 4]), big([8, 1]), big([3, 1])] });
+    const ev3 = X.Step.step(u, { a: 'wait' }), ring3 = oracle(map, 6, 4, true);
+    const firstIn = a => X.Actors.footprint(a).findIndex(([x, y]) => ring3.has(`${x},${y}`));
+    assert.equal(json(u.actors.slice(1).map(firstIn)), json([1, 2, 3]), 'the first tile inside is not the first tile');
+    assert.equal(json(ev3.filter(e => e.k === 'pip').map(e => [e.who, e.delta, e.cause.k, e.cause.dist, e.cause.r])),
+      json(u.actors.slice(1).map(a => [a.uid, 1, 'ring', 2, 2])));
   });
 };
