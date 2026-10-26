@@ -34,6 +34,30 @@ Fights the exhibits in view: strikes one when it can, the weakest first, and oth
 
 Weights: none.
 
+## axis_sniper
+
+### axis_sniper.naive
+
+Walks straight across to the exit door, the way a tap on it would walk, and leaves; it pays the Heliograph and its marks no attention.
+
+1. If you stand on an exit door, leave by it.
+2. Otherwise take the first step of the way a tap on the nearest exit door would walk.
+3. Otherwise wait.
+
+Weights: none.
+
+### axis_sniper.counter
+
+Crosses to the exit door off the row and column of every exhibit whose label says it moves to share them and fires along them, and never ends a step on a marked tile.
+
+1. Read the label of each exhibit in view once; one whose Behaviour line says it moves to share your row or column is a sniper, whose row and column are dangerous within the longer of its beam's reach and, while it sleeps, its axis trigger's, as the label gives them (the whole row and column if it gives neither), up to a tile that blocks sight.
+2. If you stand on an exit door, leave by it.
+3. The cost of a way to the nearest exit door: each step costs 1, a step onto a dangerous tile 1 + the danger weight, and a step onto a marked tile or an exhibit's more than any way round it.
+4. If a mark covers your tile, take the step onto no mark and no exhibit whose tile has the cheapest way to the door.
+5. Otherwise take the step onto no mark and no exhibit that lowers the cost of the way most; wait if none lowers it.
+
+Weights: danger weight 30.
+
 ## darter
 
 ### darter.naive
@@ -58,6 +82,33 @@ Corners the darter, its back to a wall: comes at it from the side that leaves it
 5. Otherwise, wait.
 
 Weights: turns without an exhibit in view before it goes to look 10.
+
+## kiter
+
+### kiter.naive
+
+Walks straight at the kiter, the way a tap on it would walk, and strikes it whenever it is beside you.
+
+1. If the kiter is beside you and can be struck, strike it.
+2. Otherwise, if it is in view, take the first step of the way a tap on it would walk.
+3. Otherwise take the first step of the way to where you last saw it.
+4. Otherwise wait.
+
+Weights: none.
+
+### kiter.counter
+
+Reads the kiter's label and fights it from behind the pillars: it keeps out of the kiter's line of fire whenever the kiter is far enough to shoot rather than back away, lets it come looking while it is out of sight, presses it when it is near enough to back away, and strikes it whenever it is beside you.
+
+1. If the kiter is beside you and can be struck, strike it.
+2. Read its label once: how near it lets you come before it backs away (L in "Keeps L to H tiles from you") and how far it shoots (R in "shoots within R tiles"). A tile is in its line of fire if it is within R of the kiter, in its sight, and nothing stands on the bolt's line between.
+3. If it is in view, L or more steps away, and you stand in its line of fire, step to the tile beside you out of its line of fire that is nearest it; if there is none, step toward it by the cheapest way (below).
+4. If it is in view and nearer than L steps, step toward it by the cheapest way: each step costs 1, and a step onto a tile in its line of fire costs the exposure weight more. After more than the chase limit of such steps in a row, step out of its sight instead (the tile beside you nearest it), so that it comes looking.
+5. If it is in view, L or more steps away, and you are out of its line of fire, step toward it by the cheapest way that stays out of its line of fire, or wait.
+6. If it is out of view, and you saw it within the wait limit and stand out of the line of fire of where you saw it, wait: it comes looking for you. Otherwise step toward where you last saw it by the cheapest way.
+7. Otherwise wait.
+
+Weights: exposure weight 6, chase limit (turns) 10, wait limit (turns) 12.
 
 ## mote_swarm
 
@@ -110,6 +161,34 @@ Fights the plodders from the doorway: steps into the gap one tile wide in the wa
 6. Otherwise, wait in the doorway for them to come to it.
 
 Weights: turns without an exhibit in view before it goes to look 10.
+
+## reflector
+
+### reflector.naive
+
+Goes for the artillery: shoots it with the Pin-Driver whenever the Pin-Driver can be aimed at it, and otherwise walks to it and strikes it, striking whatever stands in its way.
+
+1. The artillery is the exhibit whose label says it shoots.
+2. If the artillery is beside you and can be struck, strike it.
+3. Otherwise, if the Pin-Driver can be aimed at it, fire it.
+4. Otherwise take the first step of the way a tap on it would walk; if an exhibit shuts that way beside you, strike it.
+5. Otherwise wait.
+
+Weights: none.
+
+### reflector.counter
+
+Reads the labels and never shoots into the dish, which would send the bolt back: it strikes the dish down first, then shoots the artillery along a clear line or strikes it.
+
+1. Read each exhibit's label once: the artillery is the one whose label says it shoots; a dish is one whose label says it sends shots back into whoever fired them.
+2. If a dish in view is beside you and can be struck, strike it.
+3. Otherwise, if a dish is in view, take the first step of the way a tap on the nearest one would walk; if an exhibit shuts that way beside you, strike it.
+4. Otherwise, if the artillery is beside you and can be struck, strike it.
+5. Otherwise, if the Pin-Driver can be aimed at the artillery and no exhibit stands on the bolt's line before it, fire it.
+6. Otherwise take the first step of the way a tap on the artillery would walk; if an exhibit shuts that way beside you, strike it.
+7. Otherwise wait.
+
+Weights: none.
 
 ## splitter
 

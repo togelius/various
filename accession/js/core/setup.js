@@ -33,14 +33,17 @@ const Setup = (() => {
   // The parts of a department every state has, beyond its map (§4.1).
   const deptParts = grade => ({ clock: null, fixtures: [], surfaces: [], highlights: [], planRead: null, entryGrade: grade, modules: [] });
 
-  // A state with every top-level field, around the department `dept` and you at (x, y).
+  // A state with every top-level field, around the department `dept` and you at (x, y), with
+  // your grade's health (§8.1: Health.maxHp, PLAYER_HP and HP_PER_GRADE more a grade above I).
   function base(seed, dept, x, y, options, grade) {
+    const me = you(x, y);
+    me.hp = me.maxHp = Health.maxHp(grade || N.GRADE_START);
     return {
       v: SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0,
       options: Options.make(options),
       run: run(dept.depth, grade),
       dept,
-      actors: [you(x, y)],
+      actors: [me],
       items: [],
       you: kit(),
       causes: [], over: null,
@@ -85,7 +88,7 @@ const Setup = (() => {
   //   which goes {at: 'gone'}; kit ({weapon: {form, tier, level}, garment: {form, tier,
   //   level}}: your starting kit, else the usual one); youStatuses (your statuses, as an
   //   exhibit's); clock ({ltour} or {B, G, count}: Clock.init's; none if absent); entrance
-  //   [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  //   [x, y], exits [[x, y]…], grade (your grade, I if absent, and your health with it).
   // A field it does not know, a slot given twice, an item of the wrong kind for its slot, a
   // tote past TOTE_SLOTS, an item uid given twice or a status not in the registry is refused
   // with an error, so nothing a test gives is silently left out.
