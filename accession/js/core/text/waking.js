@@ -33,8 +33,9 @@
     tether: e => 'you came near what it guards',
     ally_hit: (e, w) => ally(e, w),
     awake: e => 'it never sleeps',
+    placed: e => 'it was set out awake when the room was made',
   };
-  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) {
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
     // Woken by a noise, it goes to look where the noise was.
     const then = k === 'noise' ? ', and goes to look' : '';

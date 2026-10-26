@@ -68,7 +68,29 @@ module.exports = ({ test, assert, loadCore }) => {
     },
   });
 
-  for (const sc of [ring, noise, outside]) {
+  // Set out awake: a room (a test's, an arena stamp's mode=) makes the sleeper hunting from
+  // the start, you out of its sight behind a wall. Its story says the room set it out awake
+  // (the creation cause 'placed', BUILD.md §3.4), not that it never sleeps, which is the
+  // `awake` trigger's ('awake'); and true to its line, it goes back to sleep.
+  const placed = H.scenario({
+    name: 'set out hunting by the room, its story says so (placed), and it goes back to sleep',
+    id: 'WAKE_CAUSES.placed', clone: true,
+    build(params, sp, depth, opts) {
+      const map = open(16, 8);
+      for (let y = 1; y < 7; y++) map[y] = map[y].slice(0, 8) + '#' + map[y].slice(9);
+      return build(C, sp, depth, opts, { map, you: [13, 3], exhibits: [Object.assign(sleeper(C, sp, depth, [3, 3]), { mode: 'hunting' })] });
+    },
+    actions: (s) => s.actors[1].mode === 'dormant' ? null : { a: 'wait' },
+    expect(r) {
+      const a0 = r.start.actors[1], a = r.state.actors[1];
+      if (![a0.woke, a0.hunted].every(st => st && st.turn === 0 && json(st.cause) === json({ k: 'placed' }))) return `its story is ${json([a0.woke, a0.hunted])}`;
+      const said = C.Text.event({ k: 'woke', turn: 0, who: a0.uid, was: null, mode: 'hunting', cause: a0.woke.cause }, C.Labels.nameOf(r.start));
+      if (!said.endsWith(': it was set out awake when the room was made.')) return `its creation reads ${json(said)}`;
+      return a.mode === 'dormant' ? null : `it is ${a.mode} after ${r.steps.length} turns, not back asleep`;
+    },
+  });
+
+  for (const sc of [ring, noise, outside, placed]) {
     test(`wake: ${sc.name}, for every species and depth`, () => {
       assert.ok(LIST.length >= 7 * 10, `${LIST.length / 7} species`);
       const results = H.sweep(C, sc, LIST);

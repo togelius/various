@@ -168,6 +168,27 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} is awake: it never sleeps.`, `On turn 0, ${names(a.uid)} saw you and is hunting you.`]);
   });
 
+  test('set out hunting by the room, an exhibit that can sleep: the recap says the room set it out awake ("placed"), never that it never sleeps, and it does go back to sleep', () => {
+    // The Seated Clerk (A4.1: ally_hit, which sleeps), stamped hunting, as an arena stamp's
+    // mode= or a test room makes it, beside you at 1 HP.
+    const sp = C.Packs.species('A4', 'A4.1');
+    const s = Setup.room(1, { acc: 'A4', depth: 2, map: OPEN, you: [2, 2], exhibits: [ex(sp, [3, 2], { mode: 'hunting' })] });
+    s.actors[0].hp = 1;
+    const a = s.actors[1], start = State.clone(s), events = play(s, { a: 'wait' }, 80);
+    assert.deepEqual(J([a.woke, a.hunted]), [{ turn: 0, cause: { k: 'placed' } }, { turn: 0, cause: { k: 'placed' } }]);
+    const r = recapped(start, s, events, 'placed'), names = Labels.nameOf(s);
+    assert.deepEqual([r.wakeTurn, r.wakeTrigger, r.huntTurn], [0, 'placed', 0]);
+    assert.deepEqual(J(r.lines.slice(2)), [`On turn 0, ${names(a.uid)} is awake: it was set out awake when the room was made.`]);
+    assert.ok(!r.lines.join(' ').includes('never sleeps'), r.lines.join('\n'));
+    // The same exhibit, set out awake with you out of its sight, goes back to sleep: "it never
+    // sleeps" would have been false.
+    const MAP = ['###############', '#.....#.......#', '#.....#.......#', '###############'];
+    const t = Setup.room(1, { acc: 'A4', depth: 2, map: MAP, you: [12, 1], exhibits: [ex(sp, [2, 1], { mode: 'awake' })] });
+    assert.equal(t.actors[1].woke.cause.k, 'placed');
+    for (let i = 0; i < 80 && t.actors[1].mode !== 'dormant'; i++) Step.step(t, { a: 'wait' });
+    assert.equal(t.actors[1].mode, 'dormant', 'it went back to sleep');
+  });
+
   test('a waking more than 64 cause records back: the recap still reads it, from the killer\'s own story', () => {
     const sp = C.Packs.species('M11', 'M11.5');
     // A fixed dummy to strike (each hit a damaged record) while the Trolley, woken by your

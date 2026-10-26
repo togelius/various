@@ -555,6 +555,15 @@ module.exports = ({ test, assert, loadCore }) => {
         X.Wake.allyHit = () => {};
         return [X, room(X, open(16, 10), [2, 5], [ex([3, 5], { group: 'g' }), ex([7, 5], { group: 'g', trigger: 'ally_hit' })]), s => s.turn === 0 ? { a: 'attack', uid: s.actors[1].uid } : null];
       }],
+      // A room that tells an exhibit it sets out hunting, one that can sleep, that it never
+      // sleeps (the creation cause awake, as Setup.settleActors once gave every one).
+      ['waking.awake_story', () => {
+        const X = fresh(), created = X.Wake.created;
+        X.Wake.created = (st, a, k, extra, ev) => created(st, a, k === 'placed' ? 'awake' : k, extra, ev);
+        // The fault is in how the room is made, so the sound core's run makes its own room.
+        const make = Y => room(Y, OPEN, [2, 2], [ex([5, 2], { mode: 'hunting' })]);
+        return [X, make(X), [{ a: 'wait' }], () => make(C)];
+      }],
       // An exhibit that never sleeps sent to sleep, and one sent back home (the first step to sleep).
       ['waking.awake', () => {
         const X = fresh(), act = X.AI.act;
@@ -568,11 +577,12 @@ module.exports = ({ test, assert, loadCore }) => {
       }],
     ];
     for (const [id, make] of faults) {
-      const [X, s, actions] = make(), base = X.State.clone(s);
+      const [X, s, actions, sound] = make(), base = X.State.clone(s);
       const r = H.play(X, s, actions, { inv: ['waking'] });
       assert.ok(r.violations.some(v => v.inv === id), `${id}: ${json(r.violations.map(v => v.text))}`);
-      // The same run in a sound core breaks nothing.
-      const ok = H.play(C, C.State.clone(base), actions, { inv: ['waking'] });
+      // The same run in a sound core breaks nothing (from a room it makes itself, when the
+      // fault is in the making).
+      const ok = H.play(C, sound ? sound() : C.State.clone(base), actions, { inv: ['waking'] });
       assert.equal(json(ok.violations.map(v => v.text)), '[]', id);
     }
     // Every invariant of the file has a planted fault here.

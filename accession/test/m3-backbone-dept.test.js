@@ -368,7 +368,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([y.dmin, y.dmax, y.acc, y.pad, y.eva, s.run.grade, s.dept.entryGrade]), json([4, 12, 3 - 1 - 2, 1, 3, 3, 3]));
     assert.equal(json([s.dept.clock.B, s.dept.entrance, s.dept.exits]), json([250, [1, 1], [[7, 2]]]));
     const [, hunter, sleeper] = s.actors;
-    assert.equal(json([hunter.woke, hunter.hunted, hunter.next]), json([{ turn: 0, cause: { k: 'awake' } }, { turn: 0, cause: { k: 'awake' } }, 0]), 'made awake: its story, no beat');
+    assert.equal(json([hunter.woke, hunter.hunted, hunter.next]), json([{ turn: 0, cause: { k: 'placed' } }, { turn: 0, cause: { k: 'placed' } }, 0]), 'made awake by the room: its story (placed: it can sleep), no beat');
     assert.equal(sleeper.woke, null);
   });
 

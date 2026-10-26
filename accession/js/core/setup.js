@@ -51,13 +51,20 @@ const Setup = (() => {
   // The actors removed for this visit (options.without, by uid) are marked gone: each has
   // already taken its uid and its place, so nothing else is renumbered or moved (§3.2). Then
   // each archetype's init runs, in spawn order, for actors not gone; then each exhibit made
-  // awake gets its story from the starting state (Wake.created, with no event or beat).
+  // awake gets its story from the starting state (Wake.created, with no event or beat): the
+  // cause `awake` ("it never sleeps") for one whose trigger stands for the wake clause (the
+  // `awake` trigger), and `placed` ("it was set out awake when the room was made") for any
+  // other, which a room for tests or an arena stamp made awake but which can sleep (§3.4).
+  const createdAs = a => {
+    const T = typeof a.trigger === 'string' && Object.prototype.hasOwnProperty.call(Registry.TRIGGERS, a.trigger) ? Registry.TRIGGERS[a.trigger] : null;
+    return T && T.replacesWake ? 'awake' : 'placed';
+  };
   function settleActors(state, from) {
     const without = state.options.without || [];
     for (const a of state.actors) if (without.includes(a.uid)) a.gone = 1;
     const made = state.actors.slice(from);
     for (const a of made) if (!a.gone) Archetypes.init(state, a);
-    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, 'awake', {}, null);
+    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, createdAs(a), {}, null);
   }
 
   // A state for one room, for tests, scenarios and arenas. spec:

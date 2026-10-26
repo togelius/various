@@ -63,10 +63,14 @@
   R.define('WAKE_CAUSES', 'tether', Object.assign({ mode: 'hunting', creation: false }, proved(TRIGGER_TESTS)));
   R.define('WAKE_CAUSES', 'ally_hit', Object.assign({ mode: 'hunting', creation: false }, proved(TRIGGER_TESTS)));
   R.define('WAKE_CAUSES', 'awake', Object.assign({ mode: 'awake', creation: true }, proved(TRIGGER_TESTS)));
+  // An exhibit that can sleep, made awake (or hunting) by a room for tests or an arena stamp
+  // rather than by any rule (Setup.settleActors; §3.4): its story says the room set it out
+  // awake, never that it never sleeps, which only `awake` says.
+  R.define('WAKE_CAUSES', 'placed', Object.assign({ mode: 'awake', creation: true }, proved(['recap.test.js', 'behaviour/wake.test.js'])));
   const wake = extra => Object.assign({ by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' }, extra);
   // The ring names its radius; noise its class; ally_hit the ally that was hurt.
-  const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({ ally: 'uid?' }), awake: wake({}) };
-  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
+  const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({ ally: 'uid?' }), awake: wake({}), placed: wake({}) };
+  for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
   // The triggers that wake at once do it through Wake.addPips +3, whose pip event carries the
   // same cause as the woke and hunting events that follow (lint-registry checks every waking
   // trigger has its pip schema).

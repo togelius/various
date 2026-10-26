@@ -27,7 +27,7 @@
 // Pole pushes or pulls one in your action without waking it (§8.5), so a sleeper is checked
 // on the tiles it stood on at that moment of the step (where, from its moved events).
 module.exports = (C) => {
-  const { N, Grid } = C;
+  const { N, Grid, Registry } = C;
   const exhibit = a => a.uid !== 'you';
   const pipsOf = (events, uid) => events.filter(e => e.k === 'pip' && e.who === uid);
   const square = (x, y, s) => { const out = []; for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) out.push([x + dx, y + dy]); return out; };
@@ -322,6 +322,18 @@ module.exports = (C) => {
         const e = events.find(e => e.who === a.uid && ((e.k === 'lost' && SLEEP.includes(e.to)) || e.k === 'returned' || (e.k === 'woke' && e.was === 'dormant')));
         if (e) return `it never sleeps, but on turn ${e.turn} ${e.k === 'woke' ? 'it woke from sleep' : e.k === 'returned' ? 'it settled back in' : `it went ${e.to}`}`;
         return !a.gone && SLEEP.includes(a.mode) ? `it never sleeps, but it is ${a.mode}` : null;
+      },
+    },
+    {
+      // The creation cause `awake` is told "it never sleeps" (§3.4, §8.2), so only an exhibit
+      // whose trigger stands for the wake clause (`awake`) may carry it in its story; one a
+      // room sets out awake that can sleep carries `placed`.
+      id: 'waking.awake_story',
+      applies: exhibit,
+      check(pre, events, post, ctx) {
+        const a = ctx.actor, T = a.trigger && Object.prototype.hasOwnProperty.call(Registry.TRIGGERS, a.trigger) ? Registry.TRIGGERS[a.trigger] : null;
+        const says = [a.woke, a.hunted].some(st => st && st.cause && st.cause.k === 'awake');
+        return says && !(T && T.replacesWake) ? `its story says it never sleeps (cause awake), but its trigger is ${JSON.stringify(a.trigger)}, and it can sleep` : null;
       },
     },
     {
