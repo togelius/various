@@ -213,6 +213,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const [acc, depth] of [['S9', 1], ['A4', 4], ['M11', 7]]) {
       const s = Dept.create(2, acc, depth);
       for (const a of s.actors.slice(1)) {
+        if (C.Archetypes.present(s, a) !== null) continue;      // a mimic in its disguise has a case's label (§8.3)
         const l = Labels.of(s, a.uid), spc = Labels.speciesOf(s, a);
         assert.equal(l.behaviour, Clauses.line(spc, { depth }), `${a.uid}`);
         assert.ok(clean(l.behaviour), l.behaviour);
@@ -256,9 +257,33 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(r.status, 1); assert.match(r.stdout, /the trigger planted_trigger wakes through pips but has no pip\.planted_trigger cause schema/);
     r = lint("Registry.defineCause('damaged', 'planted_blow', { fields: { by: 'uid' } }); Text.defineCause('damaged', 'planted_blow', () => 'Planted.');");
     assert.equal(r.status, 1); assert.match(r.stdout, /damaged\.planted_blow does not accept saved\?/); assert.match(r.stdout, /damaged\.planted_blow does not accept side\?/);
+    // Every M3 id is referenced by a pack, a scenario test or an arena fixture (§5.1): an
+    // entry nothing names fails; one its own scenario file names in quotes passes.
+    // (The orphan's id is built here, so that this file does not name it in quotes.)
+    const orphan = ['planted', 'orphan'].join('_');
+    r = lint(`Registry.define('GLASS', '${orphan}', { ready: 'unit', tests: ['m3-grammar.test.js'], inv: 'cases' });`);
+    assert.equal(r.status, 1); assert.match(r.stdout, /GLASS\.planted_orphan is referenced by no pack, by none of its scenario files \(m3-grammar\.test\.js\) and by no arena stamp/);
+    r = lint("Registry.define('GLASS', 'planted_named', { ready: 'unit', tests: ['m3-grammar.test.js'], inv: 'cases' });");
+    assert.doesNotMatch(r.stdout, /planted_named is referenced by no pack/, 'this file names \'planted_named\'');
+    assert.equal(r.status, 0, r.stdout);
     // --strict is M3's acceptance: it fails until every M3 entry is ready.
     r = lint(null, ['--strict']);
     assert.equal(r.status, 1); assert.match(r.stdout, /--strict: \S+ is at ready (false|"unit")/);
+    // With --follow-ups, an entry below true passes while test/behaviour/follow-ups.json (here a
+    // planted copy) holds an open follow-up for it; one without stays a problem, and a
+    // follow-up for an id that is not an M3 entry fails.
+    const ids = [];
+    for (const t of C.Registry.TABLES) for (const id of C.Registry.order(t)) if (C.Registry[t][id].built === 'M3' && C.Registry[t][id].ready !== true) ids.push(t + '.' + id);
+    const follow = Object.fromEntries(ids.map(w => [w, 'planted: promoted by the joined-up scenarios']));
+    const ff = path.join(tmp, 'follow-ups.json');
+    fs.writeFileSync(ff, JSON.stringify(follow));
+    r = lint(null, ['--strict', '--follow-ups', '--follow-file', ff]);
+    assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, new RegExp(`${ids.length} open follow-up\\(s\\)`));
+    delete follow[ids[0]]; follow['ARCHETYPES.patrol_guard'] = 'an M4 entry';
+    fs.writeFileSync(ff, JSON.stringify(follow));
+    r = lint(null, ['--strict', '--follow-ups', '--follow-file', ff]);
+    assert.equal(r.status, 1);
+    assert.match(r.stdout, new RegExp(`--strict: ${ids[0].replace('.', '\\.')} is at ready`)); assert.match(r.stdout, /follow-ups: ARCHETYPES\.patrol_guard is not an M3 entry/);
     // And the tree itself is clean, with the readiness counts reported.
     r = lint(null);
     assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, /M3 entries at ready false \d+, 'unit' \d+, true \d+/);

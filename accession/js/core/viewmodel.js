@@ -8,9 +8,11 @@ const ViewModel = (() => {
     const now = Vision.visible(state), vis = new Uint8Array(n);
     for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (m.seen && m.seen.charCodeAt(i) === 49 ? 1 : 0);
     const ring = Vision.ring(state);
+    // The observed actors: never one that shows as something else, a mimic in its disguise,
+    // which is a case to everything you see (Archetypes.present; §8.3).
     const actors = [];
     for (const a of state.actors) {
-      if (a.gone) continue;
+      if (a.gone || (a.uid !== 'you' && Archetypes.present(state, a) !== null)) continue;
       const size = a.size || 1;
       let seen = false;
       for (let dy = 0; dy < size && !seen; dy++) for (let dx = 0; dx < size; dx++) if (now[(a.y + dy) * m.w + a.x + dx]) { seen = true; break; }

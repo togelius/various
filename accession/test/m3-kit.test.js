@@ -346,10 +346,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: 1, where: { at: 'kit', slot: 'instrument' } }] });
     assert.equal(json(X.Kit.targets(s, 'p')), json([[7, 5], [5, 4]].sort((a, b) => a[1] - b[1] || a[0] - b[0])), 'behind glass, and (8, 5) beyond the disc, cannot be aimed at');
     const refused = (a, code) => { const before = X.State.canon(s), ev = X.Step.step(s, a); assert.equal(reason(ev), code, key(a)); assert.equal(X.State.canon(s), before); };
-    refused({ a: 'use', uid: 'p', x: 8, y: 2 }, 'no_line');
-    refused({ a: 'use', uid: 'p', x: 8, y: 5 }, 'out_of_range');
+    // Its bolt is a shot, refused with §8.1's shot codes: glass in the way, out of reach,
+    // nothing there.
+    refused({ a: 'use', uid: 'p', x: 8, y: 2 }, 'behind_glass');
+    refused({ a: 'use', uid: 'p', x: 8, y: 5 }, 'out_of_reach');
     refused({ a: 'use', uid: 'p', x: 4, y: 4 }, 'no_target');
-    // A mimic in its disguise shows as a case, so it cannot be aimed at.
+    // A body that shows as a case cannot be aimed at, even standing on the floor.
     X.Archetypes.present = (state, a) => a.uid === 'T0.1.room.4' ? { as: 'case' } : null;
     refused({ a: 'use', uid: 'p', x: 5, y: 4 }, 'no_target');
     // A bolt Ranged.shoot refuses is refused with its code, spends nothing and says nothing,
@@ -360,6 +362,37 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const before = Y.State.canon(s2);
     assert.equal(reason(Y.Step.step(s2, { a: 'use', uid: 'p', x: 6, y: 3 })), 'no_target');
     assert.equal(Y.State.canon(s2), before);
+  });
+
+  // §8.1, Shots: a bolt that would meet glass first is refused behind_glass, "so a case, an
+  // exhibit in one and a mimic's disguise look the same"; one out of range out_of_reach, one
+  // out of sight blocked, one that would reach no body no_target. The Pin-Driver's bolt is a
+  // shot (§8.5), so it is refused so too, with nothing changed and with none of those tiles
+  // offered by legal.
+  test('the Pin-Driver is refused as a shot is: behind_glass alike for a case, an exhibit in one, fixed glazing and a mimic\'s disguise; out_of_reach, blocked, no_target', () => {
+    const X = loadCore();
+    const map = ['############', '#..........#', '#....v.v...#', '#....v.....#', '#..........#', '#####v######', '#..........#', '############'];
+    const s = X.Setup.room(2, { acc: 'T0', depth: 3, map, you: [5, 4],
+      fixtures: [Cases.make({ x: 5, y: 3, num: 'T.1.1', glass: 1, lock: 1 }), Cases.make({ x: 7, y: 2, num: 'T.1.2', glass: 1, lock: 1 }), Cases.make({ x: 5, y: 2, num: 'T.1.3', glass: 1, lock: 1 })],
+      exhibits: [Object.assign(dummy([5, 3], 'dormant'), { uid: 'incase' }), Object.assign(dummy([5, 6], 'dormant'), { uid: 'behind' }),
+        { uid: 'mim', sp: 'S9.5', at: [3, 2], mode: 'dormant', stats: X.Roles.stats('ambusher', 3) },
+        Object.assign(dummy([10, 6], 'dormant'), { uid: 'unseen' }), Object.assign(dummy([10, 1], 'dormant'), { uid: 'far' })],
+      items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: 1, where: { at: 'kit', slot: 'instrument' } }] });
+    const mim = s.actors.find(a => a.uid === 'mim');
+    assert.equal(json([X.Grid.ch(s.dept, 3, 2), X.Archetypes.present(s, mim)]), json(['v', { as: 'case' }]), 'the mimic is in its disguise');
+    assert.equal(X.Grid.ch(s.dept, 5, 5), 'v', 'fixed glazing between you and (5, 6)');
+    const legal = X.Step.legal(s).filter(a => a.a === 'use').map(a => a.x + ',' + a.y);
+    const cases = [['an exhibit in a case', 5, 3, 'behind_glass'], ['an exhibit behind fixed glazing', 5, 6, 'behind_glass'], ['a mimic in its disguise', 3, 2, 'behind_glass'],
+      ['an empty case', 7, 2, 'behind_glass'], ['a case behind a case', 5, 2, 'behind_glass'], ['an exhibit out of sight', 10, 6, 'blocked'], ['an exhibit out of range', 10, 1, 'out_of_reach'], ['the floor', 3, 4, 'no_target']];
+    for (const [what, x, y, code] of cases) {
+      const before = X.State.canon(s), ev = X.Step.step(s, { a: 'use', uid: 'p', x, y });
+      assert.equal(reason(ev), code, `${what} at ${x},${y}`);
+      assert.equal(X.State.canon(s), before, `${what}: nothing changed`);
+      assert.equal(X.Ranged.canShoot(s, s.actors[0], x, y, { kind: 'shot', max: N.PIN_DRIVER[2] }), code, `${what}: as Ranged.canShoot refuses the bolt`);
+      assert.ok(!legal.includes(x + ',' + y), `legal offers ${what}`);
+    }
+    // The mimic's disguise and an empty case are told alike.
+    assert.equal(X.Text.refusal('behind_glass'), 'Glass is in the way.');
   });
 
   test('the Window Pole pushes or pulls a one-tile exhibit one tile, where it could step itself, without waking it; or takes from an opened or broken case within 2', () => {
@@ -684,6 +717,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       firsts.add(placed[0].ref); extras.add(placed[2].ref);
     }
     assert.equal(json([[...firsts].sort(), [...extras].sort()]), json([['Z.1', 'Z.2', 'Z.3'], ['Z.4', 'Z.5', 'Z.6']]), 'each of the pack\'s pieces is placed first in some department');
+  });
+
+  // Each weapon and garment form has its clause, which its label names (Kit.describe), filled
+  // with its numbers at its tier: 'weapon_light', 'weapon_balanced', 'weapon_heavy',
+  // 'weapon_reach', 'garment_light', 'garment_standard' and 'garment_heavy'.
+  test('every weapon and garment form\'s label names its own clause, filled at its tier', () => {
+    const forms = { weapon: ['light', 'balanced', 'heavy', 'reach'], garment: ['light', 'standard', 'heavy'] };
+    const ids = { weapon: ['weapon_light', 'weapon_balanced', 'weapon_heavy', 'weapon_reach'], garment: ['garment_light', 'garment_standard', 'garment_heavy'] };
+    for (const kind of ['weapon', 'garment']) forms[kind].forEach((form, i) => {
+      const s = room({ items: [{ uid: 'q', kind, form, tier: 2, where: { at: 'tote' } }] }), d = Kit.describe(s, 'q');
+      assert.ok(Registry.CLAUSES[ids[kind][i]], ids[kind][i]);
+      assert.equal(d.parts[0].table + '.' + d.parts[0].id, 'CLAUSES.' + ids[kind][i], `${kind} ${form}`);
+      assert.ok(d.parts[0].text && !/[{}]|undefined|NaN/.test(d.parts[0].text), d.parts[0].text);
+    });
   });
 
   test('Kit.view shows what you wear and carry, your instrument\'s charges, the items in sight and the Highlights not yet taken; Kit.describe gives an item\'s label data', () => {

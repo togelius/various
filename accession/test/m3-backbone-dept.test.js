@@ -420,7 +420,9 @@ module.exports = ({ test, assert, loadCore }) => {
       ['Consumables', 'startRun', null], ['Consumables', 'standIn', null], ['Consumables', 'useLegal', null], ['Consumables', 'useAction', null],
       ['Consumables', 'useCandidates', 1], ['Consumables', 'known', null], ['Consumables', 'name', null], ['Consumables', 'targets', null], ['Consumables', 'view', null],
       ['ClockRules', 'boundary', null], ['ClockRules', 'fell', null], ['ClockRules', 'nearestSleepers', null], ['ClockRules', 'spawnWatchman', null], ['Clock', 'view', null],
-      ['Labels', 'ofCase', null], ['Labels', 'ofItem', null], ['Labels', 'ofPlaque', null], ['Labels', 'ofStaffDoor', null], ['Labels', 'you', null],
+      // The labels W2a-LABELS fills take what Obs.readLabel (tools/policies/lib.js) passes: a
+      // case's, plaque's and staff door's take its fixture, an item's its uid, yours the state.
+      ['Labels', 'ofCase', 2], ['Labels', 'ofItem', 2], ['Labels', 'ofPlaque', 2], ['Labels', 'ofStaffDoor', 2], ['Labels', 'you', 1],
     ];
     for (const [ns, fn, n] of NAMED) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);

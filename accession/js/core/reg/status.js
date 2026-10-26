@@ -10,28 +10,30 @@
 (() => {
   const R = Registry;
   const TESTS = ['m3-status.test.js', 'behaviour/status.test.js'];
+  // Each status's and surface's pictogram is keyed by its own id (js/view/pictograms.js).
   const status = (harmful, words, clause, params, covers) => ({ icon: null, harmful, words, clause, params, covers: ['status'].concat(covers || []), ready: 'unit', tests: TESTS.slice(), inv: 'status' });
 
   // A status's clause continues the clause of the archetype that inflicts it (§5.3), so it
   // starts lower-case and has no full stop; its numbers are those of record (§8.10).
-  R.define('STATUSES', 'fixed', status(true, 'fixed in place', 'cannot move or act for {FIXATIVE_TURNS} turns, only wait, and blows against it have +{HIT_FIXED_TARGET} to hit',
+  const define = (id, e) => R.define('STATUSES', id, Object.assign(e, { icon: id }));
+  define('fixed', status(true, 'fixed in place', 'cannot move or act for {FIXATIVE_TURNS} turns, only wait, and blows against it have +{HIT_FIXED_TARGET} to hit',
     { FIXATIVE_TURNS: 'N:FIXATIVE_TURNS', HIT_FIXED_TARGET: 'N:HIT_FIXED_TARGET' }));
-  R.define('STATUSES', 'rooted', status(true, 'rooted to the spot', 'you cannot move for {MIMIC_GRIP_TURNS} turns', { MIMIC_GRIP_TURNS: 'N:MIMIC_GRIP_TURNS' }));
-  R.define('STATUSES', 'coughing', status(true, 'coughing', 'coughs for {COUGH_TURNS} turns, each turn a soft noise heard {NOISE_SOFT} tiles away',
+  define('rooted', status(true, 'rooted to the spot', 'you cannot move for {MIMIC_GRIP_TURNS} turns', { MIMIC_GRIP_TURNS: 'N:MIMIC_GRIP_TURNS' }));
+  define('coughing', status(true, 'coughing', 'coughs for {COUGH_TURNS} turns, each turn a soft noise heard {NOISE_SOFT} tiles away',
     { COUGH_TURNS: 'N:COUGH_TURNS', NOISE_SOFT: 'N:NOISE_SOFT' }, ['noise']));
-  R.define('STATUSES', 'restoring', status(false, 'recovering health', 'heals {CONSOLIDANT_HOT_PCT}% of its maximum health over {CONSOLIDANT_HOT_TURNS} turns, a share each turn',
+  define('restoring', status(false, 'recovering health', 'heals {CONSOLIDANT_HOT_PCT}% of its maximum health over {CONSOLIDANT_HOT_TURNS} turns, a share each turn',
     { CONSOLIDANT_HOT_PCT: 'N:CONSOLIDANT_HOT_PCT', CONSOLIDANT_HOT_TURNS: 'N:CONSOLIDANT_HOT_TURNS' }, ['healed']));
-  R.define('STATUSES', 'slowed', status(true, 'slowed', 'its actions take {SPEED_SLOW_PCT}% of their usual time', { SPEED_SLOW_PCT: 'N:SPEED_SLOW_PCT' }));
-  R.define('STATUSES', 'dazed', status(true, 'dazed', 'its blows have {HIT_DAZED_ATTACKER} to hit', { HIT_DAZED_ATTACKER: 'N:HIT_DAZED_ATTACKER' }));
+  define('slowed', status(true, 'slowed', 'its actions take {SPEED_SLOW_PCT}% of their usual time', { SPEED_SLOW_PCT: 'N:SPEED_SLOW_PCT' }));
+  define('dazed', status(true, 'dazed', 'its blows have {HIT_DAZED_ATTACKER} to hit', { HIT_DAZED_ATTACKER: 'N:HIT_DAZED_ATTACKER' }));
 
   // Surfaces: a square of `size` tiles a side for `turns` turns (the N keys Surfaces.add is
   // called with); both block sight (§8.2). The clause is a sentence of its own, for the label
   // of a tile it covers.
   const surface = (clause, params, covers, extra) => Object.assign({ blocksSight: true, icon: null, clause, params, covers, ready: 'unit', tests: TESTS.slice(), inv: 'status' }, extra);
-  R.define('SURFACES', 'fumigant', surface('A Fumigant cloud {FUMIGANT_SIZE} tiles a side blocks sight for {FUMIGANT_TURNS} turns, and every sleeping exhibit inside it loses a pip each turn.',
-    { FUMIGANT_SIZE: 'N:FUMIGANT_SIZE', FUMIGANT_TURNS: 'N:FUMIGANT_TURNS' }, ['pip'], { size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS' }));
+  R.define('SURFACES', 'fumigant', surface('A Fumigant cloud {FUMIGANT_SIZE} tiles a side blocks sight for {FUMIGANT_TURNS} turns, and every sleeping exhibit inside it with a pip loses one each turn.',
+    { FUMIGANT_SIZE: 'N:FUMIGANT_SIZE', FUMIGANT_TURNS: 'N:FUMIGANT_TURNS' }, ['pip'], { size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS', icon: 'fumigant' }));
   R.define('SURFACES', 'dust', surface('Plaster dust {PLASTER_DUST_SIZE} tiles a side blocks sight for {PLASTER_DUST_TURNS} turns.',
-    { PLASTER_DUST_SIZE: 'N:PLASTER_DUST_SIZE', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, [], { size: 'PLASTER_DUST_SIZE', turns: 'PLASTER_DUST_TURNS' }));
+    { PLASTER_DUST_SIZE: 'N:PLASTER_DUST_SIZE', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, [], { size: 'PLASTER_DUST_SIZE', turns: 'PLASTER_DUST_TURNS', icon: 'dust' }));
 
   // What a status forbids you (Status.blocks, §4.2): fixed allows only wait, rest and the
   // answer to a waiting choice; rooted refuses a move that would change your tile.

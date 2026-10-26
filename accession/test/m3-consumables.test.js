@@ -346,6 +346,30 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(!X.Step.legal(s).some(a => a.a === 'use'));
     // choose with nothing waiting, or out of range.
     assert.equal(X.Step.step(s, { a: 'choose', index: 0 })[0].reason, 'choice_none');
+    // With a choice waiting, an index it does not offer is refused 'choice_bad', with nothing
+    // changed, and the choice still waits.
+    s = room(X, { tote: [['card', 2]], known: ['card', 'plan'] });
+    checked(X, X.Step.step(s, { a: 'use', uid: uidOf(s, 'card') }));
+    const waiting = json(s.ui.pendingChoice);
+    for (const bad of [{ a: 'choose', index: 6 }, { a: 'choose', index: -1 }, { a: 'choose' }]) {
+      const before = X.State.hash(s);
+      assert.equal(json(X.Step.step(s, bad).map(e => e.reason)), json(['choice_bad']), json(bad));
+      assert.equal(X.State.hash(s), before);
+    }
+    assert.equal(json(s.ui.pendingChoice), waiting);
+    assert.equal(X.Text.refusal('choice_bad'), 'There is no such option.');
+  });
+
+  test('a consumable is used where you stand: a use aimed at a tile or an item is refused use_no_target, with nothing changed', () => {
+    const { X } = core();
+    const s = room(X, { tote: [['consolidant', 1], ['plan', 1]] });
+    for (const ck of ['consolidant', 'plan']) for (const extra of [{ x: 3, y: 3 }, { y: 1 }, { on: 'you.w' }]) {
+      const before = X.State.hash(s), a = Object.assign({ a: 'use', uid: uidOf(s, ck) }, extra);
+      assert.equal(json(X.Step.step(s, a).map(e => e.reason)), json(['use_no_target']), json(a));
+      assert.equal(X.State.hash(s), before);
+      assert.ok(!X.Step.legal(s).some(l => l.a === 'use' && l.uid === a.uid && (l.x !== undefined || l.on !== undefined)));
+    }
+    assert.equal(X.Text.refusal('use_no_target'), 'A consumable is drunk or read where you stand; to aim a Solution, throw it.');
   });
 
   test('reading the Floor Plan marks every tile of the department explored and names the rooms whose Highlights have not been taken', () => {
@@ -650,8 +674,10 @@ module.exports = ({ test, assert, loadCore }) => {
   test('a consumable\'s Behaviour line: unknown, the first-use rule; known, its kind\'s clause with the numbers of record', () => {
     const { X } = core(), N = X.N;
     const s = room(X, { tote: KINDS.map(k => [k, 1]) });
+    const unknownRule = X.Clauses.fill(X.Registry.CLAUSES['consumable_unknown'].clause, X.Clauses.params(X.Registry.CLAUSES['consumable_unknown'].params, null, { depth: s.dept.depth }));
     for (const ck of KINDS) {
       const it = s.items.find(i => i.ck === ck), unknown = X.Consumables.line(s, it);
+      assert.equal(unknown, unknownRule, `${ck}, unidentified, reads the first-use rule`);
       assert.ok(clean(unknown) && !/[{}]/.test(unknown) && unknown.includes(`${N.FUMIGANT_SIZE}×${N.FUMIGANT_SIZE}`), unknown);
       s.run.knownSeals.push(it.seal);
       const line = X.Consumables.line(s, it);
@@ -669,6 +695,9 @@ module.exports = ({ test, assert, loadCore }) => {
     const thrown = fill('CLAUSES', 'consumable_throw');
     for (const part of [`within ${N.THROW_RANGE} tiles`, 'that you can see and that does not block sight', 'you included, except one inside an intact case, which is behind glass', 'but Solvent lands with a soft noise'])
       assert.ok(thrown.includes(part), `the throw's clause says "${part}": ${thrown}`);
+    // The seals: four wax over the Solutions and four ink over the Ephemera, shuffled each run,
+    // and a seal known once is known for the run.
+    assert.match(fill('CLAUSES', 'consumable_seals'), /four wax seals over the four Solutions and four ink stamps over the four Ephemera; a seal identified once is known for the rest of the run/);
     assert.match(fill('CLAUSES', 'consumable_deck'), new RegExp(`lays ${N.CONSUMABLES_PER_DEPT} of them on free floor tiles of its sections and studies, each one you can walk to from the entrance without passing a staff door`));
     assert.match(fill('FIXTURES', 'plaque'), new RegExp(`hangs ${N.ID_LABELS_PER_DEPT} on its walls, each for a different kind you do not know, one by the Intro or the first section, and each beside a floor tile you can walk to`));
     // Every clause of the fragment fills, with no gap.

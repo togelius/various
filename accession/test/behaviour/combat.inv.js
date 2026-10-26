@@ -10,6 +10,10 @@ module.exports = C => {
   const isInt = v => Number.isInteger(v);
   const byUid = (state, uid) => state.actors.find(a => a.uid === uid) || null;
   const floor = (raw, pad) => Math.max(N.DMG_MIN_ON_HIT, raw - pad);
+  // Whose special dealt this damage, or null: a special's cause names its owner (by); a beam a
+  // reflector sent back is the reflector's (reflected, by) and names its owner as the shooter,
+  // with the special's numbers (sp) (§8.1).
+  const ownerOf = c => !c ? null : c.k === 'special' ? c.by : c.k === 'reflected' && typeof c.sp === 'string' ? c.shooter : null;
 
   // Does the defender's archetype or a modifier change damage given to it (adjustDamage)? It
   // is asked with a probe amount, on the state before the step: a hook that changes the probe
@@ -71,8 +75,8 @@ module.exports = C => {
           if (!isInt(e.amount) || e.amount < 0) return `${e.who} took ${e.amount} damage`;
           if (before && isInt(c.pad) && c.pad !== before.pad) return `${e.who} was struck through Padding ${c.pad}, but had ${before.pad} when the step began`;
           let net = null;
-          if (c.k === 'special') {
-            if (c.net !== Specials.net(c.gross, c.pad)) return `${c.by}'s ${c.sp} gave net ${c.net} for gross ${c.gross} through Padding ${c.pad}`;
+          if (ownerOf(c)) {
+            if (c.net !== Specials.net(c.gross, c.pad)) return `${ownerOf(c)}'s ${c.sp} gave net ${c.net} for gross ${c.gross} through Padding ${c.pad}`;
             net = c.net;
           } else if (ROLLED.includes(c.k)) {
             if (!isInt(c.raw) || !isInt(c.pad)) return `${c.k} damage to ${e.who} has raw ${c.raw} and Padding ${c.pad}`;
@@ -86,15 +90,15 @@ module.exports = C => {
     },
     {
       // A special strikes each actor on its tiles once (§8.1), and its special event lists
-      // exactly those it struck, in order.
+      // exactly those it struck, in order, a beam sent back by a reflector included.
       id: 'combat_special_once',
       check(pre, events) {
         const struck = {};
         for (const e of events) {
-          if (e.k === 'damaged' && e.cause && e.cause.k === 'special') {
-            const key = `${e.cause.by}@${e.tick}`;
+          if (e.k === 'damaged' && ownerOf(e.cause)) {
+            const owner = ownerOf(e.cause), key = `${owner}@${e.tick}`;
             const list = struck[key] || (struck[key] = []);
-            if (list.includes(e.who)) return `${e.cause.by}'s ${e.cause.sp} struck ${e.who} twice`;
+            if (list.includes(e.who)) return `${owner}'s ${e.cause.sp} struck ${e.who} twice`;
             list.push(e.who);
           }
           if (e.k === 'special' && !e.cancelled && Array.isArray(e.hits)) {
@@ -107,16 +111,24 @@ module.exports = C => {
     },
     {
       // Criterion 3 (§11 M3): what a special deals you is the number its mark showed on your
-      // tile the moment before the step (Specials.marks, which the view model draws).
+      // tile the moment before the step (Specials.marks, which the view model draws), a beam
+      // sent back included; and a beam's damage is the reflector's exactly on the tiles its
+      // mark says it reaches only on its way back from that reflector (telegraph.via).
       id: 'combat_special_shown',
       check(pre, events) {
         let marks = null;
         for (const e of events) {
-          if (e.k !== 'damaged' || e.who !== 'you' || !e.cause || e.cause.k !== 'special') continue;
+          if (e.k !== 'damaged' || !ownerOf(e.cause)) continue;
+          const c = e.cause, owner = ownerOf(c), o = byUid(pre, owner), tel = o && o.telegraph;
+          const i = tel ? tel.tiles.findIndex(t => t[0] === c.x && t[1] === c.y) : -1;
+          const via = i >= 0 && tel.via ? tel.via[i] : null;
+          if (i >= 0 && (c.k === 'reflected') !== (via !== null)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y} as ${c.k}${c.k === 'reflected' ? ` by ${c.by}` : ''}, but its mark there was ${via ? `sent back by ${via}` : 'on its way out'}`;
+          if (c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
+          if (e.who !== 'you') continue;
           marks = marks || Specials.marks(pre);
-          const c = e.cause, m = marks.find(k => k.kind === 'telegraph' && k.by === c.by && k.x === c.x && k.y === c.y);
-          if (!m) return `${c.by}'s ${c.sp} struck you at ${c.x},${c.y}, which no mark showed`;
-          if (m.dmg !== e.amount) return `${c.by}'s ${c.sp} showed ${m.dmg} at ${c.x},${c.y} and dealt ${e.amount}`;
+          const m = marks.find(k => k.kind === 'telegraph' && k.by === owner && k.x === c.x && k.y === c.y);
+          if (!m) return `${owner}'s ${c.sp} struck you at ${c.x},${c.y}, which no mark showed`;
+          if (m.dmg !== e.amount) return `${owner}'s ${c.sp} showed ${m.dmg} at ${c.x},${c.y} and dealt ${e.amount}`;
         }
         return null;
       },
@@ -130,9 +142,9 @@ module.exports = C => {
         const inCase = uid => { const a = byUid(post, uid); return !!a && Cases.encased(post, a); };
         for (const e of events) {
           if (e.k === 'attacked' && (inCase(e.by) || inCase(e.at))) return `${e.by} attacked ${e.at} with glass between`;
-          if (e.k === 'damaged' && e.cause && e.cause.k === 'special' && inCase(e.who)) {
+          if (e.k === 'damaged' && ownerOf(e.cause) && inCase(e.who)) {
             const S = Registry.SPECIALS[e.cause.sp];
-            if (!S || S.shape !== 'line') return `${e.cause.by}'s ${e.cause.sp} struck ${e.who} inside its case`;
+            if (!S || S.shape !== 'line') return `${ownerOf(e.cause)}'s ${e.cause.sp} struck ${e.who} inside its case`;
           }
         }
         return null;

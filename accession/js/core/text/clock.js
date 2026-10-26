@@ -4,14 +4,18 @@
 (() => {
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
 
-  // The stages (§8.4), each saying what changes.
+  // The stages (§8.4), each saying what changes. A night-watch bell wakes only the sleepers it
+  // can reach (ClockRules.nearestSleepers, §8.4): a walk from you reaches them, they are not in
+  // an intact case, and they can hear (not pipless, §8.2). The announcement says what "it can
+  // reach" means, without naming a mimic; each bell then says only "that it can reach", and
+  // never that no sleeper is left, since those it cannot reach may still sleep.
   function stage(e) {
     if (e.stage === 'bell') return 'The bell rings: sleeping exhibits no longer lose their pips, and you recover health half as fast.';
-    if (e.stage === 'night_watch') return `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you.`;
+    if (e.stage === 'night_watch') return `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, or one that cannot hear).`;
     if (e.stage === 'night_bell') {
       const n = Array.isArray(e.woke) ? e.woke.length : 0;
-      if (n === 1) return 'A night-watch bell rings: the sleeping exhibit nearest you wakes and hunts you.';
-      return n ? `A night-watch bell rings: the ${n} sleeping exhibits nearest you wake and hunt you.` : 'A night-watch bell rings, but no sleeping exhibit is left for it to wake.';
+      if (n === 1) return 'A night-watch bell rings: the sleeping exhibit nearest you that it can reach wakes and hunts you.';
+      return n ? `A night-watch bell rings: the ${n} sleeping exhibits nearest you that it can reach wake and hunt you.` : 'A night-watch bell rings, but there is no sleeping exhibit it can reach to wake.';
     }
     return 'The clock moves on.';
   }

@@ -42,6 +42,15 @@ const Pictograms = (() => {
     grade:     ['.xxx....', 'x...x...', 'x...x...', '.xxx....', '..x.....', '..xxx...', '..x.....', '..xx....'],
     reads:     ['xxxxxxx.', 'x.....xx', 'x.xxx.xx', 'x.....xx', 'x.xx..xx', 'x....xxx', 'xxxxxxx.', '.....xx.'],
     bench:     ['........', '........', 'xxxxxxxx', 'xxxxxxxx', '.x....x.', '.x....x.', '.x....x.', '........'],
+    // statuses and surfaces, keyed by their registry ids (Registry.STATUSES, .SURFACES)
+    fixed:     ['.xxxxxx.', '..xxxx..', '..xxxx..', '.xxxxxx.', '...xx...', '...xx...', '...xx...', '...x....'],
+    rooted:    ['...xx...', '...xx...', '...xx...', '...xx...', '..xxxx..', '.x.xx.x.', 'x..xx..x', '.x.x..x.'],
+    coughing:  ['........', '.xx..x.x', 'x..x..x.', 'x..x.x.x', 'x..x....', '.xx.....', '........', '........'],
+    restoring: ['...xx...', '...xx...', '...xx...', 'xxxxxxxx', 'xxxxxxxx', '...xx...', '...xx...', '...xx...'],
+    slowed:    ['xxxxxxxx', '.x....x.', '..x..x..', '...xx...', '...xx...', '..x..x..', '.x....x.', 'xxxxxxxx'],
+    dazed:     ['.x....x.', 'xxx..xxx', '.x....x.', '........', '...x....', '..xxx...', '...x....', '........'],
+    fumigant:  ['........', '..xx....', '.xxxx.x.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '........', '........'],
+    dust:      ['x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.'],
   };
   // Each pictogram's colour is a key of the reserved semantic set (BUILD.md §8.8, §9.1):
   // hostile, hazard, readable, item or player. Stat figures are 'readable'.
@@ -51,6 +60,8 @@ const Pictograms = (() => {
     alert: 'hostile', hunting: 'hostile', returning: 'readable', heart: 'hostile', acc: 'readable', eva: 'readable', padding: 'readable',
     damage: 'readable', ranged: 'readable', fast: 'readable', slow: 'readable', special: 'hazard', seal: 'item', kit: 'item',
     certificate: 'item', highlight: 'item', grade: 'readable', reads: 'readable', bench: 'readable',
+    // A harmful status, and a surface, is a hazard; restoring is yours.
+    fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
   };
   const colourOf = (id, override) => override || ART.palettes.semantic[COLOUR[id]];
 

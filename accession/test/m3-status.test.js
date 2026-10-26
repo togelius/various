@@ -346,8 +346,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(pips(kept).every(e => e.cause.by === 'you'));
     assert.equal(X.Text.event(pips(inside)[0], u => u === inside.uid ? 'the Tortoise' : null), 'The Tortoise settles (1 of 3 pips): the Fumigant cloud calms it.');
     assert.equal(json([inside.mode, inside.pips, s.dept.surfaces.length]), json(['dormant', 0, 0]));
-    // It takes no pips from a sleeper that has none, so it says nothing about one.
+    // It takes no pips from a sleeper that has none, so it says nothing about one, and its
+    // sentence says so: only a sleeper with a pip loses one (a mimic, pipless, never has one).
     assert.ok(of(all, 'pip', e => e.cause.k === 'fumigant').every(e => e.delta === -1 && e.pips >= 0));
+    assert.ok(/every sleeping exhibit inside it with a pip loses one each turn/.test(X.Registry.SURFACES.fumigant.clause), X.Registry.SURFACES.fumigant.clause);
     // A 2×2 body is inside if any of its tiles is: here only its right-hand tiles are under
     // the cloud, not the tile it is placed by (its top left), nor its lower row's left tile.
     const Y = loadCore(), t = room(Y, APART, [1, 2], [ex([7, 1], { pips: 2, size: 2 }), ex([12, 3], { pips: 2, size: 2 })]);

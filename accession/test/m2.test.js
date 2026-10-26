@@ -8,7 +8,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // §8.1, independently. Hit = clamp(75 + 5(Acc − Eva) + 20 if the defender is fixed − 20 if
   // the attacker is dazed, 10, 95); d(r) = max(1, r − Padding); typical = 100·Σd ÷ (n·HP)
-  // rounded half up; worst = ceil(HP ÷ max d); need = ceil(its HP · n ÷ Σd).
+  // rounded half up; worst = ceil(HP ÷ max d); need = ceil(its HP · n ÷ Σd). An axis_sniper
+  // "has no blow and shoots no bolts" (§8.1), so its label gives no chance of its hitting you;
+  // "a swarm's bodies each lose all their health to any hit" (§8.1), so one needs 1 hit.
   const has = (x, id) => (x.statuses || []).some(st => st.id === id);
   const hit = (att, def) => Math.min(95, Math.max(10, 75 + 5 * (att.acc - def.eva) + (has(def, 'fixed') ? 20 : 0) - (has(att, 'dazed') ? 20 : 0)));
   const nets = (att, def) => { const out = []; for (let r = att.dmin; r <= att.dmax; r++) out.push(Math.max(1, r - def.pad)); return out; };
@@ -18,10 +20,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // hunting, searching, returning or reinstalling. Maximum damage, ×1.5 rounded down with
   // a Light weapon; against a Centrepiece, the rolled range.
   const unaware = a => a.mode === 'dormant' || (a.mode === 'awake' && !a.sawYou);
+  const NO_BLOW = ['axis_sniper'], ANY_HIT = ['mote_swarm'];
   function expected(you, a) {
-    const t = nets(a, you), m = nets(you, a), hp = Math.max(1, you.hp);
-    const e = { toYou: hit(a, you), typical: halfUp(100 * sum(t), t.length * hp), worst: Math.ceil(hp / Math.max(...t)),
-      toIt: hit(you, a), need: Math.ceil(a.hp * m.length / sum(m)), mine: [Math.min(...m), Math.max(...m)], surprise: null };
+    const t = nets(a, you), m = nets(you, a), hp = Math.max(1, you.hp), blow = !NO_BLOW.includes(a.arch);
+    const e = { blow, toYou: hit(a, you), typical: halfUp(100 * sum(t), t.length * hp), worst: Math.ceil(hp / Math.max(...t)),
+      toIt: hit(you, a), need: ANY_HIT.includes(a.arch) ? 1 : Math.ceil(a.hp * m.length / sum(m)), mine: [Math.min(...m), Math.max(...m)], surprise: null };
+    e.nums = (blow ? [e.toYou, e.typical, e.worst] : []).concat([e.toIt, e.need]);
     if (unaware(a)) {
       if (a.role === 'centrepiece') e.surprise = e.mine;
       else { const d = Math.max(1, (you.weaponForm === 'light' ? Math.floor(you.dmax * 3 / 2) : you.dmax) - a.pad); e.surprise = [d, d]; }
@@ -36,6 +40,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const footDist = (a, x, y) => Math.min(...foot(a).map(([fx, fy]) => Math.max(Math.abs(fx - x), Math.abs(fy - y))));
   const inFoot = (a, x, y) => foot(a).some(([fx, fy]) => fx === x && fy === y);
   const occupied = (s, x, y) => s.actors.some(a => !a.gone && inFoot(a, x, y));
+  // §8.3: an exhibit in an intact case (any tile of it on a vitrine) cannot be struck, so its
+  // label offers no Attack; a mimic in its disguise is a case, so it has no exhibit's label.
+  const encased = (s, a) => foot(a).some(([x, y]) => s.dept.tiles[y][x] === 'v');
+  const disguised = (s, a) => a.arch === 'mimic_vitrine' && s.dept.fixtures.some(f => f.k === 'case' && f.mimic === a.uid && f.st === 'shut');
   // A free floor tile orthogonally beside a's footprint, or null.
   function beside(s, a) {
     for (const [fx, fy] of foot(a)) for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
@@ -63,6 +71,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const s = Dept.create(depth * 11, acc, depth), home = s.actors[0];
       withCentrepiece(s);
       for (const a of s.actors.slice(1)) {
+        if (disguised(s, a)) { assert.equal(Labels.of(s, a.uid), null, `${a.uid}, a mimic in its disguise, has an exhibit's label`); ran.add('disguised'); continue; }
         // Stand beside it, so the label has its button.
         const spot = beside(s, a);
         if (!spot) continue;
@@ -78,12 +87,14 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
           for (const [who, id] of st) Status.apply(s, who === 'you' ? you : a, id, 5, { k: 'status', id }, []);
           Status.settle(s);
           const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
-          const want = [e.toYou, e.typical, e.worst, e.toIt, e.need].concat(e.surprise ? nums(e.surprise) : []);
+          const want = e.nums.concat(e.surprise ? nums(e.surprise) : []);
           const where = `${acc} d${depth} ${a.uid} ${form} hp ${you.hp} ${mode} ${JSON.stringify(st)} ${a.hp}/${a.maxHp}`;
           assert.deepEqual(got, want, `${where}: ${l.odds.join(' ')}`);
-          assert.equal(l.odds.length, e.surprise ? 3 : 2, where);
+          assert.equal(l.odds.length, (e.blow ? 2 : 1) + (e.surprise ? 1 : 0), where);
+          if (!e.blow) ran.add('no-blow'); if (ANY_HIT.includes(a.arch)) ran.add('any-hit');
           const button = e.surprise ? `Attack: certain hit, ${fmt(e.surprise)} damage` : `Attack: ${e.toIt}%, ${fmt(e.mine)} damage`;
-          same(l.actions, [{ id: 'attack', text: button }], where);
+          // (An encased exhibit, which has no button, is m3-cases's.)
+          same(l.actions, encased(s, a) ? [] : [{ id: 'attack', text: button }], where);
           // Which branches ran.
           ran.add('form:' + form); ran.add('mode:' + mode); ran.add('hp:' + (yhp === null ? 'max' : yhp)); if (low) ran.add('it:reduced');
           for (const [who, id] of st) ran.add(`${who}:${id}`);
@@ -100,21 +111,25 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     const want = ['form:light', 'form:balanced', 'form:heavy', 'mode:dormant', 'mode:hunting', 'mode:returning', 'mode:awake', 'mode:awake-saw',
       'hp:max', 'hp:7', 'hp:1', 'it:reduced', 'you:fixed', 'you:dazed', 'it:fixed', 'it:dazed', 'surprise:none', 'surprise:max', 'surprise:light',
-      'surprise:light-adds', 'surprise:centrepiece', 'surprise:centrepiece2x2', 'clamp:95', 'typical>100', 'size:2'];
+      'surprise:light-adds', 'surprise:centrepiece', 'surprise:centrepiece2x2', 'clamp:95', 'typical>100', 'size:2', 'no-blow', 'any-hit', 'disguised'];
     assert.deepEqual(want.filter(k => !ran.has(k)), [], 'branches that never ran');
   });
 
   test('the odds readout equals an independent count for every exhibit as placed, depths 1–7', () => {
-    let checked = 0;
+    let checked = 0, sniper = 0, swarm = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth++) {
       const s = Dept.create(depth * 11, acc, depth), you = s.actors[0];
       for (const a of s.actors.slice(1)) {
+        if (disguised(s, a)) { assert.equal(Labels.of(s, a.uid), null, a.uid); continue; }
         const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
-        assert.deepEqual(got, [e.toYou, e.typical, e.worst, e.toIt, e.need].concat(e.surprise ? nums(e.surprise) : []), `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
+        assert.deepEqual(got, e.nums.concat(e.surprise ? nums(e.surprise) : []), `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
+        if (!e.blow) { assert.ok(!/chance to hit you/.test(l.odds.join(' ')), `${a.uid} has no blow: ${l.odds.join(' ')}`); sniper++; }
+        if (ANY_HIT.includes(a.arch)) { assert.ok(/typically need 1 hit to destroy it/.test(l.odds.join(' ')), `${a.uid} falls to any hit: ${l.odds.join(' ')}`); swarm++; }
         checked++;
       }
     }
     assert.ok(checked > 100, `only ${checked} exhibits checked`);
+    assert.ok(sniper >= 7 && swarm >= 7, `${sniper} axis_snipers and ${swarm} swarm bodies checked`);
   });
 
   test('a surprise blow on a Centrepiece hits for certain but rolls its damage; an awake exhibit that has seen you is not surprised', () => {
@@ -357,6 +372,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(Object.keys(Pictograms.COLOUR).filter(id => !Pictograms.ids.includes(id)), [], 'colours for pictograms that do not exist');
     for (const icon of [...Registry.SYSTEMS.map(s => s.icon), ...Object.values(Registry.TRIGGERS).map(t => t.icon)]) assert.ok(Pictograms.G[icon], `no pictogram ${icon}`);
     assert.equal(Registry.SYSTEMS.find(s => s.id === 'clock').icon, 'clock');
+    // Every status and surface has its own pictogram, keyed by its id (§8.8: one per
+    // mechanical fact), so the top bar and the labels can show it.
+    for (const t of ['STATUSES', 'SURFACES']) for (const id of Registry.order(t)) {
+      assert.equal(Registry[t][id].icon, id, `${t}.${id}'s pictogram is its id`);
+      assert.ok(Pictograms.G[id] && Pictograms.COLOUR[id], `${t}.${id} has no pictogram`);
+    }
     assert.equal(Registry.TRIGGERS.period.icon, 'period');
     const shapes = Pictograms.ids.map(id => Pictograms.G[id].join(''));
     assert.equal(new Set(shapes).size, shapes.length, 'two pictograms share a shape');

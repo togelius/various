@@ -12,7 +12,9 @@
 //   - No overlaps: no two pending damage marks share a tile. A call mark never blocks one
 //     and is never blocked.
 //   - Each actor standing on a marked tile is hit once, with its own Padding. Only a beam
-//     passes glass: a ring never marks the tile of an intact case, nor strikes into one.
+//     passes glass: a ring never marks the tile of an intact case, nor strikes into one. On a
+//     tile a beam reaches only after a reflector sent it back, the damage is the reflector's
+//     (cause reflected, naming the beam's owner as its shooter), as a bolt sent back is.
 //   - A special that hits several actors applies every hit, with its wakes, before any
 //     noise, the noise of an exhibit it destroys included (Noise.hold; §8.2).
 //   - A pending mark is cancelled when its owner is fixed (at once, Status.apply), leaves
@@ -91,6 +93,16 @@ const Specials = (() => {
     });
   }
 
+  // For each tile, the reflector that sent a's beam back before it reached that tile (a tile
+  // a line reaches only on its way back: its owner's own tile, and those behind it), or null
+  // (every tile of a ring or a call, and a line's way out). Ranged.beamVia, §8.1.
+  function viaFor(state, a, shape, list) {
+    const d = shape === 'line' ? axisTo(a, state.actors[0]) : -1;
+    if (d < 0) return list.map(() => null);
+    const beam = Ranged.beam(state, a, d, N.AXIS_BEAM_RANGE), via = Ranged.beamVia(state, a, d, N.AXIS_BEAM_RANGE);
+    return list.map(t => { for (let i = 0; i < beam.length; i++) if (beam[i][0] === t[0] && beam[i][1] === t[1]) return via[i]; return null; });
+  }
+
   const hasTile = (list, x, y) => list.some(t => t[0] === x && t[1] === y);
 
   // Specials.canMark(state, a, id, tiles) → bool: may a mark special id on these tiles now?
@@ -110,13 +122,14 @@ const Specials = (() => {
 
   // Specials.mark(state, a, id, tiles, ev) → ticks: a marks special id on the tiles, which
   // canMark must allow. a.telegraph becomes {sp, tiles (row-major, each once, fixed now),
-  // from (for each tile, where its damage comes from), gross, effect, turn, tick}; it emits
+  // from (for each tile, where its damage comes from), via (for each tile, the reflector
+  // that sent a beam back before it reached it, or null), gross, effect, turn, tick}; it emits
   // telegraphed {who, sp, tiles}; and a's next action may come no earlier than your next
   // decision (a.notBefore). Marking costs an action (COST_ATTACK).
   function mark(state, a, id, list, ev) {
     if (!canMark(state, a, id, list)) throw new Error(`Specials.mark: ${a.uid} may not mark ${id} here`);
     const sp = info(state, id), t = unique(list);
-    a.telegraph = { sp: id, tiles: t, from: fromFor(state, a, sp.shape, t), gross: sp.gross, effect: sp.effect, turn: state.turn, tick: state.tick };
+    a.telegraph = { sp: id, tiles: t, from: fromFor(state, a, sp.shape, t), via: viaFor(state, a, sp.shape, t), gross: sp.gross, effect: sp.effect, turn: state.turn, tick: state.tick };
     const yours = state.actors[0].next;
     a.notBefore = a.notBefore === null || a.notBefore < yours ? yours : a.notBefore;
     const cause = { k: 'special', by: a.uid, sp: id, gross: sp.gross };
@@ -131,7 +144,9 @@ const Specials = (() => {
   // Specials.resolve(state, a, ev) → ticks: a's pending special goes off. A damage special
   // hurts each actor standing on a marked tile, once (its first marked tile in row-major
   // order), in spawn order, each through its own Padding, with cause special {by, sp, gross,
-  // pad, net, x, y, from}; an actor in an intact case is struck only by a shape that passes
+  // pad, net, x, y, from}, or, on a tile a beam reaches only after a reflector sent it back
+  // (telegraph.via), the reflector's: reflected {by: the reflector, shooter: a, sp, gross,
+  // pad, net, x, y, from} (§8.1); an actor in an intact case is struck only by a shape that passes
   // glass (a line). Every hit, and the wakes it causes, comes before any noise: the noise of
   // an exhibit destroyed is held until the last hit (Noise.hold), then comes the soft noise
   // at a's tile that any attack makes. A call (a hook) goes to its archetype's onResolve.
@@ -151,8 +166,9 @@ const Specials = (() => {
           let k = -1;
           for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
           if (k < 0) continue;
-          const d = net(tel.gross, b.pad);
-          Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
+          const d = net(tel.gross, b.pad), via = tel.via ? tel.via[k] : null;
+          const cause = via ? { k: 'reflected', by: via, shooter: a.uid } : { k: 'special', by: a.uid };
+          Combat.hurt(state, b, d, Object.assign(cause, { sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }), ev);
           hits.push(b.uid);
         }
       });

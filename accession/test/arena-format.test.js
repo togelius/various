@@ -211,6 +211,35 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
     assert.ok(sp);
   });
 
+  // The mimic arena of §10.3 ("two cases, one a mimic; open the real one"): the real case
+  // must differ from the mimic's only in its accession number (§8.3, D3.10), so `case
+  // like=M` copies the glass, lock and loan of the case the mimic M shows as, wherever the
+  // variant puts it; and `grade:` sets your grade, so that whether open works on either case
+  // is the stamp's to say.
+  test('a case like a mimic\'s differs from it only in its number, whatever the seed and the variant; grade: sets your grade', () => {
+    const text = stamp(['arena: mimic_probe', 'goal: open R', 'species: mimic_vitrine', 'grade: 7', 'legend: M exhibit sp; R case like=M', 'variants: swap M R'],
+      ['#########', '#.......#', '#.M.@.R.#', '#.......#', '#########']);
+    const spec = A.parse(text);
+    eq([spec.grade, spec.legend.find(e => e.ch === 'R').parts[0].like], [7, 'M']);
+    const seen = new Set(), variants = new Set();
+    for (let seed = 1; seed <= 40; seed++) {
+      const s = A.build(spec, seed), v = C.Cases.view(s), real = v.find(c => c.num !== null), mim = v.find(c => c.num === null);
+      assert.ok(real && mim, `seed ${seed}: one real case and the mimic's`);
+      const drop = c => { const o = J(c); delete o.x; delete o.y; delete o.num; return o; };
+      eq(drop(real), drop(mim), `seed ${seed}: the two cases differ beyond their number`);
+      const describe = (x, y) => { const d = J(C.Cases.describe(s, C.Cases.at(s, x, y))); delete d.x; delete d.y; delete d.num; return d; };
+      eq(describe(real.x, real.y), describe(mim.x, mim.y), `seed ${seed}: their labels differ beyond the number`);
+      assert.equal(s.run.grade, 7, 'your grade is the stamp\'s');
+      seen.add(JSON.stringify([real.glass, real.lock, real.loan])); variants.add(real.x);
+    }
+    assert.ok(seen.size > 3 && variants.size === 2, `the cases are drawn as a mimic's are, per seed (${seen.size} kinds), in both places`);
+    // Without grade:, you are at grade I; like= must name a letter that is a case or an exhibit.
+    eq(A.build(A.parse(text.replace('grade: 7\n', '')), 1).run.grade, 1);
+    assert.throws(() => A.parse(text.replace('grade: 7', 'grade: 9')), /grade is a whole number from 1 to 7/);
+    assert.throws(() => A.parse(text.replace('like=M', 'like=Q')), /like=Q: that letter is not in the legend/);
+    assert.throws(() => A.parse(text.replace('like=M', 'like=M glass=2')), /a case like another takes its glass, lock and loan from it/);
+  });
+
   test("variants are drawn per seed on the arena's own stream and swap the letters", () => {
     const spec = A.parse(stamp(['arena: pick', 'goal: open R', 'species: plodder', 'legend: M exhibit sp; R case', 'variants: swap M R'], ['#######', '#M.@.R#', '#######']));
     const seen = new Set();

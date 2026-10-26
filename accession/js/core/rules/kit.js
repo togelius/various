@@ -376,10 +376,15 @@ const Kit = (() => {
   // Why your instrument it cannot be used at (x, y) with `how` now, or null (§8.5). In order:
   // it must be in your instrument slot; a known instrument; aimed (x and y) and nothing else
   // (`on` is a kit's); with a charge left; at a tile of the board (no_aim), not your own
-  // (own_tile), within its range (Grid.disc) and in your line of sight; then:
+  // (own_tile); then:
+  //   Pin-Driver: with no `how`; its bolt is a shot, refused as §8.1 refuses one
+  //     (Ranged.canShoot at its range): out_of_reach outside its range, blocked out of your
+  //     sight, behind_glass if the bolt would meet glass first (so a case, an exhibit in
+  //     one, fixed glazing and a mimic's disguise look the same), no_target if it would reach
+  //     no body; and then at an exhibit you can see (no_target);
+  // the fork and the pole: within its range (Grid.disc; out_of_range) and in your line of
+  // sight (no_line); then:
   //   fork: any tile an exhibit could stand on (Grid.hold; not_a_place), with no `how`;
-  //   Pin-Driver: an exhibit you can see (no_target), with a clear line for a bolt (bolts
-  //     stop at glass);
   //   pole: how push or pull with an exhibit you can see (no_exhibit), one tile in size
   //     (too_big), not in a case (in_case), whose special is not marked (marked: it would
   //     move away from, or onto, tiles already shown), that can be moved there (poleTo); or
@@ -395,17 +400,17 @@ const Kit = (() => {
     if (!Grid.inside(m, x, y)) return 'no_aim';
     if (x === you.x && y === you.y) return 'own_tile';
     const range = row(it.form)[2];
+    if (it.form === 'pin_driver') {
+      if (how !== undefined && how !== null) return 'bad_use';
+      const shot = Ranged.canShoot(state, you, x, y, { kind: 'shot', max: range });
+      if (shot) return shot;
+      return exhibitAt(state, x, y) ? null : 'no_target';
+    }
     if (!Grid.disc(x - you.x, y - you.y, range)) return 'out_of_range';
     if (!Grid.los(m, you.x, you.y, x, y)) return 'no_line';
     if (it.form === 'fork') {
       if (how !== undefined && how !== null) return 'bad_use';
       return Grid.hold(m, x, y) ? null : 'not_a_place';
-    }
-    if (it.form === 'pin_driver') {
-      if (how !== undefined && how !== null) return 'bad_use';
-      if (!exhibitAt(state, x, y)) return 'no_target';
-      const line = Ranged.line(state, you.x, you.y, x, y, range, Grid.bolt), end = line[line.length - 1];
-      return end && end[0] === x && end[1] === y ? null : 'no_line';
     }
     if (!POLE.includes(how)) return 'bad_use';
     if (how === 'take') {

@@ -157,6 +157,49 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const e of [...ev, ...tv, ...uv]) assert.equal(Causes.check(e), null, json(e));
   });
 
+  // A half that options.without names (§3.6, "remove an actor by uid"; its uid is
+  // <body uid>/<k>, §3.2) is made and at once marked gone, with no event, as a Night Watchman
+  // that without names is: the body still pays the half's share of its health and still
+  // counts it (kids, gen), so every later half keeps its uid, and nothing else changes. Later
+  // halves may take the tile the removed one would have stood on, since it holds no one.
+  test('splitter: a half that options.without names is made gone, with no event; the body pays its share, and every other uid, tile and draw is as it was', () => {
+    const run = without => {
+      const sp = Packs.speciesFor(null, { sp: 'A4.4' });
+      const s = Setup.room(1, { acc: 'T0', depth: 2, map: ROOM, you: [1, 1],
+        exhibits: [{ sp: 'A4.4', at: [5, 3], mode: 'hunting', stats: Roles.stats(sp.role, 2), hp: 20, maxHp: 40 }] }, { rulesOff: ['plaster'], without });
+      const a = s.actors[1], ev = [], snaps = [];
+      for (const n of [4, 2]) { blow(s, a, n, ev); snaps.push(State.clone(s)); }
+      return { s, a, ev, snaps };
+    };
+    const base = run([]), gone = base.a.uid + '/1', cut = run([gone]);
+    const half = cut.s.actors.find(b => b.uid === gone);
+    assert.ok(half && half.gone === 1, `the half ${gone} is made and marked gone: ${json(half && [half.uid, half.gone])}`);
+    const names = e => [e.who, e.by, e.at, e.cause && e.cause.by, e.cause && e.cause.from].includes(gone);
+    assert.ok(!cut.ev.some(names), `an event names the removed half: ${json(cut.ev.filter(names))}`);
+    assert.ok(base.ev.some(names), 'without the removal, its making is told');
+    // The body pays its share and counts it, exactly as without the removal.
+    for (let i = 0; i < 2; i++) {
+      const b = base.snaps[i].actors[1], c = cut.snaps[i].actors[1];
+      assert.equal(json([c.hp, c.gen, c.kids, c.x, c.y]), json([b.hp, b.gen, b.kids, b.x, b.y]), `the body after hit ${i + 1}`);
+    }
+    // You and the body are where they were, and the next half keeps its uid and health.
+    const after = cut.snaps[1], was = base.snaps[1];
+    assert.equal(json(after.actors.map(b => b.uid)), json(was.actors.map(b => b.uid)));
+    assert.equal(json([after.actors[0].x, after.actors[0].y, after.actors[0].hp]), json([was.actors[0].x, was.actors[0].y, was.actors[0].hp]));
+    const two = after.actors.find(b => b.uid === base.a.uid + '/2'), bTwo = was.actors.find(b => b.uid === base.a.uid + '/2');
+    assert.equal(json([two.gone, two.hp, two.gen, two.mode]), json([bTwo.gone, bTwo.hp, bTwo.gen, bTwo.mode]));
+    // No stream was drawn differently: the removal draws nothing and moves no one's stream.
+    assert.equal(json(after.rng), json(was.rng));
+    // A whole fight with halves removed keeps every invariant (the split invariant counts a
+    // removed half as its hit's split).
+    for (const without of [[], ['A4.4.room.1/1'], ['A4.4.room.1/2', 'A4.4.room.1/1/1']]) {
+      const s = Setup.room(4, { acc: 'A4', depth: 4, map: ROOM, you: [3, 2], exhibits: [{ sp: 'A4.4', at: [4, 2], mode: 'dormant', stats: Roles.stats('brute', 4) }] }, { invulnerable: true, without });
+      const r = H.play(C, s, fight(C), { cap: 80, clone: true });
+      assert.equal(json(r.violations.map(v => v.text)), '[]', `without ${json(without)}`);
+      for (const uid of without) assert.ok(s.actors.some(b => b.uid === uid && b.gone === 1), `${uid} was made and removed`);
+    }
+  });
+
   // "The half copies the body's species, numbers, maximum health and speed, hunts as the body
   // does" (§8.1): a body given numbers and knowledge unlike its role's and its species', so
   // that a half made from the role or the species, not the body, shows.

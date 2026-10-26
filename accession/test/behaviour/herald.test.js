@@ -1,7 +1,8 @@
 // ACCESSION — the herald's Behaviour line (BUILD.md §5.3; W1-ARCH-C): "Each time it wakes, the
 // first time it sees you it calls for a turn, shown, then wakes every sleeping exhibit within
-// {HERALD_RANGE} tiles of it, which come to look where you stood as the call went off; it
-// strikes from beside you for {dmg}." Each scenario runs for every pack herald (S9.3, A4.3)
+// {HERALD_RANGE} tiles of it that can hear, which come to look where you stood as the call
+// went off; it strikes from beside you for {dmg}." (A sleeping mimic, pipless, hears nothing,
+// §8.2.) Each scenario runs for every pack herald (S9.3, A4.3)
 // at depths 1–7, written as a function of the clause's parameters, with every invariant
 // checked after every step and a clone after every step. What is expected is worked out here
 // from the clause: "within r" is dx² + dy² ≤ r² + r (§8.2).
@@ -79,6 +80,9 @@ module.exports = ({ test, assert, loadCore }) => {
       // The mimic still sleeps in its case; the exhibit that was already awake was not woken.
       const mimic = r.state.actors.find(b => b.arch === 'mimic_vitrine');
       if (mimic.mode !== 'dormant' || !Archetypes.present(r.state, mimic)) return 'the mimic in its disguise woke';
+      // So the line must not say that every sleeper within its range wakes: only those that
+      // can hear, which a sleeping mimic cannot (§8.2, pipless exhibits).
+      if (!new RegExp(`every sleeping exhibit within ${R} tiles of it that can hear,`).test(r.clause)) return `the mimic in its disguise slept through the call, but the line says otherwise: "${r.clause}"`;
       if (steps[1].events.some(e => e.k === 'woke' && e.who === r.state.actors[r.state.actors.length - 1].uid)) return 'the call woke an exhibit already awake';
       return null;
     },

@@ -16,11 +16,20 @@
 //   event kind; a pack species' Behaviour line cannot be filled at some depth 1–7;
 //   an entry at ready 'unit' or above names no tests, a test file that does not exist, or
 //   no invariant file that exists (test/behaviour/<inv>.inv.js);
+//   a built: 'M3' id is referenced by no pack, scenario test or arena fixture (§5.1; refs,
+//   below): a pack uses it (a species' archetype, trigger or modifiers, its archetype's
+//   special, inflicted statuses and wake clause; an item's primitives, instrument and
+//   weapon or garment clause, and an instrument's charges; a consumable kind the pack
+//   labels), or one of the scenario files its entry names in `tests` names it in quotes,
+//   or an arena stamp (test/arena/*.txt) names it as a word;
 //   a file in art/, vendor/ or tools/vendor/ has no ledger entry, or an entry has no file;
 //   anything under art/reference/ is referenced by the game.
 // It reports how many entries are at ready false, 'unit' and true. With --strict (the M3
 // acceptance, §11) it also fails on any built: 'M3' entry that is not at ready true with
-// its tests and its invariant.
+// its tests and its invariant. With --strict --follow-ups (W2a-BEHAVIOUR's done condition)
+// an entry below true passes while it has an open follow-up in test/behaviour/follow-ups.json
+// ({"TABLE.id": "the follow-up and why"}; no file is no follow-ups), and a follow-up for an
+// id that is at true, or is not an M3 entry, fails, so the list never goes stale.
 // Options for the lint tests: --ledger FILE lints another copy of the ledger; --build FILE
 // another copy of BUILD.md; --load FILE loads one more core file after the core (a planted
 // fault).
@@ -29,7 +38,7 @@ const fs = require('node:fs'), path = require('node:path');
 const { loadCore } = require('./core-context.js');
 const root = path.join(__dirname, '..');
 const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
-const strict = process.argv.includes('--strict');
+const strict = process.argv.includes('--strict'), followUps = process.argv.includes('--follow-ups');
 const C = loadCore(arg('--load') ? [path.resolve(arg('--load'))] : []);
 const { Registry: R, Packs, Text, Clauses } = C;
 const problems = [];
@@ -101,6 +110,17 @@ for (const code of R.order('REFUSALS')) if (!Text.refusalDefined(code)) bad(`the
 for (const code of said.refusals) if (!R.REFUSALS[code]) bad(`there is a sentence for the refusal ${code}, which is not in REFUSALS`);
 for (const name of ['clock', 'recap']) if (!Text.provided(name)) bad(`no fragment provides Text.${name}`);
 
+// Open follow-ups (--follow-ups): an entry below true that one names passes --strict.
+const FOLLOW = arg('--follow-file') || path.join(root, 'test/behaviour/follow-ups.json');
+const follow = followUps && fs.existsSync(FOLLOW) ? JSON.parse(fs.readFileSync(FOLLOW, 'utf8')) : {};
+const held = [];
+if (followUps) for (const [where, why] of Object.entries(follow)) {
+  const [t, ...rest] = where.split('.'), id = rest.join('.'), e = R.TABLES.includes(t) && Object.prototype.hasOwnProperty.call(R[t], id) ? R[t][id] : null;
+  if (!e || e.built !== 'M3') bad(`follow-ups: ${where} is not an M3 entry`);
+  else if (e.ready === true) bad(`follow-ups: ${where} is at ready true; its follow-up is closed, so take it off the list`);
+  if (typeof why !== 'string' || !why.trim()) bad(`follow-ups: ${where} gives no follow-up`);
+}
+
 // Clause templates (§5.3).
 const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*)$/;
 const sentence = { ARCHETYPES: true, MODIFIERS: true, CLAUSES: true, SPECIALS: false, STATUSES: false };
@@ -112,7 +132,11 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
     for (const f of e.tests) if (!fs.existsSync(path.join(root, 'test', f))) bad(`${where} names the test test/${f}, which does not exist`);
     if (!e.inv || !fs.existsSync(path.join(root, 'test/behaviour', e.inv + '.inv.js'))) bad(`${where} is at ready ${JSON.stringify(e.ready)} but its invariant test/behaviour/${e.inv}.inv.js does not exist`);
   }
-  if (strict && e.built === 'M3' && (e.ready !== true || !e.tests.length || !e.inv)) bad(`--strict: ${where} is at ready ${JSON.stringify(e.ready)}, with ${e.tests.length} test(s) and invariant ${e.inv}`);
+  if (strict && e.built === 'M3' && (e.ready !== true || !e.tests.length || !e.inv)) {
+    const open = followUps && Object.prototype.hasOwnProperty.call(follow, where) ? follow[where] : null;
+    if (open === null) bad(`--strict: ${where} is at ready ${JSON.stringify(e.ready)}, with ${e.tests.length} test(s) and invariant ${e.inv}`);
+    else held.push(`${where} (${e.ready}): ${open}`);
+  }
   if (e.clause === undefined) continue;
   for (const [name, ref] of Object.entries(e.params)) if (typeof ref !== 'string' || !REF.test(ref)) bad(`${where}: the parameter ${name} has the reference ${JSON.stringify(ref)}`);
   for (const k of e.covers) if (!R.EVENTS[k]) bad(`${where} covers ${k}, which is not an event kind`);
@@ -133,6 +157,43 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   const full = t === 'TRIGGERS' ? !!e.replacesWake : sentence[t];
   if (full === true && !/^[A-Z].*\.$/.test(e.clause)) bad(`${where}: its clause should be a sentence: "${e.clause}"`);
   if (full === false && (/\.$/.test(e.clause) || /^[A-Z]/.test(e.clause))) bad(`${where}: its clause should continue another: "${e.clause}"`);
+}
+
+// Every M3 id is referenced by a pack, a scenario test or an arena fixture (§5.1). What a
+// pack's data names, table by table:
+const used = new Set(), use = (t, id) => { if (typeof id === 'string' && id) used.add(t + '.' + id); };
+for (const [, sp] of allSpecies) {
+  use('ARCHETYPES', sp.archetype); use('TRIGGERS', sp.trigger);
+  for (const m of sp.modifiers || []) use('MODIFIERS', m);
+  const a = R.ARCHETYPES[sp.archetype], tr = sp.trigger ? R.TRIGGERS[sp.trigger] : null;
+  if (!a) continue;
+  use('SPECIALS', a.special);
+  for (const st of a.inflicts || []) use('STATUSES', st);
+  if (!(tr && tr.replacesWake)) use('CLAUSES', a.wake || 'wake');
+}
+for (const p of packs) {
+  for (const it of p.items || []) {
+    for (const pr of it.prims || []) use('ITEM_PRIMS', pr.id);
+    if (it.kind === 'instrument') { use('INSTRUMENTS', it.instrument); use('ITEM_PRIMS', 'charges'); }
+    if (it.kind === 'weapon' || it.kind === 'garment') use('CLAUSES', `${it.kind}_${it.form}`);
+  }
+  for (const k of keys(p.consumables && p.consumables.labels)) use('CONSUMABLES', k);
+}
+// The scenario files an entry names, and the arena stamps.
+const text = new Map(), read = f => { if (!text.has(f)) text.set(f, fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : ''); return text.get(f); };
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const arenaDir = path.join(root, 'test/arena');
+const stamps = fs.existsSync(arenaDir) ? fs.readdirSync(arenaDir).filter(f => f.endsWith('.txt')).sort().map(f => read(path.join(arenaDir, f))) : [];
+let refs = 0;
+for (const t of R.TABLES) for (const id of R.order(t)) {
+  const e = R[t][id], where = `${t}.${id}`;
+  if (e.built !== 'M3') continue;
+  refs++;
+  if (used.has(where)) continue;
+  const q = new RegExp(`['"\`](${esc(t)}\\.)?${esc(id)}['"\`]`), w = new RegExp(`(^|[^A-Za-z0-9_.])${esc(id)}($|[^A-Za-z0-9_])`, 'm');
+  if ((e.tests || []).some(f => q.test(read(path.join(root, 'test', f))))) continue;
+  if (stamps.some(st => w.test(st))) continue;
+  bad(`${where} is referenced by no pack, by none of its scenario files (${(e.tests || []).join(', ') || 'none'}) and by no arena stamp`);
 }
 
 // The asset ledger.
@@ -159,6 +220,7 @@ const count = { false: 0, unit: 0, true: 0 }, m4 = [];
 for (const t of R.TABLES) for (const id of R.order(t)) { const e = R[t][id]; if (e.built === 'M4') m4.push(id); else count[String(e.ready)]++; }
 const pairs = keys(R.CAUSES).reduce((n, k) => n + keys(R.CAUSES[k]).length, 0);
 for (const p of problems) console.log('PROBLEM ' + p);
+for (const h of held) console.log('OPEN FOLLOW-UP ' + h);
 console.log(problems.length ? `lint-registry: ${problems.length} problem(s)` :
-  `lint-registry: ${packs.length} packs, ${ids.size} species, ${R.EVENT_KINDS.length} event kinds, ${pairs} cause pairs, ${ledger.entries.length} ledger entries clean; M3 entries at ready false ${count.false}, 'unit' ${count.unit}, true ${count.true}; ${m4.length} M4 entries${strict ? '; strict' : ''}`);
+  `lint-registry: ${packs.length} packs, ${ids.size} species, ${R.EVENT_KINDS.length} event kinds, ${pairs} cause pairs, ${ledger.entries.length} ledger entries clean; M3 entries at ready false ${count.false}, 'unit' ${count.unit}, true ${count.true}; ${refs} M3 ids referenced; ${m4.length} M4 entries${strict ? '; strict' : ''}${followUps ? `, ${held.length} open follow-up(s)` : ''}`);
 process.exit(problems.length ? 1 : 0);

@@ -38,6 +38,7 @@
 //                      seal, n; prims=dmg:M,quiet:S). The line may repeat.
 //   clock: none | ltour=<n> | B=<b> G=<g> count=<c>     (none)
 //   seen: none | all   whether the whole map is remembered from the start (none)
+//   grade: <1-7>       your grade (I), so that whether a case opens is the stamp's to say
 //   metric: <name> <= <p>% | <name> >= <p>% | died lower
 //                      the comparison §10.3 makes, counterplay against naive: a ratio of sums
 //                      (hpLost, woken or turns) at most or at least p%, or Newcombe's "death
@@ -55,6 +56,15 @@
 //                                                a case (on a vitrine), and what it holds: an
 //                                                item, or an exhibit encased in it (the + has a
 //                                                space on each side)
+//                        case like=<ch> [num=<s>] [ + …]
+//                                                a case whose glass, lock and loan are those of
+//                                                the case on the first tile drawn with <ch> once
+//                                                the room is made: a mimic's disguise (drawn as
+//                                                a real case's are, on its own stream) or another
+//                                                case; so a real case beside a mimic differs from
+//                                                its disguise only in its number (§8.3). With
+//                                                that mimic removed (without), it keeps glass 1,
+//                                                lock 1 and no loan
 //                        item <kind> [<form>] [key=value…] [on=<tile>]  an item on the floor
 //                        mark [on=<tile>]       a tile the goal names
 //                      `@` is `you` unless the legend says otherwise.
@@ -74,7 +84,7 @@
 // the first fixed species, else T0.
 'use strict';
 const Arena = (() => {
-  const KEYS = ['arena', 'goal', 'cap', 'species', 'depths', 'kit', 'clock', 'seen', 'metric', 'legend', 'variants'];
+  const KEYS = ['arena', 'goal', 'cap', 'species', 'depths', 'kit', 'clock', 'seen', 'grade', 'metric', 'legend', 'variants'];
   const REPEAT = ['kit', 'legend'];
   const GOALS = ['kill', 'reach', 'leave', 'take', 'open'];
   const WHATS = ['you', 'exhibit', 'case', 'item', 'mark'];
@@ -179,15 +189,17 @@ const Arena = (() => {
       return p;
     }
     if (what === 'case') {
-      const p = { what, on: on || null, glass: 1, lock: 1, loan: false, num: null };
+      const p = { what, on: on || null, glass: 1, lock: 1, loan: false, num: null, like: null };
       for (const word of rest) { if (word === 'loan') p.loan = true; else fail(line, `a case's bare word may only be loan, not ${word}`); }
       for (const [k, v] of w.args) {
         if (k === 'on') continue;
         if (k === 'glass') { p.glass = num(v); if (!(p.glass >= 1 && p.glass <= 3)) fail(line, `glass is 1, 2 or 3, not ${v}`); }
         else if (k === 'lock') { p.lock = num(v); if (!(p.lock >= 1 && p.lock <= 7)) fail(line, `lock is a grade from 1 to 7, not ${v}`); }
         else if (k === 'num') p.num = v;
-        else fail(line, `a case takes glass, lock, loan and num, not ${k}`);
+        else if (k === 'like') { if (v.length !== 1) fail(line, `like= names one legend letter, not ${v}`); p.like = v; }
+        else fail(line, `a case takes glass, lock, loan, num and like, not ${k}`);
       }
+      if (p.like !== null && (p.loan || w.args.some(([k]) => k === 'glass' || k === 'lock'))) fail(line, 'a case like another takes its glass, lock and loan from it, so it gives none of its own');
       return p;
     }
     // item
@@ -280,7 +292,7 @@ const Arena = (() => {
     const spec = {
       arena: one('arena').text.trim(),
       goal: parseGoal(one('goal').text, one('goal').line),
-      cap: DEFAULT_CAP, species: [], depths: DEFAULT_DEPTHS.slice(), kit: [], clock: null, seen: 'none', metric: null,
+      cap: DEFAULT_CAP, species: [], depths: DEFAULT_DEPTHS.slice(), kit: [], clock: null, seen: 'none', grade: null, metric: null,
       legend: [{ ch: '@', parts: [{ what: 'you', on: null }] }], variants: [], map: [],
     };
     if (one('cap')) { spec.cap = num(one('cap').text.trim()); if (!(spec.cap >= 1)) fail(one('cap').line, 'the cap is a positive whole number of turns'); }
@@ -294,6 +306,7 @@ const Arena = (() => {
     for (const s of slotsUsed) if (slotsUsed.indexOf(s) !== slotsUsed.lastIndexOf(s)) fail(head.kit[0].line, `the kit slot ${s} is given twice`);
     if (one('clock')) spec.clock = parseClock(one('clock').text, one('clock').line);
     if (one('seen')) { spec.seen = one('seen').text.trim(); if (!['none', 'all'].includes(spec.seen)) fail(one('seen').line, `seen is none or all, not ${spec.seen}`); }
+    if (one('grade')) { spec.grade = num(one('grade').text.trim()); if (!(spec.grade >= 1 && spec.grade <= 7)) fail(one('grade').line, `your grade is a whole number from 1 to 7, not ${one('grade').text.trim()}`); }
     if (one('metric')) spec.metric = parseMetric(one('metric').text, one('metric').line);
     for (const l of head.legend || []) for (const e of l.text.split(';')) {
       if (!e.trim()) continue;
@@ -323,6 +336,11 @@ const Arena = (() => {
     for (const e of spec.legend) if (!rows.some(r => r.includes(e.ch)) && e.ch !== '@') fail(0, `the legend's ${e.ch} is not on the map`);
     for (const c of spec.goal.chars) if (!legendOf(c)) fail(one('goal').line, `the goal's ${c} is not in the legend`);
     for (const alt of spec.variants) for (const [, a, b] of alt) for (const c of [a, b]) if (!legendOf(c)) fail(one('variants').line, `the variant's ${c} is not in the legend`);
+    for (const e of spec.legend) for (const p of e.parts) if (p.what === 'case' && p.like !== null && p.like !== undefined) {
+      const o = legendOf(p.like);
+      if (!o) fail(0, `${e.ch}'s like=${p.like}: that letter is not in the legend`);
+      if (p.like === e.ch || !['case', 'exhibit'].includes(o.parts[0].what)) fail(0, `${e.ch}'s like=${p.like}: that letter is not another case or an exhibit (a mimic)`);
+    }
     for (const e of spec.legend) for (const p of e.parts) for (const k of ['guards', 'home']) {
       const v = p[k];
       if (v === undefined || /^\d+,\d+$/.test(v)) continue;
@@ -403,7 +421,9 @@ const Arena = (() => {
     const first = ch => all.find(c => c.ch === ch) || null;
     const tileOf = ref => { if (/^\d+,\d+$/.test(ref)) return ref.split(',').map(Number); const c = first(ref); return [c.x, c.y]; };
     const room = { acc, depth, map: null, you: null, exhibits: [], fixtures: [], items: [], kit: {}, clock: spec.clock ? Object.assign({}, spec.clock) : undefined, entrance: undefined, exits: [] };
-    const out = { acc, depth, sp: sp ? sp.id : null, variant: v, room, exhibits: [], items: [], cases: [], marks: [] };
+    if (spec.grade !== null && spec.grade !== undefined) room.grade = spec.grade;
+    // likes: [{x, y, from: [x, y]}], the cases whose glass, lock and loan the made room gives.
+    const out = { acc, depth, sp: sp ? sp.id : null, variant: v, room, exhibits: [], items: [], cases: [], marks: [], likes: [] };
     let items = 0, cases = 0;
     const itemUid = () => `${acc}.${depth}.room.i${++items}`;
     // The kit: the weapon and garment you start with, then the slots and the tote.
@@ -450,6 +470,7 @@ const Arena = (() => {
         cases++;
         const f = Cases.make({ x: c.x, y: c.y, room: null, num: p0.num !== null ? p0.num : `${accNumber(acc)}.1.${cases}`, glass: p0.glass, lock: p0.lock, loan: p0.loan });
         out.cases.push({ ch: c.ch, x: c.x, y: c.y });
+        if (p0.like !== null && p0.like !== undefined) { const o = first(p0.like); out.likes.push({ x: c.x, y: c.y, from: [o.x, o.y] }); }
         if (held && held.what === 'item') f.holds = item(held, c, { at: 'case', x: c.x, y: c.y });
         if (held && held.what === 'exhibit') exhibit(held, c);
         room.fixtures.push(f);
@@ -464,11 +485,23 @@ const Arena = (() => {
   }
 
   // The state for a seed: Setup.room with the layout, under options (rulesOff, without,
-  // invulnerable); with seen: all, every tile is remembered from the start.
+  // invulnerable); then each `like` case takes the glass, lock and loan of the case it is
+  // like (a mimic's disguise is made by Setup.room, so this comes after it, before anything
+  // acts); with seen: all, every tile is remembered from the start.
   function build(spec, seed, opts) {
     opts = opts || {};
     const L = layout(spec, seed, opts);
     const state = Setup.room(seed, L.room, opts.options || {});
+    for (const l of L.likes) {
+      const f = Cases.at(state, l.x, l.y), o = Cases.at(state, l.from[0], l.from[1]);
+      const removed = Actors.at(state, l.from[0], l.from[1]) === null && (opts.options && opts.options.without || []).length > 0;
+      if (!o || o.k !== 'case') {
+        // A mimic removed by options.without makes no disguise: the case keeps the stamp's own.
+        if (removed) continue;
+        throw new Error(`Arena: ${spec.arena}'s case at ${l.x},${l.y} is like the one at ${l.from}, but there is no case there (is that exhibit a mimic?)`);
+      }
+      f.glass = o.glass; f.lock = o.lock; f.loan = o.loan;
+    }
     if (spec.seen === 'all') state.dept.seen = '1'.repeat(state.dept.w * state.dept.h);
     return state;
   }

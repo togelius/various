@@ -3,7 +3,7 @@
 // turn, the status timing rule, events against their schemas, refusals, the exhibits' step
 // rule and noise through doors. The expected figures are worked out here from BUILD.md's
 // text, never from the rule code.
-module.exports = ({ test, assert, loadCore }) => {
+module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore(['tools/monkey.js']);
   const { Step, State, Setup, TestRoom, Dept, Actions, Actors, Status, Causes, Grid, Noise, Text, N } = C;
   const key = a => JSON.stringify(a);
@@ -366,6 +366,33 @@ module.exports = ({ test, assert, loadCore }) => {
       seen.add(c.code);
     }
     for (const code of C.Registry.order('REFUSALS')) if (['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'behind_glass', 'fixed', 'rooted', 'not_built', 'no_use'].includes(code)) assert.ok(seen.has(code), code);
+  });
+
+  // The backbone's refusal codes are proved here (§5.1): each entry is at 'unit', names this
+  // file, and has its invariant (test/behaviour/system.inv.js), which catches a refusal that
+  // comes with other events, draws, or changes the state.
+  test('the backbone refusal codes are at unit, proved here, with the system invariant, which catches a refusal that changes anything', () => {
+    const BACKBONE = ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'not_built', 'no_use'];
+    for (const code of BACKBONE) {
+      const e = C.Registry.REFUSALS[code];
+      assert.equal(json([e.built, e.ready, e.tests, e.inv]), json(['M3', 'unit', ['m3-backbone.test.js'], 'system']), code);
+    }
+    const Inv = require(path.join(root, 'tools/invariants.js'));
+    const check = Inv.checker(C, Inv.select(C, ['system']));
+    const s = TestRoom.create(1), pre = C.State.clone(s), ev = C.Step.step(s, { a: 'dance' });
+    assert.equal(json(check(pre, { a: 'dance' }, ev, s)), '[]', 'a true refusal holds');
+    const moved = C.State.clone(s); moved.actors[0].hp -= 1;
+    assert.ok(check(pre, { a: 'dance' }, ev, moved).some(v => /changed the state/.test(v.text)), 'a refusal that changes the state');
+    const drew = C.State.clone(s); C.Rng.stream(drew, 'combat/you').u32();
+    assert.ok(check(pre, { a: 'dance' }, ev, drew).some(v => /drew on a stream/.test(v.text)), 'a refusal that draws');
+    const more = ev.concat([{ k: 'waited', turn: 0, tick: 0, who: 'you', how: 'wait', cause: { k: 'action', how: 'wait' } }]);
+    assert.ok(check(pre, { a: 'dance' }, more, s).some(v => /other event/.test(v.text)), 'a refusal with other events');
+  });
+
+  test('Combat.canStrike throws on a kind of blow nothing makes, so not_built comes only from a handler that returns it', () => {
+    const s = room(C, OPEN, [2, 2], [ex([3, 2])]);
+    assert.throws(() => C.Combat.canStrike(s, s.actors[0], s.actors[1], { kind: 'kick' }), /no blow of kind kick/);
+    for (const kind of ['melee', 'reach', 'shot']) assert.notEqual(C.Combat.canStrike(s, s.actors[0], s.actors[1], { kind }), 'not_built', kind);
   });
 
   test('exhibits\' steps: never out of an intact case, never into a staff door, open or closed; yours go through staff doors', () => {

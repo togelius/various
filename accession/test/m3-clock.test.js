@@ -141,11 +141,14 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(woke.map(e => [e.who, e.mode, e.cause])), json(['a', 'b', 'c', 'd'].map((k, i) => [uid(k), 'hunting', { k: 'night_bell', n: i < 3 ? 1 : 2, dist: d(...SLEEPERS[k]) }])));
     for (const k of ['e', 'f', 'g']) assert.equal(s.actors.find(a => a.uid === uid(k)).mode, 'dormant', `${k} sleeps through every bell`);
     assert.equal(json(s.dept.clock.nightBells), '3');
-    // Sentences.
+    // Sentences. They name only the sleepers the bell can reach: e (in a case), f (pipless)
+    // and g (walled off) are nearer than some it woke, and still sleep at the last bell, so
+    // the last bell must not say that no sleeper is left.
     const names = X.Labels.nameOf(s);
-    assert.equal(X.Text.event(rung[0], names), 'A night-watch bell rings: the 3 sleeping exhibits nearest you wake and hunt you.');
-    assert.equal(X.Text.event(rung[1], names), 'A night-watch bell rings: the sleeping exhibit nearest you wakes and hunts you.');
-    assert.equal(X.Text.event(rung[2], names), 'A night-watch bell rings, but no sleeping exhibit is left for it to wake.');
+    assert.equal(X.Text.event(rung[0], names), 'A night-watch bell rings: the 3 sleeping exhibits nearest you that it can reach wake and hunt you.');
+    assert.equal(X.Text.event(rung[1], names), 'A night-watch bell rings: the sleeping exhibit nearest you that it can reach wakes and hunts you.');
+    assert.ok(['e', 'f', 'g'].every(k => s.actors.find(a => a.uid === uid(k)).mode === 'dormant'), 'sleepers remain at the last bell');
+    assert.equal(X.Text.event(rung[2], names), 'A night-watch bell rings, but there is no sleeping exhibit it can reach to wake.');
   });
 
   test('a night-watch bell measures walking distance as the ring does, staff doors counting as doors whatever their grade: it wakes a sleeper behind a staff door you cannot open, and none that no walk reaches', () => {
@@ -196,7 +199,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const e of ev) assert.equal(Causes.check(e), null, json(e));
     const names = Labels.nameOf(s);
     assert.equal(json(Text.log(ev, names).slice(-3)), json([
-      `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you.`,
+      `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, or one that cannot hear).`,
       'The Night Watchman comes in at the entrance.', 'The Night Watchman is on its rounds, hunting you from the start.']));
     ev = Step.step(s, { a: 'wait' });
     assert.ok(!ev.some(e => e.who === w.uid || e.by === w.uid), 'nothing yet: your decision at 1000 comes first');

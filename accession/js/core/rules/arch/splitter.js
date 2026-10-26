@@ -18,6 +18,9 @@
 //     body's (a hunt, since the hit made it hunt) and it knows your tile as the body did. It
 //     starts with no statuses and no pips, its home is the tile it appeared on, and its uid is
 //     <body uid>/<k>, k the body's count of halves made (kids, from 1; §3.2).
+//   - A half that options.without names (§3.6, by its uid) is made and at once marked gone,
+//     with no event: the body still pays its share of health and counts it, so later halves
+//     keep their uids and nothing else is renumbered.
 //   - Its story (§3.4) is the creation cause summoned {how: 'split', from: the body, by: who
 //     hit it, parent: a copy of the body's own woke}, with a creation woke event, and it first
 //     acts one action after it appears (Wake.created's beat, §8.1), never in the same instant.
@@ -47,6 +50,10 @@
       size: 1, x: at[0], y: at[1], hp: share, maxHp: a.maxHp, acc: a.acc, eva: a.eva, pad: a.pad, dmin: a.dmin, dmax: a.dmax, speed: a.speed,
       mode: a.mode, gen: a.gen, target: a.target, lastKnown: a.lastKnown, sawYou: a.sawYou,
     });
+    // A half that options.without names (§3.6) is made and at once marked gone, with no event,
+    // as a Night Watchman is: the body has still paid its share and counted it, so every
+    // later half keeps its uid.
+    if ((state.options.without || []).includes(half.uid)) { half.gone = 1; return; }
     const extra = { how: 'split', from: a.uid };
     if (cause && typeof cause.by === 'string') extra.by = cause.by;
     if (a.woke) extra.parent = a.woke;

@@ -509,6 +509,8 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(State.hash(State.clone(s)), State.hash(s), `${acc} d${depth}: clone`);
       for (const a of s.actors) {
         if (a.uid === 'you') continue;
+        // A mimic in its disguise is a case, with a case's label, not an exhibit's (§8.3).
+        if (C.Archetypes.present(s, a) !== null) { assert.equal(Labels.of(s, a.uid), null, `${acc} d${depth} ${a.uid}`); continue; }
         const l = Labels.of(s, a.uid);
         assert.ok(l && !BAD.test(json(l)), `${acc} d${depth} ${a.uid}: ${json(l)}`);
       }

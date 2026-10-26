@@ -8,10 +8,13 @@
 
   // Refusal codes (§4.2). step() refuses an illegal action with a code, and text/system.js
   // gives each its sentence. A rule that refuses with a code of its own defines it in its
-  // own fragment. not_built is the code of an action whose rules a later part builds; no_use
-  // is use(uid) of something that is not an instrument, a kit or a consumable.
+  // own fragment. not_built is the code of an action whose rules a later part builds (no
+  // M3 handler returns it; m3-backbone plants one that does); no_use is use(uid) of
+  // something that is not an instrument, a kit or a consumable. m3-backbone makes each one
+  // refuse, with nothing changed and nothing drawn; their invariant is
+  // test/behaviour/system.inv.js (a refused step has no other event and changes nothing).
   for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
-    'not_built', 'no_use']) R.define('REFUSALS', code, {});
+    'not_built', 'no_use']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' });
   R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
 
   // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until

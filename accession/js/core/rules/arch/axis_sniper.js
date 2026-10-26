@@ -68,5 +68,9 @@
     return AI.wait(state, a, ev);
   }
 
-  Archetypes.add('axis_sniper', { act });
+  // The odds readout's lines (Archetypes.readout, read by Labels): it has no blow, so the
+  // label gives no chance of its hitting you; its beam has its own line (Specials.readout).
+  const readout = () => [{ k: 'noBlow' }];
+
+  Archetypes.add('axis_sniper', { act, readout });
 })();

@@ -9,7 +9,11 @@
 //     included, draws it past the edge. (Put outside the disc by something else, it may only
 //     step nearer to what it guards.)
 //   - Leaving. While it hunts or searches for you and you stand outside that disc at its
-//     action, it does not fight you: no blow, no ring. It goes back instead:
+//     action, it starts no fight with you: no blow, no new ring. A ring it has already shown
+//     still goes off at that action (AI.act resolves a pending mark before this hook runs),
+//     as every shown special does: leaving its tether is not one of the things that call a
+//     mark off (§8.1, Cancelling), so the floor's number and the threat stay true. It goes
+//     back instead:
 //       - if it sees you (it hunts you: being seen turns any waking mode into a hunt, AI.look),
 //         it walks back to its place (its home; with no home, what it guards) and waits there,
 //         still hunting, while it sees you. No change of mode, so no event: a warden you watch

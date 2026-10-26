@@ -18,7 +18,10 @@
 //   onWake(state, a), onHome(state, a, ev), onResolve(state, a, tel, ev), init(state, a)   each in turn
 //   present(state, a) → null | {as: 'case'}   the first that is not null
 //   pipless(state, a) → bool             true if any hook says so (a disguised mimic)
-//   readout(state, a, you) → [{k, …}]    every hook's lines, in turn
+//   readout(state, a, you) → [{k, …}]    every hook's lines, in turn, for the odds readout
+//                                        (Labels): {k: 'noBlow'}, it has no blow (no chance
+//                                        of hitting you is given; the axis_sniper); {k: 'hits',
+//                                        n}, it needs n hits whatever its health (a swarm body)
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',

@@ -118,7 +118,9 @@ const Combat = (() => {
       const d = reachDir(att, def);
       return d < 0 ? 'out_of_reach' : reachWay(state, att, d);
     }
-    if (kind !== 'melee') return 'not_built';
+    // Every caller asks about a melee, Reach or shot blow; any other kind is a fault in the
+    // code, not an action to refuse.
+    if (kind !== 'melee') throw new Error(`Combat.canStrike: no blow of kind ${kind}`);
     if (Actors.between(att, def) !== 1) return 'out_of_reach';
     if (!adjacent(state, att, def)) return 'corner';
     return null;

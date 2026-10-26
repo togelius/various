@@ -3,15 +3,19 @@
 // run (tools/invariants.js). Each states one sentence of a Behaviour line, written out again
 // here from the clause, not from the rule code:
 //   herald: "Each time it wakes, the first time it sees you it calls for a turn, shown, then
-//     wakes every sleeping exhibit within 6 tiles of it, which come to look where you stood";
+//     wakes every sleeping exhibit within 6 tiles of it that can hear, which come to look
+//     where you stood";
 //   tethered_warden: "Stays within 2 tiles of what it guards; if it hunts you and you are
-//     not, it goes back instead of fighting, waits there while it sees you, then heals fully
-//     and settles … beside you, at most one action in 3 since it woke, it marks the tiles
-//     round it" (hunting takes in searching, §8.2);
+//     not, it goes back instead of starting a fight, waits there while it sees you, then heals
+//     fully and settles … beside you, at most one action in 3 since it woke, it marks the tiles
+//     round it for a turn, then strikes everything on them" (hunting takes in searching, §8.2:
+//     a ring already marked still strikes; no new blow or ring starts);
 //   mimic_vitrine: "Looks like a case … Opened or bashed, it grips you (you cannot move for 2
 //     turns) and strikes …; it does everything at half speed. Wakes only when it is opened,
 //     bashed, dissolved or struck";
-// and, for every exhibit, a pipless one is never woken by a call.
+// and, for every exhibit, a pipless one is never woken by a call: a pipless sleeper hears
+// nothing (§8.2), so it is not one "that can hear", which is where herald_call's exemption
+// for it comes from.
 //
 // A step can hold several actions (yours, then every exhibit's until your next decision), so
 // where a sentence is about one moment in the step (a call going off, a warden going back),
@@ -85,7 +89,8 @@ module.exports = (C) => {
       }
       if (!!(a.ax && a.ax.called) !== called) return `ax.called is ${json(a.ax && a.ax.called)}, but its calls since it last woke say ${called ? 1 : 0}`;
       // Only after its shown turn, only within the shown tiles, only sleepers, awake; and,
-      // when it goes off, every sleeper then on the shown tiles, unless pipless, wakes.
+      // when it goes off, every sleeper then on the shown tiles that can hear (one that is not
+      // pipless, the clause's "that can hear") wakes.
       const tel = before && before.telegraph && before.telegraph.sp === 'call' ? before.telegraph : null;
       const u = track(pre, post);
       for (const e of events) {
@@ -135,12 +140,21 @@ module.exports = (C) => {
       // Its own steps never take it outside its tether. (The pole, used by you, may move it.)
       if (before && before.guards && inside(before) && !inside(a) && ctx.action.a !== 'use') return `it went from ${before.x},${before.y} to ${a.x},${a.y}, outside its tether round ${g}`;
       // It fights you only within its tether: you do not move while exhibits act, so your
-      // tile now is your tile at each of its actions this step.
+      // tile now is your tile at each of its actions this step. Outside it, only a ring it
+      // has already shown strikes you (it starts no fight, but what it marked "then strikes
+      // everything on" its tiles): the ring it had
+      // pending as the step began, which it marked (as the check below holds at every mark)
+      // with you within its tether.
       const you = youIn(post), [yx, yy] = you, out = !within(g, yx, yy, r), t = track(pre, post);
+      const shown = !!(before && before.telegraph && before.telegraph.sp === 'ring');
       let woke = false, rings = 0;
       for (const e of events) {
         if (e.k === 'woke' && e.who === a.uid) woke = true;
         if (out && e.k === 'attacked' && e.by === a.uid && e.at === 'you') return `it struck at you at ${yx},${yy}, outside its tether round ${g}`;
+        if (out && e.k === 'damaged' && e.who === 'you' && e.cause && e.cause.k === 'special' && e.cause.by === a.uid && e.cause.sp === 'ring') {
+          if (!shown) return `its ring struck you at ${yx},${yy}, outside its tether round ${g}, but no ring of its was shown as the step began`;
+          if (!before.telegraph.tiles.some(q => q[0] === yx && q[1] === yy)) return `its ring struck you at ${yx},${yy}, a tile its shown ring did not mark`;
+        }
         if (e.k === 'telegraphed' && e.who === a.uid && e.sp === 'ring') {
           if (out) return `it marked its ring with you at ${yx},${yy}, outside its tether round ${g}`;
           if (!e.tiles.some(q => q[0] === yx && q[1] === yy)) return `it marked its ring with you at ${yx},${yy}, not on it`;

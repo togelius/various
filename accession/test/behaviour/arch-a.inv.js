@@ -174,7 +174,9 @@ module.exports = (C) => {
   // its species, archetype, role, modifiers and their parameters, trigger, group, Acc, Eva,
   // Padding, damage and speed are the body's, none of which changes during a visit; and if the
   // body had seen you before the step and did not wake again in it, the half has seen you too
-  // (sawYou is only cleared by a waking), so your next blow at it is no surprise.
+  // (sawYou is only cleared by a waking), so your next blow at it is no surprise. A half that
+  // options.without names (§3.6) is made with no event and at once gone: it counts as the
+  // split of the hit whose half number it bears, with the same health, and it is never told.
   const SAME = ['sp', 'arch', 'role', 'mods', 'modParams', 'trigger', 'group', 'acc', 'eva', 'pad', 'dmin', 'dmax', 'speed'];
   const splits = {
     id: 'splitter_splits',
@@ -185,20 +187,38 @@ module.exports = (C) => {
       const isHalf = (e, from) => e.k === 'woke' && e.was === null && !!e.cause && e.cause.k === 'summoned' && e.cause.how === 'split' && e.cause.from === from;
       const halves = [];
       events.forEach((e, i) => { if (isHalf(e, uid)) halves.push(i); });
+      // Its halves made this step that options.without names: their half numbers, in order.
+      const without = (post.options && post.options.without) || [], had = new Set(pre.actors.map(x => x.uid));
+      const kOf = u => u.startsWith(uid + '/') && /^\d+$/.test(u.slice(uid.length + 1)) ? Number(u.slice(uid.length + 1)) : null;
+      const silent = post.actors.filter(x => !had.has(x.uid) && kOf(x.uid) !== null && without.includes(x.uid)).map(x => kOf(x.uid)).sort((p, q) => p - q);
+      for (const k of silent) if (post.actors.find(x => x.uid === `${uid}/${k}`).gone !== 1) return `its half ${uid}/${k} is named by options.without, but is not gone`;
+      for (const h of halves) if (without.includes(events[h].who)) return `its half ${events[h].who} is named by options.without, but its making was told`;
+      const made = halves.length + silent.length;
       const b = ctx.before;
-      if (b && (a.gen !== b.gen + halves.length || a.kids !== b.kids + halves.length))
-        return `its generation went from ${b.gen} to ${a.gen}, and its count of halves from ${b.kids} to ${a.kids}, with ${halves.length} split(s) this step`;
+      if (b && (a.gen !== b.gen + made || a.kids !== b.kids + made))
+        return `its generation went from ${b.gen} to ${a.gen}, and its count of halves from ${b.kids} to ${a.kids}, with ${made} split(s) this step`;
       // Health a body has now is what the split left it, unless something hit or healed it since.
       const hitAfter = (who, from) => events.some((g, j) => j > from && (g.k === 'damaged' || g.k === 'healed') && g.who === who);
       const used = events.some(g => g.k === 'used');
       const was = pre.actors.find(x => x.uid === uid), rewoke = events.some(g => g.k === 'woke' && g.who === uid);
+      let done = 0;                                  // its splits so far this step, told or not
       for (let i = 0; i < events.length; i++) {
         const e = events[i];
         if (e.k !== 'damaged' || e.who !== uid) continue;
         let end = events.length;
         for (let j = i + 1; j < events.length; j++) if (events[j].k === 'damaged') { end = j; break; }
         const h = halves.find(j => j > i && j < end);
-        const after = halves.filter(j => j > i).length, gen = a.gen - after, kids = a.kids - after, H = e.hp;
+        const after = made - done, gen = a.gen - after, kids = a.kids - after, H = e.hp;
+        if (h === undefined && silent[0] === kids + 1) {
+          // This hit made the half that options.without removes.
+          silent.shift(); done++;
+          const half = post.actors.find(x => x.uid === `${uid}/${kids + 1}`), share = Math.max(1, Int.pct(H, N.SPLIT_HP_PCT));
+          if (H < 2) return `split at tick ${e.tick} with ${H} health; it needs more than 1 to split`;
+          if (gen >= N.SPLIT_MAX) return `split at tick ${e.tick} at generation ${gen}; bodies split at most ${N.SPLIT_MAX} splits deep`;
+          if (half.hp !== share || half.gen !== gen + 1) return `its removed half ${half.uid} has ${half.hp} health at generation ${half.gen}; ${share} at ${gen + 1} was expected`;
+          if (!hitAfter(uid, i) && after === 1 && a.hp !== H - share) return `kept ${a.hp} health after splitting ${H}; it keeps ${H - share}`;
+          continue;
+        }
         if (h === undefined) {
           if (H < 2 || gen >= N.SPLIT_MAX || used) continue;
           const w = world(pre, post, events, i), p = w.pos.get(uid);
@@ -209,6 +229,7 @@ module.exports = (C) => {
           }
           continue;
         }
+        done++;
         const f = events[h], half = post.actors.find(x => x.uid === f.who);
         if (H < 2) return `split at tick ${e.tick} with ${H} health; it needs more than 1 to split`;
         if (gen >= N.SPLIT_MAX) return `split at tick ${e.tick} at generation ${gen}; bodies split at most ${N.SPLIT_MAX} splits deep`;

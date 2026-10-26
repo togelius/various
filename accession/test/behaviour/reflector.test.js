@@ -105,12 +105,32 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const mark = r.steps[0].events.find(e => e.k === 'telegraphed' && e.who === sn.uid);
       if (!mark) return 'the sniper did not aim';
       if (json(mark.tiles) !== json([[2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [7, 1], [8, 1]])) return `its line was ${json(mark.tiles)}`;
-      // Its own beam, back from the dish: its special's, or (once Specials.resolve gives a beam
-      // sent back its reflector's cause, Ranged.beamVia) the dish's, naming the sniper.
-      const own = hurt(r, sn.uid).filter(e => e.cause.sp === 'line' && ((e.cause.k === 'special' && e.cause.by === sn.uid) || (e.cause.k === 'reflected' && e.cause.by === dish.uid && e.cause.shooter === sn.uid)));
+      // Its own beam, back from the dish, is the dish's (§8.1: a line a reflector sends back is
+      // the reflector's on the tiles it reaches only on its way back), naming the sniper.
+      const own = hurt(r, sn.uid).filter(e => e.cause.sp === 'line' && e.cause.k === 'reflected' && e.cause.by === dish.uid && e.cause.shooter === sn.uid);
       if (own.length !== 1 || hurt(r, sn.uid).length !== 1) return `the sniper took its own beam ${own.length} times (${json(hurt(r, sn.uid).map(e => e.cause))})`;
       if (hurt(r, 'you').filter(e => e.cause.k === 'special').length !== 1) return 'you were not hit once';
       return hurt(r, behind.uid).length ? 'the exhibit behind the dish was hit' : null;
+    },
+  })));
+
+  // Behind the sniper, the beam sent back strikes on, as the dish's: the sniper and a body
+  // beyond it are hit by the dish (reflected, shooter the sniper), you by the sniper's beam on
+  // its way out; and the sentences say so.
+  test('a beam sent back is the reflector\'s on every tile it reaches only on its way back, the sniper\'s tile and those behind it', () => sweep(H.scenario({
+    name: 'a beam sent back by a dish strikes the sniper and what stands behind it as the dish\'s, naming the sniper', id: 'reflector', clone: true,
+    build: (params, sp, depth, opts) => room(sp, depth, opts, CORRIDOR, [4, 1], [body(sp, depth, [2, 1], { mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 999 }) }), sniper(depth, [6, 1]), fodder(depth, [8, 1])]),
+    actions: waits(2),
+    expect(r) {
+      const [, dish, sn, beyond] = r.start.actors, names = C.Labels.nameOf(r.state);
+      const tel = r.steps[0].events.find(e => e.k === 'telegraphed' && e.who === sn.uid);
+      if (!tel) return 'the sniper did not aim';
+      for (const [who, k, by] of [['you', 'special', sn.uid], [sn.uid, 'reflected', dish.uid], [beyond.uid, 'reflected', dish.uid]]) {
+        const hit = hurt(r, who).filter(e => e.cause.sp === 'line');
+        if (hit.length !== 1 || hit[0].cause.k !== k || hit[0].cause.by !== by || (k === 'reflected' && hit[0].cause.shooter !== sn.uid)) return `${who} was struck ${json(hit.map(e => [e.cause.k, e.cause.by, e.cause.shooter]))}; once, ${k} by ${by}, was expected`;
+        if (k === 'reflected' && !/sent .* beam back into/.test(C.Text.event(hit[0], names))) return `the sentence does not name the dish: ${C.Text.event(hit[0], names)}`;
+      }
+      return null;
     },
   })));
 
@@ -227,5 +247,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(inv.check(pre, hit(6, g), pre), null);
     assert.ok(/never marked/.test(inv.check(pre, hit(9, g), pre)), 'a tile off the mark');
     assert.ok(/its mark said/.test(inv.check(pre, hit(6, g + 1), pre)), 'a gross other than the mark\'s');
+    // The mark records, per tile, who sent the beam back (via): the dish on the sniper's tile
+    // and behind it, nobody on its way out; and COMBAT's combat_special_shown holds a hit to it,
+    // so a returned tile struck as the sniper's own special, or a tile on the way out struck as
+    // the dish's, is caught.
+    const dish = pre.actors[1].uid;
+    assert.equal(json(sn.telegraph.tiles.map((t, i) => [t[0], sn.telegraph.via[i]])), json([[2, null], [3, null], [4, null], [5, null], [6, dish], [7, dish], [8, dish]]));
+    const shown = require(path.join(root, 'test/behaviour/combat.inv.js'))(C).find(i => i.id === 'combat_special_shown');
+    assert.equal(shown.check(pre, hit(6, g), pre), null);
+    const asOwn = hit(6, g); asOwn[0].cause = { k: 'special', by: sn.uid, sp: 'line', gross: g, pad: 0, net: g, x: 6, y: 1, from: [5, 1] };
+    assert.ok(/as special, but its mark there was sent back by/.test(shown.check(pre, asOwn, pre)), 'a returned tile struck as the sniper\'s own');
+    const outbound = hit(5, g);
+    assert.ok(/but its mark there was on its way out/.test(shown.check(pre, outbound, pre)), 'a tile on its way out struck as the dish\'s');
   });
 };

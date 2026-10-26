@@ -1,7 +1,7 @@
 // ACCESSION — the tethered_warden's Behaviour line (BUILD.md §5.3; W1-ARCH-C): "Stays within
 // {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead
-// of fighting, waits there while it sees you, then heals fully and settles, unless it has no
-// home. It strikes from beside you for {dmg}; beside you, at most one action in
+// of starting a fight, waits there while it sees you, then heals fully and settles, unless it
+// has no home. It strikes from beside you for {dmg}; beside you, at most one action in
 // {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it marks the tiles round it for a turn, then
 // strikes everything on them for {gross} before Padding." ("Hunts" takes in searching, as in
 // §8.2's table, where searching is part of the hunt.) Each scenario runs for every pack warden
@@ -149,6 +149,47 @@ module.exports = ({ test, assert, loadCore }) => {
       if (r.events.some(e => e.k === 'attacked' && e.by === w.uid)) return 'it struck at you round the wall';
       return null;
     },
+  });
+
+  // A ring shown while you stood within its tether still goes off when you step out of the
+  // tether onto one of its tiles: leaving starts no fight, but calls off no mark either
+  // (§8.1, Cancelling; §8.2). It marks with you at G + (2, 1), within the tether; you step east
+  // to G + (3, 1), outside it (9 + 1 > 2² + 2) but still beside it, on its ring; the ring
+  // deals what the floor showed and the threat said before the step; then, with you outside,
+  // it starts nothing new. Its line says so.
+  let shown = [];
+  const shownRing = H.scenario({
+    name: 'a ring it has shown still strikes you after you step out of its tether onto it, as its mark and the threat said; then it starts no fight',
+    id: 'tethered_warden', clone: true,
+    build: (params, sp, depth, opts) => {
+      const s = make(sp, depth, opts, [G[0] + 2, G[1] + 1], { at: [G[0] + 2, G[1]], guards: G.slice(), home: G.slice() });
+      warden(s).acts = params.ROLE_WARDEN_SPECIAL_EVERY;
+      return s;
+    },
+    actions: (s, i) => {
+      if (i === 0) shown = [];
+      shown.push({ marks: Specials.marks(s), threat: Specials.threat(s, { a: 'move', dir: 2 }) });
+      return [{ a: 'wait' }, { a: 'move', dir: 2 }, { a: 'wait' }, { a: 'wait' }][i] || null;
+    },
+    expect(r, params) {
+      const R = params.TETHER_RANGE, w = warden(r.start), at = [G[0] + 3, G[1] + 1];
+      if (!within(G, G[0] + 2, G[1] + 1, R) || within(G, at[0], at[1], R)) return 'this scenario needs you to step from within its tether to outside it';
+      if (!r.steps[0].events.some(e => e.k === 'telegraphed' && e.who === w.uid && e.sp === 'ring' && e.tiles.some(t => t[0] === at[0] && t[1] === at[1]))) return 'it did not mark its ring, over the tile east of you, with you within its tether';
+      const mark = shown[1].marks.find(m => m.x === at[0] && m.y === at[1] && m.by === w.uid);
+      if (!mark || !shown[1].threat || shown[1].threat.dmg !== mark.dmg || shown[1].threat.by !== w.uid) return `before your step the floor showed ${json(mark)} and the threat said ${json(shown[1].threat)}; both should name its ring`;
+      const hit = r.steps[1].events.filter(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special' && e.cause.by === w.uid && e.cause.sp === 'ring');
+      if (hit.length !== 1 || hit[0].amount !== mark.dmg || hit[0].cause.x !== at[0] || hit[0].cause.y !== at[1]) return `outside its tether its shown ring dealt ${json(hit.map(e => [e.amount, e.cause.x, e.cause.y]))}; ${mark.dmg} at ${at} was expected`;
+      if (r.steps.slice(1).some(st => fought(st, w.uid))) return 'with you outside its tether it struck at you or marked again';
+      // Its line must not say it stops fighting outright: it starts no fight, and a ring it has
+      // marked "then strikes everything on" its tiles.
+      if (/instead of fighting/.test(r.clause) || !/goes back instead of starting a fight/.test(r.clause) || !/marks the tiles round it for a turn, then strikes everything on them/.test(r.clause))
+        return `its line does not say that it only starts no fight, while a ring it has marked still strikes: "${r.clause}"`;
+      return null;
+    },
+  });
+
+  test('a ring it has shown still strikes you outside its tether, as the floor and the threat said, and its line does not say otherwise', () => {
+    ok(H.sweep(C, shownRing, list('tethered_warden')), shownRing.name);
   });
 
   test('it will not leave its tether to go round to you', () => {
@@ -427,5 +468,19 @@ module.exports = ({ test, assert, loadCore }) => {
     };
     const q = H.play(Q, strong(Q.Setup.room(1, { acc: 'T0', depth, map: TWO, you: [7, 3], exhibits: [{ sp: sp.id, at: [3, 3], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] })), waits(3), { inv: ['arch-c'] });
     assert.ok(q.violations.some(v => v.inv === 'warden_tether' && /though it could see you/.test(v.message)), json(q.violations.map(v => v.message)));
+    // A planted warden that, with you outside its tether, rings you at once without showing
+    // the ring first: its ring strikes you there, but no ring was shown as the step began.
+    const P = loadCore(), pact = P.Archetypes.act;
+    P.Archetypes.act = (state, a, ev) => {
+      const you = state.actors[0];
+      if (a.arch === 'tethered_warden' && !P.Grid.disc(you.x - a.guards[0], you.y - a.guards[1], N.TETHER_RANGE) && Math.max(Math.abs(you.x - a.x), Math.abs(you.y - a.y)) === 1) {
+        const tiles = P.Specials.tiles(state, a, 'ring');
+        a.telegraph = { sp: 'ring', tiles, from: tiles.map(() => [a.x, a.y]), gross: 5, effect: 'damage', turn: state.turn, tick: state.tick };
+        return P.Specials.resolve(state, a, ev);
+      }
+      return pact(state, a, ev);
+    };
+    const p = H.play(P, make(sp, depth, { seed: 1, rulesOff: [] }, [G[0] + 3, G[1] + 1], { at: [G[0] + 2, G[1]], guards: G.slice() }), waits(2), { inv: ['arch-c'] });
+    assert.ok(p.violations.some(v => v.inv === 'warden_tether' && /no ring of its was shown/.test(v.message)), json(p.violations.map(v => v.message)));
   });
 };

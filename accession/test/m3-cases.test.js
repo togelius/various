@@ -84,6 +84,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
   });
 
+  // The three glasses of §8.3, in order: a case's glass n is the GLASS entry with that n,
+  // which names it on its label and in its sentences, with its bashes from §8.10.
+  test('the glasses are plate (1), laminated (2) and security (3), each named on its case\'s label and taking its GLASS_BASHES', () => {
+    assert.equal(json(C.Registry.order('GLASS')), json(['plate', 'laminated', 'security']));
+    ['plate', 'laminated', 'security'].forEach((id, i) => {
+      const g = C.Registry.GLASS[id], s = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2, { glass: i + 1 })], grade: 7 });
+      assert.equal(json([g.n, g.name]), json([i + 1, ['Plate', 'Laminated', 'Security'][i]]), id);
+      assert.equal(C.Cases.describe(s, C.Cases.at(s, 3, 2)).glassName, g.name, `${id} names its case`);
+      assert.equal(BASHES[i + 1], C.N.GLASS_BASHES[i], `${id} takes GLASS_BASHES[${i}]`);
+    });
+  });
+
   test('a Heavy swing counts two bashes and costs 150; breaker adds one more; a Light weapon cannot break Laminated or Security glass, breaker or not', () => {
     // swings(form, breaker, glass): §8.3 and §8.5 written out: 1 a swing, 2 with a Heavy
     // weapon, +1 with breaker; the glass breaks at its count of bashes.
@@ -509,6 +521,57 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(drop(a), drop(b), `seed ${seed}: label`);
       assert.ok(a.rules.every(clean) && a.rules.length === 2, json(a.rules));
     }
+  });
+
+  // A mimic in its disguise is a case to everything you see (§8.3, D3.10: its case differs
+  // from a real one only in having no number): the view model's actors, the strip and the
+  // exhibit's label never show it, and no label offers an action that step() refuses, so
+  // an exhibit in an intact case gets no Attack button either. Once it shows itself, it is
+  // an exhibit like any other. Beside every mimic in the S.9 departments, depths 1–7.
+  test('a mimic in its disguise is not an exhibit in the view model, the strip or a label, and no label offers what step() refuses', () => {
+    let seen = 0;
+    for (let depth = 1; depth <= 7; depth++) for (const seed of [1, 2]) {
+      const base = C.Dept.create(seed, 'S9', depth);
+      for (const m0 of base.actors.filter(a => a.arch === 'mimic_vitrine' && !a.gone)) {
+        const s = C.State.clone(base), m = C.Actors.byUid(s, m0.uid), you = s.actors[0];
+        if (C.Archetypes.present(s, m) === null) continue;
+        let placed = false;
+        for (let d = 0; d < 8 && !placed; d += 2) {
+          const x = m.x + C.Grid.DX[d], y = m.y + C.Grid.DY[d];
+          if (C.Grid.walkable(s.dept, x, y) && !C.Actors.at(s, x, y)) { you.x = x; you.y = y; placed = true; }
+        }
+        if (!placed) continue;
+        seen++;
+        const where = `S9 d${depth} seed ${seed} ${m.uid}`;
+        assert.ok(!C.ViewModel.derive(s, {}).actors.some(a => a.uid === m.uid), `${where}: the view model lists it`);
+        const strip = C.Labels.strip(s);
+        assert.ok(!strip || strip.uid !== m.uid, `${where}: the strip names it: ${json(strip)}`);
+        assert.equal(C.Labels.of(s, m.uid), null, `${where}: it has an exhibit's label`);
+        // Every label shown offers only what step() allows.
+        for (const a of s.actors.slice(1)) {
+          const l = C.Labels.of(s, a.uid);
+          for (const act of (l && l.actions) || []) if (act.id === 'attack') {
+            const ev = C.Step.step(C.State.clone(s), { a: 'attack', uid: a.uid });
+            assert.ok(!(ev.length === 1 && ev[0].k === 'refused'), `${where}: ${a.uid}'s label offers Attack, which step() refuses (${ev[0].reason})`);
+          }
+        }
+        // Shown, it is an exhibit: bash its case, and it is in the view model and labelled.
+        const t = C.State.clone(s);
+        C.Step.step(t, { a: 'bash', x: m.x, y: m.y });
+        const shown = C.Actors.byUid(t, m.uid);
+        if (shown.mode !== 'dormant') {
+          assert.equal(C.Archetypes.present(t, shown), null, where);
+          assert.ok(C.ViewModel.derive(t, {}).actors.some(a => a.uid === m.uid), `${where}: shown, it is not in the view model`);
+          assert.ok(C.Labels.of(t, m.uid), `${where}: shown, it has no label`);
+        }
+      }
+    }
+    assert.ok(seen >= 7, `${seen} mimics stood beside`);
+    // An exhibit in an intact case, beside you: no Attack button, since a blow at it is
+    // refused (behind_glass).
+    const s = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2)], exhibits: [sleeper([3, 2])] });
+    assert.equal(json(C.Labels.of(s, s.actors[1].uid).actions), '[]');
+    assert.equal(C.Step.step(C.State.clone(s), { a: 'attack', uid: s.actors[1].uid })[0].reason, 'behind_glass');
   });
 
   test('the view model\'s cases, staff doors and label data follow your grade and weapon, only on shown tiles', () => {

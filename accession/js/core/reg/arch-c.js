@@ -17,10 +17,13 @@
   // The tethered_warden keeps within TETHER_RANGE of what it guards; hunting you (searching
   // for you included: §8.2's hunting row) while you are outside its tether, it goes back: it
   // waits at its place while it sees you, and heals and settles once it does not (an exhibit
-  // with no home never settles, §8.2). It rings you at most one action in
-  // ROLE_WARDEN_SPECIAL_EVERY from its waking.
+  // with no home never settles, §8.2). Leaving its tether starts no fight but calls off no
+  // mark: a ring it has shown still goes off (§8.1, Cancelling), as its special's clause says
+  // ("marks the tiles round it for a turn, then strikes everything on them"); "instead of
+  // starting a fight" keeps the line within the strip's length (§5.3). It rings you at most one
+  // action in ROLE_WARDEN_SPECIAL_EVERY from its waking.
   R.define('ARCHETYPES', 'tethered_warden', Object.assign({ icon: null, special: 'ring',
-    clause: 'Stays within {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead of fighting, waits there while it sees you, then heals fully and settles, unless it has no home. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}.',
+    clause: 'Stays within {TETHER_RANGE} tiles of what it guards; if it hunts you and you are not, it goes back instead of starting a fight, waits there while it sees you, then heals fully and settles, unless it has no home. It strikes from beside you for {dmg}; beside you, at most one action in {ROLE_WARDEN_SPECIAL_EVERY} since it woke, it {special}.',
     params: { TETHER_RANGE: 'N:TETHER_RANGE', dmg: 'role:DMG', ROLE_WARDEN_SPECIAL_EVERY: 'N:ROLE_WARDEN_SPECIAL_EVERY' },
     covers: ['attacked', 'missed', 'telegraphed', 'special', 'healed'] }, unit(WARDEN)));
   // A mimic is a case until it is touched (§8.3), and gains no pips while it sleeps (§8.2), so
@@ -29,12 +32,14 @@
     clause: 'Looks like a case, but its label has no accession number. Opened or bashed, it grips you ({status:rooted}) and strikes for {dmg}; it does everything at half speed.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed', 'status'] }, unit(MIMIC)));
 
-  // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding.
+  // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call
+  // wakes only the sleepers that can hear: a pipless one (a sleeping mimic) hears nothing
+  // (§8.2), so the call's clause says "that can hear", and gives no mimic away.
   R.define('SPECIALS', 'ring', Object.assign({ icon: 'special', shape: 'ring', effect: 'damage', curve: 'ROLE_WARDEN_SPECIAL', range: null, every: 'ROLE_WARDEN_SPECIAL_EVERY',
     clause: 'marks the tiles round it for a turn, then strikes everything on them for {gross} before Padding',
     params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, unit(WARDEN)));
   R.define('SPECIALS', 'call', Object.assign({ icon: 'special', shape: 'call', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null,
-    clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it, which come to look where you stood as the call went off',
+    clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it that can hear, which come to look where you stood as the call went off',
     params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, unit(HERALD)));
 
   // A pipless species' wake clause, in place of the generic one (§5.3): only these wake it.
