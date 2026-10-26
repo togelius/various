@@ -33,3 +33,109 @@ Fights the exhibits in view: strikes one when it can, the weakest first, and oth
 3. Otherwise, wait.
 
 Weights: none.
+
+## darter
+
+### darter.naive
+
+Chases the darter: strikes it when it is beside it, and otherwise walks after it.
+
+1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
+3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+4. Otherwise, wait.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+### darter.counter
+
+Puts its back to a wall: goes to the nearest corner and holds still there, striking the darter whenever it is beside it, never walking after it.
+
+1. Find the nearest corner once, at its first decision: a tile with walls on two sides that meet.
+2. Read the label of each exhibit the first time it is in view.
+3. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+4. Otherwise, if it is not standing in the corner, take the first step of the way a tap on the corner would walk.
+5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+6. Otherwise, wait in the corner for the darter to come back beside it.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+## mote_swarm
+
+### mote_swarm.naive
+
+Fights the swarm in the open: strikes a body beside it, the weakest first, and otherwise walks toward the nearest.
+
+1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
+3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+4. Otherwise, wait.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+### mote_swarm.counter
+
+Fights the swarm in the doorway: steps into the gap one tile wide in the wall, where only the body in front of it can strike, and fights the bodies there one at a time.
+
+1. Find the doorway once, at its first decision: the nearest tile with a wall on two opposite sides and open tiles on the other two.
+2. Read the label of each exhibit the first time it is in view.
+3. If it is not standing in the doorway, and it has seen an exhibit in the last 10 turns, take the first step of the way a tap on the doorway would walk, whatever is beside it.
+4. Otherwise, if an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one, striking any it meets on the way.
+6. Otherwise, wait in the doorway for them to come to it.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+## plodder
+
+### plodder.naive
+
+Fights the plodders in the open: strikes one beside it, the weakest first, and otherwise walks toward the nearest.
+
+1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
+3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+4. Otherwise, wait.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+### plodder.counter
+
+Fights the plodders from the doorway: steps into the gap one tile wide in the wall, where only the plodder in front of it can strike, and fights them there one at a time.
+
+1. Find the doorway once, at its first decision: the nearest tile with a wall on two opposite sides and open tiles on the other two.
+2. Read the label of each exhibit the first time it is in view.
+3. If it is not standing in the doorway, and it has seen an exhibit in the last 10 turns, take the first step of the way a tap on the doorway would walk, whatever is beside it.
+4. Otherwise, if an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid).
+5. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one, striking any it meets on the way.
+6. Otherwise, wait in the doorway for them to come to it.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+## splitter
+
+### splitter.naive
+
+Fights the splitter with a T1 Light weapon: many small hits, each of which the body or a half may survive and split on.
+
+1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
+2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
+3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+4. Otherwise, wait.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+Kit: weapon light tier 1.
+
+### splitter.counter
+
+Fights the splitter as naive does, but with a T1 Heavy weapon: fewer, harder hits, which leave less of a body to split and fell its halves sooner.
+
+1. If an exhibit beside it can be struck, strike the one with the least health (then the nearest, then by uid), so that the halves it has made fall first.
+2. Otherwise, if an exhibit is in view, take the first step of the way a tap on the nearest would walk.
+3. Otherwise, if it has seen no exhibit for 10 turns, walk toward where it last saw one.
+4. Otherwise, wait.
+
+Weights: turns without an exhibit in view before it goes to look 10.
+
+Kit: weapon heavy tier 1.

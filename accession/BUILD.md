@@ -1521,7 +1521,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 
   | Archetype | Arena and goal | Naive | Counterplay | Metric, margin |
   |---|---|---|---|---|
-  | plodder | a room with a doorway; kill it | fight in the open | fight from the doorway | HP lost ≤ 90% |
+  | plodder | three plodders in a room with a doorway (one reaches you as easily in the open); kill them | fight in the open | fight from the doorway | HP lost ≤ 90% |
   | darter | a room; kill it | chase it | back to a wall | HP lost ≤ 70% |
   | kiter | pillars; kill it | straight line | approach behind pillars | HP lost ≤ 70% |
   | axis_sniper | cross to a door | straight across | step off its row and column | HP lost ≤ 50% |
