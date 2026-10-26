@@ -5,12 +5,16 @@
 // twice and walk with two taps, and switch the board view from Settings. Then, staged: an
 // exhibit whose label is open leaves your sight, and its label closes; and a step that is
 // refused and takes no time leaves the last action's noise rings as they were.
-// Then M3's verbs (playM3, at the end of this file): select and read a case, open one,
-// break one through the confirmation, step onto shards through theirs, step off a beam, sit
-// and rest, take an item, read a plaque, walk until a status of yours ends and until the
-// bell rings (its banner in the strip), die and press "Another visit", leave and press it
-// again; a status shown in the top bar; and no sideways scroll or target under 44 px.
-import { open } from './lib.mjs';
+// Then M3's verbs (playM3, at the end of this file): the Bag's wiring; select and read a
+// case, open one and walk into it (your own label there), break one through the
+// confirmation (Cancel and a click beside it cancel), step onto shards through theirs (the
+// key for that step asks too), step off a beam, sit and rest (once only in the night
+// watch), take an item, read a plaque, walk until a status of yours ends, onto a pool and
+// until the bell rings (its banner in the strip), die and press "Another visit", leave and
+// press it again; a status shown in the top bar; and no sideways scroll or target under
+// 44 px. Last (touchM3), with a finger on a touch screen: a confirmation stays until it is
+// answered.
+import { open, playwright, fileUrl } from './lib.mjs';
 import { nextStep, labelVisible, logVisible, freeTile as freeTileIn, layout, targets } from './measure.mjs';
 
 const problems = [], lines = [];
@@ -284,9 +288,10 @@ for (const [W, Hh] of SIZES) {
   if (errors.length) bad(`${W}×${Hh}: console errors: ${errors.join('; ')}`);
 }
 await playM3(SIZES, lines, bad);
+await touchM3(lines, bad);
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; cases read, opened and broken, shards, a beam stepped off, sat and rested, an item taken, a plaque read, walks stopped by a status and the bell, a death and a leaving each followed by another visit; no problems`);
+console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; the Bag wired; cases read, opened and broken, shards, a beam stepped off, sat and rested, an item taken, a plaque read, walks stopped by a status, a pool and the bell, a death and a leaving each followed by another visit; a confirmation answered by finger taps; no problems`);
 process.exit(problems.length ? 1 : 0);
 
 // ---- M3's verbs (BUILD.md §7.1, §8.1, §8.3, §8.4) ----
@@ -400,12 +405,71 @@ async function playM3(sizes, lines, bad) {
       if (!chip) bad(`${tag}: with dazed on you, the top bar shows no dazed pictogram`);
       else if (!chip.text.startsWith(String(left))) bad(`${tag}: the dazed pictogram says "${chip.text}", not its ${left} turns`);
       else did.push('status shown');
-      const stageText = await page.evaluate(() => { const e = document.querySelector('#stage span'); return e ? e.textContent : ''; });
+      const stageText = await page.evaluate(() => document.getElementById('stage').textContent);
       const toBell = await page.evaluate(() => window.ACCESSION.vm().clock.toBell);
       if (stageText !== `Open: bell in ${toBell} turns`) bad(`${tag}: the stage chip says "${stageText}"`);
       const dialSays = await page.evaluate(() => document.getElementById('dial').getAttribute('aria-label') === Text.clock(window.ACCESSION.vm().clock));
       if (!dialSays) bad(`${tag}: the dial's label is not Text.clock's sentence`);
       await sized(`${tag} status in the top bar`);
+
+      // The Bag's wiring (main.js, input.js): the Bag stands in a recorder for this scene (its
+      // methods are put back after). The bar's Bag and Map, a quickslot and the keys i, m and
+      // 1–6 reach Bag.open, Bag.map and Bag.quick(n); Escape closes it; every draw renders it
+      // with the view model and the label makers. While it aims, the aimed tile is marked, a
+      // click on the board goes to Bag.tapAim and not to a walk, and the action it gives, like
+      // any action the Bag asks for through its act, waits for its confirmation (here, leaving
+      // by the exit you are put on).
+      await page.evaluate(() => {
+        const A = window.ACCESSION, s = A.state, M = window.__m3, [x, y] = s.dept.exits[0], log = window.__bag = [], keep = window.__bagKeep = {};
+        let aim = null;
+        for (const k of ['open', 'close', 'quick', 'map', 'aiming', 'tapAim', 'render']) keep[k] = Bag[k];
+        Object.assign(Bag, {
+          open: (...a) => log.push(['open', ...a].join(':')), close: () => log.push('close'), quick: n => log.push('quick:' + n), map: () => log.push('map'),
+          aiming: () => aim, tapAim: t => { log.push(`tapAim:${t.x},${t.y}`); return window.__aimAct || null; },
+          render: (vm, labels) => log.push(`render:${!!(vm && vm.you)}:${typeof labels.of}:${typeof labels.ofItem}`),
+        });
+        window.__aim = a => { aim = a; };
+        M.calm(); M.put(x, y); s.actors[0].statuses = []; A.redraw();
+      });
+      const bagLog = () => page.evaluate(() => window.__bag.splice(0).filter(e => !e.startsWith('render')));
+      const wired = [];
+      for (const [sel, want] of [['#bar [data-act="bag"]', 'open'], ['#bar [data-act="map"]', 'map'], [W < 900 ? '#barslots [data-act="q1"]' : '#slots [data-act="q1"]', 'quick:1']]) {
+        if (!await page.evaluate(seenAt, sel)) continue; // a quickslot the Bag has filled with its own button
+        await bagLog(); await press(sel, tag, sel);
+        const got = await bagLog();
+        if (!got.includes(want)) bad(`${tag}: clicking ${sel} gave the Bag ${got.join(', ') || 'nothing'}, not ${want}`); else wired.push(want);
+      }
+      for (const [key, want] of [['i', 'open'], ['m', 'map'], ['1', 'quick:1'], ['6', 'quick:6'], ['Escape', 'close']]) {
+        await bagLog(); await page.keyboard.press(key); await settle();
+        const got = await bagLog();
+        if (!got.includes(want)) bad(`${tag}: the key ${key} gave the Bag ${got.join(', ') || 'nothing'}, not ${want}`); else wired.push(key);
+      }
+      const rendered = await page.evaluate(() => { window.__bag.length = 0; window.ACCESSION.redraw(); return window.__bag.filter(e => e.startsWith('render')); });
+      if (!rendered.includes('render:true:function:function')) bad(`${tag}: a draw rendered the Bag with ${rendered.join(', ') || 'nothing'}`);
+      const aimAt = await page.evaluate(() => { const A = window.ACCESSION, me = A.state.actors[0], t = window.__m3.beside(me.x, me.y); if (!t) return null; window.__aim({ kind: 'tile', uid: null, x: t[0], y: t[1] }); A.redraw(); return { x: t[0], y: t[1], marked: A.vm().marks.some(k => k.kind === 'aim' && k.x === t[0] && k.y === t[1]) }; });
+      const a0 = await now();
+      if (!aimAt) bad(`${tag}: no free tile beside the exit to aim at`);
+      else if (!aimAt.marked) bad(`${tag}: while the Bag aims at ${aimAt.x},${aimAt.y}, the board does not mark it`);
+      await bagLog();
+      if (aimAt && await tapAt(aimAt, tag, 'the aimed tile')) {
+        const got = await bagLog(), a1 = await now();
+        if (!got.includes(`tapAim:${aimAt.x},${aimAt.y}`) || a1.x !== a0.x || a1.y !== a0.y || a1.tick !== a0.tick) bad(`${tag}: while aiming, a click on ${aimAt.x},${aimAt.y} did not go to Bag.tapAim alone (${got.join(', ')}; you at ${a1.x},${a1.y})`);
+        else wired.push('aim');
+      }
+      await page.evaluate(() => { window.__aimAct = { a: 'leave', i: 0 }; });
+      if (aimAt && await tapAt(aimAt, tag, 'the aimed tile')) {
+        if (!await confirmShown()) bad(`${tag}: the action Bag.tapAim gave did not ask first`);
+        else { await press('#confirm.open [data-confirm="no"]', tag, 'Cancel'); wired.push('aim asks'); }
+      }
+      await page.evaluate(() => { window.__aimAct = null; window.__aim(null); window.ACCESSION.bag.act({ a: 'leave', i: 0 }); });
+      if (!await confirmShown()) bad(`${tag}: an action the Bag asks for (its act) did not ask first`);
+      else { await press('#confirm.open [data-confirm="no"]', tag, 'Cancel'); wired.push('act asks'); }
+      const bagEnd = await now();
+      if (bagEnd.over || bagEnd.tick !== a0.tick) bad(`${tag}: cancelling the Bag's actions still did something (${bagEnd.over}, tick ${a0.tick} → ${bagEnd.tick})`);
+      const slots = await page.evaluate(() => { const b = window.ACCESSION.bag; return b.bar === document.getElementById('barslots') && b.column === document.getElementById('slots') && typeof b.act === 'function'; });
+      if (!slots) bad(`${tag}: the Bag was not given the quickslot containers and an act`);
+      await page.evaluate(() => { Object.assign(Bag, window.__bagKeep); window.ACCESSION.redraw(); });
+      did.push(`the Bag wired (${wired.join(', ')})`);
 
       // A case: select it and read its label; a second click opens it.
       const ca = await page.evaluate(() => {
@@ -434,6 +498,29 @@ async function playM3(sizes, lines, bad) {
         }
       }
 
+      // The opened case can be walked into: from beside it, clicks on it (selected, it has
+      // nothing left to do) walk you in. Standing there with it still selected, a click on
+      // yourself shows your label; and again with nothing selected (Escape drops the
+      // selection): you come before the fixture you stand on (§7.1).
+      if (ca && await page.evaluate(c => Grid.ch(window.ACCESSION.state.dept, c.x, c.y) === 'u', ca)) {
+        await page.keyboard.press('Escape'); await settle();
+        await page.evaluate(c => { const A = window.ACCESSION, M = window.__m3, t = M.beside(c.x, c.y); M.calm(); if (t) M.put(t[0], t[1]); A.redraw(); }, ca);
+        for (let i = 0; i < 3; i++) { const me = await now(); if (me.x === ca.x && me.y === ca.y) break; await tapAt(ca, tag, 'the opened case'); }
+        const inCase = await now();
+        if (inCase.x !== ca.x || inCase.y !== ca.y) bad(`${tag}: clicks on the opened case did not walk you into it`);
+        else {
+          const sel = await page.evaluate(() => window.ACCESSION.vm().selection);
+          for (const how of [`with ${sel} selected`, 'with nothing selected']) {
+            if (how === 'with nothing selected') { await page.keyboard.press('Escape'); await settle(); }
+            if (await tapAt({ uid: 'you' }, tag, 'you in the opened case')) {
+              const shown = await page.evaluate(() => UI.labelShown());
+              if (shown !== 'you') bad(`${tag}: in the opened case, ${how}, a click on yourself showed ${shown}'s label, not yours`);
+            }
+          }
+          did.push(`walked into the opened case; your label there (${sel} selected, then nothing)`);
+        }
+      }
+
       // Another, which your grade cannot open: a second click asks to break it (D3.12); Cancel
       // does nothing; Strike the glass breaks at it, until it breaks.
       await closeLabel();
@@ -459,6 +546,16 @@ async function playM3(sizes, lines, bad) {
           await press('#confirm.open [data-confirm="no"]', tag, 'Cancel');
           const t1 = await now();
           if (t1.tick !== t0.tick || t1.asking || await confirmShown()) bad(`${tag}: Cancel did not leave the case alone`);
+          // A click beside the sheet, on the board it darkens, cancels too (§7.1).
+          await tapAt(cb, tag, 'the selected case');
+          if (!await confirmShown()) bad(`${tag}: a third click on the case did not ask again`);
+          else {
+            const beside = await page.evaluate(() => { const b = document.querySelector('#confirm .box').getBoundingClientRect(); return { x: Math.round(window.innerWidth / 2), y: Math.max(4, Math.round(b.top / 2)) }; });
+            await click(beside.x, beside.y);
+            const t2 = await now();
+            if (t2.tick !== t0.tick || t2.asking || await confirmShown()) bad(`${tag}: a click beside the confirmation did not cancel it`);
+            else did.push('a click beside the confirmation cancelled it');
+          }
           let broke = false;
           for (let i = 0; i < 4 && !broke; i++) {
             if (i === 0) await tapAt(cb, tag, 'the selected case'); else await press('#sheet [data-label-act="bash"]', tag, 'Break the glass');
@@ -492,7 +589,18 @@ async function playM3(sizes, lines, bad) {
         return { x: t[0], y: t[1] };
       });
       if (!sh) bad(`${tag}: no tile for shards beside you`);
-      else if (await tapAt(sh, tag, 'the shards')) {
+      // The key for that step asks first too (keys are extras, never a way round, §7.1), and
+      // Escape cancels it.
+      else if (await (async () => {
+        const key = await page.evaluate(t => { const me = window.ACCESSION.state.actors[0]; for (let d = 0; d < 8; d++) if (me.x + Grid.DX[d] === t.x && me.y + Grid.DY[d] === t.y) return ['k', 'u', 'l', 'n', 'j', 'b', 'h', 'y'][d]; return null; }, sh);
+        const k0 = await now();
+        await page.keyboard.press(key); await settle();
+        if (!await confirmShown()) bad(`${tag}: the key for a step onto the shards did not ask first`);
+        await page.keyboard.press('Escape'); await settle();
+        const k1 = await now();
+        if (k1.tick !== k0.tick || k1.x !== k0.x || k1.y !== k0.y || await confirmShown()) bad(`${tag}: Escape did not cancel the step onto the shards`);
+        return tapAt(sh, tag, 'the shards');
+      })()) {
         const c = await confirmShown();
         if (!c || !/shards/i.test(await page.evaluate(() => document.querySelector('#confirm h2').textContent))) bad(`${tag}: stepping onto shards did not ask first `);
         else {
@@ -575,6 +683,17 @@ async function playM3(sizes, lines, bad) {
           else if (!t2.seated) bad(`${tag}: resting got you up from the bench`);
           else did.push(`rested ${t2.turn - t1.turn} turns to full health`);
         }
+        // In the night watch no health comes back (§8.4), so Rest rests once and stops. The
+        // clock is set into the night watch for this (with no Night Watchman due), then back.
+        const was = await page.evaluate(() => { const A = window.ACCESSION, s = A.state, c = s.dept.clock, me = s.actors[0]; window.__m3.calm(); const w = { stage: c.stage, count: c.count, back: c.watch.back }; c.stage = 2; c.count = c.B + c.G + 1; c.watch.back = c.count + 1000; me.hp = me.maxHp - 3; A.redraw(); return w; });
+        if (await page.evaluate(() => UI.labelShown()) !== 'you') await tapAt({ uid: 'you' }, tag, 'you');
+        const n0 = await now();
+        if (await press('#sheet [data-label-act="rest"]', tag, 'Rest in the night watch')) {
+          const n1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy);
+          if (n1.turn - n0.turn !== 1 || why !== 'no_recovery' || n1.hp !== n0.hp) bad(`${tag}: in the night watch Rest went on for ${n1.turn - n0.turn} turns (${why}, ${n0.hp} → ${n1.hp})`);
+          else did.push('in the night watch, rested once');
+        }
+        await page.evaluate(w => { const A = window.ACCESSION, s = A.state, c = s.dept.clock; c.stage = w.stage; c.count = w.count; c.watch.back = w.back; s.actors[0].hp = s.actors[0].maxHp; A.redraw(); }, was);
       }
 
       // Take an item: a click shows its label, a second click takes it.
@@ -643,6 +762,29 @@ async function playM3(sizes, lines, bad) {
         else did.push('a walk stopped as a status ended');
       }
 
+      // A walk stops on the first loud tile it brings you onto (§7.1): a pool, which asks
+      // nothing, laid (staged) on the second tile of the walk, and taken away after.
+      await closeLabel();
+      const pool = await page.evaluate(() => {
+        const A = window.ACCESSION, s = A.state, M = window.__m3, me = s.actors[0]; M.calm();
+        const end = M.lane(4);
+        if (!end) return null;
+        const path = Path.to(s, end[0], end[1]);
+        if (path.length < 3) return null;
+        const [x, y] = path[1], was = Grid.ch(s.dept, x, y);
+        Grid.set(s.dept, x, y, 'w'); A.redraw();
+        return { from: [me.x, me.y], to: end, at: [x, y], was };
+      });
+      if (!pool) bad(`${tag}: no lane for the pool's walk`);
+      else {
+        if (await tapAt({ x: pool.to[0], y: pool.to[1] }, tag, 'the end of the lane')) {
+          const t1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy);
+          if (why !== 'loud' || t1.x !== pool.at[0] || t1.y !== pool.at[1]) bad(`${tag}: a walk across a pool stopped at ${t1.x},${t1.y} for ${why}, not on the pool at ${pool.at}`);
+          else did.push('a walk stopped on a loud pool');
+        }
+        await page.evaluate(p => { const A = window.ACCESSION; Grid.set(A.state.dept, p.at[0], p.at[1], p.was); A.redraw(); }, pool);
+      }
+
       // The bell: a walk stops at it (§7.1), its announcement is a banner in the strip, and
       // the stage chip moves on. The clock is set two turns short of it.
       await closeLabel();
@@ -658,7 +800,7 @@ async function playM3(sizes, lines, bad) {
         const t1 = await now(), why = await page.evaluate(() => window.ACCESSION.stopWhy), steps = Math.max(Math.abs(t1.x - bl.from[0]), Math.abs(t1.y - bl.from[1]));
         const banner = await page.evaluate(seenAt, '#strip .banner');
         const said = await page.evaluate(() => { const e = window.ACCESSION.events.find(q => q.k === 'stage'); return e ? Text.event(e, Labels.nameOf(window.ACCESSION.state)) : null; });
-        const chip2 = await page.evaluate(() => document.querySelector('#stage span').textContent);
+        const chip2 = await page.evaluate(() => document.getElementById('stage').textContent);
         if (why !== 'stage' || steps !== 2) bad(`${tag}: at the bell the walk went ${steps} steps and stopped for ${why}`);
         else if (!said || !banner || banner.text !== said) bad(`${tag}: at the bell the strip shows no banner with "${said}" (${banner ? banner.text : 'none'})`);
         else if (!chip2.startsWith('After the bell: night watch in')) bad(`${tag}: after the bell the stage chip says "${chip2}"`);
@@ -714,4 +856,88 @@ async function playM3(sizes, lines, bad) {
     await browser.close();
     if (errors.length) bad(`${W}×${Hh} M3: console errors: ${errors.join('; ')}`);
   }
+}
+
+// ---- A finger's taps (BUILD.md §7.1) ----
+// On a touch screen the browser follows a tap with mouse events and a click at the same
+// point, aimed at whatever lies there by then. A tap that opens a sheet must leave it to be
+// answered: at phone size, in every view, a case your grade cannot open (staged beside you)
+// is tapped twice with a finger, and the confirmation stays; a finger on Cancel cancels it;
+// a third tap asks again, and a finger on its button strikes the glass. After each tap a
+// mouse move goes through the same input queue, so any click the tap brought is handled
+// before the page is read.
+async function touchM3(lines, bad) {
+  const pw = playwright();
+  if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
+  const browser = await pw.chromium.launch();
+  const probe = await browser.newPage();
+  await probe.goto(fileUrl('dist/accession.html') + '?dept=M11&seed=3');
+  await probe.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  const views = await probe.evaluate(() => window.ACCESSION.views.list().map(v => v.id));
+  await probe.close();
+  for (const view of views) {
+    const tag = `390×844 ${view} M3 touch`;
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage(), errors = [];
+    page.on('pageerror', e => errors.push(String(e)));
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.goto(fileUrl('dist/accession.html') + `?dept=M11&seed=3&board=${view}`);
+    await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+    await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+    await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
+    const finger = async p => {
+      await page.touchscreen.tap(p.x, p.y);
+      await page.mouse.move(1, 1);
+      await page.waitForFunction(() => !window.ACCESSION.busy());
+    };
+    const state = () => page.evaluate(() => ({ tick: window.ACCESSION.state.tick, asking: !!window.ACCESSION.asking, open: UI.confirmOpen(), shown: UI.labelShown(), ev: window.ACCESSION.events.map(e => e.k) }));
+    const c = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, me = s.actors[0];
+      for (const a of s.actors) if (a.uid !== 'you' && !a.gone) { a.mode = 'dormant'; a.pips = 0; a.telegraph = null; }
+      for (const f of s.dept.fixtures) {
+        if (f.k !== 'case' || f.st !== 'shut' || f.mimic || !f.num) continue;
+        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          const x = f.x + dx, y = f.y + dy;
+          if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y, me)) continue;
+          me.x = x; me.y = y; f.lock = Math.max(f.lock, s.run.grade + 1);
+          if (Labels.allowed(s, { a: 'bash', x: f.x, y: f.y })) { A.redraw(); return { x: f.x, y: f.y, id: `case:${f.x},${f.y}` }; }
+        }
+      }
+      return null;
+    });
+    if (!c) { bad(`${tag}: no case to break with a free tile beside it`); await ctx.close(); continue; }
+    const did = [];
+    const at = () => page.evaluate(spotOf, c);
+    let p = await at();
+    if (!p) { bad(`${tag}: the case has no point on the board to tap`); await ctx.close(); continue; }
+    await finger(p);
+    const s1 = await state();
+    if (s1.shown !== c.id) bad(`${tag}: a finger on the case did not show its label (${s1.shown})`);
+    p = await at();
+    if (p) await finger(p);
+    const s2 = await state();
+    if (!s2.open || !s2.asking) bad(`${tag}: a second finger tap on the case did not leave the confirmation open (open ${s2.open}, asking ${s2.asking}, ${s2.ev.join()})`);
+    else {
+      did.push('the confirmation stayed');
+      const no = await page.evaluate(seenAt, '#confirm.open [data-confirm="no"]');
+      if (no) await finger(no);
+      const s3 = await state();
+      if (s3.open || s3.asking || s3.tick !== s2.tick) bad(`${tag}: a finger on Cancel did not cancel (open ${s3.open}, tick ${s2.tick} → ${s3.tick})`);
+      else did.push('Cancel');
+      p = await at();
+      if (p) await finger(p);
+      const yes = await page.evaluate(seenAt, '#confirm.open .yes');
+      if (!yes) bad(`${tag}: a third finger tap on the case did not ask again`);
+      else {
+        await finger(yes);
+        const s4 = await state();
+        if (!s4.ev.includes('glass_cracked') && !s4.ev.includes('glass_broke')) bad(`${tag}: a finger on "${yes.text}" did not strike the glass (${s4.ev.join()})`);
+        else did.push('struck the glass');
+      }
+    }
+    if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
+    lines.push(`${tag}: ${did.join('; ')}`);
+    await ctx.close();
+  }
+  await browser.close();
 }

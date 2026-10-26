@@ -6,9 +6,12 @@
 // screen carries the hostile mark; every actor in the view model is on the board or marked
 // at its edge. Each view first asserts that it is the active one, so a silent fallback
 // cannot pass. Then M3's screens (BUILD.md §7.1, §7.2), in every view at both sizes and at
-// the smallest and largest text: the top bar with each stage's chip and your statuses, your
-// label, a case's label, the confirmation sheet, the bell's banner and the recap, each with
-// no sideways scroll and no target under 44 px.
+// the smallest and largest text: the top bar with each stage's chip (its turns never cut
+// short) and your statuses, your label, a case's label, the confirmation sheet, the bell's
+// banner and the recap, each with no sideways scroll and no target under 44 px; the
+// confirmation from the keyboard (modal, the focus given back), Enter with a carried item
+// selected, the night watch's banner in a phone's strip, and the recap and confirmation
+// named for a screen reader.
 import { open, root } from './lib.mjs';
 import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton } from './measure.mjs';
 import path from 'node:path';
@@ -264,12 +267,18 @@ for (const [w, h] of SIZES) for (const view of registered) {
     for (const stage of [0, 1, 2]) {
       const chip = await page.evaluate(n => {
         const A = window.ACCESSION, s = A.state, me = s.actors[0], c = s.dept.clock;
-        for (const id of ['dazed', 'rooted']) if (!Status.has(me, id)) Status.apply(s, me, id, 3, { k: 'status', id }, []);
+        for (const id of ['dazed', 'coughing']) if (!Status.has(me, id)) Status.apply(s, me, id, 12, { k: 'status', id }, []);
         Status.settle(s);
         c.stage = n; c.count = [0, c.B, c.B + c.G][n]; A.redraw();
-        return { stage: document.querySelector('#stage span').textContent, statuses: document.querySelectorAll('#statuses .st').length };
+        // Its words' own width, to the subpixel, against the room they are given.
+        const next = document.querySelector('#stage .snext'), words = document.createRange();
+        if (next) words.selectNodeContents(next);
+        const room = next && Math.min(next.getBoundingClientRect().right, document.getElementById('stage').getBoundingClientRect().right);
+        return { stage: document.getElementById('stage').textContent, statuses: document.querySelectorAll('#statuses .st').length, cut: !next || words.getBoundingClientRect().right > room + 0.01 };
       }, stage);
       if (!chip.stage || chip.statuses !== 2) bad(`${tag} text ${size}: stage ${stage} shows "${chip.stage}" and ${chip.statuses} statuses`);
+      // What comes next (its turns) is never cut short; the stage's name gives way first.
+      if (chip.cut) bad(`${tag} text ${size}: beside two statuses, the stage chip "${chip.stage}" is cut short before its turns`);
       await check(`text ${size} stage ${stage}`);
     }
     // Your label on an exit, then the confirmation before leaving.
@@ -313,10 +322,110 @@ for (const [w, h] of SIZES) for (const view of registered) {
     await page.keyboard.press('Escape');
     seen++;
   }
+  // The confirmation is modal (§7.1). From the keyboard: a case's Break button, focused,
+  // pressed with Enter, asks; while it asks, Tab and Shift+Tab never bring the focus to
+  // anything behind the sheet, and nothing there can take it; Escape cancels, and the focus
+  // goes back to the Break button.
+  const modal = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, me = s.actors[0];
+    UI.closeLabel();
+    for (const f of s.dept.fixtures) {
+      if (f.k !== 'case' || f.st !== 'shut') continue;
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const x = f.x + dx, y = f.y + dy;
+        if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y, me)) continue;
+        me.x = x; me.y = y;
+        if (!Labels.allowed(s, { a: 'bash', x: f.x, y: f.y })) continue;
+        A.redraw(); A.tap({ x: f.x, y: f.y });
+        const b = document.querySelector('#sheet [data-label-act="bash"]');
+        if (!b) continue;
+        b.focus();
+        return { tick: s.tick };
+      }
+    }
+    return null;
+  });
+  if (!modal) bad(`${tag}: no case with a Break button to press from the keyboard`);
+  else {
+    await page.keyboard.press('Enter');
+    const away = [];
+    if (!await page.evaluate(() => UI.confirmOpen())) bad(`${tag}: Enter on a focused Break button did not ask first`);
+    for (const k of ['Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+      await page.keyboard.press(k);
+      const at = await page.evaluate(() => { const e = document.activeElement; return !e || e === document.body || e.closest('#confirm.open') ? null : (e.id || e.dataset.act || e.textContent.trim().slice(0, 20)); });
+      if (at) away.push(at);
+    }
+    const taken = await page.evaluate(() => { document.querySelector('#bar [data-act="wait"]').focus(); return !document.activeElement.closest('#confirm.open') && document.activeElement !== document.body; });
+    if (away.length || taken) bad(`${tag}: while the confirmation asks, the focus reached ${away.concat(taken ? ['the bar\'s Wait'] : []).join(', ')} behind it`);
+    // Nor is anything else done before it is answered: another action asked for meanwhile
+    // (as the Bag's act or a key would) is not taken, and the sheet still asks its own.
+    const other = await page.evaluate(() => { const A = window.ACCESSION, t = A.state.tick, r = A.request({ a: 'wait' }); return { done: r !== null || A.state.tick !== t, still: !!A.asking && A.asking.a === 'bash' }; });
+    if (other.done || !other.still) bad(`${tag}: an action asked for while the confirmation asks was ${other.done ? 'taken' : 'not taken'}, and the sheet ${other.still ? 'still asks' : 'no longer asks'} its own`);
+    await page.keyboard.press('Escape');
+    const back = await page.evaluate(() => ({ act: document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.labelAct : null, tick: window.ACCESSION.state.tick, open: UI.confirmOpen() }));
+    if (back.open || back.tick !== modal.tick) bad(`${tag}: Escape did not cancel the confirmation`);
+    else if (back.act !== 'bash') bad(`${tag}: after Escape the focus is not back on the Break button (${back.act})`);
+    // Held down, Enter presses the Break button once, which asks; its repeats answer nothing.
+    await page.keyboard.down('Enter');
+    const asked = await page.evaluate(() => UI.confirmOpen());
+    for (let i = 0; i < 3; i++) await page.keyboard.down('Enter');
+    await page.keyboard.up('Enter');
+    const held = await page.evaluate(() => ({ open: UI.confirmOpen(), tick: window.ACCESSION.state.tick }));
+    if (!asked || !held.open || held.tick !== modal.tick) bad(`${tag}: a held Enter ${asked ? 'answered the confirmation it asked for' : 'did not ask'} (tick ${modal.tick} → ${held.tick})`);
+    await page.keyboard.press('Escape');
+  }
+  await page.keyboard.press('Escape');
+  // Enter does what a tap on the selected thing would do, and so nothing to an item you
+  // carry: an item taken with two taps stays selected in your tote, and Enter leaves it there.
+  const took = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, me = s.actors[0], c = s.dept.clock;
+    c.stage = 0; c.count = 0;
+    for (const i of s.items) {
+      if (i.where.at !== 'floor') continue;
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const x = i.where.x + dx, y = i.where.y + dy, t = { x: i.where.x, y: i.where.y };
+        if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y) || !'.,'.includes(Grid.ch(s.dept, x, y))) continue;
+        me.x = x; me.y = y; A.redraw(); A.tap(t); A.tap(t);
+        if (i.where.at !== 'tote') return null;
+        return { uid: i.uid, tick: s.tick, sel: A.vm().selection };
+      }
+    }
+    return null;
+  });
+  if (!took) bad(`${tag}: no floor item to take with two taps`);
+  else {
+    await page.keyboard.press('Enter');
+    const after = await page.evaluate(uid => ({ tick: window.ACCESSION.state.tick, at: window.ACCESSION.state.items.find(i => i.uid === uid).where.at }), took.uid);
+    if (after.tick !== took.tick || after.at !== 'tote') bad(`${tag}: Enter with the item you just took selected (${took.sel}) did something to it (now ${after.at}, tick ${took.tick} → ${after.tick})`);
+  }
+  await page.keyboard.press('Escape');
   // The bell's banner in the strip, then the recap of a death (text 1.3).
   const bell = await page.evaluate(() => { const A = window.ACCESSION, c = A.state.dept.clock; c.stage = 0; c.count = c.B - 1; A.request({ a: 'wait' }); return !!document.querySelector('#strip .banner'); });
   if (!bell) bad(`${tag}: the bell rang with no banner in the strip`);
   await check('the bell\'s banner');
+  // The night watch's announcement, the longest a stage makes (the Night Watchman comes in
+  // near the entrance, since you stand on it), as the newest entry in a phone's strip at the
+  // largest text: its banner runs on in the line, so it costs the strip less than a line more
+  // than the same words plain (a banner in a box of its own cost up to 89 px here, taking
+  // the board below 40% of the window's height). The board's height is printed.
+  if (w < 900) {
+    const nw = await page.evaluate(() => {
+      const A = window.ACCESSION, s = A.state, c = s.dept.clock, me = s.actors[0], [x, y] = s.dept.entrance;
+      for (const a of s.actors) if (a.uid !== 'you' && !a.gone) { a.mode = 'dormant'; a.telegraph = null; if (a.sp === 'night_watchman') a.gone = 1; }
+      me.x = x; me.y = y; c.watch.k = 0; c.watch.back = null; c.stage = 1; c.count = c.B + c.G - 1; A.request({ a: 'wait' });
+      const last = A.history[A.history.length - 1] || '', strip = document.getElementById('strip'), log = strip.querySelector('.log');
+      const out = { banner: !!strip.querySelector('.log .line:last-child .banner'), near: /near the entrance/.test(last), len: last.length,
+        board: document.getElementById('board').getBoundingClientRect().height, withBanner: strip.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(log).lineHeight) };
+      UI.strip(null, [last], true, []);
+      out.plain = strip.getBoundingClientRect().height;
+      A.redraw();
+      return out;
+    });
+    if (!nw.banner || !nw.near) bad(`${tag}: the night watch began without its banner, or not near the entrance (${nw.banner}, ${nw.near})`);
+    else if (nw.withBanner - nw.plain >= nw.lh) bad(`${tag}: the night watch's banner makes the strip ${Math.round(nw.withBanner - nw.plain)} px taller than its words do plain`);
+    lines.push(`${tag}: as the night watch begins (${nw.len} characters in the strip, text 1.3), the board is ${Math.round(nw.board)} px of ${h}; its banner adds ${Math.round(nw.withBanner - nw.plain)} px`);
+    await check('the night watch\'s banner');
+  }
   const died = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state, me = s.actors[0], a = s.actors.find(q => q.uid !== 'you' && !q.gone && q.arch === 'plodder');
     for (let d = 0; d < 8 && a; d++) { const x = me.x + Grid.DX[d], y = me.y + Grid.DY[d]; if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y) || !Step.adjacent(s, me, { x, y, size: 1 })) continue; Object.assign(a, { x, y, mode: 'hunting', sawYou: true, acc: 40, next: me.next }); break; }
@@ -325,6 +434,16 @@ for (const [w, h] of SIZES) for (const view of registered) {
     return !!s.over && UI.overlayOpen();
   });
   if (!died) bad(`${tag}: no recap after a staged death`);
+  // For a screen reader, the recap is a dialog named by its title and described by its
+  // sentences, as the confirmation is by its own.
+  const named = await page.evaluate(() => {
+    const said = (e, k) => { const t = document.getElementById(e.getAttribute(k) || ''); return t ? t.textContent.trim() : ''; };
+    const end = document.getElementById('end'), c = document.getElementById('confirm');
+    return { end: end.getAttribute('role') === 'dialog' && said(end, 'aria-labelledby') === 'You were defeated' && said(end, 'aria-describedby').length > 0,
+      confirm: c.getAttribute('role') === 'dialog' && said(c, 'aria-labelledby').length > 0 && said(c, 'aria-describedby').length > 0 };
+  });
+  if (!named.end) bad(`${tag}: the recap is not a dialog named by its title and described by its sentences`);
+  if (!named.confirm) bad(`${tag}: the confirmation is not a dialog named by its title and described by its sentences`);
   await check('the recap');
   // Enter (§7.1): on the recap it presses "Another visit"; on a confirmation, it confirms.
   const seed = await page.evaluate(() => window.ACCESSION.seed);

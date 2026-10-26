@@ -128,8 +128,10 @@ const Main = (() => {
   }
 
   // Everything the player asks for comes here: an action that needs a confirmation (§7.1)
-  // waits for it on the sheet; any other goes at once.
+  // waits for it on the sheet; any other goes at once. While the sheet asks, nothing else is
+  // done: it is answered first (the page behind it is inert, ui.js).
   function request(action) {
+    if (asking) return null;
     const c = askFor(action);
     if (!c) return act_(action);
     stop(); asking = { action }; UI.confirm(c); draw();
@@ -279,16 +281,19 @@ const Main = (() => {
     return null;
   }
   // What a tap on tile t can select, in order: an exhibit standing there, a case, an item on
-  // the floor, a plaque, a staff door; you last, so an item you stand on can still be chosen.
+  // the floor, a plaque, a staff door. On your own tile, an item lying there (on the floor, or
+  // in the opened case you stand in) comes before you, and you before the fixture you stand
+  // on, so tapping yourself shows your label and a second tap waits (§7.1).
   function thingsAt(vm, t) {
-    const out = [], on = q => t.x >= q.x && t.y >= q.y && t.x < q.x + q.size && t.y < q.y + q.size;
+    const out = [], under = [], on = q => t.x >= q.x && t.y >= q.y && t.x < q.x + q.size && t.y < q.y + q.size;
+    const mine = vm.you.x === t.x && vm.you.y === t.y, c = vm.cases.find(q => q.x === t.x && q.y === t.y);
     for (const a of vm.actors) if (a.uid !== 'you' && on(a)) out.push(a.uid);
-    if (vm.cases.some(c => c.x === t.x && c.y === t.y)) out.push(`case:${t.x},${t.y}`);
+    if (c) (mine && !c.holds ? under : out).push(`case:${t.x},${t.y}`);
     for (const i of vm.items) if (i.x === t.x && i.y === t.y && !i.inCase) out.push('item:' + i.uid);
-    if (vm.plaques.some(p => p.x === t.x && p.y === t.y)) out.push(`plaque:${t.x},${t.y}`);
-    if (vm.staff.some(s => s.x === t.x && s.y === t.y)) out.push(`staff:${t.x},${t.y}`);
-    if (vm.you.x === t.x && vm.you.y === t.y) out.push('you');
-    return out;
+    if (vm.plaques.some(p => p.x === t.x && p.y === t.y)) (mine ? under : out).push(`plaque:${t.x},${t.y}`);
+    if (vm.staff.some(s => s.x === t.x && s.y === t.y)) (mine ? under : out).push(`staff:${t.x},${t.y}`);
+    if (mine) out.push('you');
+    return out.concat(under);
   }
 
   function select(id, open) {
@@ -302,7 +307,8 @@ const Main = (() => {
   // an item, a plaque, a staff door, yourself): examine and select it; a tap on what is
   // selected does its first action (Attack; Open, or Break the glass, which asks first; Take;
   // Read; Wait); with none, the next thing on that tile is selected, or you walk onto a tile
-  // you can stand on (an item's, an opened case's, a staff door's), or its label opens again.
+  // you can stand on (an item's, an opened case's, a staff door's), or the first thing there
+  // is selected again (so on your own tile you come round, whatever was selected).
   // On a tile: walk there; with "Walk: tap twice" the first tap previews the path and a
   // second tap on the same tile goes.
   function tap(t) {
@@ -322,7 +328,7 @@ const Main = (() => {
         const path = Path.to(state, t.x, t.y);
         if (path.length) { UI.closeLabel(); walk(path); return; }
       }
-      select(ui.selection, true);
+      select(things[0], true);
       return;
     }
     if (!vm.vis[t.y * vm.w + t.x]) { say('You have not seen that part of the room.'); draw(); return; }
@@ -387,12 +393,13 @@ const Main = (() => {
     renderer.draw(vm);
     shown = vm.camera;
   }
-  // The stage chip: the clock's stage and what comes next (§7.2, §8.4), or null with no clock.
+  // The stage chip: the clock's stage (name) and what comes next (next), as one sentence
+  // (§7.2, §8.4), or null with no clock.
   function stageChip(c) {
     if (!c) return null;
-    if (c.stage === 0) return { n: 0, text: `Open: bell in ${turns(c.toBell)}` };
-    if (c.stage === 1) return { n: 1, text: `After the bell: night watch in ${turns(c.toWatch)}` };
-    return { n: 2, text: `Night watch: next bell in ${turns(c.toNightBell)}` };
+    if (c.stage === 0) return { n: 0, name: 'Open:', next: `bell in ${turns(c.toBell)}` };
+    if (c.stage === 1) return { n: 1, name: 'After the bell:', next: `night watch in ${turns(c.toWatch)}` };
+    return { n: 2, name: 'Night watch:', next: `next bell in ${turns(c.toNightBell)}` };
   }
   // Your statuses for the top bar: each by its registry pictogram, with its words and the
   // turns it still covers (Status.left), as your label says them.
@@ -461,8 +468,10 @@ const Main = (() => {
   makeView();
   applySettings();
   // The Bag (js/ui/bag.js) builds into the quickslot containers and acts through request(),
-  // so its actions are asked about as any other is.
-  Bag.attach(app, Object.assign(UI.slots(), { act: request, state: () => state, draw: () => draw() }));
+  // so its actions are asked about as any other is. window.ACCESSION.bag is what it was given
+  // (check-play checks the wiring).
+  const bagWiring = Object.assign(UI.slots(), { act: request, state: () => state, draw: () => draw() });
+  Bag.attach(app, bagWiring);
   Input.attach(board, () => renderer, {
     tap, key(a) { request(a); }, examine, read,
     blocked: () => UI.overlayOpen() || UI.confirmOpen(),
@@ -470,12 +479,13 @@ const Main = (() => {
     map() { stop(); Bag.map(); draw(); },
     quick(n) { stop(); Bag.quick(n); draw(); },
     // Enter: yes to a waiting confirmation; else go on a previewed walk; else the selected
-    // thing's first action, as a second tap on it would do.
+    // thing's first action, as a second tap on it would do: so only for something a tap can
+    // reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
     confirm() {
       if (asking) { answer(true); return; }
       if (UI.overlayOpen() || state.over) return;
       if (preview && ui.path) { tap(preview); return; }
-      if (ui.selection) {
+      if (ui.selection && (ui.selection === 'you' || Actors.byUid(state, ui.selection) || tileOf(ui.selection))) {
         const l = labelOf(ui.selection), first = l && l.actions.find(a => a.act);
         if (first) perform(first, ui.selection);
       }
@@ -497,7 +507,7 @@ const Main = (() => {
   window.ACCESSION = {
     get state() { return state; }, act: act_, request, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
     get events() { return last.slice(); }, stops: [...STOPS], get stopWhy() { return stopWhy; }, get asking() { return asking ? asking.action : null; },
-    get seed() { return seed; }, redraw: () => draw(),
+    get seed() { return seed; }, redraw: () => draw(), bag: bagWiring,
     views: Views, setZoom, busy: () => !!runner, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };

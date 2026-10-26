@@ -36,8 +36,8 @@ const UI = (() => {
         <div id="barslots" class="qslots">${[1, 2, 3].map(slot).join('')}</div>
         <button class="btn" data-act="map">Map</button>
       </div>
-      <div id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div class="box">
-        <h2 id="confirm-title"></h2><div class="why"></div>
+      <div id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-why"><div class="box">
+        <h2 id="confirm-title"></h2><div class="why" id="confirm-why"></div>
         <div class="acts"><button class="btn yes" data-confirm="yes"></button><button class="btn" data-confirm="no">Cancel</button></div>
       </div></div>
       <div class="overlay" id="end"></div>
@@ -103,19 +103,20 @@ const UI = (() => {
       <div class="row"><b>Motion</b> ${choice('motion', 'full', 'Full')} ${choice('motion', 'reduce', 'Reduced')}</div>`;
   }
 
-  // The top bar: health; the stage chip ("Open: bell in 238"), from the clock's stage; your
-  // statuses, each its pictogram (Registry.STATUSES[id].icon) and the turns it still covers,
-  // its words for screen readers (your own label says them in full); the dial, labelled with
-  // Text.clock's sentence; the badge with the grade's full name (§8.7). m = {hp, maxHp,
-  // grade, clock (vm.clock), dial (its sentence), stage: {text, n} | null, statuses: [{icon,
-  // words, left}]}.
+  // The top bar: health; the stage chip ("Open: bell in 238 turns"), from the clock's stage,
+  // whose name gives way before what comes next when the row is short of room (the chip's
+  // colour still tells the stage); your statuses, each its pictogram
+  // (Registry.STATUSES[id].icon) and the turns it still covers, its words for screen readers
+  // (your own label says them in full); the dial, labelled with Text.clock's sentence; the
+  // badge with the grade's full name (§8.7). m = {hp, maxHp, grade, clock (vm.clock), dial
+  // (its sentence), stage: {n, name, next} | null, statuses: [{icon, words, left}]}.
   function top(m) {
     const pct = m.maxHp ? Math.max(0, Math.round(100 * m.hp / m.maxHp)) : 0;
     els.hpbar.style.width = pct + '%';
     els.hpnum.innerHTML = `${P('heart', 12)}<span><span class="sr">Health </span>${m.hp} / ${m.maxHp}</span>`;
     els.badge.innerHTML = `<span class="badge-name">Handling Clearance<span class="sr">,</span></span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
     els.stage.className = 'stage' + (m.stage ? ' s' + m.stage.n : '');
-    els.stage.innerHTML = m.stage ? `${P('clock', 12)}<span>${esc(m.stage.text)}</span>` : '';
+    els.stage.innerHTML = m.stage ? `${P('clock', 12)}<span class="sname">${esc(m.stage.name)}</span> <span class="snext">${esc(m.stage.next)}</span>` : '';
     const sts = m.statuses || [];
     els.statuses.innerHTML = sts.map(s => `<span class="st" data-status="${esc(s.icon)}">${P(s.icon, 14)}<span aria-hidden="true">${s.left}</span><span class="sr">You are ${esc(s.words)}, ${s.left === 1 ? '1 turn' : s.left + ' turns'} left.</span></span>`).join('');
     els.chips.classList.toggle('has', !!m.stage || sts.length > 0);
@@ -211,27 +212,43 @@ const UI = (() => {
 
   // The confirmation sheet (§7.1): what the action would do, as sentences, with a 44-px
   // button that does it and one that cancels. c = {title, lines, yes}. The button that does
-  // it takes the focus, so Enter confirms.
+  // it takes the focus, so Enter confirms. While it asks, the rest of the page is inert: a tap
+  // cannot reach it (the sheet covers it), nor can Tab or a screen reader, so nothing else is
+  // done before it is answered. Closing it gives the focus back where it was, if that is
+  // still on the page.
+  let madeInert = [], focusBack = null;
   function confirm(c) {
     els.confirm.querySelector('h2').textContent = c.title;
     els.confirm.querySelector('.why').innerHTML = c.lines.map(l => `<p>${esc(l)}</p>`).join('');
     const yes = els.confirm.querySelector('.yes');
     yes.textContent = c.yes;
+    if (!confirmOpen()) {
+      focusBack = document.activeElement;
+      for (const e of els.confirm.parentElement.children) if (e !== els.confirm && !e.inert) { e.inert = true; madeInert.push(e); }
+    }
     els.confirm.classList.add('open');
     yes.focus({ preventScroll: true });
   }
   function closeConfirm() {
-    const had = els.confirm.contains(document.activeElement);
+    if (!confirmOpen()) return;
+    for (const e of madeInert) e.inert = false;
+    madeInert = [];
+    const had = els.confirm.contains(document.activeElement), back = focusBack;
+    focusBack = null;
     els.confirm.classList.remove('open');
-    if (had) document.activeElement.blur();
+    if (back && back !== document.body && back.isConnected && typeof back.focus === 'function' && back.getClientRects().length) back.focus({ preventScroll: true });
+    else if (had) document.activeElement.blur();
   }
   const confirmOpen = () => els.confirm.classList.contains('open');
 
   // The end of a visit: the recap of a death, or the sentence of leaving, with "Another
-  // visit", which takes the focus. e = {title, lines}.
+  // visit", which takes the focus. A screen reader hears it as a dialog named by its title and
+  // described by its sentences. e = {title, lines}.
   function end(e) {
-    els.end.innerHTML = head(e.title, true) + `<div class="recap">${e.lines.map(l => `<p>${esc(l)}</p>`).join('')}</div>
+    els.end.innerHTML = head(e.title, true) + `<div class="recap" id="end-why">${e.lines.map(l => `<p>${esc(l)}</p>`).join('')}</div>
       <div class="acts"><button class="btn another" data-another>Another visit</button></div>`;
+    els.end.querySelector('.ohead h2').id = 'end-title';
+    for (const [k, v] of [['role', 'dialog'], ['aria-labelledby', 'end-title'], ['aria-describedby', 'end-why']]) els.end.setAttribute(k, v);
     toggle('end', true);
     els.end.querySelector('[data-another]').focus({ preventScroll: true });
   }

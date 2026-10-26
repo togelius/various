@@ -12,11 +12,19 @@ const Input = (() => {
       const t = getRenderer().pick(e.clientX, e.clientY);
       if (t) on.tap(t);
     });
+    // A finger's tap is done at pointerup. The browser would then send the same tap again as
+    // mouse events and a click, aimed at whatever lies under the finger by then: a sheet the
+    // tap has just opened (a confirmation, a label), whose button or backdrop would answer it
+    // at once. So a touch that began on the board ends there.
+    board.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
     board.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'Escape') { on.escape(); return; }
+      // A held Enter or Space answers nothing more: each confirmation asks for a press of its
+      // own, so key repeat cannot ask and answer, then ask and answer again.
+      if (e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); return; }
       // Enter on a focused button presses it; otherwise it confirms what waits for it (a
       // confirmation, a previewed walk, the selected thing's first action).
       if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
