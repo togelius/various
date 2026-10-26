@@ -636,17 +636,21 @@ renderer.dispose()
 ### 7.1 One input model
 
 **Taps:**
-- **A tile:** walk there. The walk stops when a hostile comes into view, a pip appears on a visible exhibit, a telegraph appears, or an event names you.
-- **An exhibit or object,** adjacent or not: examine it and select it. The strip and panel show it, with its action as a button ("Attack: 75%, 3–5 damage"; "Open: Grade III"; "Break the glass: loud"). Tapping a selected adjacent exhibit again does its first action, which for a hostile is Attack.
+- **A tile:** walk there. The walk stops when a hostile comes into view, a pip appears on a visible exhibit, a telegraph appears, or an event names you. As built (`js/main.js`): it stops after a step whose events the log tells you of and that include a refusal, a door opened, a hunt begun, a hit or a miss, a death, a mark, a waking, an alert, a clock stage, an arrival, a case opened, cracked or broken, an item taken or used, a seal identified, or a status of yours beginning or ending; when an exhibit comes into view or its mode or pips change; when a new mark appears; on the first loud tile it brings you onto; and where the next tile is taken. A step that needs a confirmation (below) ends the walk: the sheet asks, and its answer takes that one step or none.
+- **An exhibit or object,** adjacent or not: examine it and select it. The strip and panel show it, with its action as a button ("Attack: 75%, 3–5 damage"; "Open: Grade III"; "Break the glass: loud"). Tapping a selected adjacent exhibit again does its first action, which for a hostile is Attack. A case, an item on the floor, an identifying label and a staff door are selected the same way, and tapping what is selected does its label's first action (Open, or on a case your grade cannot open Break the glass, which asks first; Take; Read; Open or Close a staff door); with none, the next thing on that tile is selected (a case under the exhibit standing in it), or, where you can stand, you walk there. Every label button acts through the same confirmations as a tap.
 - **Yourself:** Wait, Rest, Sit on a bench, and Leave on an exit.
+- **Tapping yourself** shows your label with those buttons, and tapping yourself again waits; an item lying on your tile is selected before you. Rest repeats under the walk's stop rules until you are at full health, or after one rest while no health can come back (the night watch).
 - **Walking confirmation** is a setting, "Walk: one tap / tap twice", the same in both views; with "tap twice", a tile tap previews the path and a second tap on the same tile goes.
 - **Keys:** a direction key into an exhibit attacks it, as bumping does.
 
 **Confirmations** come before:
-- stepping onto shards;
-- breaking glass;
+- stepping onto shards (from a tile without them; a broken case's tile holds its glass, so it counts as shards);
+- breaking glass (each blow, saying whether it cracks or breaks it);
 - entering a Centrepiece hall;
-- any action that would leave you on a tile marked for damage by a special that resolves before your next decision (`Specials.threat`, §8.1).
+- leaving by an exit (a minimal confirmation: the visit ends);
+- any action that would leave you on a tile marked for damage by a special that resolves before your next decision (`Specials.threat`, §8.1), saying whose special it is and what it would deal you.
+
+A confirmation is a sheet over the board, saying what the action would do, with a button of at least 44 px that does it and one that cancels; Enter does it, and Escape or a tap beside the sheet cancels. An action `step()` would refuse is never asked about: its refusal says why.
 
 **Everything works with one button:**
 - no right-click, long-press, hover-only information or scroll wheel;
@@ -671,7 +675,8 @@ renderer.dispose()
 **Portrait phone (390×844 CSS pixels):**
 - **Top bar:**
   - health;
-  - the clock dial, with the bell and night-watch segments and module countdowns beside it;
+  - the stage chip ("Open: bell in N turns", "After the bell: night watch in N turns", "Night watch: next bell in N turns") and your statuses, each its pictogram (`Registry.STATUSES[id].icon`) with the turns it still covers, on a second row on a phone;
+  - the clock dial, with the bell and night-watch segments and module countdowns beside it, its hand the clock's count and its label `Text.clock`'s sentence;
   - the grade badge;
   - the alarm bell, when a department owns one.
 - **The board.** Nothing of the interface lies over it, so no button can cover a tile or a mark.
@@ -686,7 +691,7 @@ renderer.dispose()
 - door placards;
 - the Stair Hall;
 - the perk choice;
-- the death label and its recap;
+- the death label and its recap (in M3 the recap, `Text.recap`, is an overlay with "Another visit", which starts the same department at the same depth with the next seed until M5's run; leaving shows the end of the visit's sentence with the same button);
 - Your Collection;
 - the Catalogue;
 - Settings;
