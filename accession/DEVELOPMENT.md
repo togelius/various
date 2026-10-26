@@ -30,7 +30,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | M1 Layout | accepted, 23 October 2026 |
 | M2 Look and read | accepted, 23 October 2026 |
 | M2b The 3D board | the 3D checks and every M2 screen check pass in both views; waiting on Julian's side-by-side look and device numbers |
-| M3 Exhibits wake | underway: Wave 0 (the backbone) done, all five parts landed (W0a–W0e), the golden re-pinned, and the review's 28 findings fixed; all fourteen Wave 1 packages landed, and the Wave 1 integration review's findings fixed in two passes; the golden re-pinned at the end of Wave 1 (2478084208 → 234379235); Wave 2a is next |
+| M3 Exhibits wake | underway: Wave 0 (the backbone) done, all five parts landed (W0a–W0e), the golden re-pinned, and the review's 28 findings fixed; all fourteen Wave 1 packages landed, and the Wave 1 integration review's findings fixed in two passes; the golden re-pinned at the end of Wave 1 (2478084208 → 234379235) and pending again for Wave 2a; Wave 2a is next |
 | M4 Three departments | not started |
 | M5 A run | not started |
 | M6 Sound | not started |
@@ -324,3 +324,4 @@ No number of record changed in value; the golden m0Monkey hash stays as it was. 
   - **Checks:** the new checkpoints are 3172830684, 2501628433, 3779394522, 254722359, 2355831369, 663103122, 2417386395, 727668474, 1894225872 and 4009182958. The pin now keeps the hash after every one of the 10,000 steps (`steps`, base64), so the next re-pin names its own first diverging step. `node tools/golden.js --check` passes with nothing pending, the golden test passes on the pin, and `check-hash` passes on the pin in Chromium.
   - **No rule or number changed here;** only `test/golden/golden.js` and this file. `dist/` is not committed with the re-pin, though the second pass above said it would be: check-all rebuilds both pages for its checks, and the committed pages stay stale until a build is committed.
 - **Commands:** `node test/run.js` (612/612 passed); `./check-all.sh` ("check-all: 13 passed, 0 skipped, 0 failed").
+- **The golden is pending again for Wave 2a** (`pending: "M3 Wave 2a in progress; re-pinned at the end of Wave 2a"`), keeping the pin 234379235 and its per-step hashes, so that Wave 2a's packages can change the state; it is re-pinned at the end of Wave 2a. Until then the hash page prints PENDING with its hash, `check-hash` compares it with Node's run of the same tree, and the golden test asserts that two runs agree and that a run cloned after every step agrees too, but not the pin. Commands for this commit: `node test/run.js` (612/612 passed); `./check-all.sh` ("check-all: 13 passed, 0 skipped, 0 failed").
