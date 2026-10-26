@@ -1,0 +1,28 @@
+// The tethered warden arena (BUILD.md §10.3): a warden (the species in turn: S9.4) asleep
+// beside the item it guards (guards=I), on the side you come from, within its tether of 2
+// tiles round the item; its place (home), where it goes back to, is h, on the far side of
+// the item and within its tether too. Walking in, you wake it beside you. A noise wakes it
+// awake and sends it to look, and hunting you while you stand outside its tether it goes
+// back to its place instead of fighting (its Behaviour line), so a noise from outside the
+// tether, on the far side, draws it aside. You carry a Tuning Fork with 3 charges (tier 1).
+// The item is a T1 Balanced weapon. Take it.
+arena: tethered_warden
+goal: take I
+cap: 200
+species: tethered_warden
+depths: 2 5
+seen: all
+kit: instrument fork tier=1 charges=3
+metric: hpLost <= 50%
+legend: W exhibit sp guards=I home=h; I item weapon balanced tier=1; h mark
+
+#############
+#...........#
+#...........#
+#...h.......#
+#.....I.....#
+#......W....#
+#...........#
+#...........#
+#.........@.#
+#############

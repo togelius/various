@@ -83,6 +83,30 @@ Corners the darter, its back to a wall: comes at it from the side that leaves it
 
 Weights: turns without an exhibit in view before it goes to look 10.
 
+## herald
+
+### herald.naive
+
+Walks the shortest way to the far door, whatever sees it on the way.
+
+1. The goal is the open door farthest from where you start.
+2. Take the first step of the way a tap on the door would walk.
+3. If no step is open, strike an exhibit beside you, else wait.
+
+Weights: none.
+
+### herald.counter
+
+Reads each exhibit in view to find the heralds, then walks to the far door by the shortest way on which no herald could see it, keeping a wall between them.
+
+1. The goal is the open door farthest from where you start.
+2. Read the label of every exhibit in view once; an exhibit whose Behaviour line says that the first time it sees you it calls is a herald. Remember where each herald was last seen.
+3. A herald could see you on a tile within its sight (SIGHT_EXHIBIT tiles) with a straight line to it. Take the first step of the shortest way to the door over tiles no remembered herald could see you on.
+4. If there is no such way, take the first step of the shortest way.
+5. If no step is open, strike an exhibit beside you, else wait.
+
+Weights: a herald's sight, in tiles (SIGHT_EXHIBIT) 8.
+
 ## kiter
 
 ### kiter.naive
@@ -110,6 +134,29 @@ Reads the kiter's label and fights it from behind the pillars: it keeps out of t
 
 Weights: exposure weight 6, chase limit (turns) 10, wait limit (turns) 12.
 
+## mimic_vitrine
+
+### mimic_vitrine.naive
+
+Opens the nearest shut case, then the next, without reading their labels.
+
+1. Of the shut cases in view, take the nearest by the way you would walk to stand beside it (ties: the upper, then the left).
+2. Beside it, open it; otherwise take the first step of that way.
+3. If no step is open (gripped), strike an exhibit beside you, else wait.
+
+Weights: none.
+
+### mimic_vitrine.counter
+
+Reads the label of each shut case in view before opening any, and opens the nearest whose label gives an accession number, since a mimic's gives none.
+
+1. Read the label of every shut case in view once (reading takes no time). A case whose label has no accession number is a mimic.
+2. Of the shut cases not known to be mimics, take the nearest by the way you would walk to stand beside it (ties: the upper, then the left); if every one is a mimic, the nearest of all.
+3. Beside it, open it; otherwise take the first step of that way.
+4. If no step is open (gripped), strike an exhibit beside you, else wait.
+
+Weights: none.
+
 ## mote_swarm
 
 ### mote_swarm.naive
@@ -135,6 +182,27 @@ Fights the swarm in the doorway: steps into the gap one tile wide in the wall, w
 6. Otherwise, wait in the doorway for them to come to it.
 
 Weights: turns without an exhibit in view before it goes to look 10.
+
+## night_watchman
+
+### night_watchman.naive
+
+Stays where it is and fights whatever comes, the night watch or not.
+
+1. If an exhibit beside you can be struck, strike the one with the least health (then by uid).
+2. Otherwise, wait where you are.
+
+Weights: none.
+
+### night_watchman.counter
+
+Leaves: walks the shortest way to the nearest exit door it knows and leaves by it.
+
+1. Standing on an exit door, leave by it.
+2. Otherwise take the first step of the way a tap on the nearest exit door would walk.
+3. If no step is open, strike an exhibit beside you (the least health first), else wait.
+
+Weights: none.
 
 ## plodder
 
@@ -217,3 +285,27 @@ Fights the splitter as naive does, but with a Heavy weapon, of the tier the aren
 Weights: turns without an exhibit in view before it goes to look 10.
 
 Kit: weapon heavy.
+
+## tethered_warden
+
+### tethered_warden.naive
+
+Walks in: goes the shortest way to the item and takes it, whatever guards it.
+
+1. Beside the item (or on it), take it.
+2. Otherwise take the first step of the shortest way to a tile you could take it from (its own or one beside it, past no corner, that no exhibit stands on).
+3. If no step is open, strike an exhibit beside you, else wait.
+
+Weights: none.
+
+### tethered_warden.counter
+
+Lures the warden aside with the Tuning Fork: wakes it from outside its tether with a noise on the far side of the item, then steps in to take the item only when the warden is too far from that tile to strike first.
+
+1. Read the label of every exhibit in view once; one whose Behaviour line says it stays within r tiles of what it guards is the warden, and the item in view is what it guards. Its tether is the tiles within r of the item.
+2. Beside the item (or on it), take it.
+3. While the warden sleeps, the fork has a charge and you stand outside the tether: use the fork on the tile of the tether farthest from you of those it can reach from where you stand (within its range, in your sight).
+4. Otherwise (the warden awake, the fork spent, or no tile of the tether in its reach): of the tiles you could take the item from that you can step onto from a tile outside the tether, choose the one farthest from the warden. Go round the outside of the tether to the tile a step from it, and step onto it while the warden sleeps or is at least 3 tiles from it. Until then wait outside the tether, stepping away from the warden if it is beside you or you are inside the tether.
+5. Without a warden in view, or after waiting 10 turns, walk in as the naive policy does.
+
+Weights: tiles between the warden and the take tile before stepping in 3, turns it waits before walking in regardless 10.
