@@ -21,7 +21,11 @@ run lint-tools     node tools/lint-core.js tools/arena.js tools/monkey.js tools/
 run lint-numbers   node tools/lint-numbers.js
 run lint-registry  node tools/lint-registry.js
 run art-up-to-date node tools/build-art.js --check
+# BUILD.md §12: every build the log links, dist/builds/<coreHash>.html, is kept.
+run linked-builds  node tools/report.js --check-builds DEVELOPMENT.md
 run tests          node test/run.js
+# The short sims (§10.2 step 4): the short battery (tools/battery.js), alone, held to 60 s.
+run short-sims     node test/run.js m3-battery
 run build          python3 tools/build-single.py
 # The revert test runs while there is a 3D view to remove; after a real revert there is not.
 if [ -f js/view/board3d.js ]; then run revert-3d bash tools/revert-test.sh

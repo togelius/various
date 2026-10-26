@@ -5,6 +5,9 @@
 // test/arena/, at any depth. The filter matches a file's path relative to test/, written
 // with '/', so `node test/run.js behaviour` runs that folder and `node test/run.js m0` the
 // files whose path contains "m0".
+// A file in ALONE is a check-all step of its own (test/m3-battery.test.js is the short sims,
+// BUILD.md §10.2 step 4), run alone so that the time it measures is its own: a run with no
+// filter leaves it out, and a filter that matches it runs it (`node test/run.js m3-battery`).
 // Usage: node test/run.js [filter]
 // (ACCESSION_TEST_DIR names another folder to run in place of test/; test/m3-infra uses it.)
 // The files are shared out among worker processes, one per CPU up to 4 (ACCESSION_TEST_JOBS
@@ -16,6 +19,8 @@ const root = path.join(__dirname, '..');
 
 // The folders searched: test/ itself (its files only), and these subfolders in full.
 const FOLDERS = ['behaviour', 'arena'];
+// The files a run with no filter leaves out (above).
+const ALONE = ['m3-battery.test.js'];
 
 // The test files under dir whose relative path contains filter, sorted by that path.
 function files(dir, filter) {
@@ -75,7 +80,7 @@ function runFiles(dir, list, capture) {
 function main() {
   const dir = process.env.ACCESSION_TEST_DIR ? path.resolve(process.env.ACCESSION_TEST_DIR) : __dirname;
   const args = process.argv.slice(2), shard = args.find(a => a.startsWith('--shard=')), filter = args.find(a => !a.startsWith('--')) || '';
-  const list = files(dir, filter);
+  const list = files(dir, filter).filter(f => filter || !ALONE.includes(f));
   const t0 = process.hrtime.bigint();
   const done = (total, failed) => {
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
@@ -122,5 +127,5 @@ function main() {
 }
 
 // Exported before main runs, since a test file run by main may require this file.
-module.exports = { files, share, FOLDERS };
+module.exports = { files, share, FOLDERS, ALONE };
 if (require.main === module) main();
