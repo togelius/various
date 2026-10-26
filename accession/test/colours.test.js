@@ -7,7 +7,8 @@
 // the rest, R30g) carries its meaning in one of those reserved colours and in its shape:
 // marks.js names a reserved colour for each kind of mark and uses no other colour but black
 // and white, every pictogram has a reserved colour and a shape of its own, and every icon the
-// view model can name has a pictogram.
+// view model can name has a pictogram. The glyphs of what stands or lies on a tile sit on a
+// dark backing, over which they stand 3:1 (WCAG) off every wall, floor and glass (§6.2).
 module.exports = ({ test, assert, root, path, fs, loadCore }) => {
   const C = require(path.join(root, 'tools/colour.js'));
   const P = require(path.join(root, 'art/palettes.json'));
@@ -78,6 +79,78 @@ module.exports = ({ test, assert, root, path, fs, loadCore }) => {
       assert.ok(!shapes.has(k), `${id} has the shape of ${shapes.get(k)}`);
       shapes.set(k, id);
     }
+  });
+
+  // §6.2: the glyphs of what stands or lies on a tile (a case's lock with its bars, its cracks,
+  // what it holds or the empty frame of a loan; a staff door's lock; an identifying label; an
+  // item) each sit on a dark backing, black or black at 45% at least, painted first under
+  // every part of the glyph: a fill under every cell, a wider dark stroke under every line.
+  // Over that backing laid on any department's wall, wall top, floor, second floor or glass,
+  // each glyph's colour has WCAG contrast 3:1 or more, so a pale wall cannot hide it (M11's
+  // wall top is #d6ccb2; the readable colour on it, unbacked, is 1.41:1).
+  test('the glyphs of what stands or lies on a tile sit on a dark backing, and stand 3:1 off every wall, floor and glass over it', () => {
+    const lum = hex => { const n = parseInt(hex.slice(1), 16); return [[n >> 16, 0.2126], [(n >> 8) & 255, 0.7152], [n & 255, 0.0722]].reduce((t, [v, k]) => { const c = v / 255; return t + k * (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); }, 0); };
+    const darken = (hex, a) => '#' + [16, 8, 0].map(sh => Math.round(((parseInt(hex.slice(1), 16) >> sh) & 255) * (1 - a)).toString(16).padStart(2, '0')).join('');
+    const ratio = (p, q) => { const x = lum(p), y = lum(q); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    // How dark a style is as a backing: its black's opacity, or 0 for any other colour.
+    const dark = st => st === '#000000' ? 1 : (/^rgba\(0,\s*0,\s*0,\s*(0?\.\d+|1)\)$/.exec(st) || [0, 0]).map(Number)[1];
+    function painter() {
+      const ops = [];
+      let segs = [], at = null;
+      const c = { fillStyle: '#000000', strokeStyle: '#000000', lineWidth: 1, globalAlpha: 1,
+        fillRect(x, y, w, h) { ops.push({ op: 'fill', style: this.fillStyle, x, y, w, h }); },
+        strokeRect(x, y, w, h) { ops.push({ op: 'other', style: this.strokeStyle }); },
+        beginPath() { segs = []; }, moveTo(x, y) { at = [x, y]; }, lineTo(x, y) { segs.push([at, [x, y]]); at = [x, y]; },
+        stroke() { ops.push({ op: 'stroke', style: this.strokeStyle, width: this.lineWidth, segs: JSON.stringify(segs) }); },
+        fill() { ops.push({ op: 'other', style: this.fillStyle }); }, fillText() { ops.push({ op: 'other', style: this.fillStyle }); },
+        save() {}, restore() {}, rect() {}, clip() {}, setLineDash() {}, arc() {}, closePath() {}, measureText: () => ({ width: 0 }) };
+      return { c, ops };
+    }
+    const reserved = new Set(Object.values(S));
+    let glyphs = 0;
+    const bad = [];
+    for (const t of [32, 48, 40, 52]) {
+      const v = { w: 20, h: 20, ring: new Uint8Array(400), marks: [], path: null, selection: null, selectedTile: null, actors: [], dept: 'M11',
+        cases: [], staff: [], items: [], plaques: [{ x: 1, y: 9 }], surfaces: [], cues: { movedFrom: [], hit: [], broke: [], special: [] } };
+      for (let grade = 1; grade <= 7; grade++) {
+        v.cases.push({ x: grade, y: 1, glass: 2, hits: grade % 3, need: 3, lock: grade, st: 'shut', loan: grade === 2, holds: grade % 2 ? { uid: 'c' + grade, kind: 'curio', icon: 'curio' } : null, canOpen: false, num: '1.1.' + grade });
+        v.staff.push({ x: grade, y: 4, grade, open: false });
+      }
+      v.items.push({ uid: 'p', x: 5, y: 7, icon: 'seal', kind: 'consumable', inCase: false, shape: 'star' }, { uid: 'q', x: 5, y: 7, icon: 'weapon', kind: 'weapon', inCase: false });
+      const items = Marks.list(v, (x, y) => ({ x: x * t, y: y * t, w: t, h: t }), a => ({ x: a.x * t, y: a.y * t, w: t, h: t }), t, 900, 900, 900);
+      const kinds = new Set();
+      for (const d of items.filter(x => /^(lock|cracks|holds|loan|plaque|item):/.test(x.id))) {
+        kinds.add(d.id.split(':')[0]);
+        const { c, ops } = painter();
+        d.paint(c);
+        for (let i = 0; i < ops.length; i++) {
+          const o = ops[i], under = ops.slice(0, i).filter(b => dark(b.style) >= 0.45);
+          if (!reserved.has(o.style)) continue;
+          glyphs++;
+          let alpha = 1;
+          if (o.op === 'fill') {
+            const pts = [[o.x + o.w / 2, o.y + o.h / 2], [o.x + 1e-6, o.y + 1e-6], [o.x + o.w - 1e-6, o.y + 1e-6], [o.x + 1e-6, o.y + o.h - 1e-6], [o.x + o.w - 1e-6, o.y + o.h - 1e-6]];
+            for (const [px, py] of pts) {
+              const b = under.filter(q => q.op === 'fill' && px >= q.x && px <= q.x + q.w && py >= q.y && py <= q.y + q.h);
+              if (!b.length) { bad.push(`${t}px ${d.id}: a ${o.style} cell at ${px.toFixed(1)},${py.toFixed(1)} has no dark backing`); break; }
+              alpha = Math.min(alpha, Math.max(...b.map(q => dark(q.style))));
+            }
+          } else if (o.op === 'stroke') {
+            const b = under.filter(q => q.op === 'stroke' && q.segs === o.segs && q.width >= o.width + 1);
+            if (!b.length) bad.push(`${t}px ${d.id}: a ${o.style} line has no wider dark line under it`);
+            else alpha = Math.max(...b.map(q => dark(q.style)));
+          } else { bad.push(`${t}px ${d.id}: paints ${o.style} in a way this check cannot follow`); continue; }
+          for (const [dk, dp] of Object.entries(P.dept)) for (const f of ['wall', 'wallTop', 'floor', 'floor2', 'glass']) {
+            const r = ratio(o.style, darken(dp[f], alpha));
+            if (r < 3) bad.push(`${t}px ${d.id}: ${o.style} over its backing on ${dk}.${f} is ${r.toFixed(2)}:1`);
+          }
+        }
+      }
+      assert.deepEqual([...kinds].sort(), ['cracks', 'holds', 'item', 'loan', 'lock', 'plaque'], `${t}px: every kind of tile glyph is drawn`);
+    }
+    const kindsBad = [...new Set(bad.map(m => m.replace(/:\d+,\d+.*?: /, ": ").replace(/ at [\d.,]+ /, " ").replace(/ on \w+\.\w+ is [\d.]+:1/, " too faint")))];
+    assert.deepEqual(kindsBad, [], `${new Set(bad).size} problems, e.g. ${bad.slice(0, 3).join("; ")}`);
+    assert.ok(glyphs > 1000, `${glyphs} glyph paints checked`);
   });
 
   test('every icon the view model can name has a pictogram: item kinds, seal shapes, statuses, surfaces, state glyphs and the case glyphs', () => {

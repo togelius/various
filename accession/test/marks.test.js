@@ -116,6 +116,34 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
     assert.equal(drawn, 'seal_star');
   });
 
+  // §6.2's lock, "a bar per grade", must be countable: at every zoom of both views (top-down
+  // 32 and 48, 3D 40 and 52), each of grades I–VII paints that many bars, each at least 2
+  // pixels wide with a pixel between, inside its tile; and a higher grade draws a wider glyph.
+  test('a lock\'s bars are each at least 2 pixels wide with a gap between, inside the tile, and a higher grade draws a wider glyph, at every zoom of both views', () => {
+    for (const tile of [32, 48, 40, 52]) {
+      const g = Math.max(8, Math.floor(tile / 3));
+      let wider = 0;
+      for (let grade = 1; grade <= 7; grade++) for (const kind of ['staff', 'case']) {
+        const v = kind === 'staff' ? flat({ staff: [{ x: 2, y: 2, grade, open: false }] })
+          : flat({ cases: [{ x: 2, y: 2, glass: 1, hits: 0, need: 1, lock: grade, st: 'shut', loan: false, holds: null, canOpen: false, num: '1.1.1' }] });
+        const r = { x: 2 * tile, y: 2 * tile, w: tile, h: tile };
+        const d = Marks.list(v, (x, y) => ({ x: x * tile, y: y * tile, w: tile, h: tile }), a => ({ x: a.x * tile, y: a.y * tile, w: tile, h: tile }), tile, 640, 640, 640).find(x => x.id === 'lock:2,2');
+        const fills = [];
+        const c = new Proxy({}, { get: (o, k) => k === 'fillRect' ? (x, y, w, h) => fills.push({ style: o.fillStyle, x, y, w, h }) : k in o ? o[k] : () => {}, set: (o, k, val) => { o[k] = val; return true; } });
+        d.paint(c);
+        const bars = fills.filter(f => f.style === '#f3f1e8' && f.x >= r.x + g + 1.5).sort((p, q) => p.x - q.x), where = `${tile}px ${kind} grade ${grade}`;
+        assert.equal(bars.length, grade, `${where}: ${json(bars)}`);
+        for (let i = 0; i < bars.length; i++) {
+          assert.ok(bars[i].w >= 2, `${where}: bar ${i + 1} is ${bars[i].w} pixels wide`);
+          if (i) assert.ok(bars[i].x - (bars[i - 1].x + bars[i - 1].w) >= 1, `${where}: bars ${i} and ${i + 1} touch`);
+          assert.ok(bars[i].x + bars[i].w <= r.x + r.w, `${where}: bar ${i + 1} runs past the tile`);
+        }
+        assert.ok(d.rect.x + d.rect.w <= r.x + r.w, `${where}: the glyph runs past its tile`);
+        if (kind === 'staff') { assert.ok(d.rect.w > wider, `${where}: ${d.rect.w} pixels wide, no wider than grade ${grade - 1}'s ${wider}`); wider = d.rect.w; }
+      }
+    }
+  });
+
   test('an exhibit\'s glyph row (glass, state or pips, the special it marks) sits above it, or beside its head where another actor stands above, and never covers another actor', () => {
     const column = [actor('a', 5, 3), actor('b', 5, 4, { encased: true, telegraphing: 'ring' }), actor('c', 5, 5, { mode: 'dormant', pips: 2 }), actor('you', 9, 9)];
     const items = draw(flat({ actors: column })), sq = a => rects.actorRect(a);

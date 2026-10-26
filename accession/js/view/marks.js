@@ -34,6 +34,11 @@ const Marks = (() => {
     hostile: 'hostile', edge: 'hostile',
   };
   const col = k => S()[COLOURS[k]];
+  // The dark backing every glyph of what stands or lies on a tile sits on (§6.2), so that no
+  // wall, floor or glass, however pale, hides it: a square one pixel larger all round, or for
+  // a line (a crack) a wider dark line beneath it. A lock sits on black.
+  const BACKING = 'rgba(0,0,0,0.45)';
+  const backed = (ctx, q) => { ctx.fillStyle = BACKING; ctx.fillRect(q.x - 1, q.y - 1, q.w + 2, q.h + 2); };
   // The state glyph of an exhibit's mode (§8.2's table folds searching into hunting and
   // reinstalling into returning, D1.1); a sleeper with pips shows its pips instead.
   const GLYPH = { dormant: 'asleep', awake: 'alert', hunting: 'hunting', searching: 'hunting', returning: 'returning', reinstalling: 'returning' };
@@ -170,18 +175,23 @@ const Marks = (() => {
     // case's glyphs). A case: its lock (a padlock with one bar per grade it needs) while it is
     // shut, cracks for the blows its glass has taken, and what it holds or, on loan, the empty
     // frame. A closed staff door: its lock and grade. An identifying label: its pictogram.
-    // One bar per grade, as wide as the tile allows beside the padlock.
+    // Each sits on a dark backing (BACKING; the lock on black).
+    // One bar per grade beside the padlock, each at least 2 pixels wide with a pixel between,
+    // so the bars can be counted at every zoom; as wide as the tile allows, up to a fifth of
+    // the glyph size plus one. w is the bars' width, from the first bar's left edge to the
+    // last one's right edge.
     const bars = (r, grade) => {
-      const n = Math.max(1, grade), per = Math.max(2, Math.min(Math.floor(g / 5) + 1, Math.floor((r.w - g - 3) / n))), q = Math.max(1, per - 1);
-      return { q, gap: per - q, w: Math.max(0, grade) * per };
+      const n = Math.max(1, grade), per = Math.max(3, Math.min(Math.floor(g / 5) + 1, Math.floor((r.w - g - 1) / n)));
+      return { n, q: per - 1, gap: 1, w: n * per - 1 };
     };
-    const lockRect = (r, grade) => ({ x: r.x + 1, y: r.y + r.h - g - 1, w: g + 2 + bars(r, grade).w, h: g });
+    const lockRect = (r, grade) => ({ x: r.x + 1, y: r.y + r.h - g - 1, w: g + 1 + bars(r, grade).w, h: g });
     const lockGlyph = (ctx, r, grade) => {
-      const { q, gap, w } = bars(r, grade), y = r.y + r.h - g - 1, top = Math.floor(g / 4);
+      const { n, q, gap, w } = bars(r, grade), y = r.y + r.h - g - 1, top = Math.floor(g / 4);
+      // The black plate under the padlock and its bars, a pixel round them, kept to the tile.
+      ctx.fillStyle = '#000000'; ctx.fillRect(r.x, y - 1, Math.min(g + 3 + w, r.w), g + 2);
       Pictograms.draw(ctx, 'lock', r.x + 1, y, g, col('lock'));
-      ctx.fillStyle = '#000000'; ctx.fillRect(r.x + g + 1, y + top - 1, w + 1, g - top + 2);
       ctx.fillStyle = col('lock');
-      for (let i = 0; i < grade; i++) ctx.fillRect(r.x + g + 2 + i * (q + gap), y + top, q, g - top);
+      for (let i = 0; i < n; i++) ctx.fillRect(r.x + g + 2 + i * (q + gap), y + top, q, g - top);
     };
     const centre = r => ({ x: r.x + r.w / 2 - g / 2, y: r.y + r.h / 2 - g / 2 - Math.floor(g / 4), w: g, h: g });
     for (const c of vm.cases || []) {
@@ -190,21 +200,25 @@ const Marks = (() => {
       const at = c.x + ',' + c.y;
       if (c.holds) {
         const q = centre(r), shown = (vm.items || []).find(i => i.uid === c.holds.uid) || c.holds;
-        add('mark', 'holds:' + at, c.x, c.y, q, ctx => Pictograms.draw(ctx, iconOf(shown), q.x, q.y, g));
+        add('mark', 'holds:' + at, c.x, c.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, iconOf(shown), q.x, q.y, g); });
       } else if (c.loan) {
         const q = centre(r);
-        add('mark', 'loan:' + at, c.x, c.y, q, ctx => Pictograms.draw(ctx, 'loan', q.x, q.y, g));
+        add('mark', 'loan:' + at, c.x, c.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, 'loan', q.x, q.y, g); });
       }
       if (c.st === 'shut' && c.hits > 0) {
         const q = { x: r.x + 2, y: r.y + 2, w: r.w - 4, h: r.h - g - 4 };
-        add('mark', 'cracks:' + at, c.x, c.y, q, ctx => {
-          ctx.strokeStyle = col('cracks'); ctx.lineWidth = 1.5; ctx.beginPath();
+        const crack = ctx => {
+          ctx.beginPath();
           for (let i = 0; i < c.hits; i++) {
             const x0 = q.x + q.w * (0.2 + 0.3 * i), steps = 4;
             ctx.moveTo(x0, q.y);
             for (let k = 1; k <= steps; k++) ctx.lineTo(x0 + (k % 2 ? 0.12 : -0.04) * q.w, q.y + q.h * k / steps);
           }
-          ctx.stroke();
+        };
+        add('mark', 'cracks:' + at, c.x, c.y, q, ctx => {
+          // Each crack a readable line over a wider dark one, its backing.
+          ctx.strokeStyle = BACKING; ctx.lineWidth = 3.5; crack(ctx); ctx.stroke();
+          ctx.strokeStyle = col('cracks'); ctx.lineWidth = 1.5; crack(ctx); ctx.stroke();
         });
       }
       if (c.st === 'shut') { const q = lockRect(r, c.lock); add('mark', 'lock:' + at, c.x, c.y, q, ctx => lockGlyph(ctx, r, c.lock)); }
@@ -218,7 +232,7 @@ const Marks = (() => {
     for (const p of vm.plaques || []) {
       const r = rectOf(p.x, p.y), q = { x: r.x + r.w / 2 - g / 2, y: r.y + r.h / 2 - g / 2, w: g, h: g };
       if (off(r)) continue;
-      add('mark', 'plaque:' + p.x + ',' + p.y, p.x, p.y, q, ctx => Pictograms.draw(ctx, 'reads', q.x, q.y, g));
+      add('mark', 'plaque:' + p.x + ',' + p.y, p.x, p.y, q, ctx => { backed(ctx, q); Pictograms.draw(ctx, 'reads', q.x, q.y, g); });
     }
     // Items on the floor (and in a case that does not list them): the first on each tile, with
     // a second outline behind it where there are more.
@@ -235,7 +249,7 @@ const Marks = (() => {
       const r = rectOf(it.x, it.y), k = Math.round(g * 1.25), q = { x: r.x + r.w / 2 - k / 2, y: r.y + r.h / 2 - k / 2, w: k, h: k };
       if (off(r)) continue;
       add('mark', 'item:' + it.x + ',' + it.y, it.x, it.y, q, ctx => {
-        ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(q.x - 1, q.y - 1, q.w + 2, q.h + 2);
+        backed(ctx, q);
         if (e.more) { ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.strokeRect(q.x + 2.5, q.y - 2.5, q.w, q.h); }
         Pictograms.draw(ctx, iconOf(it), q.x, q.y, k);
       });
