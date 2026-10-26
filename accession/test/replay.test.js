@@ -2,7 +2,8 @@
 // plays with its options, the same in a clone and as the monkey that made it, per-step
 // hashes as base64, the divergence printer on planted one-step changes (one action changed,
 // one rule changed), the golden test's check on a planted clone fault, tools/golden.js's
-// format, re-pin, check, add and pending, --against on a planted pair of commits, coreHash,
+// format, re-pin, check, add and pending, that it writes only when asked (--help and unknown
+// options write nothing), --against on a planted pair of commits, coreHash,
 // vmHash and the builds' stamps, and the `node tools/replay.js` command.
 // How long a monkey's visit lasts, and what it does there, depend on the rules, which every
 // wave changes; so every expectation here about the monkey is worked out from a watch of
@@ -350,6 +351,42 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(node.rp), json({ hash: run.hash, checkpoints: run.checkpoints }));
     const page = { rp: { hash: run.hash, checkpoints: run.checkpoints.map((h, i) => i === 0 ? h + 1 : h), pending: true, ok: null } };
     assert.match(HashCompare.compare(open, page, node)[0], /checkpoint 1 \(action 100\) differs/);
+  });
+
+  test('tools/golden.js writes only when asked: --help prints its usage, and an option or word it does not know, or two modes at once, is refused, writing nothing', () => {
+    // A file that a re-pin would change: one run, pinned, then marked pending.
+    const file = path.join(tmp, 'asked.js');
+    Golden.write(file, { mk: monkey(5, 60) });
+    Golden.repin(C, file); Golden.markPending(file, 'testing');
+    const kept = fs.readFileSync(file, 'utf8');
+    const tool = (...args) => cp.spawnSync('node', [path.join(root, 'tools/golden.js'), '--golden', file].concat(args), { encoding: 'utf8' });
+    for (const k of ['--pending "reason"', '--check', '--add <name> <file.json>', '--against <commit>', '--help']) assert.ok(Golden.USAGE.includes('node tools/golden.js ' + k), k);
+    for (const h of [['--help'], ['-h'], ['--check', '--help']]) {
+      const r = tool(...h);
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.equal(r.stdout, Golden.USAGE + '\n');
+      assert.equal(fs.readFileSync(file, 'utf8'), kept, `${h.join(' ')} wrote the file`);
+    }
+    const refused = [['--chek'], ['--repin'], ['-v'], ['check'], ['--check', '--pending', 'x'], ['--against', 'HEAD', '--check'], ['--pending', 'x', 'extra'],
+      ['--check', '--check'], ['--golden', file], ['--pending'], ['--add', 'n'], ['--add', 'n', 'f.json', 'extra']];
+    for (const args of refused) {
+      const r = tool(...args);
+      assert.equal(r.status, 2, `${args.join(' ')}: ${r.stdout}${r.stderr}`);
+      assert.match(r.stdout, /^golden: .+; nothing was written \(node tools\/golden\.js --help lists the usage\)\n$/);
+      assert.ok(clean(r.stdout), r.stdout);
+      assert.equal(fs.readFileSync(file, 'utf8'), kept, `${args.join(' ')} wrote the file`);
+    }
+    // The documented forms still read as they did.
+    assert.equal(json(Golden.parseArgs(['--golden', file, '--against', 'HEAD', 'a', 'b'])), json({ mode: 'against', root: path.resolve(root), file, commit: 'HEAD', names: ['a', 'b'] }));
+    assert.equal(json(Golden.parseArgs(['--golden', file, '--add', 'n', 'f.json', '--pending', 'new'])), json({ mode: 'add', root: path.resolve(root), file, reason: 'new', name: 'n', def: 'f.json' }));
+    assert.equal(Golden.parseArgs(['--golden', file, '--pending', 'why']).mode, 'pending');
+    assert.equal(Golden.parseArgs(['--golden', file, '--check']).mode, 'check');
+    // And the bare command re-pins, which ends the pending stretch.
+    const r = tool();
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.startsWith('golden: mk ') && r.stdout.includes('(was pending: testing)'), r.stdout);
+    assert.notEqual(fs.readFileSync(file, 'utf8'), kept);
+    assert.equal(Golden.read(file).mk.pending, undefined);
   });
 
   test('--against on a planted pair of commits finds the step where the planted rule first changes the state', () => {

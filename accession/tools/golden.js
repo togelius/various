@@ -8,34 +8,40 @@
 //       (tools/monkey.js) for that many actions, in the test room or a department
 //   {kind: 'replay', start, options, actions: [action…]}                     a replay (§3.6;
 //       start as tools/replay.js's Replay.begin takes it)
-// Usage:
-//   node tools/golden.js                        re-pin every run: its hash, checkpoints and
-//                                               per-step hashes; this ends any pending stretch,
-//                                               and prints old → new with the first step that
-//                                               changed, where the old pin kept its steps
-//   node tools/golden.js --pending "reason"     keep the pins and mark every run pending
-//   node tools/golden.js --check                compare the runs with the file and write
-//                                               nothing; a pinned run that differs fails, with
-//                                               its first diverging step, action and events
-//   node tools/golden.js --add <name> <file.json> [--pending "reason"]
-//                                               add a run from its definition (a JSON file: a
-//                                               golden entry, a replay as tools write it, or a
-//                                               crash card holding one), pinned now, or
-//                                               unpinned and pending
-//   node tools/golden.js --against <commit> [name…]
-//                                               play each run (or the named ones) on this tree
-//                                               and on <commit>'s core, taken from git into a
-//                                               temporary directory, and print the first step
-//                                               at which they differ, with each side's action
-//                                               and events
-//   --golden <file> reads and writes another golden file; --root <dir> takes this tree and
-//   git from another checkout (tests use both).
+// Usage: USAGE below, which `node tools/golden.js --help` prints. Only the bare command
+// re-pins; --help, an option or word it does not know, and two modes at once write nothing.
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), cp = require('node:child_process');
 const ROOT = path.join(__dirname, '..');
 const FILE = path.join(ROOT, 'test/golden/golden.js');
 const { readGolden } = require('./hash-compare.js');
 const Shrink = require('./shrink.js');
+
+// What --help prints.
+const USAGE = `Usage:
+  node tools/golden.js                        re-pin every run: its hash, checkpoints and
+                                              per-step hashes; this ends any pending stretch,
+                                              and prints old → new with the first step that
+                                              changed, where the old pin kept its steps
+  node tools/golden.js --pending "reason"     keep the pins and mark every run pending
+  node tools/golden.js --check                compare the runs with the file and write
+                                              nothing; a pinned run that differs fails, with
+                                              its first diverging step, action and events
+  node tools/golden.js --add <name> <file.json> [--pending "reason"]
+                                              add a run from its definition (a JSON file: a
+                                              golden entry, a replay as tools write it, or a
+                                              crash card holding one), pinned now, or
+                                              unpinned and pending
+  node tools/golden.js --against <commit> [name…]
+                                              play each run (or the named ones) on this tree
+                                              and on <commit>'s core, taken from git into a
+                                              temporary directory, and print the first step
+                                              at which they differ, with each side's action
+                                              and events
+  node tools/golden.js --help                 print this, writing nothing
+  --golden <file> reads and writes another golden file; --root <dir> takes this tree and
+  git from another checkout (tests use both). An option or word not listed here, or two of
+  --add, --against, --pending and --check at once, is refused, and nothing is written.`;
 
 // The run a fresh file starts with.
 const DEFAULTS = { m0Monkey: { kind: 'monkey', seed: 20261023, actions: 10000, make: null } };
@@ -258,30 +264,55 @@ function against(commit, opts) {
   return out;
 }
 
-module.exports = { FILE, DEFAULTS, definition, format, read, write, pin, repin, markPending, check, add, selfCheck, against, commitCore, treeCore };
-
-if (require.main === module) {
-  const argv = process.argv.slice(2);
-  const opt = k => { const i = argv.indexOf(k); if (i < 0) return null; const v = argv[i + 1]; if (!v || v.startsWith('--')) { console.log(`golden: ${k} needs a value`); process.exit(2); } argv.splice(i, 2); return v; };
+// The command line, read: {mode: 'help' | 'repin' | 'pending' | 'check' | 'add' | 'against',
+// root, file, reason, commit, name, def, names}. Anything it does not know is refused by a
+// throw, before any run is played or any file is written, so that only the bare command
+// re-pins.
+function parseArgs(args) {
+  const argv = args.slice();
+  const refuse = m => { const e = new Error(`golden: ${m}; nothing was written (node tools/golden.js --help lists the usage)`); e.refused = true; throw e; };
+  if (argv.includes('--help') || argv.includes('-h')) return { mode: 'help' };
+  const VALUED = ['--root', '--golden', '--pending', '--against'];
+  const opt = k => { const i = argv.indexOf(k); if (i < 0) return null; const v = argv[i + 1]; if (!v || v.startsWith('--')) refuse(`${k} needs a value`); argv.splice(i, 2); return v; };
   const root = path.resolve(opt('--root') || ROOT);
   const file = path.resolve(opt('--golden') || path.join(root, 'test/golden/golden.js'));
   const reason = opt('--pending'), commit = opt('--against');
+  for (const a of argv) {
+    if (VALUED.includes(a)) refuse(`${a} is given twice`);
+    if (a.startsWith('-') && a !== '--add' && a !== '--check') refuse(`${a} is not an option`);
+  }
+  const isAdd = argv.includes('--add'), isCheck = argv.includes('--check');
+  const modes = [isAdd && '--add', commit !== null && '--against', !isAdd && reason !== null && '--pending', isCheck && '--check'].filter(Boolean);
+  if (modes.length > 1) refuse(`${modes.join(' and ')} cannot be given together`);
+  const twice = ['--add', '--check'].find(k => argv.filter(a => a === k).length > 1);
+  if (twice) refuse(`${twice} is given twice`);
+  if (isAdd) {
+    const i = argv.indexOf('--add'), name = argv[i + 1], def = argv[i + 2];
+    if (!name || !def || name.startsWith('-') || def.startsWith('-')) refuse('--add needs a name and a JSON file');
+    const extra = argv.filter((a, j) => !a.startsWith('-') && j !== i + 1 && j !== i + 2);
+    if (extra.length) refuse(`${extra[0]} is not an option (--add takes a name and a JSON file)`);
+    return { mode: 'add', root, file, reason, name, def };
+  }
+  const words = argv.filter(a => !a.startsWith('-'));
+  if (commit !== null) return { mode: 'against', root, file, commit, names: words };
+  if (words.length) refuse(`${words[0]} is not an option`);
+  if (reason !== null) return { mode: 'pending', root, file, reason };
+  return { mode: isCheck ? 'check' : 'repin', root, file };
+}
+
+module.exports = { FILE, DEFAULTS, USAGE, definition, format, read, write, pin, repin, markPending, check, add, selfCheck, against, commitCore, treeCore, parseArgs };
+
+if (require.main === module) {
   try {
-    if (argv.includes('--add')) {
-      const i = argv.indexOf('--add'), name = argv[i + 1], def = argv[i + 2];
-      if (!name || !def) { console.log('golden: --add needs a name and a JSON file'); process.exit(2); }
-      console.log(add(treeCore(root), file, name, JSON.parse(fs.readFileSync(def, 'utf8')), reason));
-    } else if (commit) {
-      const res = against(commit, { root, file, names: argv.filter(a => !a.startsWith('--')) });
-      for (const r of res) console.log(r.text);
-    } else if (reason !== null) {
-      for (const l of markPending(file, reason)) console.log(l);
-    } else if (argv.includes('--check')) {
-      const r = check(treeCore(root), file);
+    const o = parseArgs(process.argv.slice(2));
+    if (o.mode === 'help') console.log(USAGE);
+    else if (o.mode === 'add') console.log(add(treeCore(o.root), o.file, o.name, JSON.parse(fs.readFileSync(o.def, 'utf8')), o.reason));
+    else if (o.mode === 'against') { for (const r of against(o.commit, { root: o.root, file: o.file, names: o.names })) console.log(r.text); }
+    else if (o.mode === 'pending') { for (const l of markPending(o.file, o.reason)) console.log(l); }
+    else if (o.mode === 'check') {
+      const r = check(treeCore(o.root), o.file);
       for (const l of r.lines) console.log(l);
       process.exit(r.bad ? 1 : 0);
-    } else {
-      for (const l of repin(treeCore(root), file)) console.log(l);
-    }
-  } catch (e) { console.log((e && e.message) || e); process.exit(1); }
+    } else { for (const l of repin(treeCore(o.root), o.file)) console.log(l); }
+  } catch (e) { console.log((e && e.message) || e); process.exit(e && e.refused ? 2 : 1); }
 }
