@@ -191,6 +191,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(at(e, 2, 2).title, `A case, with the ${hop.name.replace(/^The /, '')} inside`);
     assert.deepEqual(J(Labels.of(e, e.actors[1].uid).actions), []);
     assert.ok(Labels.of(e, e.actors[1].uid).odds.length >= 2);
+    // It sleeps, but no blow of yours reaches it in its case, and getting it out wakes it
+    // (§8.1, §8.3): its readout has no surprise line. Out of its case, still asleep, it has.
+    const unaware = (st, b) => Labels.of(st, b.uid).odds.filter(l => /surprise/i.test(l));
+    assert.deepEqual(J(unaware(e, e.actors[1])), [], json(Labels.of(e, e.actors[1].uid).odds));
+    const out = State.clone(e);
+    out.dept.tiles[2] = out.dept.tiles[2].slice(0, 2) + 'u' + out.dept.tiles[2].slice(3);
+    assert.equal(unaware(out, out.actors[1]).length, 1, json(Labels.of(out, out.actors[1].uid).odds));
   });
 
   test('a plaque\'s label keeps its text until its kind is identified, offers Read within reach, and shows the text once read', () => {

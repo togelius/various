@@ -4,8 +4,10 @@
 // Restoration levels 0–3, 0–2 grades short, Reach) and the modes and statuses that change it.
 // The count below is written out again from §8.1's text, never from combat.js or labels.js:
 // it models the axis_sniper's missing blow ("It has no blow and shoots no bolts"), a swarm
-// body's any-hit rule, an old repair's doubled side, the kiter's shots, Reach and each
-// special's line. m2.test.js uses the same model (module.exports.model).
+// body's any-hit rule, a splitter's halves (the hits on it and on every half it splits off),
+// an old repair's doubled side, the kiter's shots (its only attack), Reach, each special's
+// line, and no surprise line for an exhibit in an intact case, which no blow of yours
+// reaches. m2.test.js uses the same model (module.exports.model).
 'use strict';
 
 // The independent model, for a core context C.
@@ -19,7 +21,7 @@ function model(C) {
   // The role curves (§8.1): anchored at depths 1, 4 and 8, linear between, rounded down.
   const curve = (v, d) => d <= 1 ? v[0] : d <= 4 ? v[0] + Math.floor((v[1] - v[0]) * (d - 1) / 3) : d <= 8 ? v[1] + Math.floor((v[2] - v[1]) * (d - 4) / 4) : v[2];
   // What each archetype is said to do (§8.1, §5.5): no blow, falls to any hit, shoots, its special.
-  const NO_BLOW = ['axis_sniper'], ANY_HIT = ['mote_swarm'], SHOOTS = ['kiter'];
+  const NO_BLOW = ['axis_sniper'], ANY_HIT = ['mote_swarm'], SHOOTS = ['kiter'], SPLITS = ['splitter'];
   const SPECIAL = { axis_sniper: 'line', tethered_warden: 'ring', herald: 'call' };
   // An old repair's side (§5.5): damage from that compass point or its two neighbours, as
   // seen from the body's nearest tile, is doubled.
@@ -36,8 +38,32 @@ function model(C) {
   // twice d through an old repair's side.
   const yours = (state, you, a, d) => ANY_HIT.includes(a.arch) ? a.hp : repaired(state, a, you.x, you.y) ? 2 * d : d;
   const nets = (att, def) => { const out = []; for (let r = att.dmin; r <= att.dmax; r++) out.push(Math.max(1, r - def.pad)); return out; };
-  // Surprise (§8.1): asleep or stirring, or awake without having seen you since it woke.
-  const unaware = a => a.mode === 'dormant' || (a.mode === 'awake' && !a.sawYou);
+  // Surprise (§8.1): asleep or stirring, or awake without having seen you since it woke; but
+  // never for an exhibit in an intact case (any tile of it on a vitrine, §8.3), which no blow
+  // of yours reaches now, and which getting out wakes.
+  const encased = (state, a) => { for (let dy = 0; dy < (a.size || 1); dy++) for (let dx = 0; dx < (a.size || 1); dx++) if (state.dept.tiles[a.y + dy][a.x + dx] === 'v') return true; return false; };
+  const unaware = (state, a) => !encased(state, a) && (a.mode === 'dormant' || (a.mode === 'awake' && !a.sawYou));
+  // A splitter's hits needed (§8.1): every hit of yours deals the mean net hit, Σd ÷ n, kept
+  // exact by counting health in n-ths of a point. A hit a body survives with 2 or more health
+  // below generation SPLIT_MAX passes SPLIT_HP_PCT% of what it has left (rounded down, in
+  // n-ths, and at least 1 health) to a new half, both a generation on; each half is fought
+  // the same way, and each body's last hit is spent on it whole. Counted with a list of the
+  // bodies still standing; {hits, halves}.
+  function lineage(hp, gen, n, s) {
+    const left = [[hp * n, gen]];
+    let hits = 0, halves = 0;
+    while (left.length) {
+      const b = left.pop();
+      while (b[0] > 0) {
+        b[0] -= s; hits++;
+        if (b[0] < 2 * n || b[1] >= N.SPLIT_MAX) continue;
+        const share = Math.max(n, Math.floor(b[0] * N.SPLIT_HP_PCT / 100));
+        b[0] -= share; b[1]++; halves++;
+        left.push([share, b[1]]);
+      }
+    }
+    return { hits, halves };
+  }
   const fig = r => r[0] === r[1] ? [r[0]] : r;
   const fmt = r => r[0] === r[1] ? String(r[0]) : `${r[0]}–${r[1]}`;
   // The figure of a surprise blow: its maximum (×1.5 rounded down with a Light weapon beside
@@ -50,22 +76,26 @@ function model(C) {
     return [d, d];
   }
 
-  // expected(state, you, a) → {nums, lines, blow, mine, toIt, surprise}: every number the
-  // readout's lines show, in order, and how many lines there are.
+  // expected(state, you, a) → {nums, lines, blow, mine, toIt, surprise, halves}: every number
+  // the readout's lines show, in order, how many lines there are, and how many halves the
+  // hits needed count.
   function expected(state, you, a) {
     const depth = state.dept.depth, hp = Math.max(1, you.hp), blow = !NO_BLOW.includes(a.arch);
     const t = nets(a, you), m = nets(you, a).map(d => yours(state, you, a, d));
     const nums = [];
     let lines = 0;
     const toYou = hit(a, you), toIt = hit(you, a);
+    // An exhibit that shoots and never strikes (the kiter) says so in one line, its range first.
     if (blow) {
+      if (SHOOTS.includes(a.arch)) nums.push(N.ROLE_ARTILLERY_RANGE);
       nums.push(toYou, halfUp(100 * sum(t), t.length * hp), Math.ceil(hp / Math.max(...t))); lines++;
-      if (SHOOTS.includes(a.arch)) { nums.push(N.ROLE_ARTILLERY_RANGE, toYou); lines++; }
     }
-    nums.push(toIt, ANY_HIT.includes(a.arch) ? 1 : Math.ceil(a.hp * m.length / sum(m))); lines++;
+    let need = ANY_HIT.includes(a.arch) ? 1 : Math.ceil(a.hp * m.length / sum(m)), halves = 0;
+    if (SPLITS.includes(a.arch) && (a.size || 1) === 1) { const l = lineage(a.hp, a.gen || 0, m.length, sum(m)); need = l.hits; halves = l.halves; }
+    nums.push(toIt, need); lines++;
     if (you.reach) { nums.push(N.REACH_RANGE); lines++; }
     let sur = null;
-    if (unaware(a)) {
+    if (unaware(state, a)) {
       const mel = surprise(state, you, a, 'melee'), rch = you.reach ? surprise(state, you, a, 'reach') : mel;
       nums.push(...fig(mel));
       if (rch[0] !== mel[0] || rch[1] !== mel[1]) nums.push(...fig(rch), N.REACH_RANGE);
@@ -76,7 +106,7 @@ function model(C) {
     if (sp === 'ring') { const g = curve(N.ROLE_WARDEN_SPECIAL, depth); nums.push(Math.max(1, g - you.pad), g, N.ROLE_WARDEN_SPECIAL_EVERY); lines++; }
     if (sp === 'line') { const g = curve(N.ROLE_ARTILLERY_SPECIAL, depth); nums.push(Math.max(1, g - you.pad), g, N.AXIS_BEAM_RANGE); lines++; }
     if (sp === 'call') { nums.push(N.HERALD_RANGE); lines++; }
-    return { nums, lines, blow, toIt, mine: [Math.min(...m), Math.max(...m)], surprise: sur };
+    return { nums, lines, blow, toIt, mine: [Math.min(...m), Math.max(...m)], surprise: sur, halves };
   }
   // The Attack button a label should offer (§7.1): one exactly when step() takes the blow,
   // which the test asks step() itself on a copy; its text names a Reach blow when you are not
@@ -92,12 +122,12 @@ function model(C) {
     return [{ id: 'attack', text, act: { a: 'attack', uid: a.uid } }];
   }
   const numbers = lines => (lines.join(' ').match(/\d+/g) || []).map(Number);
-  return { expected, button, takes, numbers, curve, NO_BLOW, ANY_HIT, SHOOTS, SPECIAL, Registry };
+  return { expected, button, takes, numbers, curve, lineage, encased, NO_BLOW, ANY_HIT, SHOOTS, SPLITS, SPECIAL, Registry };
 }
 
 module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore();
-  const { Setup, Packs, Registry, Roles, Labels, Status, Kit, N, State } = C;
+  const { Setup, Packs, Registry, Roles, Labels, Status, Kit, N, State, Step } = C;
   const M = model(C);
   const json = v => JSON.stringify(v);
 
@@ -176,6 +206,7 @@ module.exports = ({ test, assert, loadCore }) => {
           ran.add('arch:' + a.arch); ran.add('slot:' + k.slot); ran.add('short:' + (Kit.needs({ kind: k.slot, form: k.rec.form, tier: k.tier }) - k.grade));
           if (you.reach) ran.add(x === 6 ? 'reach:2-away' : 'reach:beside');
           if (e.surprise && (e.surprise.melee[0] !== e.surprise.reach[0])) ran.add('surprise:light-reach');
+          if (e.halves) ran.add('splitter:halves'); else if (M.SPLITS.includes(a.arch)) ran.add('splitter:none');
           if (x === 3) ran.add('old_repair:side'); if (x === 5 && (a.mods || []).includes('old_repair')) ran.add('old_repair:other');
           // The label's Attack button, beside it or with Reach, as step() would take it.
           if (hp === full && mode !== 'awake') {
@@ -194,7 +225,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(Math.min(...diffs) >= -30 && Math.max(...diffs) <= 30, `Acc − Eva runs ${Math.min(...diffs)} to ${Math.max(...diffs)}`);
     const want = ['arch:plodder', 'arch:darter', 'arch:kiter', 'arch:axis_sniper', 'arch:splitter', 'arch:mote_swarm', 'arch:herald', 'arch:tethered_warden',
       'arch:reflector', 'arch:mimic_vitrine', 'arch:night_watchman', 'slot:weapon', 'slot:garment', 'slot:curio', 'slot:instrument', 'short:0', 'short:1', 'short:2',
-      'reach:beside', 'reach:2-away', 'surprise:light-reach', 'old_repair:side', 'old_repair:other'];
+      'reach:beside', 'reach:2-away', 'surprise:light-reach', 'old_repair:side', 'old_repair:other', 'splitter:halves', 'splitter:none'];
     assert.deepEqual(want.filter(k => !ran.has(k)), [], 'branches never run');
     assert.ok(checked > 100000 && buttons > 20000, `${checked} readouts, ${buttons} buttons checked`);
     console.log(`  criterion 2: ${checked} readouts and ${buttons} Attack buttons checked; Acc − Eva from ${Math.min(...diffs)} to ${Math.max(...diffs)}`);
@@ -226,10 +257,14 @@ module.exports = ({ test, assert, loadCore }) => {
       if (shape === 'line') assert.equal(line, `Its beam would deal you ${net} (${g} before your Padding), with no roll, up to ${N.AXIS_BEAM_RANGE} tiles along a row or column.`);
       if (shape === 'call') assert.equal(line, `Its call deals no damage: it wakes the sleeping exhibits within ${N.HERALD_RANGE} tiles of it that can hear.`);
     }
-    // The kiter's shots, with its blow's chance: "rolled as blows are" (§8.1).
-    const k = SPECIES.find(x => x.sp.archetype === 'kiter'), s = room(k.acc, k.sp, 3), lines = Labels.odds(s, s.actors[1]);
-    const chance = Number(/It has a (\d+)% chance/.exec(lines[0])[1]);
-    assert.equal(lines[1], `It also shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles, with the same ${chance}% chance and the same damage.`);
+    // The kiter's shots, its only attack (it never strikes, §8.1's kiter rules), "rolled as
+    // blows are" (§8.1): one line, first, with its range and its blow's chance and damage, and
+    // no line that would tell of a blow beside you.
+    const k = SPECIES.find(x => x.sp.archetype === 'kiter'), s = room(k.acc, k.sp, 3), lines = Labels.odds(s, s.actors[1]), e = M.expected(s, s.actors[0], s.actors[1]);
+    const [range, chance, typ, worst] = e.nums;
+    assert.equal(range, N.ROLE_ARTILLERY_RANGE);
+    assert.equal(lines[0], `It shoots at you within ${range} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst} ${worst === 1 ? 'hit' : 'hits'}.`);
+    assert.ok(!lines.some(l => /^It has a \d+% chance|also shoots/.test(l)), lines.join(' '));
   });
 
   test('with Reach, from a Reach weapon or from another with the reach primitive (a Light one included), the readout says your weapon strikes with Reach', () => {
@@ -266,6 +301,86 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.ok(sur(from.W) === sur(from.NW) && sur(from.W) === sur(from.SW) && sur(from.W) === 2 * sur(from.E) && sur(from.N) === sur(from.E), JSON.stringify(from));
       }
     }
+  });
+
+  // §8.1: a splitter's hits needed count it and every half it splits off. Whatever the line
+  // claims, seeded fights must bear out: "to destroy it" alone claims the body (the hits until
+  // it falls), "to destroy it and every half it splits off" the body and all its halves. You
+  // are invulnerable beside it in an open room, so there is room for every split, and strike
+  // the first body you can until none is left. "Typically" is a mean hit's count, as for any
+  // exhibit (a body's count can be about a hit off what fights average, each split body its own
+  // count), so the claim must lie within one hit for each body the fights destroyed.
+  test('a splitter\'s hits needed count the hits on it and on every half it splits off, as seeded fights take them', () => {
+    const SEEDS = 40;
+    let checked = 0, whole = 0;
+    for (const { acc, sp } of SPECIES.filter(x => x.sp.archetype === 'splitter')) for (let depth = 1; depth <= 7; depth++) {
+      let body = 0, all = 0, bodies = 0, claim = null;
+      for (let seed = 1; seed <= SEEDS; seed++) {
+        const s = Setup.room(seed, { acc, depth, map: OPEN, you: [4, 3], exhibits: [{ sp: sp.id, at: [5, 3], mode: 'hunting', stats: Roles.stats(sp.role, depth) }] }, { invulnerable: true });
+        const a = s.actors[1], standing = () => s.actors.some(b => b.arch === 'splitter' && !b.gone);
+        if (!claim) {
+          const line = Labels.odds(s, a).find(l => /typically need/.test(l)), e = M.expected(s, s.actors[0], a);
+          claim = /typically need (\d+) hits? to destroy it( and every half it splits off)?\.$/.exec(line);
+          assert.ok(claim, `${sp.id} d${depth}: ${line}`);
+          claim = { n: Number(claim[1]), whole: !!claim[2], line, halves: e.halves };
+        }
+        let hits = 0, fell = null;
+        for (let i = 0; i < 400 && standing(); i++) {
+          const att = Step.legal(s).filter(l => l.a === 'attack');
+          for (const e of Step.step(s, att.length ? att[0] : { a: 'wait' })) if (e.k === 'damaged' && e.who !== 'you' && e.cause && e.cause.by === 'you') hits++;
+          if (fell === null && a.gone) fell = hits;
+        }
+        assert.ok(!standing() && fell !== null, `${sp.id} d${depth} seed ${seed}: the fight did not end`);
+        body += fell; all += hits; bodies += s.actors.length - 1;
+      }
+      const mean = (claim.whole ? all : body) / SEEDS, tol = claim.whole ? bodies / SEEDS : 1;
+      assert.ok(Math.abs(mean - claim.n) <= tol,
+        `${sp.id} d${depth}: "${claim.line}", but ${claim.whole ? 'it and its halves fell' : 'the body fell'} after ${mean.toFixed(2)} hits on average (within ${tol.toFixed(2)} allowed; the body alone after ${(body / SEEDS).toFixed(2)}, with its halves after ${(all / SEEDS).toFixed(2)})`);
+      assert.equal(claim.whole, claim.halves > 0, `${sp.id} d${depth}: the line names the halves exactly when it counts some: ${claim.line}`);
+      checked++; if (claim.whole) whole++;
+    }
+    assert.ok(checked === 14 && whole >= 10, `${checked} species and depths, ${whole} naming the halves`);
+  });
+
+  // §8.1, §8.3: an exhibit in an intact case keeps its lines but the surprise line: no blow of
+  // yours reaches it (behind_glass), and getting it out wakes it (bashing wakes it hunting;
+  // opening beside it fills its pips). Once its case is open, the readout says what it then
+  // says: the surprise line again while it still sleeps.
+  test('a sleeping exhibit in an intact case has no surprise line; out of its case, the readout is the count\'s again', () => {
+    const MAP = ['#######', '#.....#', '#..v..#', '#.....#', '#######'];
+    let checked = 0;
+    for (const { acc, sp } of SPECIES) {
+      if (sp.archetype === 'mimic_vitrine' || sp.archetype === 'night_watchman') continue;
+      for (const mode of ['dormant', 'awake']) {
+        const s = Setup.room(1, { acc, depth: 3, map: MAP, you: [3, 1], grade: 7, exhibits: [{ sp: sp.id, at: [3, 2], mode, stats: Roles.stats(sp.role, 3) }],
+          fixtures: [C.Cases.make({ x: 3, y: 2, room: 'room', num: 'T.0.101.32', glass: 1, lock: 1 })] });
+        const a = s.actors[1], you = s.actors[0], where = `${sp.id} ${mode}`;
+        assert.ok(C.Cases.encased(s, a) && C.Combat.surprised(you, a), `${where}: in its case, unaware of you`);
+        assert.equal(C.Combat.canStrike(s, you, a, { kind: 'melee' }), 'behind_glass', where);
+        let lines = Labels.odds(s, a);
+        assert.ok(!lines.some(l => /surprise/i.test(l)), `${where}: ${lines.join(' ')}`);
+        assert.deepEqual(M.numbers(lines), M.expected(s, you, a).nums, `${where}: ${lines.join(' ')}`);
+        assert.equal(lines.length, M.expected(s, you, a).lines, where);
+        // Out of its case, still unaware (its case's tile now an opened case), the line returns.
+        const t = State.clone(s), b = t.actors[1];
+        t.dept.tiles[2] = t.dept.tiles[2].slice(0, 3) + 'u' + t.dept.tiles[2].slice(4);
+        lines = Labels.odds(t, b);
+        assert.ok(lines.some(l => /^A surprise attack now would hit for certain/.test(l)), `${where}, out: ${lines.join(' ')}`);
+        assert.deepEqual(M.numbers(lines), M.expected(t, t.actors[0], b).nums, `${where}, out: ${lines.join(' ')}`);
+        // Opened or broken by you, it is what the count says, whatever that is then.
+        for (const act of [{ a: 'open', x: 3, y: 2 }, { a: 'bash', x: 3, y: 2 }]) {
+          const u = State.clone(s);
+          for (let i = 0; i < 20 && u.dept.tiles[2][3] === 'v' && !u.over; i++) Step.step(u, act);
+          const c = u.actors[1];
+          if (c.gone || u.over) continue;
+          lines = Labels.odds(u, c);
+          assert.deepEqual(M.numbers(lines), M.expected(u, u.actors[0], c).nums, `${where} after ${act.a}: ${lines.join(' ')}`);
+          assert.equal(lines.some(l => /surprise/i.test(l)), !C.Cases.encased(u, c) && C.Combat.surprised(u.actors[0], c), `${where} after ${act.a}: ${lines.join(' ')}`);
+          checked++;
+        }
+      }
+    }
+    assert.ok(checked > 20, `${checked} cases opened or broken`);
   });
 };
 module.exports.model = model;

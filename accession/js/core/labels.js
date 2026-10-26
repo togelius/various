@@ -110,16 +110,7 @@ const Labels = (() => {
     Archetypes.adjustDamage(state, def, amount, { k: 'attack', by: att.uid, at: def.uid, from: [from[0], from[1]] });
   // Every roll att could make against def, after Padding and adjustDamage, from `from`: how
   // many there are, their sum, and the least and most (Combat.netRolls, adjusted).
-  function rolls(state, att, def, from) {
-    let n = 0, sum = 0, min = 0, max = 0;
-    for (let r = att.dmin; r <= att.dmax; r++) {
-      const d = adjusted(state, att, def, Math.max(N.DMG_MIN_ON_HIT, r - def.pad), from);
-      if (!n || d < min) min = d;
-      if (d > max) max = d;
-      n++; sum += d;
-    }
-    return { n, sum, min, max };
-  }
+  const rolls = (state, att, def, from) => Combat.netRolls(att, def, state, from);
   const MELEE = { kind: 'melee' }, REACH = { kind: 'reach' };
   // The blow you would make at a now, as attack(uid) makes it: a blow beside it if one is
   // allowed, else a Reach blow if your weapon has Reach and one is allowed, else none.
@@ -155,12 +146,16 @@ const Labels = (() => {
   // and a swarm body's any-hit rule read truly (adjustDamage). What its archetype says of its
   // odds (Archetypes.readout) changes two lines: an exhibit with no blow (noBlow, the
   // axis_sniper) gets no line on its hitting you, and one that needs a set number of hits
-  // (hits, a swarm body) says so. A ranged archetype that strikes (the kiter) shoots with its
-  // blow's chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot); with Reach (a Reach
-  // weapon, or any weapon with the reach primitive, whose blows reach as a Reach weapon's do,
-  // Kit.derive's you.reach) you strike from REACH_RANGE away as from beside it (§8.1); and
-  // each special has its line.
-  // An exhibit in an intact case keeps its lines: they say what its blows would do once out.
+  // (hits) says so: a swarm body 1; a splitter that can still split the hits on it and on
+  // every half it splits off (halves), which its line names. A ranged archetype with a blow's
+  // numbers (the kiter) never strikes: its only attack is its shot, made with its blow's
+  // chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot), so its first line says it
+  // shoots. With Reach (a Reach weapon, or any weapon with the reach primitive, whose blows
+  // reach as a Reach weapon's do, Kit.derive's you.reach) you strike from REACH_RANGE away as
+  // from beside it (§8.1); and each special has its line.
+  // An exhibit in an intact case keeps its lines, which say what its blows would do once out,
+  // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
+  // wakes it (§8.3), so no blow could ever catch it as the line would say.
   const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
   function odds(state, a) {
     const you = state.actors[0], hp = Math.max(1, you.hp), at = [you.x, you.y];
@@ -170,12 +165,13 @@ const Labels = (() => {
     const lines = [];
     if (!noBlow) {
       const theirs = rolls(state, a, you, fromTile(a, you.x, you.y)), chance = Combat.hitChance(a, you);
-      lines.push(`It has a ${chance}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`);
-      if (A && A.ranged) lines.push(`It also shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles, with the same ${chance}% chance and the same damage.`);
+      const typ = halfUp(100 * theirs.sum, theirs.n * hp), worst = hits(Int.ceilDiv(hp, theirs.max));
+      lines.push(A && A.ranged ? `It shoots at you within ${N.ROLE_ARTILLERY_RANGE} tiles: a ${chance}% chance to hit you, typically for ${typ}% of your current health, and at worst it could defeat you in ${worst}.`
+        : `It has a ${chance}% chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
     }
-    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it.`);
+    lines.push(`You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
     if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
-    if (Combat.surprised(you, a)) {
+    if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;
       lines.push(r.min === m.min && r.max === m.max ? `A surprise attack now would hit for certain, for ${range(m)}.`
         : `A surprise attack now would hit for certain, for ${range(m)} from beside it, or ${range(r)} with Reach from ${N.REACH_RANGE} tiles away.`);

@@ -21,7 +21,10 @@
 //   readout(state, a, you) → [{k, …}]    every hook's lines, in turn, for the odds readout
 //                                        (Labels): {k: 'noBlow'}, it has no blow (no chance
 //                                        of hitting you is given; the axis_sniper); {k: 'hits',
-//                                        n}, it needs n hits whatever its health (a swarm body)
+//                                        n}, it needs n hits whatever its health (a swarm body);
+//                                        {k: 'hits', n, halves: true}, n counts the hits on it
+//                                        and on every half it splits off (a splitter that can
+//                                        still split), and its line says so
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',

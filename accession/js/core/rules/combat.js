@@ -36,10 +36,15 @@ const Combat = (() => {
 
   // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
   // how many there are, their sum, and the least and most. The odds readout uses these.
-  function netRolls(att, def) {
+  // Given the state and the tile `from` the blow comes from, each is also as the defender's
+  // archetype and modifiers take it (Archetypes.adjustDamage, with a scratch cause that is
+  // never kept), so a hit through an old repair's side reads doubled and a swarm body's any
+  // hit reads all its health.
+  function netRolls(att, def, state, from) {
     let n = 0, sum = 0, min = 0, max = 0;
     for (let r = att.dmin; r <= att.dmax; r++) {
-      const d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      let d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      if (state) d = Archetypes.adjustDamage(state, def, d, { k: 'attack', by: att.uid, at: def.uid, from: [from[0], from[1]] });
       if (!n || d < min) min = d;
       if (d > max) max = d;
       n++; sum += d;

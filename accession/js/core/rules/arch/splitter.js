@@ -24,6 +24,8 @@
 //   - Its story (§3.4) is the creation cause summoned {how: 'split', from: the body, by: who
 //     hit it, parent: a copy of the body's own woke}, with a creation woke event, and it first
 //     acts one action after it appears (Wake.created's beat, §8.1), never in the same instant.
+//   - The odds readout's hits needed (readout, §8.1) count it and every half it splits off,
+//     each hit dealing your mean net hit, as the plain count does for any other exhibit.
 'use strict';
 (() => {
   // The first free tile beside a, in direction order, or null.
@@ -60,5 +62,36 @@
     Wake.created(state, half, 'summoned', extra, ev);
   }
 
-  Archetypes.add('splitter', { onDamaged });
+  // The hits that destroy a body and every half it splits off (BUILD.md §8.1), with each hit
+  // dealing the mean net hit, sum ÷ n: health is counted in n-ths of a point (h), so the mean
+  // stays exact in integers. A hit the body survives with 2 or more health below generation
+  // SPLIT_MAX passes SPLIT_HP_PCT% of what it has left (rounded down, at least 1 health) to a
+  // new half, both a generation on, and that half is fought the same way; each body's last
+  // hit is spent on it whole. It assumes room beside it for every split. {hits, halves}.
+  function fought(h, gen, n, sum) {
+    let hits = 0, halves = 0;
+    for (;;) {
+      h -= sum; hits++;
+      if (h <= 0) return { hits, halves };
+      if (h < 2 * n || gen >= N.SPLIT_MAX) continue;
+      const share = Math.max(n, Int.pct(h, N.SPLIT_HP_PCT));
+      h -= share; gen += 1;
+      const half = fought(share, gen, n, sum);
+      hits += half.hits; halves += 1 + half.halves;
+    }
+  }
+  // The odds readout's lines (Archetypes.readout, read by Labels): while it can still split,
+  // the hits needed count the hits on it and on every half it splits off, from your rolls
+  // against it from your tile (Combat.netRolls, as the label reckons them); a body that would
+  // not split before it falls (one hit fells it, or it is too small or too deep to split)
+  // gets the plain count, which is the same number.
+  function readout(state, a, you) {
+    if ((a.size || 1) !== 1 || a.gen >= N.SPLIT_MAX) return [];
+    const r = Combat.netRolls(you, a, state, [you.x, you.y]);
+    if (!r.n || r.sum < 1) return [];
+    const f = fought(a.hp * r.n, a.gen, r.n, r.sum);
+    return f.halves ? [{ k: 'hits', n: f.hits, halves: true }] : [];
+  }
+
+  Archetypes.add('splitter', { onDamaged, readout });
 })();
