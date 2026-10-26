@@ -1,0 +1,27 @@
+// The plodder arena (BUILD.md §10.3): a room with a doorway; kill them. Three plodders hunt
+// you in a room whose south wall has a doorway one tile wide, with a small room behind it.
+// You start in the room, one step from the doorway, in the kit a run starts with (a T1
+// Balanced weapon and a T1 Standard garment, at grade I). Naive fights in the open, where
+// all three can reach you at once; the counterplay steps back into the doorway, where the
+// walls on either side let only the plodder in front of it strike. Three, not one, since a
+// single plodder reaches you as easily in either place (the plan's D6.11).
+arena: plodder
+goal: kill
+cap: 200
+species: plodder
+depths: 2 5
+seen: all
+metric: hpLost <= 90%
+legend: P exhibit sp mode=hunting
+
+#############
+#...........#
+#..P..P..P..#
+#...........#
+#...........#
+#...........#
+#.....@.....#
+######.######
+#...........#
+#...........#
+#############

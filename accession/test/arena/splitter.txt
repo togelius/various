@@ -1,0 +1,23 @@
+// The splitter arena (BUILD.md §10.3): kill it. A splitter hunts you in an open room, with
+// room beside it for every split. You start across the room from it, at grade I, in a T1
+// Standard garment and with the T1 weapon each policy brings (its kit): naive a Light one,
+// the counterplay a Heavy one, which hits harder and less often, so a body and its halves
+// fall in fewer hits, and fewer halves are made. Both fight the same way.
+arena: splitter
+goal: kill
+cap: 200
+species: splitter
+depths: 2 5
+seen: all
+metric: hpLost <= 70%
+legend: B exhibit sp mode=hunting
+
+###########
+#.........#
+#....B....#
+#.........#
+#.........#
+#.........#
+#....@....#
+#.........#
+###########
