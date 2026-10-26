@@ -31,7 +31,8 @@ module.exports = ({ test, assert, root, path, fs }) => {
     // hunting exhibit in view steps toward you, then strikes you.
     const H = C.Arena.parse('arena: cue\ngoal: kill\ndepths: 3\nlegend: Q exhibit role=fodder mode=hunting\n\n########\n#@..Q..#\n########\n');
     const h = C.Arena.build(H, 1), q = h.actors[1].uid;
-    for (const want of [{ movedFrom: [{ uid: q, x: 4, y: 1 }], hit: [] }, { movedFrom: [{ uid: q, x: 3, y: 1 }], hit: [] }, { movedFrom: [], hit: ['you'] }]) {
+    const cue = (movedFrom, hit) => ({ movedFrom, hit, broke: [], special: [] });
+    for (const want of [cue([{ uid: q, x: 4, y: 1 }], []), cue([{ uid: q, x: 3, y: 1 }], []), cue([], ['you'])]) {
       const e = C.Step.step(h, { a: 'wait' }), o = C.Obs.make(h, e, null, null);
       eq(o.vm.cues, want);
       eq(o.vm.cues, C.ViewModel.derive(h, { events: e }).cues);
@@ -149,10 +150,10 @@ module.exports = ({ test, assert, root, path, fs }) => {
     eq([b.run.grade, b.dept.fixtures], [2, [{ k: 'staff', x: 4, y: 2, grade: 3 }, { k: 'staff', x: 4, y: 4, grade: 1 }]]);
     eq([C2.Cases.at(b, 4, 2).grade, C2.Cases.at(b, 4, 4).grade], [3, 1], "the case rules find each door's grade on the board");
     eq([b.dept.w, b.dept.h, b.dept.tiles, b.actors.map(a => a.uid)], [vm.w, vm.h, vm.tiles, vm.actors.map(a => a.uid)]);
-    // Until the view model lists staff doors, the board has none, and Path.to (W1-CASES)
-    // treats every closed staff door as shut.
+    // The view model itself lists the staff doors in view and your grade from the run, so
+    // the policy's own board is that one.
     C2.Obs.path(obs.vm, 5, 2);
-    eq([boards[1].dept.fixtures, boards[1].run.grade], [[], obs.vm.you.grade]);
+    eq([boards[1].dept.fixtures, boards[1].run.grade], [b.dept.fixtures, 2]);
   });
 
   test('round staff doors, Obs.path and Obs.step go where the tap goes', () => {
