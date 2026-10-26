@@ -19,7 +19,7 @@ css = (root / 'css/style.css').read_text()
 
 # Script order matters; take it from the page itself rather than a second list
 # that could drift out of step with it.
-order = re.findall(r'<script src="js/([^"]+)\.js"></script>', html)
+order = re.findall(r'<script src="js/([^"]+)\.js(?:\?[^"\s]*)?"></script>', html)
 js = [(root / f'js/{name}.js').read_text() for name in order]
 
 # A stray closing script tag inside a source would end the inlined block early.

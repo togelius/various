@@ -14,15 +14,15 @@
   var MOVES = PC.MOVES = {
     jab: {
       pose: 'jab', startup: 3, active: 3, recovery: 7, reach: [4, 25], zlo: 14, zhi: 36,
-      dmg: 5, stun: 12, push: 1.1, stop: 4, sfx: 'swing', chain: 'cross', score: 20
+      dmg: 7, stun: 14, push: 1.1, stop: 4, sfx: 'swing', chain: 'cross', score: 20
     },
     cross: {
       pose: 'cross', startup: 3, active: 3, recovery: 8, reach: [4, 28], zlo: 14, zhi: 36,
-      dmg: 6, stun: 13, push: 1.4, stop: 5, sfx: 'swing', chain: 'hook', score: 30
+      dmg: 8, stun: 15, push: 1.4, stop: 5, sfx: 'swing', chain: 'hook', score: 30
     },
     hook: {
       pose: 'hook', wind: 'windPunch', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
-      dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
+      dmg: 14, stun: 18, push: 3.6, knock: true, multi: true, depth: 22, launch: { vx: 4.0, vz: 3.6 }, stop: 8, sfx: 'swingHard', score: 60
     },
     upper: {
       pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 17, reach: [2, 25], zlo: 6, zhi: 44,
@@ -43,12 +43,12 @@
     },
     spin: {
       poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true,
-      startup: 4, active: 20, recovery: 16, reach: [0, 30], zlo: 10, zhi: 40,
-      dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
+      startup: 2, active: 12, recovery: 18, reach: [0, 43], depth: 32, zlo: 0, zhi: 48,
+      dmg: 14, stun: 18, push: 3.6, knock: true, launch: { vx: 4.2, vz: 3.4 }, stop: 7, sfx: 'whoosh', score: 50
     },
     jumpKick: {
-      pose: 'jumpKick', air: true, startup: 2, active: 14, recovery: 8, reach: [4, 32], zlo: -4, zhi: 30,
-      dmg: 9, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+      pose: 'jumpKick', air: true, startup: 2, active: 20, recovery: 8, depth: 22, reach: [4, 32], zlo: -4, zhi: 30,
+      dmg: 11, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
     },
     runKnee: {
       pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
@@ -78,7 +78,7 @@
   function Player(index, charKey) {
     PC.Actor.call(this, {
       char: charKey, team: 0, hp: 100, x: 60, y: PC.FLOOR_BOT - 14,
-      speed: 1.6, runSpeed: 3.0, mass: 1.2
+      speed: 2.0, runSpeed: 3.2, mass: 1.2
     });
     this.index = index;
     this.lives = 3;
@@ -95,6 +95,7 @@
     this.hitsLanded = 0;
     this.hitChain = 0;
     this.chainT = 0;
+    this.power = 100; this.powerHint = 0;
   }
   Player.prototype = Object.create(PC.Actor.prototype);
   Player.prototype.constructor = Player;
@@ -108,6 +109,7 @@
   Player.prototype.onHitLanded = function (t, d) {
     this.addScore(d.score || 20);
     this.hitsLanded++;
+    this.power = Math.min(100, this.power + (d === MOVES.spin ? 0 : 8));
     /* The combo chain: every hit inside a rolling window keeps the count
      * climbing and the popups escalating. Getting hit resets it, which is
      * the other half of what the counter is for. */
@@ -132,6 +134,7 @@
     var hp = this.hp;
     PC.Actor.prototype.takeHit.call(this, h);
     if (this.hp >= hp) return;                 // blocked by invulnerability or armor
+    this.invuln = Math.max(this.invuln, 16);
     this.hitChain = 0;
     if (PC.stage && PC.stage.active) PC.stage.encHurt = true;
     if (rear) FX.rearHit(this.x, this.y, side);
@@ -183,17 +186,43 @@
     }
     if (fresh.kick) { b.kick = 7; q.kick = following; pt.kick = W.time; }
     if (fresh.jump) { b.jump = 7; q.jump = following; pt.jump = W.time; }
+    // Holding Attack is the basic combo, including during hit-stop and recovery.
+    // Outside reach it lets the stick keep walking instead of punching empty air.
+    var target = this.assistTarget();
+    if (held.punch && (target || this.carry || this.grabbing || (!this.weapon && Items.nearest(this, 25)))) {
+      b.punch = Math.max(b.punch, 2); q.punch = following;
+    }
+    this.power = Math.min(100, this.power + 0.42);
+    if (this.powerHint > 0) this.powerHint--;
     var pressed = fresh;
     if (this.grabCool > 0) this.grabCool--;
     if (this.chainT > 0) { this.chainT--; if (!this.chainT) this.hitChain = 0; }
 
     if (this.dead) return;
 
+    // Breakout is an explicit escape, usable even while staggered or grabbed.
+    // A visible rechargeable meter pays for it; never health or a hidden chord.
+    if (b.kick > 0 && this.z <= 1 && this.state !== 'fall' && this.state !== 'down' &&
+        this.state !== 'getup' && !(this.state === 'attack' && this.atk === MOVES.spin)) {
+      b.kick = 0;
+      if (this.power >= 100) {
+        this.releaseGrab();
+        if (this.carry) Items.drop(this);
+        this.power = 0;
+        this.invuln = Math.max(this.invuln, 30);
+        this.startAttack(MOVES.spin);
+        FX.ring(this.x, this.y - 22, '#58e8ef');
+        FX.pop(this.x, this.y - this.hh - 12, 'BREAKOUT!', '#58e8ef');
+        return;
+      }
+      this.powerHint = 36;
+    }
+
     /* Caught in a bear hug: mash your way out. Six presses or a couple of
      * seconds, whichever comes first - being held should be frightening, not
      * a place you sit and watch your health go. */
     if (this.state === 'held' && this.grabbedBy) {
-      if (pressed.punch || pressed.kick || pressed.jump) this.escapeMash = (this.escapeMash || 0) + 1;
+      if (pressed.punch || pressed.kick || pressed.jump || (held.punch && this.st % 8 === 0)) this.escapeMash = (this.escapeMash || 0) + 1;
       if (PC.input.axis(this.index) === -this.facing && this.st % 8 === 0) this.escapeMash = (this.escapeMash || 0) + 1;
       if ((this.escapeMash || 0) >= 6) {
         var g = this.grabbedBy;
@@ -208,17 +237,6 @@
 
     // ---- grappling takes over the whole button map while it lasts
     if (this.grabbing) { this.grabControl(b, held); return; }
-
-    // ---- the spin kick is both buttons at once. The window is two frames,
-    // not the whole buffer, or every fast punch-then-kick becomes a spin.
-    // (measured by when they were pressed, not how fresh the buffer is -
-    // a punch and a kick queued apart through a recovery are not a spin)
-    if (b.punch > 0 && b.kick > 0 && Math.abs((pt.punch || 0) - (pt.kick || -99)) <= 2 &&
-      this.canAct() && this.z <= 0) {
-      b.punch = b.kick = 0;
-      this.startAttack(MOVES.spin);
-      return;
-    }
 
     if (this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
       this.state === 'down' || this.state === 'getup' || this.state === 'held') {
@@ -248,7 +266,7 @@
     if (this.z > 0 || this.state === 'jump') {
       if (ax) { this.vx = M.approach(this.vx, ax * this.speed * 1.15, 0.22); this.facing = ax; }
       // one air attack per jump: it used to be possible to kick twice
-      if ((b.punch > 0 || b.kick > 0) && !this.airAttacked) {
+      if (!this.airAttacked && (this.st >= 4 || b.punch > 0)) {
         b.punch = b.kick = 0;
         this.startAttack(MOVES.jumpKick);
         this.vx = this.facing * Math.max(1.6, Math.abs(this.vx));
@@ -264,7 +282,7 @@
       this.airAttacked = false;
       this.jumpId = (this.jumpId || 0) + 1;
       this.setState('jump');
-      this.vx = ax * this.speed * 1.2;
+      this.vx = (ax || this.facing) * this.speed * 1.2;
       this.vy = ay * this.speed * 0.6;
       if (PC.audio) PC.audio.sfx('jump');
       return;
@@ -274,35 +292,25 @@
     if (b.punch > 0) {
       b.punch = 0;
       if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
-      var pick = Items.nearest(this, 16);
+      if (target) {
+        var aim = PC.input.axis(this.index);
+        if (!aim || (target.x - this.x) * aim > 0) this.facing = M.sign(target.x - this.x) || this.facing;
+        if (Math.abs(target.y - this.y) <= 26) this.y = M.approach(this.y, target.y, 5);
+        if (Math.abs(target.x - this.x) > 35 && Math.abs(target.x - this.x) < 85) this.x += this.facing * 5;
+      }
+      var pick = Items.nearest(this, 25);
       if (pick && !this.weapon && (pick.kind === 'pickup' || !this.nearFoe(28))) {
         if (Items.take(this, pick)) { this.setState('crouch'); this.crouchT = 10; return; }
       }
       if (this.weapon) { this.startAttack(MOVES[WEAPON_MOVE[this.weapon] || 'batSwing']); this.spendWeapon(); return; }
       var behind = this.foeBehind(26);
       if (behind && !this.nearFoe(26)) { this.startAttack(MOVES.elbow); return; }
-      if (ay < 0) { this.startAttack(MOVES.upper); return; }
       var clinch = this.grabTarget();
-      if (clinch && this.grabCool <= 0 && this.combo === 0) { this.beginGrab(clinch); return; }
-      if (this.runT > 6) { this.startAttack(MOVES.runKnee); this.runT = 0; return; }
+      if (clinch && clinch.state === 'dizzy' && this.grabCool <= 0) { this.beginGrab(clinch); this.throwVictim(clinch); return; }
+      if (target && target.state === 'guard') { this.startAttack(MOVES.kick); return; }
       this.combo = this.comboT > 0 ? this.combo : 0;
       this.comboT = 40;
       this.startAttack(MOVES.jab);
-      return;
-    }
-
-    // ---- kick button
-    if (b.kick > 0) {
-      b.kick = 0;
-      if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
-      if (this.weapon) {
-        // A weapon you throw is a weapon you no longer have.
-        Items.hurl(this);
-        this.setState('throwing'); this.throwT = 10;
-        return;
-      }
-      if (ay < 0) { this.startAttack(MOVES.kickHigh); return; }
-      this.startAttack(MOVES.kick);
       return;
     }
 
@@ -422,6 +430,20 @@
     this.addScore(120);
   };
 
+  // Select only plausible targets. A small lane correction forgives pixel-perfect
+  // alignment without reaching across the street or reversing a held direction.
+  Player.prototype.assistTarget = function () {
+    var es = W.enemies(), best = null, distance = 1e9, ax = PC.input.axis(this.index);
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i], dx = e.x - this.x, dy = Math.abs(e.y - this.y);
+      if (e.state === 'fall' || e.state === 'down' || e.state === 'getup' || e.z > 20) continue;
+      if (Math.abs(dx) > 86 || dy > 27 || (ax && dx * ax < -8)) continue;
+      var score = Math.abs(dx) + dy * 2 + (dx * this.facing < 0 ? 16 : 0);
+      if (score < distance) { best = e; distance = score; }
+    }
+    return best;
+  };
+
   // ------------------------------------------------------------------ helpers
   Player.prototype.nearFoe = function (range) {
     var es = W.enemies();
@@ -453,6 +475,8 @@
     this.state = 'idle'; this.st = 0;
     this.invuln = 110;
     this.combo = 0; this.runT = 0;
+    this.power = 100; this.fresh = {}; this.queued = {}; this.buffer = { punch: 0, kick: 0, jump: 0 };
+    this.releaseGrab(); this.atk = null;
     this.celebrate = false;
     this.weapon = null; this.weaponItem = null; this.carry = null;
   };

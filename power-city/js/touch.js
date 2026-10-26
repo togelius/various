@@ -34,6 +34,10 @@
 
     document.addEventListener('pointerdown', function (e) {
       if (PC.audio) PC.audio.resume();
+      if (e.target && e.target.id === 'screen' && PC.game &&
+          (PC.game.state === 'title' || PC.game.state === 'continue')) {
+        e.preventDefault(); PC.game.startPressed(0); return;
+      }
       var keyEl = e.target && e.target.closest && e.target.closest('[data-key]');
       if (keyEl) {
         e.preventDefault();

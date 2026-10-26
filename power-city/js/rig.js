@@ -65,13 +65,13 @@
 
     // --------------------------------------------------------- punching
     jab: p([0, 19], [1, 30], [2, 35.5],
-      [[7, 28], [13, 28]], [[-3, 25], [0, 26]],
+      [[10, 29], [20, 29]], [[-3, 25], [0, 27]],
       [[4, 10], [6, 0]], [[-3, 10], [-6, 0]]),
     cross: p([1, 19], [2, 30], [3, 35.5],
-      [[3, 26], [1, 25]], [[6, 28], [15, 29]],
+      [[3, 26], [1, 25]], [[11, 29], [23, 30]],
       [[5, 10], [8, 0]], [[-3, 10], [-6, 0]]),
-    hook: p([1, 19], [2, 30.5], [3, 36],
-      [[8, 32], [13, 31]], [[-4, 26], [-2, 23]],
+    hook: p([3, 18], [6, 29.5], [7, 35],
+      [[14, 32], [24, 31]], [[-4, 26], [-8, 24]],
       [[5, 10], [8, 0]], [[-4, 10], [-7, 0]]),
     upper: p([0, 17], [1, 28.5], [2, 34],
       [[6, 28], [9, 37]], [[-3, 24], [-1, 22]],
@@ -97,7 +97,7 @@
       [[5, 13], [8, 8]], [[-4, 13], [-6, 7]]),
     jumpKick: p([0, 19], [-2, 29.5], [-3, 34.5],
       [[1, 26], [3, 22]], [[-5, 26], [-9, 24]],
-      [[8, 14], [16, 11]], [[-3, 12], [-6, 8]]),
+      [[10, 16], [24, 16]], [[-3, 12], [-6, 8]]),
     knee: p([0, 20], [1, 30.5], [2, 36],
       [[5, 27], [9, 29]], [[-3, 26], [-1, 24]],
       [[7, 20], [5, 12]], [[-3, 11], [-6, 2]]),
@@ -204,7 +204,7 @@
   Rig.CHARS = {};
   Rig.def = function (key, spec) {
     spec.key = key;
-    spec.scale = spec.scale || 1;
+    spec.scale = (spec.scale || 1) * 1.5;
     spec.bulk = spec.bulk || 1;
     spec.hair = spec.hair || 'flat';
     Rig.CHARS[key] = spec;
@@ -245,7 +245,7 @@
       var ab = s * (1 + (ch.bulk - 1) * 0.5);
       Art.limb(ctx, X(sh[0]), Y(sh[1]), X(a[0][0]), Y(a[0][1]), 5.8 * ab, 4.4 * ab, upper);
       Art.limb(ctx, X(a[0][0]), Y(a[0][1]), X(a[1][0]), Y(a[1][1]), 4.4 * ab, 3.8 * ab, P.skin);
-      Art.ellipse(ctx, X(a[1][0]), Y(a[1][1]), 3 * ab, 2.8 * ab, P.skin);        // fist
+      Art.ellipse(ctx, X(a[1][0]), Y(a[1][1]), 3 * ab, 2.8 * ab, ch.gloves || P.skin);        // fist
       Art.rect(ctx, X(a[1][0] - 2), Y(a[1][1] + 0.6), 4.4 * ab, 1 * s, P.skinD);  // knuckles
     }
 
@@ -279,6 +279,11 @@
     // shoulder caps make the silhouette read as a brawler and not a stick
     Art.ellipse(ctx, X(shF[0] + 0.5), Y(shF[1]), 4 * b, 3.4 * b, pal.shirt);
     Art.ellipse(ctx, X(shB[0]), Y(shB[1]), 3.6 * b, 3.2 * b, back.shirt);
+    if (ch.jacket) {
+      Art.limb(ctx, X(hip[0] + 1), Y(hip[1] + 2), X(chest[0] + 1), Y(chest[1]), 4 * b, 6 * b, '#f3dfbc');
+      Art.limb(ctx, X(chest[0] - 4), Y(chest[1]), X(chest[0] - 1), Y(chest[1] - 6), 2 * b, 1 * b, pal.trim);
+      Art.rect(ctx, X(chest[0] - 4), Y(chest[1] - 3), 3 * s, 2 * s, ch.gloves);
+    }
     // a vest laces up the front: one seam, two pixels of it
     if (ch.vest) {
       Art.limb(ctx, X(hip[0] + 2.4), Y(hip[1] + 3), X(chest[0] + 3), Y(chest[1] - 1), 1.6 * b, 1.6 * b, pal.trim);

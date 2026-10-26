@@ -156,6 +156,7 @@
       this.lives = [3, 3];
       this.nextLife = [50000, 50000];
       this.players = [null, null];
+      this.respawnT = [0, 0]; this.paused = false;
       this.stageIndex = 0;
       this.ended = false;
       PC.input.p2Joined = false;
@@ -190,7 +191,7 @@
 
         case 'ready':
           if (this.stateT === 1 && PC.audio) PC.audio.play(PC.stage.def.music);
-          if (this.stateT > 150) this.setState('play');
+          if (this.stateT > 90) this.setState('play');
           this.tryJoin();
           break;
 
@@ -210,7 +211,7 @@
             if (pl) pl.addScore(100);
             if (PC.audio) PC.audio.sfx('tally');
           }
-          if (this.stateT > 260) this.nextStage();
+          if (this.stateT > 150) this.nextStage();
           break;
 
         case 'over':
@@ -290,6 +291,7 @@
       if (W.actors.indexOf(p) < 0) W.add(p);
       PC.stage.timeLeft = PC.stage.def.time;
       if (PC.stage.active) PC.stage.startEncounter(PC.stage.active);
+      this.paused = false;
       this.setState('play');
       if (PC.audio) PC.audio.play(PC.stage.def.music);
     },
@@ -360,6 +362,7 @@
       ctx.clip();
       ctx.translate(sx, sy);
       PC.stage.draw(ctx);
+      W.drawThreats(ctx);
 
       // ---- everything in the street, sorted back to front
       var draws = [], i;
@@ -378,14 +381,6 @@
       }
 
       FX.draw(ctx, W.camX);
-      // the near lane in silhouette, passing faster than the camera
-      if (PC.stage.front) {
-        var fo = Math.round(-W.camX * 1.25) % 640;
-        if (fo > 0) fo -= 640;
-        for (var fx2 = fo; fx2 < PC.W; fx2 += 640) {
-          ctx.drawImage(PC.stage.front, fx2, PC.FIELD_BOT - 30);
-        }
-      }
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
       Hud.drawAlerts(ctx, this);
@@ -439,7 +434,11 @@
       }
       if (this.paused) {
         this.dim(ctx, 0.6);
-        Hud.banner(ctx, [{ t: 'PAUSED', c: '#ffffff', scale: 3 }], mid - 10);
+        Hud.banner(ctx, [{ t: 'PAUSED', c: '#ffffff', scale: 3 }], mid - 30);
+        Art.text(ctx, 'HOLD Z / J: COMBO + PICK UP + THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
+        Art.text(ctx, 'X / K: BREAKOUT  (WHEN THE BAR IS FULL)', PC.W / 2, mid + 31, '#ffe57a', { align: 'center' });
+        Art.text(ctx, 'SPACE / C: JUMP KICK', PC.W / 2, mid + 47, '#e3edf8', { align: 'center' });
+        Art.text(ctx, 'ESC TO RESUME', PC.W / 2, mid + 77, '#65e0ec', { align: 'center' });
       }
     },
 
@@ -478,54 +477,28 @@
 
     // ----------------------------------------------------------------- title
     renderTitle: function (ctx) {
-      var t = this.stateT;
-      // the city rolls past behind the logo
-      W.camX = this.attractX % Math.max(1, (PC.stage.def.length - PC.W));
+      var t = this.stateT, mid = PC.W / 2;
+      W.camX = 0;
       PC.stage.draw(ctx);
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = '#04040e';
-      ctx.fillRect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
-      ctx.restore();
-      Art.rect(ctx, 0, 0, PC.W, PC.HUD_TOP, '#000000');
-      Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#000000');
-
-      // a band behind the writing so the brickwork never eats it
-      Art.rect(ctx, 0, PC.FIELD_BOT - 48, PC.W, 48, 'rgba(4,4,14,0.84)');
-      var mid = PC.W / 2, ly = PC.FIELD_Y + 18;
-      // logo: a heavy shadow, a red plate, a white face
-      Art.text(ctx, 'POWER', mid + 2, ly + 3, '#3a0a12', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'POWER', mid, ly, '#e02030', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'POWER', mid, ly - 2, '#ff9a40', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'CITY', mid + 2, ly + 42, '#0a1a3a', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'CITY', mid, ly + 39, '#2f6ef0', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'CITY', mid, ly + 37, '#7fd8f0', { align: 'center', scale: 5, tracking: 2 });
-      Art.text(ctx, 'A NIGHT ON THE TOWN', mid, ly + 78, '#ffffff', { align: 'center', tracking: 2, shadow: '#000000' });
-
-      if ((t >> 4) % 2) {
-        Art.text(ctx, this.credits > 0 ? 'PRESS 1 PLAYER START' : 'INSERT COIN  (PRESS 5)',
-          mid, PC.FIELD_BOT - 40, this.credits > 0 ? '#ffe070' : '#4aa8ff', { align: 'center' });
+      Art.rect(ctx, 0, 0, PC.W, PC.H, 'rgba(6,9,25,0.68)');
+      // Offset stripes and an oversized condensed marquee: a 1991 cabinet flyer.
+      for (var k = 0; k < 5; k++) {
+        Art.rect(ctx, 0, 40 + k * 5, 104 - k * 9, 2, '#bd476b');
+        Art.rect(ctx, PC.W - 104 + k * 9, 98 + k * 5, 104, 2, '#3d89a3');
       }
-      Art.text(ctx, '1 OR 2 PLAYERS', mid, PC.FIELD_BOT - 26, '#c8d0e8', { align: 'center' });
-      Art.text(ctx, '(C) 1988 POWER CITY WORKS', mid, PC.FIELD_BOT - 12, '#6a7290', { align: 'center' });
-
-      Hud.drawTop(ctx, this);
-      Hud.drawBottom(ctx, this);
-      // the empty half of the marquee earns its keep by teaching the moves
-      var hints = [
-        'PUNCH THREE TIMES FOR A KNOCKDOWN',
-        'PUNCH AND KICK TOGETHER TO SPIN',
-        'GET CLOSE AND PUNCH TO GRAB',
-        'KICK OUT OF A GRAB TO THROW THEM',
-        'DOUBLE-TAP TO RUN, THEN PUNCH',
-        'PICK UP BATS, PIPES AND CRATES',
-        'JUMP, THEN KICK, ON THE WAY DOWN'
-      ];
-      Art.text(ctx, 'HOW TO PLAY', mid, 27, '#ff8a3a', { align: 'center' });
-      Art.text(ctx, hints[Math.floor(t / 170) % hints.length], mid, 40, '#ffffff', { align: 'center' });
-
-      W.time++;
-      FX.update();
+      Art.text(ctx, 'ONE NIGHT. FOUR BLOCKS. YOUR CITY.', mid, 18, '#f2b46f', { align: 'center', tracking: 2 });
+      Art.text(ctx, 'POWER', mid + 3, 48, '#8f294d', { align: 'center', scale: 7, tracking: 1 });
+      Art.text(ctx, 'POWER', mid, 43, '#ffe2a0', { align: 'center', scale: 7, tracking: 1 });
+      Art.text(ctx, 'CITY', mid + 3, 104, '#284e83', { align: 'center', scale: 7, tracking: 4 });
+      Art.text(ctx, 'CITY', mid, 99, '#65e0ec', { align: 'center', scale: 7, tracking: 4 });
+      PC.rig.draw(ctx, PC.rig.frame('hero1', 'taunt'), 68, 206, false);
+      PC.rig.draw(ctx, PC.rig.frame('hero2', 'idle'), PC.W - 68, 206, true);
+      Art.text(ctx, 'THE MIDNIGHT RESCUE', mid, 158, '#faf0db', { align: 'center', tracking: 2 });
+      Art.rect(ctx, mid - 99, 181, 198, 25, '#ed6187');
+      Art.text(ctx, 'ENTER / TAP TO PLAY', mid, 190, '#11162a', { align: 'center' });
+      Art.text(ctx, 'HOLD ATTACK. JUMP KICK. BREAK OUT.', mid, 222, '#e3edf8', { align: 'center' });
+      Art.text(ctx, 'SOLO OR CO-OP    /    FREE PLAY', mid, 242, '#8299b8', { align: 'center' });
+      W.time++; FX.update();
     }
   };
 

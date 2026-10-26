@@ -134,7 +134,7 @@
    * texture because the mortar is dark, and so does this one. */
   function brick(x, ctx, w, t, r) {
     var base = t.brick;
-    var mortar = C.shade(base, -0.62);
+    var mortar = C.shade(base, -0.32);
     var tones = [base, C.shade(base, 0.07), C.shade(base, -0.07), C.mix(base, t.brickAlt || base, 0.5)];
     var bw = 12, bh = 6;
     ctx.save();
@@ -150,7 +150,7 @@
         var face = tones[hsh % 4];
         if (hsh % 23 === 0) face = C.shade(base, -0.2);                 // a stained one
         Art.rect(ctx, px + 1, j + 1, bw - 1, bh - 1, face);
-        Art.rect(ctx, px + 1, j + 1, bw - 1, 1, C.shade(face, 0.2));    // lit top edge
+        Art.rect(ctx, px + 1, j + 1, bw - 1, 1, C.shade(face, 0.09));    // lit top edge
         Art.rect(ctx, px + 1, j + bh - 1, bw - 1, 1, C.shade(face, -0.2)); // shaded underside
       }
     }
@@ -605,78 +605,171 @@
     }
   };
 
+  // Authored shop fronts: big, recognisable shapes with a quiet ground plane.
+  // These are composed once into the street canvas, not a texture repeated
+  // behind every fight. Each shop has its own sign, interior and silhouette.
+  function shopShell(ctx, x, w, t, label, accent) {
+    Art.rect(ctx, x, 0, w, FIELD_H, '#182538');
+    Art.rect(ctx, x, 0, w, 5, '#10182a');
+    Art.rect(ctx, x + 3, 6, w - 6, 4, '#344259');
+    for (var v = 8; v < w - 8; v += 34) {
+      Art.rect(ctx, x + v, 15, 23, 14, '#101a29');
+      for (var sl = 0; sl < 4; sl++) Art.rect(ctx, x + v + 3, 18 + sl * 2, 17, 1, '#354358');
+    }
+    Art.rect(ctx, x + 4, 35, w - 8, 29, '#080f22');
+    Art.rect(ctx, x + 5, 36, w - 10, 1, accent);
+    Art.rect(ctx, x + 5, 62, w - 10, 2, accent);
+    Art.text(ctx, label, x + w / 2 + 1, 43, '#3b294e', { align: 'center', scale: 2 });
+    Art.text(ctx, label, x + w / 2, 41, accent, { align: 'center', scale: 2 });
+    Art.rect(ctx, x + 5, 69, w - 10, FIELD_H - 70, '#0a1427');
+    Art.rect(ctx, x + 2, 65, 4, FIELD_H - 65, '#3a4658');
+    Art.rect(ctx, x + w - 6, 65, 4, FIELD_H - 65, '#3a4658');
+    Art.rect(ctx, x, FIELD_H - 5, w, 5, '#222e43');
+    Art.rect(ctx, x + 6, FIELD_H - 6, w - 12, 1, accent);
+  }
+  function cabinet(ctx, x, y, c) {
+    Art.rect(ctx,x,y,17,42,'#101020');
+    Art.rect(ctx,x-2,y+20,22,6,'#101020');
+    Art.rect(ctx, x+1,y+2,14,3,c);
+    Art.rect(ctx, x+2,y+8,11,10,'#13334c');
+    Art.rect(ctx, x+4,y+10,7,4,'#65e0ec');
+    Art.rect(ctx, x+6,y+14,2,2,'#fff3ad');
+    Art.rect(ctx, x-1,y+21,19,3,c);
+    Art.rect(ctx, x+2,y+18,1,4,'#e7c68f');
+    Art.rect(ctx, x+10,y+20,3,1,'#f0749b');
+    Art.rect(ctx, x+1,y+25,3,15,c);
+    Art.rect(ctx, x+9,y+30,3,4,'#516078');
+  }
+  MOD.arcade = { w: 180, paint: function(ctx,x,t,r) {
+    shopShell(ctx,x,180,t,'LUCKY STAR','#63dbe5');
+    Art.text(ctx,'VIDEO ARCADE',x+90,56,'#f4a7c0',{align:'center',tracking:1});
+    for(var j=0;j<3;j++) cabinet(ctx,x+20+j*29,80,j%2?'#9162b6':'#c3537d');
+    // Glass entry, electric pink frame and warm light beyond.
+    Art.rect(ctx,x+118,69,46,58,'#17152c');
+    Art.rect(ctx,x+119,70,43,2,'#dc5a90');
+    Art.rect(ctx,x+120,72,2,54,'#dc5a90');
+    Art.rect(ctx,x+160,72,2,54,'#dc5a90');
+    Art.rect(ctx,x+125,79,30,38,'#28324b');
+    Art.limb(ctx,x+128,110,x+151,83,1,1,'#465477');
+    Art.rect(ctx,x+150,98,2,9,'#e2bc83');
+    Art.text(ctx,'OPEN',x+140,73,'#ffd185',{align:'center',tracking:0});
+    // Awning slats, not a second brick grid.
+    for(var k=0;k<176;k+=11) Art.rect(ctx,x+2+k,65,8,4,k%22?'#69456b':'#bd6088');
+  }};
+  MOD.video = { w: 128, paint: function(ctx,x,t,r) {
+    shopShell(ctx,x,128,t,'VIDEO 88','#e48da7');
+    for(var row=0;row<2;row++) for(var k=0;k<6;k++) {
+      Art.rect(ctx,x+13+k*13,80+row*17,9,13,['#81586e','#527785','#ae8762'][k%3]);
+      Art.rect(ctx,x+15+k*13,82+row*17,5,2,'#dac7af');
+    }
+    Art.rect(ctx,x+100,75,18,51,'#31344d');
+    Art.rect(ctx,x+102,77,14,28,'#162638');
+    Art.text(ctx,'VHS',x+64,57,'#e6c9a9',{align:'center',tracking:3});
+  }};
+  MOD.diner = { w: 160, paint: function(ctx,x,t,r) {
+    shopShell(ctx,x,160,t,'ALL NIGHT','#f2bd72');
+    Art.text(ctx,'COFFEE  /  PIE',x+80,56,'#cf7188',{align:'center'});
+    Art.rect(ctx,x+12,75,102,46,'#392b38');
+    Art.rect(ctx,x+14,79,98,23,'#73524c');
+    Art.rect(ctx,x+12,104,104,4,'#d7ae81');
+    for(var k=0;k<4;k++) {
+      Art.rect(ctx,x+23+k*23,114,2,13,'#8d959b');
+      Art.rect(ctx,x+18+k*23,112,12,4,'#ad496b');
+      Art.rect(ctx,x+28+k*23,98,4,5,'#ffe1a8');
+      Art.rect(ctx,x+23+k*23,76,1,27,'#221b2d');
+    }
+    Art.rect(ctx,x+123,75,25,51,'#4d3e49');
+    Art.rect(ctx,x+126,79,19,26,'#967352');
+    Art.rect(ctx,x+140,108,2,7,'#edca95');
+  }};
+  MOD.club = { w: 188, paint: function(ctx,x,t,r) {
+    shopShell(ctx,x,188,t,'STARLIGHT','#e86caa');
+    Art.text(ctx,'LIVE TONIGHT',x+94,56,'#75b9d4',{align:'center',tracking:2});
+    Art.rect(ctx,x+52,70,80,58,'#111320');
+    Art.rect(ctx,x+61,77,60,47,'#36253f');
+    for(var k=0;k<5;k++) Art.rect(ctx,x+61+k*13,77,3,47,'#4a2b4e');
+    Art.rect(ctx,x+90,78,2,46,'#db9f88');
+    for(var q=0;q<2;q++) {
+      var sx=x+17+q*132;
+      Art.rect(ctx,sx,82,21,39,'#102534');
+      Art.rect(ctx,sx+2,84,17,2,'#63c8d1');
+      Art.text(ctx,'LIVE',sx+11,91,'#edd49b',{align:'center',tracking:0});
+      Art.rect(ctx,sx+5,103,11,12,'#7e466f');
+    }
+    Art.rect(ctx,x+37,126,113,3,'#875b7f');
+  }};
+  MOD.subway = { w: 112, paint: function(ctx,x,t,r) {
+    Art.rect(ctx,x,0,112,FIELD_H,'#182438');
+    Art.rect(ctx,x+8,15,95,22,'#293d50');
+    Art.text(ctx,'METRO',x+56,21,'#d2d9b5',{align:'center',scale:2});
+    Art.rect(ctx,x+12,46,88,80,'#070e1a');
+    for(var j=0;j<8;j++) {
+      Art.rect(ctx,x+15,89+j*5,82,3,'#253047');
+      Art.rect(ctx,x+16,90+j*5,80,1,'#394155');
+    }
+    Art.rect(ctx,x+9,46,3,81,'#4d6e7e'); Art.rect(ctx,x+101,46,3,81,'#4d6e7e');
+    Art.limb(ctx,x+20,65,x+39,125,2,2,'#72929b');
+    Art.limb(ctx,x+92,65,x+73,125,2,2,'#72929b');
+    Art.text(ctx,'LAST TRAIN 00:12',x+56,41,'#da9873',{align:'center',tracking:0});
+  }};
+  MOD.loading = { w: 176, paint: function(ctx,x,t,r) {
+    Art.rect(ctx,x,0,176,FIELD_H,'#152839');
+    Art.rect(ctx,x+6,18,164,10,'#263e4b');
+    Art.text(ctx,'PIER 06 / NIGHT FREIGHT',x+88,20,'#99b5b5',{align:'center',tracking:0});
+    Art.rect(ctx,x+19,40,137,86,'#0a1827');
+    Art.rect(ctx,x+23,44,129,79,'#304650');
+    for(var j=0;j<12;j++) Art.rect(ctx,x+24,46+j*6,127,1,'#1e333f');
+    Art.rect(ctx,x+70,50,40,73,'#091521');
+    Art.rect(ctx,x+17,37,141,3,'#dca45e');
+    for(var k=0;k<14;k++) Art.rect(ctx,x+18+k*10,126,6,5,k%2?'#c1954e':'#23343f');
+    Art.rect(ctx,x+122,93,23,30,'#9b6941');
+    Art.rect(ctx,x+124,96,19,2,'#bd8a54');
+    Art.limb(ctx,x+124,119,x+143,96,2,2,'#67482e');
+  }};
+
   City.MOD = MOD;
 
   // -------------------------------------------------------------- the floor
   City.paintFloor = function (ctx, x0, w, t, r) {
-    var y = PC.FLOOR_TOP - PC.FIELD_Y;  // in wall-canvas coordinates
-    var h = FLOOR_H;
-    var slab = t.floor || '#9aa0ac', slabD = C.shade(slab, -0.25), slabL = C.shade(slab, 0.18);
-    Art.rect(ctx, x0, y, w, h, slab);
-    // The pavement recedes: bands get taller toward the camera, which is the
-    // only perspective cue a flat beat 'em up floor ever needs.
-    var bands = [0, 4, 10, 18, 30, 44], i, j;
-    for (i = 1; i < bands.length; i++) {
-      Art.rect(ctx, x0, y + bands[i], w, 1, slabD);
-      Art.rect(ctx, x0, y + bands[i] + 1, w, 1, slabL);
-    }
-    // slab joints, spaced wider as they come forward
-    for (i = 0; i < bands.length - 1; i++) {
-      var step = 22 + i * 6, off = (i * 9) % step;
-      for (j = -step; j < w + step; j += step) {
-        Art.rect(ctx, x0 + j + off, y + bands[i], 1, bands[i + 1] - bands[i], slabD);
+    var y = FIELD_H, h = FLOOR_H, slab = t.floor;
+    Art.rect(ctx,x0,y,w,h,slab);
+    // Broad values carry depth. Fine texture stays behind the actors.
+    var bands=[0,7,18,34,56,h-7];
+    for(var i=0;i<bands.length-1;i++) {
+      var by=y+bands[i], bh=bands[i+1]-bands[i], step=38+i*19;
+      Art.rect(ctx,x0,by,w,1,C.shade(slab,-0.19));
+      for(var j=-step;j<w+step;j+=step) {
+        Art.rect(ctx,x0+j+(i%2)*step/2,by,1,bh,C.shade(slab,-0.18));
       }
     }
-    if (t.planks) {
-      // a wharf is boards, not paving: seams run away from the camera
-      Art.rect(ctx, x0, y, w, 48, slab);
-      for (i = 0; i < w; i += 13) {
-        Art.rect(ctx, x0 + i, y, 1, 48, slabD);
-        Art.rect(ctx, x0 + i + 1, y, 1, 48, C.shade(slab, 0.1));
-      }
-      for (i = 1; i < bands.length; i++) {
-        Art.rect(ctx, x0, y + bands[i], w, 1, C.shade(slab, -0.12));
-        for (j = ((i * 17) % 40); j < w; j += 40) Art.rect(ctx, x0 + j, y + bands[i] - 1, 2, 2, slabD);
+    if(t.planks) {
+      for(var px=0;px<w;px+=24) {
+        Art.rect(ctx,x0+px,y,1,h-7,'#263a42');
+        for(var n=0;n<3;n++) Art.rect(ctx,x0+px+3,y+8+n*27,2,1,'#1b2d36');
       }
     }
-
-    if (t.polish) {
-      /* Polished black marble in big square-ish slabs, the joints in gold
-       * leaf. The reflections of the room are laid on after, in build(). */
-      Art.rect(ctx, x0, y, w, 48, slab);
-      for (i = 0; i < bands.length; i++) {
-        var by = y + bands[i], bh = (i + 1 < bands.length ? bands[i + 1] : 48) - bands[i];
-        var step2 = 26 + i * 8;
-        for (j = -((i * 13) % step2); j < w; j += step2) {
-          // every other slab a shade lighter: a checkerboard, receding
-          if (((j + i * 13) / step2 | 0) % 2 === i % 2) Art.rect(ctx, x0 + j, by, step2, bh, C.shade(slab, 0.1));
-          Art.rect(ctx, x0 + j, by, 1, bh, C.shade(GOLD_LO, -0.25));
+    if(t.polish) {
+      for(var py=0;py<h-7;py+=18) Art.rect(ctx,x0,y+py,w,1,'#564759');
+      for(var tile=0;tile<w;tile+=64) Art.rect(ctx,x0+tile,y,1,h-7,'#564759');
+    } else {
+      // Neon reflected as broken streaks, never a soft wash across a fighter.
+      for(var pool=40;pool<w;pool+=137) {
+        var cy=y+16+r.int(0,h-39), pw=r.int(34,70);
+        Art.ellipse(ctx,x0+pool,cy,pw/2,4,'#121f32');
+        for(var line=0;line<4;line++) {
+          var len=r.int(8,pw-8);
+          Art.rect(ctx,x0+pool-len/2+r.int(-4,4),cy-2+line*2,len,1,
+            line%2?C.mix(t.neon,slab,0.7):C.mix(t.neon2||t.neon,slab,0.6));
         }
-        if (i) Art.rect(ctx, x0, by, w, 1, C.shade(GOLD_LO, -0.15));
       }
-      // the edge of the floor: a gold nosing, then the dark beyond it
-      trim(ctx, x0, y + 48, w);
-      Art.rect(ctx, x0, y + 51, w, 9, STEEL);
-      for (j = 6; j < w; j += 24) Art.rect(ctx, x0 + j, y + 55, 2, 1, GOLD_LO);
-      return;
     }
-    // curb + road
-    Art.rect(ctx, x0, y + 48, w, 3, C.shade(slab, 0.3));
-    Art.rect(ctx, x0, y + 51, w, 9, t.road || '#3a3f4c');
-    Art.rect(ctx, x0, y + 51, w, 1, '#22262f');
-    for (j = 0; j < w; j += 26) Art.rect(ctx, x0 + j, y + 55, 12, 2, '#c8b840');
-    if (t.wet) {
-      /* Puddles, in pixels: a dark pool on the near slabs with the neon
-       * broken across it in a few hard dashes. (Translucent pink boxes
-       * used to stand in for this, and read as stains.) */
-      var pr = PC.RNG((t.seed || 1) * 97);
-      for (j = pr.int(20, 60); j < w; j += pr.int(120, 220)) {
-        var pw = pr.int(16, 30), py = y + pr.int(30, 40);
-        Art.ellipse(ctx, x0 + j, py, pw / 2, 2.4, C.shade(slab, -0.32));
-        Art.rect(ctx, x0 + j - pw / 2 + 4, py - 1, pw - 8, 1, C.shade(slab, -0.45));
-        Art.rect(ctx, x0 + j - 4, py, 3, 1, t.neon || '#ff5fa8');
-        Art.rect(ctx, x0 + j + 2, py + 1, 4, 1, C.mix(t.neon || '#ff5fa8', slab, 0.5));
-      }
+    Art.rect(ctx,x0,y,w,2,C.shade(slab,0.2));
+    Art.rect(ctx,x0,y+h-7,w,2,t.polish?'#a4895b':'#38465d');
+    Art.rect(ctx,x0,y+h-5,w,5,'#101a2a');
+    // Drain gratings provide scale without a whole screen of noisy bricks.
+    if(!t.polish) for(var drain=88;drain<w;drain+=260) {
+      Art.rect(ctx,x0+drain,y+h-12,25,5,'#121d2c');
+      for(var sl=0;sl<7;sl++) Art.rect(ctx,x0+drain+sl*3+2,y+h-11,1,3,'#445168');
     }
   };
 
@@ -687,14 +780,14 @@
     var c = Art.mk(width, PC.FIELD_BOT - PC.FIELD_Y);
     var x = c.getContext('2d');
     var r = PC.RNG(theme.seed || 1);
-    var pos = 0, guard = 0;
+    var pos = 0, guard = 0, sequenceIndex = 0;
     var seq = theme.modules;
     var forced = (theme.landmarks || []).slice();
     var marks = [];                  // where each module actually landed
     while (pos < width && guard++ < 400) {
       var name = null;
       if (forced.length && pos >= forced[0][0]) name = forced.shift()[1];
-      if (!name) name = r.pick(seq);
+      if (!name) name = theme.sequence ? theme.sequence[sequenceIndex++ % theme.sequence.length] : r.pick(seq);
       var m = MOD[name];
       if (!m) continue;
       if (pos + m.w > width) { m = MOD[theme.filler || 'wall']; name = theme.filler || 'wall'; }
@@ -733,33 +826,36 @@
   City.THEMES = {
     alley: {
       seed: 11,
-      brick: '#7a3a2c', floor: '#6e6a66', road: '#33302e',
+      brick: '#343146', floor: '#27374b', road: '#142030', wet: true,
       sky: ['#0a0a1e', '#241634'], tower: '#181430', lit: '#e8a63a',
-      neon: '#ff8a3a', neon2: '#ffd23a', signTop: 'PAWN', signBot: 'OPEN 24H',
+      neon: '#e86b9d', neon2: '#62c7da', signTop: 'PAWN', signBot: 'OPEN 24H',
       tag: 'SLUM', tagColor: '#e05a3a', fence: '#4a5a7a',
       modules: ['wall', 'windows', 'escape', 'pipe', 'poster', 'crates', 'door', 'alley', 'windows', 'escape'],
-      landmarks: [[130, 'escape'], [420, 'alley'], [700, 'neon']],
-      ambient: { kind: 'mote', rate: 0.5 }
+      sequence: ['arcade', 'alley', 'video', 'escape', 'diner', 'alley', 'arcade', 'pipe', 'video'],
+      landmarks: [],
+      ambient: { kind: 'rain', rate: 0.65 }
     },
     downtown: {
       seed: 22,
-      brick: '#2f8c8c', floor: '#9aa0ac', road: '#3a3f4c', wet: true,
+      brick: '#243c4b', floor: '#263549', road: '#182333', wet: true,
       sky: ['#050a24', '#101a4a'], tower: '#0e1430', lit: '#f0c840',
       neon: '#ff5fa8', neon2: '#ffd23a', signTop: 'BAR', signBot: 'STARLIGHT', signStar: true,
       tag: 'POWER CITY', tagColor: '#e83cc0', fence: '#3a5fd8',
       modules: ['wall', 'windows', 'door', 'fence', 'shutter', 'neon', 'pipe', 'poster', 'windows'],
-      landmarks: [[60, 'neon'], [180, 'fence'], [330, 'shutter'], [620, 'fence'], [900, 'neon']],
+      sequence: ['club', 'subway', 'shutter', 'diner', 'alley', 'club', 'video', 'subway'],
+      landmarks: [],
       ambient: { kind: 'rain', rate: 0.9 }
     },
     docks: {
       seed: 33,
-      brick: '#4a5566', floor: '#7a6a52', road: '#2a3a48',
+      brick: '#2d424d', floor: '#344b53', road: '#1b303e',
       sky: ['#040a18', '#0e2a3c'], tower: '#0a1424', lit: '#7fd8f0', moon: [120, 26], water: '#123044',
       neon: '#3ad8c8', neon2: '#f0f0a0', signTop: 'DOCK', signBot: 'NO ENTRY',
       tag: 'JAWS', tagColor: '#f0a030', fence: '#5f7a8a',
       metal: '#5a6472', rust: '#6a4630', planks: true,
       modules: ['container', 'crates', 'metalWall', 'container', 'crane', 'fence', 'metalWall', 'container'],
-      landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']],
+      sequence: ['crane', 'loading', 'container', 'fence', 'crane', 'loading', 'container'],
+      landmarks: [],
       ambient: { kind: 'rain', rate: 3.2 }
     },
     tower: {
@@ -769,7 +865,8 @@
       neon: '#c8203a', neon2: '#ffffff',
       tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
       modules: ['pane', 'column', 'pane', 'pane', 'column', 'marble', 'column', 'pane', 'pane'],
-      landmarks: [[16, 'elevator'], [600, 'portrait'], [1180, 'portrait'], [1640, 'logo']],
+      sequence: ['elevator', 'pane', 'column', 'pane', 'portrait', 'pane', 'column', 'logo'],
+      landmarks: [],
       filler: 'column', front: 'penthouse',
       ambient: { kind: 'mote', rate: 0.35 }
     }

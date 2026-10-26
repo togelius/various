@@ -22,8 +22,7 @@
       var a = this.actors[i];
       if (a.team === 1 && !a.removed && !a.dead) alive++;
     }
-    if (alive >= 4) n++;
-    if (PC.stage && PC.stage.index >= 2) n++;
+    if (PC.stage && PC.stage.index >= 2 && alive >= 4) n++;
     if (PC.game && PC.game.livePlayerCount && PC.game.livePlayerCount() > 1) n++;
     return n;
   };
@@ -47,15 +46,15 @@
 
   // ------------------------------------------------------------ enemy moves
   var EM = PC.ENEMY_MOVES = {
-    jab: { pose: 'jab', wind: 'windPunch', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
-    hook: { pose: 'hook', wind: 'windPunch', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', wind: 'chamber', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
+    jab: { pose: 'jab', wind: 'windPunch', startup: 19, active: 4, recovery: 20, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
+    hook: { pose: 'hook', wind: 'windPunch', startup: 24, active: 4, recovery: 24, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
+    kick: { pose: 'kick', wind: 'chamber', startup: 22, active: 4, recovery: 24, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', wind: 'windOver', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    batSwing: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 30, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', wind: 'windPunch', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
-    slam: { pose: 'hook', wind: 'windOver', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
-    charge: { pose: 'knee', wind: 'windCharge', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
-    pound: { pose: 'upper', wind: 'windOver', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
+    slam: { pose: 'hook', wind: 'windOver', startup: 32, active: 5, recovery: 34, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
+    charge: { pose: 'knee', wind: 'windCharge', startup: 32, active: 24, recovery: 36, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2, dash: true },
+    pound: { pose: 'upper', wind: 'windOver', startup: 36, active: 8, recovery: 38, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
     chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
     upper: { pose: 'upper', wind: 'crouch', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
     spin: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
@@ -65,7 +64,7 @@
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
       char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32, dodge: 0.25
+      moves: ['jab', 'hook'], aggr: 0.82, downTime: 32, dodge: 0.25
     },
     rough: {
       char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
@@ -87,12 +86,12 @@
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 20, mass: 3.4,
-      armor: 2, knockRes: 0.7, boss: true, downTime: 36,
+      char: 'boss_crusher', hp: 150, speed: 1.1, score: 5000, standoff: 20, mass: 3.4,
+      armor: 0, knockRes: 0.45, boss: true, downTime: 36,
       moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
       phases: [
-        { at: 0.55, speedMul: 1.2, addMoves: ['charge'], name: 'CRUSHER SEES RED' },
-        { at: 0.25, speedMul: 1.25, aggrMul: 1.2, addMoves: ['pound'], name: 'CRUSHER SEES RED' }
+        { at: 0.55, speedMul: 1.2, addMoves: ['charge'], name: 'STEP ASIDE WHEN HE CHARGES' },
+        { at: 0.25, speedMul: 1.25, aggrMul: 1.2, addMoves: ['pound'], name: 'STEP ASIDE WHEN HE CHARGES' }
       ]
     },
     viper: {
@@ -265,7 +264,7 @@
     if (--this.think <= 0) this.decide(p, adx, dy);
 
     var t = this.T;
-    var standoff = t.standoff;
+    var standoff = t.standoff * this.scale;
     var speed = this.speed;
     /* Arriving: off-screen thugs come on at a run and slow to a stalk once
      * they are in the fight. Walking in at fighting pace was seconds of
@@ -287,7 +286,7 @@
         this.vx = mx * speed;
         this.vy = my * speed * 0.66;
         this.setState((mx || my) ? 'walk' : 'idle');
-        if (adx < standoff + 6 && Math.abs(dy) < 11) this.tryAttack(p, adx);
+        if (adx < standoff + 6 && Math.abs(dy) < 16) this.tryAttack(p, adx);
         break;
       }
       case 'wait': {
@@ -348,7 +347,7 @@
   Enemy.prototype.decide = function (p, adx, dy) {
     var t = this.T, r = PC.rand;
     this.think = r.int(14, 32);
-    this.lane = r.range(-13, 13);
+    this.lane = r.range(-9, 9);
 
     if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 50; return; }
     if (t.thrower && this.weapon && r.chance(t.thrower) && adx > 40 && adx < 150) {
@@ -370,7 +369,7 @@
     /* The gang presses: approach is the default, a short shuffle the rest of
      * the time. Nobody orbits a fight for half a minute again. */
     if (r.chance(this.aggr)) this.intent = 'approach';
-    else this.intent = r.chance(0.25) ? 'flank' : 'wait';
+    else this.intent = 'wait';
   };
 
   Enemy.prototype.tryAttack = function (p, adx) {
@@ -382,7 +381,7 @@
     var name = PC.rand.pick(this.T.moves);
     var mv = EM[name];
     if (!mv) return;
-    if (adx > (mv.reach[1] - 4)) return;
+    if (adx > (mv.reach[1] - 4) * this.scale) return;
     if (!W.claimToken(this)) return;
     this.startAttack(mv);
     this.atkCool = PC.rand.int(8, 22);

@@ -9,19 +9,19 @@
   var PC = global.PC || (global.PC = {});
 
   // ------------------------------------------------------------- screen box
-  PC.W = 384;
-  PC.H = 288;
+  PC.W = 480;
+  PC.H = 270;
   PC.FPS = 60;
   PC.DT = 1 / 60;
 
   /* The cabinet layout. A beat 'em up is a shallow diorama: a backdrop, a
    * band of floor you can walk in, and arcade furniture stacked above and
    * below it. Everything else in the game measures itself against these. */
-  PC.HUD_TOP = 64;          // black band at the top ends here
-  PC.FIELD_Y = 64;          // backdrop starts
-  PC.FIELD_BOT = 256;       // backdrop ends / bottom bar starts
-  PC.FLOOR_TOP = 196;       // nearest-to-the-wall footline
-  PC.FLOOR_BOT = 246;       // nearest-to-the-camera footline
+  PC.HUD_TOP = 34;          // black band at the top ends here
+  PC.FIELD_Y = 34;          // backdrop starts
+  PC.FIELD_BOT = 252;       // backdrop ends / bottom bar starts
+  PC.FLOOR_TOP = 166;       // nearest-to-the-wall footline
+  PC.FLOOR_BOT = 240;       // nearest-to-the-camera footline
   PC.FLOOR_H = PC.FLOOR_BOT - PC.FLOOR_TOP;
 
   // ------------------------------------------------------------------- math
@@ -114,7 +114,7 @@
         if (self._interesting(e.code)) e.preventDefault();
         self._down[e.code] = false;
       });
-      global.addEventListener('blur', function () { self._down = {}; });
+      global.addEventListener('blur', function () { self._down = {}; self._edge = {}; self._latch = {}; });
     },
 
     _interesting: function (code) {
@@ -223,7 +223,8 @@
 
     resize: function () {
       var host = document.getElementById('stage');
-      var maxW = global.innerWidth, maxH = global.innerHeight - 54;
+      var maxW = global.innerWidth - 28, maxH = global.innerHeight - 60;
+      if (global.matchMedia && global.matchMedia('(pointer: coarse)').matches) maxH -= global.innerHeight > global.innerWidth ? 210 : 40;
       if (host) {
         var r = host.getBoundingClientRect();
         if (r.width > 40 && r.height > 40) { maxW = r.width; maxH = r.height; }

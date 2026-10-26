@@ -381,17 +381,17 @@
 
 <div class="arcade">
   <div class="marquee">
-    <span class="plate">Coin-Op</span>
+    <span class="plate">Free Play</span>
     <canvas id="wordmark" width="10" height="10" aria-label="POWER CITY"></canvas>
     <span class="plate right">2 Players</span>
   </div>
 
   <div id="stage">
     <div id="cabinet" tabindex="0">
-      <canvas id="screen" width="384" height="288"></canvas>
+      <canvas id="screen" width="480" height="270"></canvas>
       <div id="veil">
         <span class="big">Click to play</span>
-        <span class="sub">One click drops a coin and starts the game. Sound is on.</span>
+        <span class="sub">Hold Attack to brawl. Breakout clears a crowd.</span>
       </div>
     </div>
   </div>
@@ -408,8 +408,8 @@
     </div>
 
     <div class="cluster">
-      <button type="button" class="cap p" data-act="punch"><b>Z</b>PUNCH</button>
-      <button type="button" class="cap k" data-act="kick"><b>X</b>KICK</button>
+      <button type="button" class="cap p" data-act="punch"><b>Z</b>ATTACK</button>
+      <button type="button" class="cap k" data-act="kick"><b>X</b>BREAKOUT</button>
       <button type="button" class="cap j" data-act="jump"><b>C</b>JUMP</button>
     </div>
 
@@ -429,15 +429,13 @@
   </p>
 
   <p class="keys">
-    <i><b>Punch &times;3</b> knocks down</i>
-    <i><b>Punch+Kick</b> spin kick</i>
-    <i><b>Up+Punch</b> uppercut</i>
-    <i><b>Double-tap</b> to run</i>
-    <i>Walk in close and <b>punch</b> to grab, <b>kick</b> to throw</i>
+    <i><b>Hold Z / J</b> combo, pick up, throw</i>
+    <i><b>X / K</b> Breakout when charged</i>
+    <i><b>Space / C</b> flying kick</i>
     <i><b>2</b> joins player two</i>
     <i><b>Esc</b> pause</i>
     <i><b>M</b> mute</i>
-    <i>gamepads work</i>
+    <i>Gamepads supported</i>
   </p>
 
   <p class="colophon">
@@ -456,8 +454,8 @@
   </div>
   <div class="pad right">
     <button data-act="jump" class="c">JUMP</button>
-    <button data-act="kick" class="b">KICK</button>
-    <button data-act="punch" class="a">PUNCH</button>
+    <button data-act="kick" class="b">BREAKOUT</button>
+    <button data-act="punch" class="a">ATTACK</button>
     <button id="touch-start" class="small">START</button>
   </div>
 </div>

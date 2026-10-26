@@ -13,21 +13,21 @@
 
   // -------------------------------------------------------------- the heroes
   Rig.def('hero1', {
-    name: 'DUKE', vest: true, hair: 'flat',
+    name: 'DUKE', vest: true, jacket: true, gloves: '#eb5076', band: '#ed5076', hair: 'flat', bulk: 1.06,
     pal: pal({
       skin: '#f4b183', skinD: '#c07a4e', hair: '#1b1b30', eye: '#141422',
-      shirt: '#eef1f8', shirtD: '#b3b9cc',
-      pants: '#2f52d8', pantsD: '#1c327f', trim: '#16224a',
+      shirt: '#318cb0', shirtD: '#194b78',
+      pants: '#303f69', pantsD: '#18243f', trim: '#e5e6cd',
       shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
     })
   });
 
   Rig.def('hero2', {
-    name: 'REY', vest: true, hair: 'flat',
+    name: 'REY', vest: true, jacket: true, gloves: '#5fe1db', band: '#60d4cd', hair: 'pony',
     pal: pal({
-      skin: '#f4b183', skinD: '#c07a4e', hair: '#3c2412', eye: '#141422',
-      shirt: '#eef1f8', shirtD: '#b3b9cc',
-      pants: '#d33a2c', pantsD: '#8c1f18', trim: '#4a1410',
+      skin: '#b98161', skinD: '#77464b', hair: '#241c31', eye: '#141422',
+      shirt: '#e8637d', shirtD: '#953958',
+      pants: '#343d59', pantsD: '#20283e', trim: '#f2dab4',
       shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
     })
   });
@@ -35,11 +35,11 @@
   // --------------------------------------------------------------- the gang
   Rig.def('punk', {
     scowl: true,
-    name: 'HOOD', hair: 'flat',
+    name: 'HOOD', hair: 'cap', sleeves: true, bulk: 0.88,
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#e2622a', eye: '#141422',
-      shirt: '#23232e', shirtD: '#141420',
-      pants: '#e2422a', pantsD: '#992414', trim: '#5c1a10',
+      shirt: '#ce8c3f', shirtD: '#7e493b',
+      pants: '#3c3146', pantsD: '#241f32', trim: '#f1c476',
       shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
     })
   });

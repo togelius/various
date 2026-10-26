@@ -24,54 +24,49 @@
    * block drops where there is no fight. */
   PC.STAGES = [
     {
-      name: 'SLUM ALLEY', theme: 'alley', length: 1650, time: 99, music: 'stage1',
-      intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
-      litter: [['pickup', 'coin', 380], ['pickup', 'heart', 430], ['prop', 'trash', 660], ['pickup', 'coin', 1100]],
+      name: 'NEON ROW', theme: 'alley', length: 1080, time: 99, music: 'stage1',
+      intro: 'MIDNIGHT. YOUR BROTHER IS IN THE TOWER.',
+      litter: [['pickup', 'coin', 290], ['pickup', 'heart', 535], ['prop', 'trash', 790]],
       encounters: [
-        enc(230, [['punk', 2, 1, 0], ['punk', 1, -1, 90]], { items: [['prop', 'trash', 30]] }),
-        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
-        enc(880, [['batter', 1, 1, 0], ['punk', 2, -1, 60], ['punk', 1, 1, 90, 2]], { items: [['weapon', 'bat', 40]] }),
-        enc(1230, [['rough', 2, 1, 0], ['punk', 1, -1, 30]], { noLock: true }),
-        enc(1560, [['punk', 2, 1, 0], ['punk', 1, -1, 200, 1]], { boss: 'crusher', bossDelay: 150, items: [['prop', 'trash', 80]] })
+        enc(100, [['punk', 1, 1, 0]], { lesson: true, coach: 'HOLD Z / J TO BRAWL. KEEP IT SIMPLE.' }),
+        enc(340, [['punk', 2, 1, 0], ['rough', 1, 1, 110, 1]],
+          { coach: 'SPACE / C: FLYING KICK', items: [['weapon', 'bat', 0]] }),
+        enc(620, [['punk', 2, 1, 0], ['punk', 1, -1, 90], ['batter', 1, 1, 110, 1]],
+          { coach: 'SURROUNDED? X / K TO BREAK OUT.', items: [['prop', 'crate', 0]] }),
+        enc(950, [], { boss: 'crusher', bossDelay: 35, items: [['pickup', 'heart', 0]] })
       ]
     },
     {
-      name: 'DOWNTOWN', theme: 'downtown', length: 1790, time: 99, music: 'stage2',
-      intro: 'THEY RUN THIS BLOCK OUT OF THE OLD BAR.',
-      litter: [['prop', 'trash', 300], ['pickup', 'coin', 700], ['pickup', 'heart', 760], ['pickup', 'coin', 1150]],
+      name: 'STARLIGHT STRIP', theme: 'downtown', length: 1230, time: 99, music: 'stage2',
+      intro: 'THE STARLIGHT CREW KNOWS THE WAY IN.',
+      litter: [['pickup', 'coin', 300], ['pickup', 'heart', 600], ['prop', 'trash', 900]],
       encounters: [
-        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60], ['rough', 1, -1, 50, 2]]),
-        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70], ['knifer', 1, 1, 80, 2]], { items: [['prop', 'trash', 70], ['prop', 'drum', 150]] }),
-        enc(740, [['rough', 1, 1, 0], ['punk', 1, -1, 40]], { noLock: true }),
-        enc(900, [['batter', 2, 1, 0], ['rough', 1, -1, 80], ['punk', 2, 1, 100, 2]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
-        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90], ['knifer', 1, 1, 120, 2]], { items: [['prop', 'crate', 60]] }),
-        enc(1660, [['rough', 1, 1, 0], ['batter', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 120, items: [['prop', 'trash', 100], ['prop', 'trash', 180]] })
+        enc(160, [['rough', 2, 1, 0], ['punk', 1, -1, 100]], { coach: 'FINISH THE COMBO TO BREAK A GUARD.' }),
+        enc(440, [['knifer', 1, 1, 0], ['punk', 2, 1, 55], ['rough', 1, -1, 110, 1]], { items: [['prop', 'drum', 0]] }),
+        enc(760, [['batter', 2, 1, 0], ['punk', 2, -1, 110, 2]], { items: [['weapon', 'pipe', 0], ['pickup', 'heart', 80]] }),
+        enc(1100, [['punk', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 50 })
       ]
     },
     {
-      name: 'THE DOCKS', theme: 'docks', length: 1890, time: 99, music: 'stage3',
-      intro: 'CONTAINER SIX. THE ONE WITH THE LIGHT ON.',
-      litter: [['pickup', 'heart', 820], ['pickup', 'coin', 860], ['prop', 'trash', 1180], ['pickup', 'coin', 1220]],
+      name: 'DEAD END DOCKS', theme: 'docks', length: 1280, time: 99, music: 'stage3',
+      intro: 'THE LAST SHIPMENT LEAVES TONIGHT.',
+      litter: [['pickup', 'heart', 360], ['pickup', 'coin', 700], ['prop', 'trash', 980]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50], ['punk', 1, 1, 60, 2]]),
-        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60], ['punk', 2, 1, 90, 2]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
-        enc(800, [['punk', 2, 1, 0]], { noLock: true }),
-        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70], ['rough', 2, 1, 120, 1]], { items: [['weapon', 'bat', 50]] }),
-        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110], ['batter', 1, 1, 140, 2]], { items: [['pickup', 'heart', 140]] }),
-        enc(1760, [['punk', 2, -1, 0], ['punk', 2, 1, 150, 1]], { boss: 'jaws', bossDelay: 110, items: [['prop', 'drum', 90]] })
+        enc(150, [['brute', 1, 1, 0], ['punk', 2, -1, 100]], { coach: 'ORANGE WIND-UP? HIT FIRST OR STEP ASIDE.' }),
+        enc(440, [['batter', 2, 1, 0], ['knifer', 1, -1, 80], ['punk', 1, 1, 140, 1]], { items: [['prop', 'drum', 0], ['prop', 'crate', 60]] }),
+        enc(780, [['brute', 1, 1, 0], ['rough', 2, -1, 80], ['knifer', 1, 1, 120, 1]], { items: [['weapon', 'bat', 0], ['pickup', 'heart', 70]] }),
+        enc(1150, [['punk', 1, -1, 220, 1]], { boss: 'jaws', bossDelay: 45, items: [['prop', 'drum', 0]] })
       ]
     },
     {
-      name: 'POWER TOWER', theme: 'tower', length: 1730, time: 99, music: 'stage4',
-      intro: 'TOP FLOOR. HE IS EXPECTING YOU.',
-      litter: [['pickup', 'coin', 300], ['prop', 'trash', 340], ['pickup', 'heart', 720], ['pickup', 'coin', 760]],
+      name: 'POWER TOWER', theme: 'tower', length: 1240, time: 99, music: 'stage4',
+      intro: 'TOP FLOOR. TIME TO TAKE YOUR CITY BACK.',
+      litter: [['pickup', 'coin', 320], ['pickup', 'heart', 650], ['pickup', 'heart', 990]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100], ['punk', 1, 1, 130, 2]]),
-        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70], ['punk', 2, 1, 110, 2]], { items: [['weapon', 'pipe', 40]] }),
-        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130], ['punk', 2, -1, 150, 2]], { items: [['prop', 'crate', 50], ['prop', 'drum', 120], ['pickup', 'heart', 150]] }),
-        enc(1120, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]], { noLock: true }),
-        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100], ['batter', 1, 1, 140, 2]], { items: [['prop', 'trash', 60], ['prop', 'trash', 140]] }),
-        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 280]] })
+        enc(160, [['rough', 2, 1, 0], ['batter', 1, -1, 90], ['punk', 1, 1, 110, 1]], { items: [['weapon', 'pipe', 0]] }),
+        enc(460, [['brute', 1, 1, 0], ['knifer', 2, -1, 80], ['rough', 1, 1, 140, 1]], { items: [['prop', 'crate', 0]] }),
+        enc(780, [['batter', 2, 1, 0], ['rough', 2, -1, 90], ['punk', 2, 1, 130, 1]], { items: [['prop', 'drum', 0], ['pickup', 'heart', 140]] }),
+        enc(1120, [], { boss: 'power', bossDelay: 40 })
       ]
     }
   ];
@@ -120,12 +115,13 @@
           PC.items.spawn(lt[0], lt[1], lt[2], PC.rand.range(PC.FLOOR_TOP + 8, PC.FLOOR_BOT - 4));
         }
       }
-      this.finishT = 0;
+      this.finishT = 0; this.coachT = 0; this.coach = null;
     },
 
     // ---- encounters
     startEncounter: function (e) {
       this.active = e;
+      this.coach = e.coach || null; this.coachT = e.coach ? 300 : 0;
       /* A `noLock` fight chases you down the street without closing it;
       * the arena fights lock the camera and turn the street into a ring. */
       this.locked = !e.noLock;
@@ -174,7 +170,12 @@
       var side = s.side || (PC.rand.chance(0.5) ? 1 : -1);
       var ex = side > 0 ? W.camX + PC.W + PC.rand.range(6, 24) : W.camX - PC.rand.range(10, 26);
       ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
-      var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
+      var ey = PC.rand.range(PC.FLOOR_TOP + 12, PC.FLOOR_BOT - 6);
+      if (this.active && this.active.lesson) {
+        ex = W.camX + 330;
+        var learner = W.livePlayers()[0];
+        if (learner) ey = learner.y;
+      }
       var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1, players: 1 };
       // Bosses are already sized for the stage they guard; only the gang
       // scales with how far you have come.
@@ -241,26 +242,11 @@
       var i;
 
       this.weather();
+      if (this.coachT > 0) this.coachT--;
 
-      // ---- countdown
-      if (!this.cleared) {
-        if (++this.timeT >= 76) {
-          this.timeT = 0;
-          this.timeLeft--;
-          if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
-          if (this.timeLeft <= 0) {
-            /* Out of clock: not a death sentence, a siren. Health drains
-             * until the street is clear or you are. */
-            this.timeLeft = 0;
-            if (!this.alarmed) {
-              this.alarmed = true;
-              this.alarmT = 0;
-              FX.flash('#ff2020', 8);
-            }
-            if (PC.game) PC.game.clockDrain();
-            if (this.alarmed && ++this.alarmT >= 6 && PC.audio) { this.alarmT = 0; PC.audio.sfx('alarm'); }
-          }
-        }
+      // The clock pays a speed bonus. It never takes health or interrupts a fight.
+      if (!this.cleared && this.timeLeft > 0 && ++this.timeT >= 60) {
+        this.timeT = 0; this.timeLeft--;
       }
 
       // ---- spawn queue. Reinforcements (a `fewer` threshold) hold until the
@@ -272,10 +258,10 @@
           var q = this.pending[i];
           var due = this.encT >= q.t &&
             (q.fewer === undefined || q.fewer === null || alive <= q.fewer);
-          if (due) {
+          if (due && (q.item || alive < (PC.game.livePlayerCount() > 1 ? 5 : 4))) {
             this.spawnOne(q);
             this.pending.splice(i, 1);
-            alive++;
+            if (!q.item) alive++;
           }
         }
         if (!this.pending.length && !W.enemies().length) {
@@ -283,6 +269,10 @@
           this.locked = false;
           this.bossActive = null;
           this.arrowT = 1;
+          var survivors = W.livePlayers();
+          for (var si = 0; si < survivors.length; si++) {
+            survivors[si].hp = Math.min(survivors[si].maxHp, survivors[si].hp + 6);
+          }
           /* Clearing a fight buys the clock back: the timer is there to keep
            * you moving, not to execute you mid-boss. */
           if (this.alarmed) { this.alarmed = false; if (PC.audio) PC.audio.sfx('heal'); }
@@ -333,7 +323,7 @@
     },
 
     atEnd: function () {
-      return this.cleared && W.camX >= this.def.length - 6;
+      return this.cleared;
     },
 
     // ------------------------------------------------------------- rendering

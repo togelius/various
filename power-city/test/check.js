@@ -110,7 +110,7 @@ Object.keys(PC.rig.CHARS).forEach(function (k) {
   PAL_KEYS.forEach(function (pk) {
     ok(typeof c.pal[pk] === 'string' && /^#[0-9a-f]{6}$/i.test(c.pal[pk]), k + ' palette has a valid ' + pk);
   });
-  ok(c.scale > 0.5 && c.scale < 2, k + ' is a plausible size');
+  ok(c.scale > 1 && c.scale < 2.5, k + ' is a plausible size');
 });
 Object.keys(PC.weapons).forEach(function (k) {
   var w = PC.weapons[k];
@@ -165,7 +165,7 @@ PC.STAGES.forEach(function (s, si) {
   var label = 'stage ' + (si + 1);
   ok(!!PC.city.THEMES[s.theme], label + ' has a theme that exists');
   ok(!!PC.songs[s.music], label + ' has a song that exists');
-  ok(s.length > PC.W * 3, label + ' is longer than three screens');
+  ok(s.length > PC.W && s.length < PC.W * 5, label + ' is a compact arcade stage');
   ok(s.time > 0 && s.time < 100, label + ' has a two-digit clock');
   ok(typeof s.intro === 'string' && s.intro.length > 0, label + ' has an intro line');
   var last = -1, sawBoss = false;
@@ -245,7 +245,7 @@ Object.keys(PC.songs).forEach(function (name) {
 section('layout');
 ok(PC.FLOOR_TOP > PC.FIELD_Y && PC.FLOOR_BOT < PC.FIELD_BOT, 'the walkable floor is inside the field');
 ok(PC.FLOOR_BOT - PC.FLOOR_TOP >= 40, 'there is room to move in depth');
-ok(PC.H - PC.FIELD_BOT >= 24, 'the bottom bar fits the health bars');
+ok(PC.HUD_TOP <= 36 && PC.H - PC.FIELD_BOT >= 16, 'compact HUD leaves most of the frame to the game');
 
 console.log('\n' + (fails ? fails + ' FAILED of ' : 'all ') + checks + ' checks' + (fails ? '' : ' passed'));
 process.exit(fails ? 1 : 0);

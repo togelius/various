@@ -91,7 +91,7 @@
       for (var i = 0; i < W.actors.length; i++) {
         var a = W.actors[i];
         if (a.team !== 0 || a.dead || a.removed || a.state === 'held') continue;
-        if (Math.abs(a.x - it.x) > 11 || Math.abs(a.y - it.y) > 8 || a.z > 10) continue;
+        if (Math.abs(a.x - it.x) > 19 || Math.abs(a.y - it.y) > 15 || a.z > 10) continue;
         if (d.heal && a.hp >= a.maxHp) continue;   // food waits for the hurt
         this.consume(a, it);
         return;
@@ -119,7 +119,7 @@
       it.thrower = a;
       it.x = a.x + a.facing * 10;
       it.y = a.y;
-      it.z = a.carry ? 26 : 20;
+      it.z = (a.carry ? 32 : 24) * a.scale;
       if (a.carry) { it.vx = a.facing * 4.2; it.vz = 0.8; it.spinV = a.facing * 0.22; }
       else { it.vx = a.facing * 5.4; it.vz = 0.15; it.spinV = a.facing * 0.5; }
       it.dmg = (a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4)) * (a.dmgOut || 1);
@@ -251,6 +251,7 @@
       ctx.translate(Math.round(hx), Math.round(hy));
       if (a.facing < 0) ctx.scale(-1, 1);
       ctx.rotate(ang);
+      ctx.scale(a.scale, a.scale);
       ctx.drawImage(def.canvas, -def.grip[0] - 1, -def.grip[1] - 1);
       ctx.restore();
     },

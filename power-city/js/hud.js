@@ -50,6 +50,13 @@
    * has turned hostile. */
   Hud.drawAlerts = function (ctx, g) {
     var camX = W.camX;
+    var stage = PC.stage;
+    if (stage.coachT > 0 && stage.coach && !stage.bossBanner) {
+      var cw = Art.textWidth(stage.coach, 1, 1) + 20;
+      Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, cw, 19, '#101a2a');
+      Art.rect(ctx, (PC.W - cw) / 2, PC.FIELD_Y + 7, 3, 19, '#ffe57a');
+      Art.text(ctx, stage.coach, PC.W / 2, PC.FIELD_Y + 13, '#fff1c9', { align: 'center' });
+    }
 
     // off-screen gang, marked with a chevron at the edge they will enter by
     var es = W.enemies();
@@ -95,75 +102,41 @@
     }
   };
 
-  // ------------------------------------------------------------------ top bar
+  // Compact health and escape meters sit together, close to the fight.
   Hud.drawTop = function (ctx, g) {
-    Art.rect(ctx, 0, 0, PC.W, PC.HUD_TOP, '#000000');
-    var mid = PC.W / 2;
-    var p1 = g.player(0), p2 = g.player(1);
-
-    Art.text(ctx, '1UP', 14, 5, p1 && !p1.dead ? '#ffffff' : '#8a8a9c');
-    Art.text(ctx, PC.pad(g.scores[0], 6), 14, 14, '#ffffff');
-
-    Art.text(ctx, 'HI-SCORE', mid, 5, '#ffe070', { align: 'center' });
-    Art.text(ctx, PC.pad(g.hiScore, 6), mid, 14, '#ffffff', { align: 'center' });
-
-    Art.text(ctx, '2UP', PC.W - 14, 5, p2 ? '#ffffff' : '#8a8a9c', { align: 'right' });
-    if (p2) Art.text(ctx, PC.pad(g.scores[1], 6), PC.W - 14, 14, '#ffffff', { align: 'right' });
-    else {
-      Art.text(ctx, '000000', PC.W - 14, 14, '#5a6070', { align: 'right' });
-      if ((W.time >> 5) % 2) Art.text(ctx, 'INSERT COIN', PC.W - 14, 26, '#4aa8ff', { align: 'right' });
-    }
-
-    // lives, as a row of heads
-    if (p1) {
-      var ic = Hud.icon(p1.char);
-      for (var i = 0; i < Math.min(5, g.lives[0]); i++) ctx.drawImage(ic, 13 + i * 13, 22);
-      if (g.lives[0] > 5) Art.text(ctx, 'X' + g.lives[0], 13, 24, '#ffffff');
-    }
-    if (p2) {
-      var ic2 = Hud.icon(p2.char);
-      for (var j = 0; j < Math.min(5, g.lives[1]); j++) {
-        ctx.drawImage(ic2, PC.W - 24 - j * 13, 22);
+    Art.rect(ctx, 0, 0, PC.W, PC.HUD_TOP, '#0a101e');
+    Art.rect(ctx, 0, PC.HUD_TOP - 1, PC.W, 1, '#40506a');
+    var cols = ['#55d8ed', '#ff6682'];
+    for (var i = 0; i < 2; i++) {
+      var p = g.player(i), x = i ? PC.W - 153 : 10;
+      if (!p) {
+        if (i) {
+          Art.text(ctx, '2 / PAD 2: JOIN', x + 138, 8, '#8495b1', { align: 'right' });
+          Art.text(ctx, 'BRING A FRIEND', x + 138, 20, '#526078', { align: 'right' });
+        }
+        continue;
       }
+      Art.text(ctx, p.name, x, 4, cols[i]);
+      Art.text(ctx, 'x' + g.lives[i], x + 138, 4, '#fff1c9', { align: 'right' });
+      Hud.bar(ctx, x, 15, 140, 7, p.hp / p.maxHp, cols[i], '#252e41');
+      Art.rect(ctx, x, 26, 40, 3, '#25364a');
+      Art.rect(ctx, x, 26, Math.round(40 * p.power / 100), 3, p.power >= 100 ? '#ffe57a' : cols[i]);
+      Art.text(ctx, p.power >= 100 ? 'BREAKOUT READY' : 'RECHARGING', x + 45, 25,
+        p.powerHint > 0 ? '#ff866e' : p.power >= 100 ? '#ffe57a' : '#6f819e', { tracking: 0 });
     }
-
-    // clock
-    if (g.state === 'title') return;
-    var t = PC.stage.timeLeft;
-    Art.text(ctx, 'TIME', mid, 24, t <= 10 ? '#ff4a4a' : '#ff8a3a', { align: 'center' });
-    Art.text(ctx, PC.pad(t, 2), mid, 33, t <= 10 && (W.time >> 3) % 2 ? '#ff4a4a' : '#ffffff', { align: 'center' });
-
-    // where we are
-    if (PC.stage.def) {
-      Art.text(ctx, 'STAGE ' + (PC.stage.index + 1), mid, 45, '#4ae06a', { align: 'center' });
-      Art.text(ctx, PC.stage.def.name, mid, 54, '#ffffff', { align: 'center' });
-    }
+    Art.text(ctx, PC.pad(g.scores[0] + g.scores[1], 6), PC.W / 2, 5, '#fff1c9', { align: 'center' });
+    Art.text(ctx, 'BLOCK ' + (PC.stage.index + 1) + ' / 4', PC.W / 2, 17, '#8495b1', { align: 'center', tracking: 0 });
+    // The route is the objective, not an unexplained ticking threat.
+    for (var n = 0; n < 4; n++) Art.rect(ctx, PC.W / 2 - 20 + n * 12, 28, 8, 2,
+      n <= PC.stage.index ? '#ef638c' : '#354056');
   };
 
-  // --------------------------------------------------------------- bottom bar
   Hud.drawBottom = function (ctx, g) {
-    var y0 = PC.FIELD_BOT;
-    Art.rect(ctx, 0, y0, PC.W, PC.H - y0, '#000000');
-    var p1 = g.player(0), p2 = g.player(1);
-
-    Art.text(ctx, 'PLAYER', 12, y0 + 8, '#ffffff');
-    Hud.bar(ctx, 58, y0 + 6, 146, 10, p1 ? p1.hp / p1.maxHp : 0, '#2f6ef0');
-
-    if (p2) {
-      Art.text(ctx, 'PLAYER 2', 12, y0 + 21, '#ffffff');
-      Hud.bar(ctx, 58, y0 + 19, 146, 10, p2.hp / p2.maxHp, '#e04a3a');
-    } else if (g.state === 'play') {
-      if ((W.time >> 5) % 2) Art.text(ctx, 'PRESS 2 TO JOIN', 12, y0 + 21, '#4aa8ff');
-    }
-
-    Art.text(ctx, 'CREDIT ' + PC.pad(g.credits, 2), PC.W - 12, y0 + 21, '#ffffff', { align: 'right' });
-
-    // The weapon in your hands, named, so you know what you picked up.
-    if (p1 && p1.weapon) {
-      Art.text(ctx, PC.weapons[p1.weapon].label, PC.W - 12, y0 + 8, '#ffe070', { align: 'right' });
-    } else if (p1 && p1.carry) {
-      Art.text(ctx, p1.carry.key === 'drum' ? 'DRUM' : 'CRATE', PC.W - 12, y0 + 8, '#ffe070', { align: 'right' });
-    }
+    Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#0a101e');
+    Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, 1, '#40506a');
+    Art.text(ctx, 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    Art.text(ctx, 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
+    Art.text(ctx, 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
   };
 
   // ---------------------------------------------------------------- boss bar

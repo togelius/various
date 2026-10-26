@@ -1,3 +1,7 @@
+> Historical notes from the original control scheme. The Midnight Rescue
+> redesign supersedes the move list, pacing, HUD, and visual measurements below.
+> See README.md for the current game and checks.
+
 # POWER CITY — improvement plan
 
 ## What the agents found (baseline, before changes)

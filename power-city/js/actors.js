@@ -15,7 +15,7 @@
   var M = PC.math, Rig = PC.rig, FX = PC.fx;
 
   var GRAV = 0.30;
-  var DEPTH_TOL = 11;
+  var DEPTH_TOL = 16;
 
   // --------------------------------------------------------------- the world
   var W = PC.world = {
@@ -26,7 +26,8 @@
 
     reset: function () {
       this.actors.length = 0; this.items.length = 0; this.shots.length = 0;
-      this.camX = 0; this.hitstop = 0; this.time = 0;
+      this.camX = 0; this.hitstop = 0; this.slowmo = 0; this.time = 0;
+      if (this.tokenHolders) this.tokenHolders.length = 0;
       FX.reset();
     },
 
@@ -133,20 +134,20 @@
     this.atkT = 0;
     this.hitList = {};
     this.setState('attack');
-    this.vx = 0;
-    if (def.lunge) this.vx = this.facing * def.lunge;
+    this.vx = 0; this.vy = 0;
+
     if (def.sfx && PC.audio) PC.audio.sfx(def.sfx);
   };
 
   Actor.prototype.attackPose = function () {
     var d = this.atk;
     if (!d) return 'idle';
-    if (this.atkT < d.startup) return d.wind || d.pose;
+    if (this.atkT < d.startup) return d.wind || 'windPunch';
     if (this.atkT < d.startup + d.active) {
       if (d.poses) return d.poses[Math.floor((this.atkT - d.startup) / (d.frameT || 4)) % d.poses.length];
       return d.pose;
     }
-    return d.rec || d.pose;
+    return d.rec || (this.atkT < d.startup + d.active + 4 ? (d.pose || 'spin1') : 'idle');
   };
 
   // Where the fist/foot is right now, in world space - used for sparks.
@@ -155,7 +156,7 @@
     var reach = d.reach ? d.reach[1] : 18;
     var dir = d.back ? -this.facing : this.facing;
     return {
-      x: this.x + dir * (reach - 5),
+      x: this.x + dir * (reach - 5) * this.scale,
       y: this.y - this.z - (d.zhi !== undefined ? (d.zlo + d.zhi) / 2 : 22) * this.scale
     };
   };
@@ -173,7 +174,7 @@
     var d = this.atk;
     if (!d) return;
     if (this.atkT < d.startup || this.atkT >= d.startup + d.active) return;
-    var near = d.reach[0], far = d.reach[1];
+    var near = d.reach[0] * this.scale, far = d.reach[1] * this.scale;
     // `back` swings behind you (the elbow), `sweep` reaches both ways (the
     // spin kick); everything else comes out of the front.
     var dir = d.back ? -this.facing : this.facing;
@@ -260,7 +261,7 @@
     if (guarding && front && !h.knock && !h.gb && !h.counter) return 'block';
     var dmg = h.dmg * (this.dmgScale || 1);
     this.hp -= dmg;
-    this.flash = 5;
+    this.flash = 5; this.hpHint = 90;
     this.stunned = 0;
 
     if (h.from) this.lastHitBy = h.from;
@@ -399,6 +400,7 @@
   Actor.prototype.update = function () {
     var i;
     if (this.flash > 0) this.flash--;
+    if (this.hpHint > 0) this.hpHint--;
     if (this.poiseT > 0) this.poiseT--;
     /* A downed player is nobody's target. A long fall can outlast a shield
      * set at knockdown time, so the floor is maintained through the whole
@@ -419,8 +421,12 @@
     switch (this.state) {
       case 'attack':
         this.atkT++;
+        if (this.atk && this.atk.lunge) {
+          if (this.atkT < this.atk.startup) this.vx = 0;
+          else if (this.atkT === this.atk.startup || (this.atk.dash && this.atkT < this.atk.startup + this.atk.active)) this.vx = this.facing * this.atk.lunge;
+        }
         this.resolveHits();
-        this.vx *= 0.82;
+        this.vx *= this.atk && this.atk.dash && this.atkT < this.atk.startup + this.atk.active ? 1 : 0.82;
         this.vy *= 0.7;
         if (this.atk && this.atkT >= this.atk.startup + this.atk.active + this.atk.recovery) {
           var nxt = this.atk.chain;
@@ -611,6 +617,9 @@
     var sr = 8 * this.scale * (1 - Math.min(0.45, this.z / 90));
     PC.art.shadow(ctx, px, this.y, sr, 0.34 - Math.min(0.18, this.z / 260));
 
+    if (this.team === 0 && !this.dead) {
+      PC.art.rect(ctx, px - 9, this.y + 3, 18, 1, this.index ? '#ff6682' : '#65dce8');
+    }
     var flipped = this.facing < 0;
     if (this.flash > 0 && (this.flash % 2)) {
       Rig.draw(ctx, f, px, py, flipped, Rig.flash(this.char, this.pose(), '#ffffff'));
@@ -623,6 +632,10 @@
       Rig.draw(ctx, f, px, py, flipped);
     }
 
+    if (this.team === 1 && !this.isBoss && !this.dead && this.hpHint > 0) {
+      PC.art.rect(ctx, px - 11, this.y + 5, 22, 2, '#11192a');
+      PC.art.rect(ctx, px - 11, this.y + 5, Math.ceil(22 * this.hp / this.maxHp), 2, '#ec9b7e');
+    }
     if (this.weapon) PC.items.drawHeld(ctx, this, f, px, py);
     if (this.carry) PC.items.drawCarried(ctx, this, px, py);
     if (this.stunned > 0) this.drawStars(ctx, px, py);
@@ -634,6 +647,22 @@
       var a = this.anim * 0.11 + i * (Math.PI * 2 / n);
       var sx = px + Math.cos(a) * 9, sy = py - 44 * this.scale + Math.sin(a) * 3;
       PC.art.text(ctx, '★', sx - 2, sy, i % 2 ? '#ffe070' : '#ffffff');
+    }
+  };
+
+  W.drawThreats = function(ctx) {
+    for(var i=0;i<this.actors.length;i++) {
+      var a=this.actors[i], d=a.atk;
+      if(a.team!==1 || a.dead || a.state!=='attack' || !d || a.atkT>=d.startup) continue;
+      var x=a.x-this.camX, y=a.y, far=d.reach[1]*a.scale+(d.dash?d.active*d.lunge:0);
+      var f=a.atkT/d.startup, width=d.sweep?far*2:far;
+      var left=d.sweep?x-far:a.facing>0?x:x-far;
+      ctx.save(); ctx.globalAlpha=0.14+f*0.16;
+      PC.art.rect(ctx,left,y-14,width,28,'#ff9667');
+      ctx.globalAlpha=0.55+f*0.35;
+      PC.art.rect(ctx,left,y+13,width,1,f>0.75?'#ffe2a3':'#e99365');
+      ctx.restore();
+      PC.art.text(ctx,'!',x,y-a.hh-11,'#ffd68a',{align:'center',shadow:'#5b2839'});
     }
   };
 
@@ -655,6 +684,13 @@
          * because neither could get by. */
         if (a.team === 0 && b.team === 0) continue;
         dy = b.y - a.y;
+        if (a.team === 1 && b.team === 1 && !a.dead && !b.dead &&
+            Math.abs(b.x - a.x) < 28 && Math.abs(dy) < 19) {
+          var lanePush = (19 - Math.abs(dy)) * 0.07;
+          var laneDir = dy === 0 ? (i % 2 ? 1 : -1) : M.sign(dy);
+          a.y = M.clamp(a.y - laneDir * lanePush, PC.FLOOR_TOP, PC.FLOOR_BOT);
+          b.y = M.clamp(b.y + laneDir * lanePush, PC.FLOOR_TOP, PC.FLOOR_BOT);
+        }
         if (Math.abs(dy) > a.hd + b.hd) continue;
         dx = b.x - a.x;
         ov = (a.hw + b.hw) - Math.abs(dx);

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Power City — playtest desk</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>body{justify-content:flex-start;padding-top:10px;overflow:auto}nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}button{background:#21354d;color:#eef4ff;border:1px solid #66849e;padding:7px;cursor:pointer}#status{font:12px monospace;color:#a8d4df;margin:4px}#frame{margin:0}</style>
+<nav aria-label="Playtest scenes">
+<button data-stage="0">Neon Row</button><button data-stage="1">Starlight Strip</button>
+<button data-stage="2">Dead End Docks</button><button data-stage="3">Power Tower</button>
+<button id="boss">Stage boss</button><button id="coop">Join player two</button>
+<button id="demo">Beginner demo</button><button id="pause">Pause / resume</button>
+</nav>
+<output id="status" aria-live="off"></output>
+<div id="frame"><canvas id="screen" width="480" height="270"></canvas></div>
+<script src="../js/core.js?v=review3"></script><script src="../js/art.js?v=review3"></script>
+<script src="../js/rig.js?v=review3"></script><script src="../js/cast.js?v=review3"></script>
+<script src="../js/city.js?v=review3"></script><script src="../js/audio.js?v=review3"></script>
+<script src="../js/music.js?v=review3"></script><script src="../js/fx.js?v=review3"></script>
+<script src="../js/actors.js?v=review3"></script><script src="../js/items.js?v=review3"></script>
+<script src="../js/player.js?v=review3"></script><script src="../js/enemies.js?v=review3"></script>
+<script src="../js/stages.js?v=review3"></script><script src="../js/hud.js?v=review3"></script>
+<script src="../js/game.js?v=review3"></script><script src="../js/touch.js?v=review3"></script>
+<script>
+PC.audio.muted=true;
+PC.boot();
+var demo=false;
+function scene(n){
+  demo=false;PC.input._down={};PC.rand=PC.RNG(19);PC.game.credits=1;PC.game.startGame(0);
+  PC.game.stageIndex=n;PC.stage.load(n);
+  var p=PC.game.players[0];p.reviveAt(80,PC.FLOOR_BOT-16);PC.world.add(p);
+  PC.game.setState('play');PC.game.paused=true;
+}
+document.querySelectorAll('[data-stage]').forEach(function(b){b.onclick=function(){scene(+b.dataset.stage);};});
+document.getElementById('boss').onclick=function(){
+  var n=PC.stage.index;scene(n);
+  var st=PC.stage, e=st.def.encounters[st.def.encounters.length-1], p=PC.game.players[0];
+  PC.world.camX=e.x-PC.W*.35;p.x=e.x;st.encIndex=st.def.encounters.length;
+  st.startEncounter(e);st.pending=[];
+  var b=st.spawnOne({type:e.boss,boss:true,side:1});b.x=p.x+140;b.y=p.y;
+};
+document.getElementById('coop').onclick=function(){PC.game.startPressed(1);};
+document.getElementById('pause').onclick=function(){PC.game.paused=!PC.game.paused;};
+document.getElementById('demo').onclick=function(){demo=!demo;PC.game.paused=false;if(!demo)PC.input._down={};};
+var update=PC.game.update;
+PC.game.update=function(){
+  if(demo && !this.paused){
+    var p=this.players[0], keys={};
+    if(this.state==='continue') this.startPressed(0);
+    if(p&&!p.dead){
+      var es=PC.world.enemies().filter(function(t){return ['fall','down','getup'].indexOf(t.state)<0;});
+      es.sort(function(a,b){return (Math.abs(a.x-p.x)+2*Math.abs(a.y-p.y))-(Math.abs(b.x-p.x)+2*Math.abs(b.y-p.y));});
+      var t=es[0];
+      if(t){
+        if(Math.abs(t.x-p.x)>38) keys[t.x>p.x?'KeyD':'KeyA']=true;
+        if(Math.abs(t.y-p.y)>9) keys[t.y>p.y?'KeyS':'KeyW']=true;
+        keys.KeyZ=true;
+        if(p.power>=100&&(es.filter(function(a){return Math.abs(a.x-p.x)<80&&Math.abs(a.y-p.y)<35;}).length>1||p.state==='held'))keys.KeyX=true;
+      }else if(!PC.stage.locked)keys.KeyD=true;
+    }
+    PC.input._down=keys;
+  }
+  update.call(this);
+};
+setInterval(function(){
+  var p=PC.game.players[0];
+  document.getElementById('status').textContent=[PC.game.state,PC.game.paused?'paused':'live',
+    'block '+(PC.stage.index+1),'fight '+PC.stage.encIndex,'enemies '+PC.world.enemies().length,
+    'HP '+(p?Math.round(p.hp):0),'power '+(p?Math.round(p.power):0),'score '+PC.game.scores[0],demo?'DEMO':'MANUAL'].join(' | ');
+},200);
+scene(0);
+</script>
+</html>

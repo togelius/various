@@ -35,7 +35,7 @@
       var c = this.ctx = new AC();
 
       this.master = c.createGain();
-      this.master.gain.value = 0.85;
+      this.master.gain.value = this.muted ? 0 : 0.85;
 
       this.comp = c.createDynamicsCompressor();
       this.comp.threshold.value = -12;

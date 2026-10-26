@@ -1,201 +1,74 @@
-# POWER CITY
+# POWER CITY — The Midnight Rescue
 
-*a side-scrolling arcade beat 'em up* — one folder of plain JavaScript, no
-build step, no dependencies, no assets.
+A compact, free-play arcade brawler with a neon 1991 mood. One night, four
+blocks, four bosses, and a brother to rescue. Solo or local two-player co-op.
 
-Open `power-city/index.html` and press **5**, then **1**. There is also a
-single-file build in `dist/power-city.html` if you would rather host or hand
-around one file, and `dist/power-city-artifact.html` — the same game in a
-cabinet, for embedding somewhere that supplies its own page. That one also
-draws a working control panel: an embedded frame is not guaranteed the
-keyboard, so one click starts the game and every button on the panel plays
-it with a mouse. `python3
-tools/build-single.py` regenerates all three from `tools/shell-artifact.html`
-and the script order in `index.html`.
+Open `index.html`, press Enter, and go. `dist/power-city.html` is the complete
+standalone game; `dist/power-city-artifact.html` adds a clickable cabinet panel.
+No install, dependencies, external assets, or build step needed to play.
 
-> Four stages. Four bosses. Two players on one keyboard. A clock that does not
-> care whether you are ready.
+## Three buttons
 
-## What it is
+| Action | Player 1 | Player 2 | Gamepad |
+| --- | --- | --- | --- |
+| Move | WASD or arrows | Arrows after joining | Stick / D-pad |
+| Attack — hold for combos | Z / J | Comma / numpad 1 | X / square |
+| Breakout — escape a crowd | X / K | Period / numpad 2 | B / circle |
+| Jump kick — one press | Space / C / L | Slash / numpad 3 | A / cross |
+| Start / join | Enter / 1 | 2 / numpad 0 | Start |
 
-A late-eighties street brawler, rebuilt from scratch: you walk right, the
-camera stops, the gang arrives from both sides, and nobody moves on until the
-street is clear. Punch, kick, jump kick, grab, knee, throw, elbow whoever came
-up behind you, pick up the bat somebody dropped, and put a crate through the
-next three of them.
+Esc pauses and shows controls. M mutes. F goes fullscreen. Touch devices get
+three large buttons and a direction pad. Click or tap the title to start.
 
-Every pixel is drawn at runtime and every sound is synthesised at runtime.
-Nothing is loaded from disk — there is no sprite sheet and no audio file in
-this repository, because there is no sprite sheet and no audio file.
+**Holding Attack is enough to learn.** You automatically chain punches into
+a launching finisher and kick through raised guards. A small amount of aim
+assistance forgives imperfect alignment. Walk toward the fight while holding
+the button. Attack also picks up nearby weapons and throws carried objects;
+a dizzy opponent can be thrown into their friends.
 
-## Playing
+**Breakout is your escape.** When the gold meter is full, press X to knock
+back enemies on both sides. It works while staggered or grabbed, costs no
+health, and recharges over time and through ordinary hits. An empty meter
+cannot trigger it. If grabbed without charge, hold Attack to struggle free.
 
-|                       | Player 1              | Player 2                |
-| --------------------- | --------------------- | ----------------------- |
-| Move                  | `WASD` or arrows      | arrows (once joined)    |
-| Punch                 | `Z` / `J`             | `,` or numpad `1`       |
-| Kick                  | `X` / `K`             | `.` or numpad `2`       |
-| Jump                  | `C` / `L` / space     | `/` or numpad `3`       |
-| Start / join          | `1` or `Enter`        | `2` or numpad `0`       |
+**Jump is already a flying kick.** There is no second input to time. Move up
+or down to change lanes. Orange floor warnings show incoming enemy attacks.
+Food and coins collect on contact. Weapons drop when enemies are knocked down.
 
-`5` inserts a coin · `Esc` pauses · `M` mutes · `F` goes fullscreen ·
-gamepads work, first pad to player one · phones get an on-screen pad.
+The opening introduces one opponent, a small crowd, and an ambush before the
+boss. Later blocks mix weapons, heavy enemies, jumpers, and boss phases.
+Clearing a fight restores a little health; each stage refills it. The clock
+only pays a score bonus. Continues are free.
 
-The arrow keys belong to player one until a second player actually joins, at
-which point they move over — so a solo player can use whichever hand they
-like and a second player never has to be told which keys became theirs.
+## The four blocks
 
-### The move list
+- **Neon Row:** Lucky Star arcade, Video 88, an all-night diner, and Crusher.
+- **Starlight Strip:** club doors, subway stairs, neon reflections, and Viper.
+- **Dead End Docks:** cranes, freight shutters, wet boards, and Jaws.
+- **Power Tower:** marble, gold, the city below the windows, and Mr. Power.
 
-| | |
-| --- | --- |
-| **Combo** | Punch, punch, punch. The third one is a hook and puts them down. |
-| **Kick** | Slower than a jab, hits harder, pushes further. |
-| **Uppercut** | Up + punch. Launches. Very slow — earn it. |
-| **High kick** | Up + kick. Catches jumpers. |
-| **Jump kick** | Jump, then punch or kick on the way through. One per jump, and a whiff costs you on landing. |
-| **Elbow** | Punch while someone is behind you and nobody is in front. |
-| **Spin kick** | Punch and kick together. Hits both sides, leaves you wide open. |
-| **Run** | Double-tap a direction. Punch out of a run for a flying knee. |
-| **Grab** | Walk in close and punch. Then: punch to knee (three, then they go), kick to throw them over your shoulder, or pull back to let go. |
-| **Weapons** | Punch over a bat, pipe, chain or knife to pick it up. Punch swings it, kick throws it. It breaks eventually. |
-| **Crates & drums** | Punch to lift, punch or kick to hurl. Drums explode. |
+## Implementation
 
-Get hit four times in a hurry and enemies see stars — that is the moment to
-grab. Watch the wind-ups: a thug who cocks a fist, chambers a knee or lifts a
-bat is open, and hitting him then is a **COUNTER** — he goes dizzy on the
-spot. Roughs, knifers, batters and the bosses raise a **guard** after a jab:
-jabs clink off it, but a kick, a heavy, a weapon or a grab goes straight
-through. Throw a body into a crowd and it bowls them over. Caught in a bear hug yourself, mash anything to get out — the cabinet
-shouts MASH! at you until you do.
+Plain JavaScript and Canvas, at 480×270 with a fixed 60 Hz simulation.
+Characters are articulated poses baked into pixel sprites at startup. Shop
+fronts are authored canvas compositions; backgrounds are baked per stage.
+Music and effects are synthesized with Web Audio. Source scripts live in
+`js/`: core/input, art/rig/cast, city, audio/music, actors/items/player/enemies,
+stages, HUD, game flow, and touch controls.
 
-Every hit you land inside a rolling window climbs the combo counter, and the
-popups escalate with it. Clear a fight without taking a scratch and the
-machine pays a PERFECT bonus and says so.
-
-The clock is a siren, not a trap: when it runs out an alarm sounds and health
-drains until the street is clear. Clearing a fight buys time back. Bosses
-arrive with their own clock, their own title card — and a phase change when
-the fight turns, announced by a roar, a freeze and the bar on screen.
-
-The gang holds no cheap cards: nobody swings at you while you are on the
-floor, getting up is safe, one stagger buys a beat of stagger immunity, and
-flankers are marked with chevrons at the screen edge — plus a red flash at
-your back when one of them lands one. Fallen enemies drop food, coins and
-sometimes their weapon; a hard fall shakes the weapon out of anyone's grip,
-VIPER's chain included. Trash cans and crates hold prizes.
-
-## The stages
-
-1. **SLUM ALLEY** — brick, fire escapes and the first boss, **CRUSHER**.
-2. **DOWNTOWN** — the block they run, the bar they run it from, and **VIPER**.
-3. **THE DOCKS** — containers, cranes, black water, **JAWS**.
-4. **POWER TOWER** — the penthouse: black marble, gold, his portrait on the
-   wall, the whole city lit up far below the glass, and **MR. POWER**.
-
-Run out of lives and the machine gives you ten seconds to think about it.
-
-## How it is put together
-
-```
-js/core.js     screen, timing, two-player input, RNG, storage
-js/art.js      the 5x7 arcade font, pixel primitives, the outline pass
-js/rig.js      the articulated fighter: one figure, ~39 poses, baked at boot
-js/cast.js     the cast as palettes; weapons, crates and pickups
-js/city.js     facade modules, parallax skylines, weather, the penthouse,
-               the silhouette near-lane, four themes
-js/audio.js    two pulse voices, a triangle bass, a noise channel, a sequencer
-js/music.js    the songs, as sixteenth-note pattern strings
-js/fx.js       hit sparks, dust, score pops, rain, embers, screen shake
-js/actors.js   2.5D physics, the hit system, hit-stop, knockdowns
-js/items.js    holding, swinging, throwing and smashing things
-js/player.js   the move list and what the buttons do
-js/enemies.js  the gang, the bosses, phases, and the attack-token system
-js/stages.js   four stages, their encounters, the camera lock, the weather
-js/hud.js      score, lives, clock, health, credits, warnings
-js/game.js     attract, credits, stage flow, continues, ending
-js/touch.js    the on-screen pad
+```sh
+node power-city/test/check.js       # data and asset-table validation
+node power-city/test/runtime.js     # real combat and campaign regressions
+python3 power-city/tools/build-single.py
 ```
 
-### Six decisions the game is built on
+`test/review.html` is a muted playtest desk with stage and boss selectors,
+co-op join, a beginner demo, and visible state. It is not part of the shipped
+game. The older Playwright telemetry tools remain in `tools/`, but their old
+personas and conclusions in `PLAN.md` predate the simpler controls.
 
-**Nobody draws twenty animation frames per fighter.** There is one
-articulated figure — head, torso, two arms, two legs — and a table of poses
-in a coordinate space where *x* runs forward and *y* runs up from the floor.
-A character is nine colours and a hairstyle. Every pose every character can
-strike is baked into its own canvas at boot with a black keyline grown around
-it, and blitted from then on. The eight-frame walk is blended from the four
-keyframes by code. Add a pose and the whole city learns it.
-
-**The freeze is the punch.** When a hit connects the entire world stops for
-four to eleven frames, longer for heavier blows, while the spark and the
-screen shake keep animating. Take that out and the game feels like it is made
-of paper. Everything else about the fight — knockdowns, the dizzy state, the
-bounce a body takes when it lands — hangs off that one pause.
-
-**Only a few of them may attack at once.** Enemies must claim one of the
-attack tokens before they are allowed to swing — two to start, more as the
-crowd grows, more in later stages, more with two players. Everyone else
-circles, drifts into a free lane, or waits at the edge of their reach looking
-menacing. Eight thugs punching on the same frame is not difficulty, it is
-arithmetic.
-
-**The floor is where beat 'em ups go to die.** The player only goes down to
-heavy blows — a punk's kick is a stagger, a bat or a boss sends you flying —
-and the whole trip to the floor and back is nobody's target: no hits while
-you are down, none on the way up, and a beat of poise afterwards so two
-thugs cannot hold you still with alternating jabs. The agents measured it:
-zero wake-up hits across twenty recorded campaigns.
-
-**A street that pays keeps getting walked.** Reinforcements pour in when a
-wave thins, trash cans and crates hold loot, the fallen drop their weapons,
-and there is litter — coins, food — on every stroll, so the walk between
-fights is a sweep, not a wait.
-
-**And the city is alive, not wallpaper — in hard pixels.** Rain falls on
-the docks and drizzles downtown, dust drifts in the alley and in the
-penthouse lights; the skyline's beacons pulse, the neon signs breathe and cut
-out, clouds slide behind the skyline, and a silhouette near-lane of lamp
-posts, hydrants (velvet ropes and urns, upstairs) passes faster than the
-camera. There is no soft coat over any of it: brick is laid on one grid with
-dark mortar, graffiti is sprayed letter by letter, every body part of every
-fighter is bevelled, and the gang scowls. `tools/visual-audit.js` measures
-it: figure-ground contrast held at ~70/255 while the share of
-near-duplicate neighbouring pixels (the "soft" look) fell from 21% to 4%.
-
-## Checking it
-
-```
-node power-city/test/check.js
-```
-
-3100-odd assertions over the data tables, in plain node with no browser: every
-pose has all its joints and stays on the canvas, every move has active frames
-and a pose that exists, every stage names enemies and items that exist and
-ends with a boss, every song note is a note, every glyph is seven rows of five
-bits. The things that can actually be wrong with this game are nearly all in
-the tables.
-
-**And then there are the agents** (`tools/agents.js`): four bot personas - a
-button-masher, a simple seeker, a skilled brawler, a speedrunner - play the
-game headlessly with telemetry on every hit, whiff, knockdown and death.
-`tools/analyze.js` reads their ledgers back. That is how the fairness numbers
-above were measured, and how the next change to the game gets judged: not by
-how it looks, but by how twenty recorded campaigns feel.
-
-```
-SEEDS=3 NODE_PATH=... node power-city/tools/agents.js /tmp/pc all game
-NODE_PATH=... node power-city/tools/agents.js /tmp/pc walker game 150000 two:brawler   # co-op
-node power-city/tools/analyze.js /tmp/pc
-```
-
-Runs are seeded and the bots draw from their own generator (cosmetics -
-sparks, shake, weather - from a third), so a change to the game is judged
-on the same fights before and after. `tools/filmstrip.js` saves the frames
-around counters, guard breaks and bowled crowds; `tools/visual-audit.js`
-scores the look.
-
-For the parts that need a canvas there are headless harnesses in `tools/`:
-`sim.js` puts a bot at the controls and fast-forwards whole stages in seconds,
-`scene.js` poses a fight and photographs it, `shot.js` screenshots any page.
-They need `playwright` on the path; the game itself needs nothing.
+Runtime checks cover held combos, guards, escape from grabs, the Breakout
+meter, jump kicks, buffered input, safe clock expiry, charge timing, co-op
+collision, immediate stage clear, and seeded campaigns. These are regression
+checks, not proof of fun; visual inspection and actual input playtests still
+matter.
