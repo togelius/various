@@ -6,19 +6,20 @@
 <nav aria-label="Playtest scenes">
 <button data-stage="0">Neon Row</button><button data-stage="1">Starlight Strip</button>
 <button data-stage="2">Dead End Docks</button><button data-stage="3">Power Tower</button>
+<button id="pickup">Pickup check</button><button id="arm">Equip bat</button>
 <button id="boss">Stage boss</button><button id="coop">Join player two</button>
 <button id="demo">Beginner demo</button><button id="pause">Pause / resume</button>
 </nav>
 <output id="status" aria-live="off"></output>
 <div id="frame"><canvas id="screen" width="480" height="270"></canvas></div>
-<script src="../js/core.js?v=review8"></script><script src="../js/art.js?v=review8"></script>
-<script src="../js/rig.js?v=review8"></script><script src="../js/cast.js?v=review8"></script>
-<script src="../js/city.js?v=review8"></script><script src="../js/audio.js?v=review8"></script>
-<script src="../js/music.js?v=review8"></script><script src="../js/fx.js?v=review8"></script>
-<script src="../js/actors.js?v=review8"></script><script src="../js/items.js?v=review8"></script>
-<script src="../js/player.js?v=review8"></script><script src="../js/enemies.js?v=review8"></script>
-<script src="../js/stages.js?v=review8"></script><script src="../js/hud.js?v=review8"></script>
-<script src="../js/game.js?v=review8"></script><script src="../js/touch.js?v=review8"></script>
+<script src="../js/core.js?v=pickup1"></script><script src="../js/art.js?v=pickup1"></script>
+<script src="../js/rig.js?v=pickup1"></script><script src="../js/cast.js?v=pickup1"></script>
+<script src="../js/city.js?v=pickup1"></script><script src="../js/audio.js?v=pickup1"></script>
+<script src="../js/music.js?v=pickup1"></script><script src="../js/fx.js?v=pickup1"></script>
+<script src="../js/actors.js?v=pickup1"></script><script src="../js/items.js?v=pickup1"></script>
+<script src="../js/player.js?v=pickup1"></script><script src="../js/enemies.js?v=pickup1"></script>
+<script src="../js/stages.js?v=pickup1"></script><script src="../js/hud.js?v=pickup1"></script>
+<script src="../js/game.js?v=pickup1"></script><script src="../js/touch.js?v=pickup1"></script>
 <script>
 PC.audio.muted=true;
 PC.boot();
@@ -30,6 +31,17 @@ function scene(n){
   PC.game.setState('play');PC.game.paused=true;
 }
 document.querySelectorAll('[data-stage]').forEach(function(b){b.onclick=function(){scene(+b.dataset.stage);};});
+document.getElementById('pickup').onclick=function(){
+  scene(1);PC.stage.encIndex=99;PC.world.items=[];
+  var p=PC.game.players[0];p.x=240;p.y=220;p.invuln=600;
+  PC.items.spawn('prop','drum',p.x+24,p.y);
+  PC.items.spawn('weapon','knife',p.x+25,p.y);
+  var e=PC.spawnEnemy('punk',p.x-24,p.y,{facing:1});e.control=function(){};
+  PC.game.paused=false;
+};
+document.getElementById('arm').onclick=function(){
+  var p=PC.game.players[0];if(!p.carry&&!p.weapon)PC.items.take(p,PC.items.spawn('weapon','bat',p.x,p.y));
+};
 document.getElementById('boss').onclick=function(){
   var n=PC.stage.index;scene(n);
   var st=PC.stage, e=st.def.encounters[st.def.encounters.length-1], p=PC.game.players[0];
@@ -52,7 +64,7 @@ PC.game.update=function(){
       if(t){
         if(Math.abs(t.x-p.x)>38) keys[t.x>p.x?'KeyD':'KeyA']=true;
         if(Math.abs(t.y-p.y)>9) keys[t.y>p.y?'KeyS':'KeyW']=true;
-        keys.KeyZ=true;
+        if(!p.carry || !PC.input.p[0].held.punch)keys.KeyZ=true;
         if(p.power>=100&&(es.filter(function(a){return Math.abs(a.x-p.x)<80&&Math.abs(a.y-p.y)<35;}).length>1||p.state==='held'))keys.KeyX=true;
       }else if(!PC.stage.locked)keys.KeyD=true;
     }
@@ -64,7 +76,7 @@ setInterval(function(){
   var p=PC.game.players[0];
   document.getElementById('status').textContent=[PC.game.state,PC.game.paused?'paused':'live',
     'block '+(PC.stage.index+1),'fight '+PC.stage.encIndex,'enemies '+PC.world.enemies().length,
-    'HP '+(p?Math.round(p.hp):0),'power '+(p?Math.round(p.power):0),'score '+PC.game.scores[0],demo?'DEMO':'MANUAL'].join(' | ');
+    'carrying '+(p&&p.carry?p.carry.key:'none'),'weapon '+(p&&p.weapon?p.weapon:'none'),'HP '+(p?Math.round(p.hp):0),'power '+(p?Math.round(p.power):0),'score '+PC.game.scores[0],demo?'DEMO':'MANUAL'].join(' | ');
 },200);
 scene(0);
 </script>

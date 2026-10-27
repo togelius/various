@@ -11,6 +11,10 @@
 
   var Hud = PC.hud = {};
 
+  Hud.attackKey = function (p) {
+    return PC.input.device === 'touch' ? 'ATTACK' : PC.input.device === 'pad' ? 'X' : p.index ? ',' : 'Z';
+  };
+
   // A little head, for the lives row. Same palette as the fighter it counts.
   var iconCache = {};
   Hud.icon = function (charKey) {
@@ -95,6 +99,18 @@
     var ps = W.players();
     for (var q = 0; q < ps.length; q++) {
       var pl = ps[q];
+      if (!pl.dead && pl.z <= 1 && ['held','hurt','fall','down','getup'].indexOf(pl.state) < 0) {
+        var item = PC.items.nearest(pl, PC.items.pickupRange);
+        if (item && item.kind !== 'pickup') {
+          var text = Hud.attackKey(pl) + ': ' + (item.kind === 'prop' ? 'LIFT ' : 'TAKE ') + PC.items.label(item);
+          var width = Art.textWidth(text, 1, 0) + 12;
+          var ix = Math.round(item.x - camX), iy = Math.round(item.y);
+          var tx = M.clamp(ix, width / 2 + 3, PC.W - width / 2 - 3);
+          Art.rect(ctx, ix - 13, iy + 2, 26, 2, '#ffe57a');
+          Art.rect(ctx, tx - width / 2, iy - 43, width, 14, '#0a101e');
+          Art.text(ctx, text, tx, iy - 39, '#ffe57a', { align: 'center', tracking: 0 });
+        }
+      }
       if (pl.state === 'held' && pl.grabbedBy && (W.time >> 2) % 2) {
         PC.art.text(ctx, 'HOLD ATTACK!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
           '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
@@ -135,7 +151,10 @@
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#0a101e');
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, 1, '#40506a');
     var mode = PC.input.device || 'keys';
-    Art.text(ctx, mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    var p = g.player(0) || g.player(1);
+    var attack = mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK';
+    if (p && p.carry) attack = Hud.attackKey(p) + ': THROW ' + PC.items.label(p.carry);
+    Art.text(ctx, attack, 12, PC.FIELD_BOT + 6, p && p.carry ? '#ffe57a' : '#e3edf8', { tracking: 0 });
     Art.text(ctx, mode === 'pad' ? 'B: BREAKOUT' : mode === 'touch' ? 'BREAKOUT' : 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
     Art.text(ctx, mode === 'pad' ? 'A: JUMP KICK' : mode === 'touch' ? 'JUMP KICK' : 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
   };

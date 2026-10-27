@@ -23,8 +23,11 @@ three large buttons and a direction pad. Click or tap the title to start.
 **Holding Attack is enough to learn.** You automatically chain punches into
 a launching finisher and kick through raised guards. A small amount of aim
 assistance forgives imperfect alignment. Walk toward the fight while holding
-the button. Attack also picks up nearby weapons and throws carried objects;
-a dizzy opponent can be thrown into their friends.
+the button. Attack also picks up nearby weapons and props: a prompt appears
+when you are close enough. Lift a drum or crate with Attack, then press Attack
+again to throw it. Holding the button keeps the prop in your hands. Lifting a
+prop sets your current weapon down. A dizzy opponent can be thrown into their
+friends.
 
 **Breakout is your escape.** When the gold meter is full, press X to knock
 back enemies on both sides. It works while staggered or grabbed, costs no

@@ -22,6 +22,11 @@
   }
 
   var Items = PC.items = {
+    pickupRange: 32,
+
+    label: function (it) {
+      return it.def.label || it.key.toUpperCase();
+    },
 
     spawn: function (kind, key, x, y, opts) {
       opts = opts || {};
@@ -47,10 +52,12 @@
     // ---------------------------------------------------------------- picking
     /* The nearest thing an actor could reasonably bend down and take. */
     nearest: function (a, range) {
-      var best = null, bd = range || 18;
+      if (a.carry) return null;
+      var best = null, bd = range || this.pickupRange;
       for (var i = 0; i < W.items.length; i++) {
         var it = W.items[i];
         if (it.held || it.dead || it.flying || it.z > 6) continue;
+        if (it.kind === 'weapon' && a.weapon) continue;
         if (it.kind === 'pickup' && PC.pickups[it.key].heal && a.hp >= a.maxHp) continue;
         var d = Math.abs(it.x - a.x) + Math.abs(it.y - a.y) * 0.8;
         if (d < bd) { bd = d; best = it; }
@@ -63,7 +70,9 @@
         this.consume(a, it);
         return true;
       }
-      if (a.weapon || a.carry) return false;
+      if (a.carry || (a.weapon && it.kind === 'weapon')) return false;
+      // A drum can replace a weapon: leave the old weapon on the pavement.
+      if (a.weapon) this.drop(a);
       it.held = a;
       if (it.kind === 'weapon') { a.weapon = it.key; a.ammo = PC.weapons[it.key].ammo; a.weaponItem = it; }
       else { a.carry = it; }

@@ -415,7 +415,7 @@
       if (this.paused) {
         this.dim(ctx, 0.6);
         Hud.banner(ctx, [{ t: 'PAUSED', c: '#ffffff', scale: 3 }], mid - 30);
-        Art.text(ctx, 'HOLD Z / J: COMBO + PICK UP + THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
+        Art.text(ctx, 'Z / J: HOLD TO FIGHT / TAP TO LIFT OR THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'X / K: BREAKOUT  (WHEN THE BAR IS FULL)', PC.W / 2, mid + 31, '#ffe57a', { align: 'center' });
         Art.text(ctx, 'SPACE / C: JUMP KICK', PC.W / 2, mid + 47, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'P2: ARROWS / , ATTACK / . BREAKOUT / / JUMP', PC.W / 2, mid + 64, '#8495b1', { align: 'center', tracking: 0 });

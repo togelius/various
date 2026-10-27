@@ -90,6 +90,36 @@ p=arena();const food=P.items.spawn('pickup','heart',p.x,p.y);
 ok(P.items.nearest(p,25)!==food,'a held Attack cannot waste food at full health');
 p.hp=60;P.items.update();ok(food.dead && p.hp>60,'food still collects when the player needs it');
 
+// Props must be usable in the crowd where they spawn, even while armed.
+p=arena();let drum=P.items.spawn('prop','drum',p.x+27,p.y+5);
+e=enemy('punk',p.x-24);e.control=noop;e.setState('idle');
+keys({KeyZ:true});step();
+ok(p.carry===drum && drum.held===p,'Attack lifts a nearby drum despite a close foe and forgiving alignment');
+W.actors=W.actors.filter(a=>a.team===0);
+step(35);ok(p.carry===drum && !drum.flying,'holding Attack never instantly throws the newly lifted prop');
+const carryingX=p.x;keys({KeyZ:true,KeyD:true});step(12);
+ok(p.carry===drum && p.x>carryingX+10,'the player can carry a prop while still holding Attack');
+keys({});step();keys({KeyZ:true});step();
+ok(!p.carry && !drum.held && drum.flying && drum.thrower===p,'a second Attack press throws the carried drum');
+
+p=arena();const bat=P.items.spawn('weapon','bat',p.x,p.y);P.items.take(p,bat);
+drum=P.items.spawn('prop','drum',p.x+14,p.y);
+keys({KeyZ:true});step();
+ok(p.carry===drum && !p.weapon && !bat.held && !bat.dead,'lifting a drum sets down an existing weapon safely');
+
+p=arena();drum=P.items.spawn('prop','drum',p.x,p.y);
+const p2item=P.items.spawn('weapon','knife',p.x+1,p.y);P.items.take(p,p2item);
+ok(P.items.nearest(p,P.items.pickupRange)===drum,'a held weapon does not mask the nearby drum');
+P.items.take(p,drum);G.credits=1;G.joinPlayer(1);
+ok(P.items.nearest(G.players[1],P.items.pickupRange)!==drum,'a co-op partner cannot take an already held drum');
+
+p=arena();drum=P.items.spawn('prop','drum',p.x+70,p.y);
+keys({KeyZ:true});step();ok(!p.carry,'Attack cannot pick up a drum from across the street');
+p=arena();drum=P.items.spawn('prop','drum',p.x,p.y);drum.flying=true;
+ok(P.items.nearest(p,P.items.pickupRange)!==drum,'flying drums are not presented as pickups');
+drum.flying=false;drum.dead=true;
+ok(P.items.nearest(p,P.items.pickupRange)!==drum,'destroyed drums are not presented as pickups');
+
 p=arena();P.stage.timeLeft=99;G.stageClear();const beforeBonus=p.score;
 step(105);ok(p.score-beforeBonus===9900,'the shorter stage-clear sequence pays the complete time bonus');
 G.setState('ending');step(901);ok(G.state==='ending','the rescue ending waits for the player instead of disappearing');
@@ -112,7 +142,8 @@ function campaign(seed,coop){
       if(t){
         if(Math.abs(t.x-a.x)>38)down[map[t.x>a.x?1:0]]=true;
         if(Math.abs(t.y-a.y)>9)down[map[t.y>a.y?3:2]]=true;
-        down[map[4]]=true;
+        // A carried prop is thrown with a second press, just like the prompt.
+        if(!a.carry || !P.input.p[i].held.punch) down[map[4]]=true;
         if(a.power>=100&&(es.filter(b=>Math.abs(b.x-a.x)<80&&Math.abs(b.y-a.y)<35).length>1||a.state==='held'))down[map[5]]=true;
       } else if(!P.stage.locked)down[map[1]]=true;
     }

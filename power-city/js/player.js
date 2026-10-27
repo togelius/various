@@ -180,7 +180,7 @@
     }
     var pt = this.pressT || (this.pressT = {});
     if (fresh.punch) {
-      b.punch = 7; q.punch = following; pt.punch = W.time;
+      b.punch = this.carry ? 14 : 7; q.punch = following; pt.punch = W.time;
       // a second press is held for the next link of the chain
       this.extraPunch = Math.min(1, fresh.punch - 1);
     }
@@ -189,7 +189,10 @@
     // Holding Attack is the basic combo, including during hit-stop and recovery.
     // Outside reach it lets the stick keep walking instead of punching empty air.
     var target = this.assistTarget();
-    if (held.punch && (target || this.carry || this.grabbing || (!this.weapon && Items.nearest(this, 25)))) {
+    var pick = Items.nearest(this, Items.pickupRange);
+    // Carried props need a fresh press to throw. A held combo must not lift
+    // and immediately toss the object before the player can see it.
+    if (held.punch && !this.carry && (target || this.grabbing || pick)) {
       b.punch = Math.max(b.punch, 2); q.punch = following;
     }
     this.power = Math.min(100, this.power + 0.42);
@@ -241,7 +244,7 @@
     if (this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
       this.state === 'down' || this.state === 'getup' || this.state === 'held') {
       // The only thing you may do mid-move is chain the next punch.
-      if (this.state === 'attack' && b.punch > 0 && this.atk && this.atk.chain &&
+      if (this.state === 'attack' && !pick && b.punch > 0 && this.atk && this.atk.chain &&
         !this.chainBroken && this.atkT >= this.atk.startup + this.atk.active) {
         b.punch = 0;
         this.combo++;
@@ -292,15 +295,20 @@
     if (b.punch > 0) {
       b.punch = 0;
       if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
+      // Resolve the item at the player's feet before aiming toward a foe.
+      // Nearby enemies must not silently disable the advertised pickup.
+      if (pick && Items.take(this, pick)) {
+        b.punch = 0; q.punch = false; this.extraPunch = 0;
+        this.vx = this.vy = 0;
+        this.setState('crouch'); this.crouchT = 10;
+        if (this.carry) FX.pop(this.x, this.y - this.hh - 12, 'LIFTED ' + Items.label(pick), '#ffe57a');
+        return;
+      }
       if (target) {
         var aim = PC.input.axis(this.index);
         if (!aim || (target.x - this.x) * aim > 0) this.facing = M.sign(target.x - this.x) || this.facing;
         if (Math.abs(target.y - this.y) <= 26) this.y = M.approach(this.y, target.y, 5);
         if (Math.abs(target.x - this.x) > 35 && Math.abs(target.x - this.x) < 85) this.x += this.facing * 5;
-      }
-      var pick = Items.nearest(this, 25);
-      if (pick && !this.weapon && (pick.kind === 'pickup' || !this.nearFoe(28))) {
-        if (Items.take(this, pick)) { this.setState('crouch'); this.crouchT = 10; return; }
       }
       if (this.weapon) { this.startAttack(MOVES[WEAPON_MOVE[this.weapon] || 'batSwing']); this.spendWeapon(); return; }
       var behind = this.foeBehind(26);

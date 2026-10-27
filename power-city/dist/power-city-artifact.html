@@ -4345,6 +4345,11 @@
   }
 
   var Items = PC.items = {
+    pickupRange: 32,
+
+    label: function (it) {
+      return it.def.label || it.key.toUpperCase();
+    },
 
     spawn: function (kind, key, x, y, opts) {
       opts = opts || {};
@@ -4370,10 +4375,12 @@
     // ---------------------------------------------------------------- picking
     /* The nearest thing an actor could reasonably bend down and take. */
     nearest: function (a, range) {
-      var best = null, bd = range || 18;
+      if (a.carry) return null;
+      var best = null, bd = range || this.pickupRange;
       for (var i = 0; i < W.items.length; i++) {
         var it = W.items[i];
         if (it.held || it.dead || it.flying || it.z > 6) continue;
+        if (it.kind === 'weapon' && a.weapon) continue;
         if (it.kind === 'pickup' && PC.pickups[it.key].heal && a.hp >= a.maxHp) continue;
         var d = Math.abs(it.x - a.x) + Math.abs(it.y - a.y) * 0.8;
         if (d < bd) { bd = d; best = it; }
@@ -4386,7 +4393,9 @@
         this.consume(a, it);
         return true;
       }
-      if (a.weapon || a.carry) return false;
+      if (a.carry || (a.weapon && it.kind === 'weapon')) return false;
+      // A drum can replace a weapon: leave the old weapon on the pavement.
+      if (a.weapon) this.drop(a);
       it.held = a;
       if (it.kind === 'weapon') { a.weapon = it.key; a.ammo = PC.weapons[it.key].ammo; a.weaponItem = it; }
       else { a.carry = it; }
@@ -4792,7 +4801,7 @@
     }
     var pt = this.pressT || (this.pressT = {});
     if (fresh.punch) {
-      b.punch = 7; q.punch = following; pt.punch = W.time;
+      b.punch = this.carry ? 14 : 7; q.punch = following; pt.punch = W.time;
       // a second press is held for the next link of the chain
       this.extraPunch = Math.min(1, fresh.punch - 1);
     }
@@ -4801,7 +4810,10 @@
     // Holding Attack is the basic combo, including during hit-stop and recovery.
     // Outside reach it lets the stick keep walking instead of punching empty air.
     var target = this.assistTarget();
-    if (held.punch && (target || this.carry || this.grabbing || (!this.weapon && Items.nearest(this, 25)))) {
+    var pick = Items.nearest(this, Items.pickupRange);
+    // Carried props need a fresh press to throw. A held combo must not lift
+    // and immediately toss the object before the player can see it.
+    if (held.punch && !this.carry && (target || this.grabbing || pick)) {
       b.punch = Math.max(b.punch, 2); q.punch = following;
     }
     this.power = Math.min(100, this.power + 0.42);
@@ -4853,7 +4865,7 @@
     if (this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
       this.state === 'down' || this.state === 'getup' || this.state === 'held') {
       // The only thing you may do mid-move is chain the next punch.
-      if (this.state === 'attack' && b.punch > 0 && this.atk && this.atk.chain &&
+      if (this.state === 'attack' && !pick && b.punch > 0 && this.atk && this.atk.chain &&
         !this.chainBroken && this.atkT >= this.atk.startup + this.atk.active) {
         b.punch = 0;
         this.combo++;
@@ -4904,15 +4916,20 @@
     if (b.punch > 0) {
       b.punch = 0;
       if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
+      // Resolve the item at the player's feet before aiming toward a foe.
+      // Nearby enemies must not silently disable the advertised pickup.
+      if (pick && Items.take(this, pick)) {
+        b.punch = 0; q.punch = false; this.extraPunch = 0;
+        this.vx = this.vy = 0;
+        this.setState('crouch'); this.crouchT = 10;
+        if (this.carry) FX.pop(this.x, this.y - this.hh - 12, 'LIFTED ' + Items.label(pick), '#ffe57a');
+        return;
+      }
       if (target) {
         var aim = PC.input.axis(this.index);
         if (!aim || (target.x - this.x) * aim > 0) this.facing = M.sign(target.x - this.x) || this.facing;
         if (Math.abs(target.y - this.y) <= 26) this.y = M.approach(this.y, target.y, 5);
         if (Math.abs(target.x - this.x) > 35 && Math.abs(target.x - this.x) < 85) this.x += this.facing * 5;
-      }
-      var pick = Items.nearest(this, 25);
-      if (pick && !this.weapon && (pick.kind === 'pickup' || !this.nearFoe(28))) {
-        if (Items.take(this, pick)) { this.setState('crouch'); this.crouchT = 10; return; }
       }
       if (this.weapon) { this.startAttack(MOVES[WEAPON_MOVE[this.weapon] || 'batSwing']); this.spendWeapon(); return; }
       var behind = this.foeBehind(26);
@@ -5989,6 +6006,10 @@
 
   var Hud = PC.hud = {};
 
+  Hud.attackKey = function (p) {
+    return PC.input.device === 'touch' ? 'ATTACK' : PC.input.device === 'pad' ? 'X' : p.index ? ',' : 'Z';
+  };
+
   // A little head, for the lives row. Same palette as the fighter it counts.
   var iconCache = {};
   Hud.icon = function (charKey) {
@@ -6073,6 +6094,18 @@
     var ps = W.players();
     for (var q = 0; q < ps.length; q++) {
       var pl = ps[q];
+      if (!pl.dead && pl.z <= 1 && ['held','hurt','fall','down','getup'].indexOf(pl.state) < 0) {
+        var item = PC.items.nearest(pl, PC.items.pickupRange);
+        if (item && item.kind !== 'pickup') {
+          var text = Hud.attackKey(pl) + ': ' + (item.kind === 'prop' ? 'LIFT ' : 'TAKE ') + PC.items.label(item);
+          var width = Art.textWidth(text, 1, 0) + 12;
+          var ix = Math.round(item.x - camX), iy = Math.round(item.y);
+          var tx = M.clamp(ix, width / 2 + 3, PC.W - width / 2 - 3);
+          Art.rect(ctx, ix - 13, iy + 2, 26, 2, '#ffe57a');
+          Art.rect(ctx, tx - width / 2, iy - 43, width, 14, '#0a101e');
+          Art.text(ctx, text, tx, iy - 39, '#ffe57a', { align: 'center', tracking: 0 });
+        }
+      }
       if (pl.state === 'held' && pl.grabbedBy && (W.time >> 2) % 2) {
         PC.art.text(ctx, 'HOLD ATTACK!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
           '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
@@ -6113,7 +6146,10 @@
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#0a101e');
     Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, 1, '#40506a');
     var mode = PC.input.device || 'keys';
-    Art.text(ctx, mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK', 12, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
+    var p = g.player(0) || g.player(1);
+    var attack = mode === 'pad' ? 'HOLD X: ATTACK' : mode === 'touch' ? 'HOLD ATTACK' : 'HOLD Z: ATTACK';
+    if (p && p.carry) attack = Hud.attackKey(p) + ': THROW ' + PC.items.label(p.carry);
+    Art.text(ctx, attack, 12, PC.FIELD_BOT + 6, p && p.carry ? '#ffe57a' : '#e3edf8', { tracking: 0 });
     Art.text(ctx, mode === 'pad' ? 'B: BREAKOUT' : mode === 'touch' ? 'BREAKOUT' : 'X: BREAKOUT', 168, PC.FIELD_BOT + 6, '#ffe57a', { tracking: 0 });
     Art.text(ctx, mode === 'pad' ? 'A: JUMP KICK' : mode === 'touch' ? 'JUMP KICK' : 'SPACE: JUMP KICK', 319, PC.FIELD_BOT + 6, '#e3edf8', { tracking: 0 });
   };
@@ -6566,7 +6602,7 @@
       if (this.paused) {
         this.dim(ctx, 0.6);
         Hud.banner(ctx, [{ t: 'PAUSED', c: '#ffffff', scale: 3 }], mid - 30);
-        Art.text(ctx, 'HOLD Z / J: COMBO + PICK UP + THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
+        Art.text(ctx, 'Z / J: HOLD TO FIGHT / TAP TO LIFT OR THROW', PC.W / 2, mid + 15, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'X / K: BREAKOUT  (WHEN THE BAR IS FULL)', PC.W / 2, mid + 31, '#ffe57a', { align: 'center' });
         Art.text(ctx, 'SPACE / C: JUMP KICK', PC.W / 2, mid + 47, '#e3edf8', { align: 'center' });
         Art.text(ctx, 'P2: ARROWS / , ATTACK / . BREAKOUT / / JUMP', PC.W / 2, mid + 64, '#8495b1', { align: 'center', tracking: 0 });
