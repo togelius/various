@@ -57,7 +57,8 @@ function watch(page) {
   return errors;
 }
 
-async function openGame(page, baseUrl) {
+async function openGame(page, baseUrl, mode = null) {
+  if (mode) await page.addInitScript((value) => localStorage.setItem("stortorget-mode", value), mode);
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.stortorget?.ready);
   await page.click("#start-game");
@@ -75,14 +76,19 @@ async function desktop(browser, baseUrl) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors = watch(page);
-  await openGame(page, baseUrl);
+  // Skånska keeps the slowing fika, so the Danes still thank us for the coffee.
+  await openGame(page, baseUrl, "skanska");
+  assert.equal(await page.evaluate(() => window.stortorget.mode), "skanska");
   await page.click('[data-tower="falafel"]');
   for (const [x, y] of [[277, 288], [211, 235]]) {
     const point = await canvasPoint(page, x, y);
     await page.mouse.click(point.x, point.y);
   }
   assert.equal(await page.evaluate(() => window.stortorget.game.towers.length), 2);
-  assert.equal(await page.evaluate(() => window.stortorget.game.money), 120);
+  assert.equal(await page.evaluate(() => {
+    const { game, levels } = window.stortorget;
+    return game.money === game.config.startingMoney - 2 * levels.TOWER_TYPES.falafel.cost;
+  }), true);
   let point = await canvasPoint(page, 277, 288);
   await page.mouse.click(point.x, point.y);
   await page.click("#upgrade-button");
@@ -249,6 +255,7 @@ async function fullGame(browser) {
   await page.waitForTimeout(650);
   assert.ok(await page.locator("#end-modal").isVisible());
   assert.equal(await page.locator("#end-title").textContent(), "Stortorget stands!");
+  assert.ok(await page.locator("#endless-game").isVisible(), "Winning offers endless mode");
   await page.screenshot({ path: path.join(artifacts, "victory.png"), fullPage: true });
   await page.click("#restart-game");
   assert.equal(await page.evaluate(() => window.stortorget.game.currentWave), 0);

@@ -10,6 +10,7 @@
   <title>Stortorget — Defend Malmö</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
+  <script defer src="js/text.js"></script>
   <script defer src="js/levels.js"></script>
   <script defer src="js/engine.js"></script>
   <script defer src="js/ui.js"></script>
@@ -21,26 +22,27 @@
         <span class="brand-mark" aria-hidden="true">♞</span>
         <div>
           <h1>STORTORGET</h1>
-          <p>Defend Malmö’s heart</p>
+          <p data-t="brandTagline">Defend Malmö’s heart</p>
         </div>
       </div>
 
       <div class="stats" aria-label="Game status">
         <div class="stat" id="health-stat">
-          <span class="stat-label">STATUE</span>
+          <span class="stat-label" data-t="statStatue">STATUE</span>
           <strong><span aria-hidden="true">♞</span> <span id="health-value">20</span></strong>
         </div>
         <div class="stat money-stat">
-          <span class="stat-label">FUNDS</span>
-          <strong><span id="money-value">240</span> <small>kr</small></strong>
+          <span class="stat-label" data-t="statFunds">FUNDS</span>
+          <strong id="money-value">240 kr</strong>
         </div>
         <div class="stat">
-          <span class="stat-label">WAVE</span>
-          <strong><span id="wave-value">–</span><small> / 8</small></strong>
+          <span class="stat-label" data-t="statWave">WAVE</span>
+          <strong><span id="wave-value">–</span><small id="wave-total"> / 8</small></strong>
         </div>
       </div>
 
       <div class="header-actions">
+        <button class="icon-button mode-button" id="mode-button" type="button" aria-label="Language and rules" title="Language and rules">US</button>
         <button class="icon-button" id="pause-button" type="button" aria-label="Pause game" title="Pause (P)">Ⅱ</button>
         <button class="icon-button speed-button" id="speed-button" type="button" aria-label="Change game speed" title="Game speed">1×</button>
         <button class="icon-button" id="sound-button" type="button" aria-label="Mute sound" title="Sound">♪</button>
@@ -101,38 +103,38 @@
 
         <section class="arsenal" aria-label="Build defences">
           <div class="section-heading">
-            <span>BUILD A DEFENCE</span>
-            <small>Keys 1–5</small>
+            <span data-t="arsenalHeading">BUILD A DEFENCE</span>
+            <small data-t="arsenalKeys">Keys 1–5</small>
           </div>
           <div class="tower-shop">
             <button class="tower-card" type="button" data-tower="falafel" aria-pressed="false">
               <span class="tower-icon falafel-icon" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="tower-copy"><strong>Falafel stand</strong><small>Fast · heavy hunter</small></span>
-              <span class="tower-cost">60 kr</span>
+              <span class="tower-copy"><strong data-tower-name="falafel">Falafel stand</strong><small data-tower-tag="falafel">Fast · heavy hunter</small></span>
+              <span class="tower-cost" data-tower-cost="falafel">60 kr</span>
               <kbd>1</kbd>
             </button>
             <button class="tower-card" type="button" data-tower="bulle" aria-pressed="false">
               <span class="tower-icon bulle-icon" aria-hidden="true">◎</span>
-              <span class="tower-copy"><strong>Bun mortar</strong><small>Splash · groups</small></span>
-              <span class="tower-cost">95 kr</span>
+              <span class="tower-copy"><strong data-tower-name="bulle">Bun mortar</strong><small data-tower-tag="bulle">Splash · groups</small></span>
+              <span class="tower-cost" data-tower-cost="bulle">95 kr</span>
               <kbd>2</kbd>
             </button>
             <button class="tower-card" type="button" data-tower="glass" aria-pressed="false">
               <span class="tower-icon glass-icon" aria-hidden="true">▼</span>
-              <span class="tower-copy"><strong>Ice-cream van</strong><small>Slows · support</small></span>
-              <span class="tower-cost">75 kr</span>
+              <span class="tower-copy"><strong data-tower-name="glass">Ice-cream van</strong><small data-tower-tag="glass">Slows · support</small></span>
+              <span class="tower-cost" data-tower-cost="glass">75 kr</span>
               <kbd>3</kbd>
             </button>
             <button class="tower-card" type="button" data-tower="espresso" aria-pressed="false">
               <span class="tower-icon espresso-icon" aria-hidden="true">♨</span>
-              <span class="tower-copy"><strong>Espresso cart</strong><small>Boosts · nearby towers</small></span>
-              <span class="tower-cost">105 kr</span>
+              <span class="tower-copy"><strong data-tower-name="espresso">Espresso cart</strong><small data-tower-tag="espresso">Boosts · nearby towers</small></span>
+              <span class="tower-cost" data-tower-cost="espresso">105 kr</span>
               <kbd>4</kbd>
             </button>
             <button class="tower-card" type="button" data-tower="vind" aria-pressed="false">
               <span class="tower-icon vind-icon" aria-hidden="true">≋</span>
-              <span class="tower-copy"><strong>Öresund wind</strong><small>Knockback · control</small></span>
-              <span class="tower-cost">85 kr</span>
+              <span class="tower-copy"><strong data-tower-name="vind">Öresund wind</strong><small data-tower-tag="vind">Knockback · control</small></span>
+              <span class="tower-cost" data-tower-cost="vind">85 kr</span>
               <kbd>5</kbd>
             </button>
           </div>
@@ -140,28 +142,32 @@
 
         <button id="fika-button" class="fika-button" type="button">
           <span class="fika-icon" aria-hidden="true">☕</span>
-          <span><strong>Fika break</strong><small>Slow every attacker for 5 s</small></span>
+          <span><strong data-t="fikaName">Fika break</strong><small data-t="fikaDesc">Slow every attacker for 5 s</small></span>
           <span id="fika-state" class="fika-state">READY <kbd>F</kbd></span>
         </button>
 
-        <p class="control-tip">Drag to pan · Pinch or scroll to zoom<br>Tap a built defence to upgrade or sell it</p>
+        <p class="control-tip" data-t-html="controlTip">Drag to pan · Pinch or scroll to zoom<br>Tap a built defence to upgrade or sell it</p>
       </aside>
     </main>
   </div>
 
   <div id="intro-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="intro-title">
     <div class="modal-card intro-card">
-      <span class="modal-eyebrow">MALMÖ · 1658-ish</span>
+      <div class="mode-switch" role="radiogroup" aria-label="Language and rules">
+        <button type="button" role="radio" data-mode="american" aria-checked="true"><span class="flag" aria-hidden="true">🇺🇸</span> American</button>
+        <button type="button" role="radio" data-mode="skanska" aria-checked="false"><span class="flag skane-flag" aria-hidden="true"></span> Skånska</button>
+      </div>
+      <span class="modal-eyebrow" data-t="introEyebrow">MALMÖ · 1658-ish</span>
       <div class="intro-statue" aria-hidden="true">♞</div>
       <h2 id="intro-title">Hold Stortorget.</h2>
-      <p class="modal-lead">Dans&#107;jävlar are coming through Malmö’s real streets. Keep them away from the Karl X Gustav statue.</p>
-      <div class="how-to-grid">
+      <p class="modal-lead" data-t="introLead">Dans&#107;jävlar are coming through Malmö’s real streets. Keep them away from the Karl X Gustav statue.</p>
+      <div class="how-to-grid" id="how-to-grid">
         <div><span>01</span><strong>Build</strong><p>Choose a defence and tap a white pavement site.</p></div>
         <div><span>02</span><strong>Adapt</strong><p>New streets join the attack. Cover every approach.</p></div>
         <div><span>03</span><strong>Fika</strong><p>Slow the whole invasion when things get crowded.</p></div>
       </div>
       <button id="start-game" class="primary-button modal-primary" type="button">Defend Stortorget <span>→</span></button>
-      <p class="modal-footnote">8 relaxed waves · upgrades · no timers before wave 1</p>
+      <p class="modal-footnote"><span data-t="introFootnote">8 relaxed waves · upgrades · no timers before wave 1</span><br><span id="intro-best"></span></p>
     </div>
   </div>
 
@@ -172,11 +178,13 @@
       <h2 id="end-title">Stortorget stands!</h2>
       <p id="end-message" class="modal-lead">Karl X Gustav is still on his horse. Time for a well-earned fika.</p>
       <div class="end-stats">
-        <div><strong id="end-kills">0</strong><span>Stopped</span></div>
-        <div><strong id="end-health">0</strong><span>Statue health</span></div>
-        <div><strong id="end-towers">0</strong><span>Defences built</span></div>
+        <div><strong id="end-kills">0</strong><span data-t="endStopped">Stopped</span></div>
+        <div><strong id="end-health">0</strong><span data-t="endHealth">Statue health</span></div>
+        <div><strong id="end-towers">0</strong><span data-t="endTowers">Defences built</span></div>
       </div>
-      <button id="restart-game" class="primary-button modal-primary" type="button">Play again <span>↻</span></button>
+      <p id="end-best" class="end-best"></p>
+      <button id="endless-game" class="primary-button modal-primary endless-button" type="button" hidden><span data-t="endless">Keep going — endless</span> <span>∞</span></button>
+      <button id="restart-game" class="primary-button modal-primary" type="button"><span data-t="restart">Play again</span> <span>↻</span></button>
     </div>
   </div>
 

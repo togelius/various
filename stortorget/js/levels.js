@@ -365,10 +365,140 @@
     maxHealth: 20,
     intermissionSeconds: 20,
     sellRefund: 0.7,
+    fikaKind: "slow",
     fikaDuration: 5,
     fikaCooldown: 38,
     fikaSlowFactor: 0.48,
+    // Kills inside this window build a streak; every fifth kill pays out.
+    streakWindow: 1.35,
+    streakStep: 5,
+    streakCap: 25,
+    // Every ninth kill drops a golden pickup the player can tap for cash.
+    pickupEvery: 9,
+    pickupLife: 7,
+    pickupValue: 12,
+    pickupValuePerWave: 2,
+    endlessHpGrowth: 1.16,
   };
+
+  // Each mode is a small set of rule tweaks on top of the shared content.
+  // Names and wave titles live here so the engine and balance lab see them;
+  // interface copy lives in js/text.js.
+  const MODES = {
+    american: {
+      id: "american",
+      // Supersized: longer reach and bigger booms, but the Danes are bigger too.
+      towerScale: { range: 1.15, cost: 1.2, splash: 1.2 },
+      enemyScale: { hp: 1.25, size: 1.15 },
+      config: {
+        tipMin: 0.05,
+        tipMax: 0.15,
+        fikaKind: "fireworks",
+        fikaDuration: 4,
+        fikaSlowFactor: 1,
+        fireworksVolleys: 5,
+        fireworksDamage: 9,
+      },
+      towers: {
+        falafel: { name: "Freedom fry truck", shortName: "Fry truck" },
+        bulle: { name: "Donut cannon", shortName: "Donuts" },
+        glass: { name: "Slushie truck", shortName: "Slushie" },
+        espresso: { name: "Drive-thru coffee", shortName: "Drive-thru" },
+        vind: { name: "Leaf blower", shortName: "Blower" },
+      },
+      waveNames: [
+        "The first arrivals", "A pincer movement", "Trouble at Lilla Torg", "The eastern front",
+        "They came by train", "Rush hour", "All roads to Stortorget", "The last Dane standing",
+      ],
+      endlessNames: ["Overtime", "Double overtime", "Sudden death", "The bridge is open", "Black Friday", "All-you-can-eat"],
+    },
+    skanska: {
+      id: "skanska",
+      towerScale: { knockback: 1.3 },
+      config: {
+        fikaDuration: 7,
+        gustInterval: 15,
+        gustPush: 7,
+        goHomeHpRatio: 0.4,
+        homeToll: 6,
+      },
+      towers: {
+        falafel: { name: "Falafelkiosken", shortName: "Falafel" },
+        bulle: { name: "Spiddekagakastaren", shortName: "Spiddekaga" },
+        glass: { name: "Glassbilen", shortName: "Glass" },
+        espresso: { name: "Bärstältet", shortName: "Bärs" },
+        vind: { name: "Skånsk blåst", shortName: "Blåst" },
+      },
+      waveNames: [
+        "Dom första", "Tångrörelsen", "Bråk på Lilla Torg", "Östfronten",
+        "Dom kom mä tåget", "Rusningstrafik", "Alla vägar bär te Stortorget", "Den siste dansken",
+      ],
+      endlessNames: ["Bron e öppen", "Mer mög", "Ålahuen kommer", "Bonnaröven slår tebaka", "Rälig rusning", "Ingen fika i sikte"],
+    },
+  };
+
+  function applyMode(base, modeId) {
+    const mode = MODES[modeId];
+    if (!mode) return base;
+    const scale = { range: 1, cost: 1, splash: 1, knockback: 1, ...mode.towerScale };
+    const price = (value) => Math.round((value * scale.cost) / 5) * 5;
+    const enemyScale = { hp: 1, size: 1, ...mode.enemyScale };
+    const enemyTypes = Object.fromEntries(Object.entries(base.ENEMY_TYPES).map(([id, enemy]) => [id, {
+      ...enemy,
+      hp: Math.round(enemy.hp * enemyScale.hp),
+      size: enemy.size * enemyScale.size,
+    }]));
+    const towerTypes = Object.fromEntries(Object.entries(base.TOWER_TYPES).map(([id, tower]) => [id, {
+      ...tower,
+      ...(mode.towers[id] || {}),
+      cost: price(tower.cost),
+      range: tower.range * scale.range,
+      levels: tower.levels.map((level) => ({
+        ...level,
+        range: level.range * scale.range,
+        ...(level.splash ? { splash: level.splash * scale.splash } : {}),
+        ...(level.knockback ? { knockback: level.knockback * scale.knockback } : {}),
+        ...(level.upgradeCost ? { upgradeCost: price(level.upgradeCost) } : {}),
+      })),
+    }]));
+    return {
+      ...base,
+      mode: mode.id,
+      MODE: mode,
+      TOWER_TYPES: towerTypes,
+      ENEMY_TYPES: enemyTypes,
+      WAVES: base.WAVES.map((wave, index) => ({ ...wave, name: mode.waveNames[index] || wave.name })),
+      CONFIG: { ...base.CONFIG, ...mode.config },
+    };
+  }
+
+  // Endless waves continue past the authored finale on every route at once.
+  function makeEndlessWave(levels, number) {
+    const last = levels.WAVES[levels.WAVES.length - 1];
+    const step = number - levels.WAVES.length;
+    const names = levels.MODE?.endlessNames || ["Overtime"];
+    const every = Math.max(0.7, 1.2 - step * 0.04);
+    const routes = levels.ROUTES.map((route) => route.id);
+    const groups = routes.map((route, index) => ({
+      route,
+      type: index % 2 ? "runner" : "basic",
+      count: 7 + step,
+      every,
+      at: index * 0.8,
+    }));
+    groups.push({ route: routes[step % routes.length], type: "tank", count: 2 + Math.floor(step / 2), every: 3.4, at: 5 });
+    groups.push({ route: routes[(step + 3) % routes.length], type: "tank", count: 1 + Math.floor(step / 3), every: 4, at: 9 });
+    if (step % 3 === 0) {
+      groups.push({ route: routes[(step / 3) % routes.length], type: "boss", count: 1 + Math.floor(step / 6), every: 6, at: 18 });
+    }
+    return {
+      name: `${names[(step - 1) % names.length]} · ${number}`,
+      hpScale: last.hpScale * (levels.CONFIG.endlessHpGrowth ** step),
+      routes,
+      groups,
+      endless: true,
+    };
+  }
 
   function prepareRoute(route) {
     const points = route.points.map(([x, y]) => ({ x, y }));
@@ -408,6 +538,9 @@
     WAVES,
     QUIPS,
     CONFIG,
+    MODES,
+    applyMode,
+    makeEndlessWave,
     pointOnRoute,
   };
 });

@@ -564,7 +564,7 @@ function runPersona(personaReference = "allrounder", options = {}) {
   const cosmeticRandom = createRng(seed, `cosmetic:${persona.id}`);
   const flair = ["circle", "diamond", "triangle", "square"][Math.floor(cosmeticRandom() * 4)];
   const gameLevels = options.levels ? cloneData(options.levels) : createScenarioLevels(scenario);
-  const game = new Game({ levels: gameLevels });
+  const game = new Game({ levels: gameLevels, mode: options.mode || null });
   game.geometry = createGeometry(gameLevels);
 
   const includeDecisions = Boolean(options.decisionLog || options.includeDecisions);
@@ -687,6 +687,7 @@ function runPersona(personaReference = "allrounder", options = {}) {
   return {
     persona: persona.id,
     scenario: options.levels && !options.scenario ? "custom" : scenario.id,
+    mode: game.mode || "classic",
     seed,
     flair,
     outcome,
@@ -703,6 +704,11 @@ function runPersona(personaReference = "allrounder", options = {}) {
     elapsed: Number(game.elapsed.toFixed(6)),
     fikaUses: game.stats.fikaUses,
     earlyBonus: game.stats.earlyBonus,
+    tips: game.stats.tips,
+    streakBonus: game.stats.streakBonus,
+    sentHome: game.stats.sentHome,
+    homeTolls: game.stats.homeTolls,
+    gusts: game.stats.gusts,
     damage: game.stats.damage,
     shots: game.stats.shots,
     knockback: game.stats.knockback,

@@ -1,9 +1,15 @@
 (function () {
   "use strict";
 
-  const levels = window.StortorgetLevels;
   const Game = window.StortorgetEngine.Game;
-  const game = new Game();
+  const { TEXT, fill } = window.StortorgetText;
+  const MODE_STORAGE_KEY = "stortorget-mode";
+  let mode = loadMode();
+  let game = new Game({ mode });
+  let levels = game.levels;
+  let text = TEXT[mode];
+  const t = (key, params) => fill(text[key], params);
+  const formatMoney = (value) => text.money(value);
   const canvas = document.getElementById("game-canvas");
   const shell = document.getElementById("game-shell");
   const context = canvas.getContext("2d");
@@ -31,10 +37,15 @@
     shake: 0,
     shakeOffset: { x: 0, y: 0 },
     statueHit: 0,
-    combo: { count: 0, timer: 0, best: 0 },
     endShown: false,
     helpOpen: false,
+    pendingMode: mode,
+    lastRetortAt: -100,
   };
+
+  // Approximate centre line of the canals north of the old town, in map pixels.
+  const CANAL = [[110, 0], [125, 50], [150, 95], [200, 105], [260, 100], [330, 82], [400, 70], [503, 52]];
+  const CANAL_WIDTH = 20;
 
   const view = { width: 1, height: 1, dpr: 1, fitScale: 1 };
   const camera = { x: levels.MAP.width / 2, y: levels.MAP.height / 2, scale: 1 };
@@ -56,6 +67,41 @@
     // The game also works with storage disabled (including some file:// modes).
   }
 
+  function loadMode() {
+    try {
+      const saved = localStorage.getItem(MODE_STORAGE_KEY);
+      if (saved && TEXT[saved]) return saved;
+    } catch (_) {}
+    return /^sv\b/i.test(navigator.language || "") ? "skanska" : "american";
+  }
+
+  function saveMode(value) {
+    try { localStorage.setItem(MODE_STORAGE_KEY, value); } catch (_) {}
+  }
+
+  function readBest(modeId) {
+    try { return Number(localStorage.getItem(`stortorget-best-${modeId}`)) || 0; } catch (_) { return 0; }
+  }
+
+  // Records waves cleared; returns true when the run sets a new record.
+  function recordBest(cleared) {
+    if (cleared <= readBest(mode)) return false;
+    try { localStorage.setItem(`stortorget-best-${mode}`, String(cleared)); } catch (_) {}
+    return true;
+  }
+
+  function distanceToCanal(point) {
+    let best = Infinity;
+    for (let index = 0; index < CANAL.length - 1; index += 1) {
+      const [ax, ay] = CANAL[index];
+      const [bx, by] = CANAL[index + 1];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const along = clamp(((point.x - ax) * dx + (point.y - ay) * dy) / (dx * dx + dy * dy), 0, 1);
+      best = Math.min(best, Math.hypot(point.x - (ax + dx * along), point.y - (ay + dy * along)));
+    }
+    return best;
+  }
   function loadMap() {
     const image = new Image();
     image.onload = () => {
@@ -75,7 +121,7 @@
       mapReady = true;
     };
     image.onerror = () => {
-      element("game-hint").textContent = "The local map could not be loaded";
+      element("game-hint").textContent = t("mapError");
     };
     image.src = "assets/malmo-map.png";
   }
@@ -176,7 +222,7 @@
       context.fillStyle = "#dbe9e2";
       context.font = "600 14px -apple-system, sans-serif";
       context.textAlign = "center";
-      context.fillText("Loading the real streets of Malmö…", view.width / 2, view.height / 2);
+      context.fillText(t("mapLoading"), view.width / 2, view.height / 2);
     }
   }
 
@@ -647,7 +693,7 @@
     context.textBaseline = "middle";
     context.fillText("♞", 0, 1);
     context.font = "800 8px -apple-system, sans-serif";
-    const label = "KARL X GUSTAV";
+    const label = text.statueLabel;
     const width = context.measureText(label).width + 12;
     context.fillStyle = "rgba(10, 32, 27, .9)";
     context.beginPath();
@@ -656,6 +702,34 @@
     context.fillStyle = "#f1f7ed";
     context.fillText(label, 0, 37);
     context.restore();
+  }
+
+  function drawPickups(time) {
+    for (const pickup of game.pickups) {
+      const point = worldToScreen(pickup);
+      const bob = reducedMotion ? 0 : Math.sin(time * 6 + pickup.id) * 2.5;
+      const fading = pickup.life < 2 && !reducedMotion ? 0.55 + 0.45 * Math.abs(Math.sin(time * 12)) : 1;
+      context.save();
+      context.globalAlpha = fading;
+      context.translate(point.x, point.y - 14 + bob);
+      context.shadowColor = "rgba(255, 209, 102, .95)";
+      context.shadowBlur = 16;
+      context.fillStyle = "rgba(255, 220, 120, .35)";
+      context.beginPath();
+      context.arc(0, 0, 14, 0, Math.PI * 2);
+      context.fill();
+      context.shadowBlur = 0;
+      context.strokeStyle = "#ffd166";
+      context.lineWidth = 2.5;
+      context.beginPath();
+      context.arc(0, 0, 16, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (pickup.life / pickup.maxLife));
+      context.stroke();
+      context.font = "19px -apple-system, 'Apple Color Emoji', sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(text.pickupIcon, 0, 1);
+      context.restore();
+    }
   }
 
   function drawEffects(dt) {
@@ -730,8 +804,6 @@
     }
     ui.shake = Math.max(0, ui.shake - dt * 18);
     ui.statueHit = Math.max(0, ui.statueHit - dt * 2.5);
-    ui.combo.timer = Math.max(0, ui.combo.timer - dt);
-    if (ui.combo.timer === 0) ui.combo.count = 0;
     ui.rings = ui.rings.filter((ring) => ring.life > 0);
     ui.particles = ui.particles.filter((particle) => particle.life > 0);
     ui.floaters = ui.floaters.filter((floater) => floater.life > 0);
@@ -740,7 +812,7 @@
 
   function drawQuips() {
     for (const quip of ui.quips) {
-      const enemy = game.enemies.find((item) => item.id === quip.enemyId);
+      const enemy = quip.local ? null : game.enemies.find((item) => item.id === quip.enemyId);
       const origin = worldToScreen(enemy || quip);
       const boss = enemy?.type === "boss" || quip.boss;
       const fontSize = boss ? 12 : 10;
@@ -753,12 +825,12 @@
       context.globalAlpha = clamp(quip.life / 0.25, 0, 1);
       context.shadowColor = "rgba(0,0,0,.35)";
       context.shadowBlur = 8;
-      context.fillStyle = boss ? "#fff0bd" : "#fffdf4";
+      context.fillStyle = quip.local ? "#71e2bd" : boss ? "#fff0bd" : "#fffdf4";
       context.beginPath();
       context.roundRect(x, y, width, height, 7);
       context.fill();
       context.shadowBlur = 0;
-      context.fillStyle = "#3e3030";
+      context.fillStyle = quip.local ? "#0b2d24" : "#3e3030";
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(quip.text, x + width / 2, y + height / 2 + 0.5);
@@ -774,12 +846,35 @@
     game.enemies.slice().sort((a, b) => a.y - b.y).forEach(drawEnemy);
     drawProjectiles();
     drawStatue();
+    drawPickups(time);
     drawEffects(dt);
     drawQuips();
   }
 
   function addShake(amount) {
-    if (!reducedMotion) ui.shake = Math.min(12, Math.max(ui.shake, amount));
+    const scale = mode === "american" ? 1.4 : 1;
+    if (!reducedMotion) ui.shake = Math.min(14, Math.max(ui.shake, amount * scale));
+  }
+
+  // Locals shout back from the nearest defence. Mint bubbles, never more than one at a time.
+  function addLocalQuip(point, phrases, options = {}) {
+    if (!phrases.length || (!options.force && game.elapsed - ui.lastRetortAt < 3.5)) return;
+    let origin = point;
+    if (options.fromTower) {
+      let nearest = Infinity;
+      for (const tower of game.towers) {
+        const distance = Math.hypot(tower.x - point.x, tower.y - point.y);
+        if (distance < nearest) {
+          nearest = distance;
+          origin = tower;
+        }
+      }
+    }
+    ui.lastRetortAt = game.elapsed;
+    ui.quips = ui.quips.filter((quip) => !quip.local);
+    if (ui.quips.length >= 3) ui.quips.shift();
+    const phrase = phrases[(Math.floor(game.elapsed * 7) + game.stats.kills) % phrases.length];
+    ui.quips.push({ local: true, text: phrase, x: origin.x, y: origin.y, life: 1.8, maxLife: 1.8 });
   }
 
   function addQuip(enemy, text, options = {}) {
@@ -980,6 +1075,34 @@
     } else if (name === "fika") {
       tone(523, 0.2, 0, 0.03, "sine");
       tone(659, 0.3, 0.13, 0.03, "sine");
+    } else if (name === "fireworks") {
+      if (!allowSound("fireworks", 0.1)) return;
+      for (let index = 0; index < 4; index += 1) {
+        noise(0.07, index * 0.045, 0.03, 2600 + Math.random() * 2000, "highpass");
+      }
+      tone(780 + Math.random() * 400, 0.25, 0, 0.012, "sine", 1900);
+      tone(70, 0.25, 0.05, 0.05, "sine", 40);
+    } else if (name === "gust") {
+      noise(0.9, 0, 0.05, 520, "bandpass");
+      noise(0.6, 0.2, 0.03, 900, "bandpass");
+    } else if (name === "home") {
+      if (!allowSound("home", 0.12)) return;
+      tone(392, 0.09, 0, 0.022, "triangle");
+      tone(523, 0.09, 0.07, 0.022, "triangle");
+      tone(1046, 0.12, 0.14, 0.014, "sine");
+    } else if (name === "splash") {
+      if (!allowSound("splash", 0.1)) return;
+      tone(900, 0.12, 0, 0.03, "sine", 180);
+      noise(0.25, 0.03, 0.03, 1800, "lowpass");
+    } else if (name === "pickupDrop") {
+      tone(1320, 0.08, 0, 0.018, "sine");
+      tone(1760, 0.12, 0.06, 0.014, "sine");
+    } else if (name === "pickup") {
+      [784, 988, 1175, 1568].forEach((note, index) => tone(note, 0.1, index * 0.045, 0.026, "triangle"));
+    } else if (name === "streak") {
+      const root = 523 * 2 ** (Math.min(4, detail.count / 5 - 1) / 12 * 2);
+      tone(root, 0.12, 0, 0.03, "square", root * 1.5);
+      tone(root * 1.5, 0.18, 0.08, 0.022, "square");
     } else if (name === "win") {
       [392, 494, 587, 784].forEach((note, index) => tone(note, 0.4, index * 0.15, 0.04, "triangle"));
     } else if (name === "lose") {
@@ -990,18 +1113,23 @@
   function showEnd(won) {
     if (ui.endShown) return;
     ui.endShown = true;
-    element("end-eyebrow").textContent = won ? "VICTORY · ALL 8 WAVES CLEARED" : "THE SQUARE WAS OVERRUN";
-    element("end-title").textContent = won ? "Stortorget stands!" : "One more fika?";
+    const cleared = won ? game.currentWave : game.currentWave - 1;
+    const record = recordBest(cleared);
+    element("end-eyebrow").textContent = won ? t("winEyebrow") : t("loseEyebrow");
+    element("end-title").textContent = won ? t("winTitle") : t("loseTitle");
     element("end-message").textContent = won
-      ? "Karl X Gustav is still on his horse. Time for a well-earned fika."
-      : `You reached wave ${game.currentWave}. Try covering the street merges, then slow the crowds with ice cream and fika.`;
+      ? t("winMessage")
+      : t(game.endless ? "endlessLoseMessage" : "loseMessage", { n: game.currentWave, cleared });
     element("end-icon").textContent = won ? "♞" : "☕";
+    element("end-best").textContent = record ? `${t("newBest")} ${t("best", { n: cleared })}` : bestLine();
+    element("end-best").classList.toggle("record", record);
+    element("endless-game").hidden = !won;
     element("end-kills").textContent = game.stats.kills;
     element("end-health").textContent = game.health;
     element("end-towers").textContent = game.stats.towersBuilt;
     element("end-modal").hidden = false;
     playSound(won ? "win" : "lose");
-    element("restart-game").focus();
+    element(won ? "endless-game" : "restart-game").focus();
   }
 
   function showWaveBanner(kicker, title, duration = 2200) {
@@ -1015,6 +1143,23 @@
   function addFloater(floater) {
     ui.floaters.push({ life: 0.8, maxLife: 0.8, ...floater });
     if (ui.floaters.length > 60) ui.floaters.shift();
+  }
+
+  function bestLine() {
+    const best = readBest(mode);
+    return best ? t("best", { n: best }) : t("noBest");
+  }
+
+  function splashIfCanal(event) {
+    if (distanceToCanal(event) > CANAL_WIDTH) return false;
+    ui.rings.push(
+      { x: event.x, y: event.y, radius: 22, color: "#bfe9ff", life: 0.5, maxLife: 0.5, width: 2 },
+      { x: event.x, y: event.y, radius: 36, color: "#7cc8f0", life: 0.75, maxLife: 0.75, width: 1.5 },
+    );
+    burst(event.x, event.y, "#c9efff", 14, { speed: 46, gravity: 120, lift: 50, size: 2 });
+    addFloater({ x: event.x, y: event.y, text: t("splash"), color: "#bfe9ff", size: 14, life: 1, maxLife: 1 });
+    playSound("splash");
+    return true;
   }
 
   function processEvents() {
@@ -1033,8 +1178,12 @@
         playSound("sell");
       } else if (event.type === "wave") {
         ui.routePreview = 6;
-        showWaveBanner(`WAVE ${event.wave} · ${event.routes.length} ${event.routes.length === 1 ? "APPROACH" : "APPROACHES"}`, event.name);
-        if (event.earlyBonus) toast(`Early call · +${event.earlyBonus} kr`);
+        showWaveBanner(t("bannerWave", {
+          n: event.wave,
+          k: event.routes.length,
+          approaches: event.routes.length === 1 ? text.approach : text.approaches,
+        }), event.name);
+        if (event.earlyBonus) toast(t("toastEarly", { bonus: formatMoney(event.earlyBonus) }));
         playSound("wave");
       } else if (event.type === "spawn") {
         const enemy = event.enemy;
@@ -1042,7 +1191,8 @@
         ui.quipSchedule.set(enemy.id, game.elapsed + 4 + enemy.id % 5);
         if (enemy.type === "boss") {
           ui.routePreview = 3;
-          showWaveBanner("FINAL BOSS · MALMÖ CENTRAL", phrases[0], 2400);
+          const route = game.getRoute(enemy.routeId).name.toUpperCase();
+          showWaveBanner(t(game.endless ? "bannerEndlessBoss" : "bannerBoss", { route }), phrases[0], 2400);
           addQuip(enemy, phrases[0], { silent: true });
           addShake(5);
           playSound("boss");
@@ -1065,7 +1215,7 @@
         ui.hitFlashes.set(event.enemy.id, 0.11);
         const lastNumber = ui.lastDamageNumbers.get(event.enemy.id) ?? -100;
         if (event.killed || game.elapsed - lastNumber > 0.22) {
-          const color = event.sourceType === "bulle" ? "#ffd09a" : event.sourceType === "glass" || event.sourceType === "vind" ? "#c5f4ff" : "#fff5df";
+          const color = event.sourceType === "bulle" ? "#ffd09a" : event.sourceType === "glass" || event.sourceType === "vind" ? "#c5f4ff" : event.sourceType === "fika" ? "#ffb3c7" : "#fff5df";
           addFloater({
             x: event.x,
             y: event.y,
@@ -1078,16 +1228,60 @@
         }
         if (event.sourceType !== "bulle") burst(event.x, event.y, "#fff1cf", 2, { speed: 22, life: 0.25, lift: 0 });
       } else if (event.type === "kill") {
-        ui.combo.count += 1;
-        ui.combo.timer = 1.35;
-        ui.combo.best = Math.max(ui.combo.best, ui.combo.count);
-        burst(event.x, event.y, "#e66b62", 7, { speed: 48, gravity: 65 });
+        const splashed = splashIfCanal(event);
+        if (!splashed) burst(event.x, event.y, "#e66b62", 7, { speed: 48, gravity: 65 });
         addFloater({ x: event.x, y: event.y, text: `+${event.bounty}`, color: "#ffe092", xOffset: 8 });
+        if (event.tip) {
+          addFloater({ x: event.x, y: event.y + 12, text: t("tip", { tip: event.tip }), color: "#ffb3c7", size: 9, xOffset: 14, life: 1, maxLife: 1 });
+        }
         if (event.enemy.id % 5 === 0) {
           const quips = levels.QUIPS.defeat;
           addQuip(event.enemy, quips[event.enemy.id % quips.length], { silent: true, duration: 1.4 });
+        } else if (event.enemy.id % 3 === 0) {
+          addLocalQuip(event, text.retorts, { fromTower: true });
         }
-        playSound("kill", { combo: ui.combo.count });
+        playSound("kill", { combo: game.streak.count });
+      } else if (event.type === "streak") {
+        addFloater({ x: event.x, y: event.y - 10, text: `${t("streak", { n: event.count })} +${event.reward}`, color: "#ffd166", size: 15, life: 1.3, maxLife: 1.3 });
+        ui.rings.push({ x: event.x, y: event.y, radius: 40, color: "#ffd166", life: 0.5, maxLife: 0.5, width: 3 });
+        addShake(1.5);
+        playSound("streak", { count: event.count });
+      } else if (event.type === "home") {
+        burst(event.x, event.y, "#c5f4ff", 10, { speed: 55, life: 0.6, lift: 25 });
+        burst(event.x, event.y, "#ffd166", 6, { speed: 30, gravity: 60 });
+        addFloater({ x: event.x, y: event.y, text: `+${event.payout}`, color: "#ffe092", size: 13, xOffset: 8 });
+        addLocalQuip(event, text.homeQuips, { force: true });
+        playSound("home");
+      } else if (event.type === "gust") {
+        for (let index = 0; index < (reducedMotion ? 4 : 26); index += 1) {
+          const y = Math.random() * levels.MAP.height;
+          const x = Math.random() * levels.MAP.width;
+          ui.particles.push({ x, y, vx: -140 - Math.random() * 90, vy: (Math.random() - 0.5) * 12, color: "rgba(230, 255, 252, .7)", size: 1.3, life: 0.9, maxLife: 0.9, lift: 0 });
+        }
+        addLocalQuip(levels.STATUE, text.gustQuips, { force: true });
+        addShake(2);
+        playSound("gust");
+      } else if (event.type === "fireworks") {
+        const palette = ["#ff4d5e", "#ffffff", "#5b8cff", "#ffd166"];
+        event.targets.slice(0, 18).forEach((target, index) => {
+          const color = palette[index % palette.length];
+          ui.rings.push({ x: target.x, y: target.y - 6, radius: 18, color, life: 0.45, maxLife: 0.45, width: 2 });
+          burst(target.x, target.y - 8, color, 9, { speed: 70, gravity: 70, life: 0.65, size: 1.7 });
+        });
+        if (event.targets.length) addLocalQuip(levels.STATUE, text.fireworksQuips);
+        addShake(2.2);
+        playSound("fireworks");
+      } else if (event.type === "pickupDrop") {
+        ui.rings.push({ x: event.pickup.x, y: event.pickup.y - 14, radius: 24, color: "#ffd166", life: 0.5, maxLife: 0.5 });
+        playSound("pickupDrop");
+      } else if (event.type === "pickup") {
+        burst(event.x, event.y - 14, "#ffd166", 16, { speed: 60, gravity: 50, size: 2.2 });
+        addFloater({ x: event.x, y: event.y - 14, text: `+${event.value}`, color: "#ffd166", size: 16, life: 1.1, maxLife: 1.1 });
+        toast(t("toastPickup", { value: formatMoney(event.value) }));
+        playSound("pickup");
+      } else if (event.type === "endless") {
+        ui.routePreview = Infinity;
+        toast(t("toastEndless"));
       } else if (event.type === "explosion") {
         ui.rings.push(
           { x: event.x, y: event.y, radius: event.radius * 0.65, color: "#fff1b0", life: 0.16, maxLife: 0.16, fill: true, startRadius: 5 },
@@ -1115,22 +1309,24 @@
         vignette.classList.remove("flash");
         void vignette.offsetWidth;
         vignette.classList.add("flash");
-        toast(`The statue took ${event.damage} damage`, true);
+        toast(t("toastLeak", { n: event.damage }), true);
         playSound("leak");
       } else if (event.type === "waveComplete") {
         ui.routePreview = Infinity;
-        toast(`Wave cleared · +${event.reward} kr${event.healed ? " · statue repaired +1" : ""}`);
+        toast(t("toastCleared", { reward: formatMoney(event.reward), healed: event.healed ? text.toastHealed : "" }));
         playSound("clear");
       } else if (event.type === "fika") {
-        toast("Fika break! The whole invasion slows down.");
+        toast(t("toastFika"));
         ui.rings.push(
           { x: levels.STATUE.x, y: levels.STATUE.y, radius: 160, color: "#ffe09a", life: 0.8, maxLife: 0.8 },
           { x: levels.STATUE.x, y: levels.STATUE.y, radius: 105, color: "#fff2c7", life: 0.55, maxLife: 0.55 },
         );
-        game.enemies.slice(0, 2).forEach((enemy, index) => {
-          const quips = levels.QUIPS.fika;
-          addQuip(enemy, quips[(game.currentWave + index) % quips.length], { silent: index > 0 });
-        });
+        if (event.kind !== "fireworks") {
+          game.enemies.slice(0, 2).forEach((enemy, index) => {
+            const quips = levels.QUIPS.fika;
+            addQuip(enemy, quips[(game.currentWave + index) % quips.length], { silent: index > 0 });
+          });
+        }
         addShake(1);
         playSound("fika");
       } else if (event.type === "win") {
@@ -1159,49 +1355,65 @@
     const definition = levels.TOWER_TYPES[tower.type];
     const stats = game.getTowerStats(tower);
     const multiplier = game.getFireRateMultiplier(tower);
-    setText("selection-kicker", `LEVEL ${tower.level} · ${Math.round(stats.range * 1.35)} m RANGE${multiplier > 1 ? " · ESPRESSO BOOST" : ""}`);
+    const unit = text.rangeUnit;
+    setText("selection-kicker", t("selectionKicker", {
+      level: tower.level,
+      range: Math.round(stats.range * text.rangeFactor),
+      unit,
+      boost: multiplier > 1 ? text.selectionBoost : "",
+    }));
     setText("selection-name", definition.name);
     if (definition.support) {
       const allies = game.towers.filter((ally) => ally.id !== tower.id && !levels.TOWER_TYPES[ally.type].support && Math.hypot(ally.x - tower.x, ally.y - tower.y) <= stats.range).length;
-      setText("selection-stats", `${Math.round(stats.haste * 100)}% faster fire · ${allies} ${allies === 1 ? "ally" : "allies"} in range`);
+      setText("selection-stats", t("supportStats", { pct: Math.round(stats.haste * 100), n: allies, allies: allies === 1 ? text.ally : text.allies }));
     } else {
-      const extras = stats.splash ? ` · ${stats.splash} splash` : stats.slowDuration ? ` · ${Math.round((1 - stats.slowFactor) * 100)}% slow` : stats.knockback ? ` · ${Math.round(stats.knockback * 1.35)} m push` : "";
-      const heavy = stats.heavyBonus > 1 ? ` · +${Math.round((stats.heavyBonus - 1) * 100)}% heavy` : "";
+      const extras = stats.splash ? t("statSplash", { n: Math.round(stats.splash) })
+        : stats.slowDuration ? t("statSlow", { pct: Math.round((1 - stats.slowFactor) * 100) })
+          : stats.knockback ? t("statPush", { n: Math.round(stats.knockback * text.rangeFactor), unit }) : "";
+      const heavy = stats.heavyBonus > 1 ? t("statHeavy", { pct: Math.round((stats.heavyBonus - 1) * 100) }) : "";
       const effectiveRate = stats.rate / multiplier;
-      setText("selection-stats", `${stats.damage} damage · ${effectiveRate.toFixed(2)} s reload${extras}${heavy}`);
+      setText("selection-stats", t("towerStats", { damage: stats.damage, rate: effectiveRate.toFixed(2), extras, heavy }));
     }
     const upgrade = element("upgrade-button");
     const cost = game.getUpgradeCost(tower);
     upgrade.disabled = cost === null;
-    upgrade.innerHTML = cost === null ? "Max level" : `Upgrade <span>${cost} kr</span>`;
-    element("sell-button").innerHTML = `Sell <span>${Math.floor(tower.invested * game.config.sellRefund)} kr</span>`;
+    const upgradeHtml = cost === null ? text.maxLevel : `${text.upgrade} <span>${formatMoney(cost)}</span>`;
+    if (upgrade.innerHTML !== upgradeHtml) upgrade.innerHTML = upgradeHtml;
+    const sellHtml = `${text.sell} <span>${formatMoney(Math.floor(tower.invested * game.config.sellRefund))}</span>`;
+    if (element("sell-button").innerHTML !== sellHtml) element("sell-button").innerHTML = sellHtml;
   }
 
   function updateHUD() {
     setText("health-value", game.health);
-    setText("money-value", game.money);
+    setText("money-value", formatMoney(game.money));
     setText("wave-value", game.currentWave || "–");
+    setText("wave-total", game.endless ? " / ∞" : ` / ${game.totalWaves}`);
     element("health-stat").classList.toggle("hurt", game.health <= 5);
     const comboChip = element("combo-chip");
-    comboChip.classList.toggle("visible", ui.combo.count >= 3 && ui.combo.timer > 0);
-    if (ui.combo.count >= 3) comboChip.textContent = `${ui.combo.count}× STREAK`;
+    const streakLive = game.streak.count >= 3 && game.elapsed - game.streak.lastKillAt <= game.config.streakWindow;
+    comboChip.classList.toggle("visible", streakLive);
+    if (streakLive) setText("combo-chip", t("streak", { n: game.streak.count }));
 
     const remaining = game.enemies.length + game.spawnQueue.length;
     const chip = element("phase-chip");
     chip.classList.toggle("wave", game.phase === "wave");
     chip.classList.toggle("fika", game.fikaRemaining > 0);
-    if (ui.started && ui.paused) chip.textContent = "PAUSED";
-    else if (game.fikaRemaining > 0) chip.textContent = `FIKA BREAK · ${Math.ceil(game.fikaRemaining)} S`;
-    else if (game.phase === "wave") chip.textContent = `WAVE ${game.currentWave} · ${remaining} LEFT`;
-    else if (game.phase === "intermission") chip.textContent = `NEXT WAVE · ${Math.ceil(game.intermission)} S`;
-    else if (game.phase === "won") chip.textContent = "STORTORGET STANDS";
-    else if (game.phase === "lost") chip.textContent = "SQUARE OVERRUN";
-    else chip.textContent = "BUILD PHASE";
+    let phaseText = t("phaseBuild");
+    if (ui.started && ui.paused) phaseText = t("phasePaused");
+    else if (game.fikaRemaining > 0) phaseText = t("phaseFika", { s: Math.ceil(game.fikaRemaining) });
+    else if (game.phase === "wave") phaseText = t("phaseWave", { n: game.currentWave, left: remaining });
+    else if (game.phase === "intermission") phaseText = t("phaseNext", { s: Math.ceil(game.intermission) });
+    else if (game.phase === "won") phaseText = t("phaseWon");
+    else if (game.phase === "lost") phaseText = t("phaseLost");
+    setText("phase-chip", phaseText);
 
-    const shownWave = game.phase === "wave" ? game.getWave() : game.getNextWave();
+    const showCurrent = game.phase === "wave" || game.phase === "lost" || (game.phase === "won" && !game.endless);
+    const shownWave = showCurrent ? game.getWave() : game.getNextWave();
     if (shownWave) {
-      const number = game.phase === "wave" ? game.currentWave : game.currentWave + 1;
-      setText("wave-eyebrow", game.phase === "wave" ? `WAVE ${number} OF ${levels.WAVES.length} · ${remaining} LEFT` : `NEXT UP · WAVE ${number}`);
+      const number = showCurrent ? game.currentWave : game.currentWave + 1;
+      setText("wave-eyebrow", game.phase === "wave"
+        ? t(game.endless ? "eyebrowEndless" : "eyebrowWave", { n: number, total: game.totalWaves, left: remaining })
+        : t("eyebrowNext", { n: number }));
       setText("wave-title", shownWave.name);
       const routeNames = shownWave.routes.map((routeId) => game.getRoute(routeId).name).join(" · ");
       setText("wave-routes", routeNames);
@@ -1211,16 +1423,16 @@
     const nextButton = element("next-wave");
     nextButton.disabled = game.phase !== "ready" && game.phase !== "intermission";
     if (game.phase === "intermission") {
-      setText("next-wave-label", `Start wave ${game.currentWave + 1} · +${Math.ceil(game.intermission)} kr`);
-      setText("next-wave-detail", `or auto-start in ${Math.ceil(game.intermission)} s`);
+      setText("next-wave-label", t("startEarly", { n: game.currentWave + 1, bonus: formatMoney(Math.ceil(game.intermission)) }));
+      setText("next-wave-detail", t("startEarlyDetail", { s: Math.ceil(game.intermission) }));
     } else if (game.phase === "ready") {
-      setText("next-wave-label", "Start wave 1");
-      setText("next-wave-detail", "No rush — prepare first");
+      setText("next-wave-label", t("startFirst"));
+      setText("next-wave-detail", t("startFirstDetail"));
     } else if (game.phase === "wave") {
-      setText("next-wave-label", `${remaining} attackers left`);
-      setText("next-wave-detail", "Hold the square");
+      setText("next-wave-label", t("inWave", { left: remaining }));
+      setText("next-wave-detail", t("inWaveDetail"));
     } else {
-      setText("next-wave-label", game.phase === "won" ? "Malmö is safe" : "Run complete");
+      setText("next-wave-label", game.phase === "won" ? t("wonButton") : t("lostButton"));
       setText("next-wave-detail", "");
     }
 
@@ -1235,9 +1447,9 @@
 
     const fikaButton = element("fika-button");
     fikaButton.disabled = game.phase !== "wave" || game.fikaCooldown > 0;
-    if (game.fikaRemaining > 0) setText("fika-state", `ACTIVE · ${Math.ceil(game.fikaRemaining)} S`);
+    if (game.fikaRemaining > 0) setText("fika-state", t("fikaActive", { s: Math.ceil(game.fikaRemaining) }));
     else if (game.fikaCooldown > 0) setText("fika-state", `${Math.ceil(game.fikaCooldown)} S`);
-    else setText("fika-state", "READY");
+    else setText("fika-state", t("fikaReady"));
 
     const pause = element("pause-button");
     pause.textContent = ui.paused ? "▶" : "Ⅱ";
@@ -1249,11 +1461,12 @@
     element("sound-button").setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
 
     const hint = element("game-hint");
-    if (!mapReady) hint.textContent = "Loading the map of Malmö…";
-    else if (ui.started && ui.paused) hint.textContent = "Paused — press ▶ when you are ready";
-    else if (ui.selectedType) hint.textContent = `Tap a white site to build ${levels.TOWER_TYPES[ui.selectedType].name} · Esc to cancel`;
-    else if (!game.towers.length && game.phase === "ready") hint.textContent = "Pick a defence, then tap a white build site";
-    else hint.textContent = "";
+    let hintText = "";
+    if (!mapReady) hintText = t("hintLoading");
+    else if (ui.started && ui.paused) hintText = t("hintPaused");
+    else if (ui.selectedType) hintText = t("hintBuild", { name: levels.TOWER_TYPES[ui.selectedType].name });
+    else if (!game.towers.length && game.phase === "ready") hintText = t("hintFirst");
+    setText("game-hint", hintText);
 
     canvas.classList.toggle("building", Boolean(ui.selectedType));
     updateSelection();
@@ -1275,7 +1488,10 @@
   }
 
   function resultFeedback(result) {
-    if (!result.ok) toast(result.reason, true);
+    if (!result.ok) {
+      const template = text.errors[result.code];
+      toast(template ? fill(template, { ...result, amount: formatMoney(result.amount) }) : result.reason, true);
+    }
     return result.ok;
   }
 
@@ -1313,7 +1529,7 @@
     ui.shake = 0;
     ui.shakeOffset = { x: 0, y: 0 };
     ui.statueHit = 0;
-    ui.combo = { count: 0, timer: 0, best: 0 };
+    ui.lastRetortAt = -100;
     clearTimeout(waveBannerTimer);
     element("wave-banner").classList.remove("visible");
     ui.paused = false;
@@ -1328,6 +1544,24 @@
 
   function handleTap(point, pointerType = "mouse") {
     if (!ui.started || ui.helpOpen || !element("end-modal").hidden) return;
+    // Pickups float above the map and win over everything else in a generous radius.
+    let nearestPickup = null;
+    let nearestPickupDistance = 34;
+    for (const pickup of game.pickups) {
+      const screen = worldToScreen({ x: pickup.x, y: pickup.y });
+      const distance = Math.hypot(screen.x - point.x, screen.y - 14 - point.y);
+      if (distance < nearestPickupDistance) {
+        nearestPickup = pickup;
+        nearestPickupDistance = distance;
+      }
+    }
+    if (nearestPickup) {
+      initAudio();
+      game.collectPickup(nearestPickup.id);
+      processEvents();
+      updateHUD();
+      return;
+    }
     let nearestTower = null;
     let nearestTowerDistance = 26;
     for (const tower of game.towers) {
@@ -1524,23 +1758,117 @@
   element("zoom-out").addEventListener("click", () => zoomAt({ x: view.width / 2, y: view.height / 2 }, 1 / 1.3));
   element("zoom-fit").addEventListener("click", fitCamera);
 
+  function runInProgress() {
+    return ui.started && (game.currentWave > 0 || game.towers.length > 0) && game.phase !== "won" && game.phase !== "lost";
+  }
+
+  // Relabels the whole interface. Called on load and whenever the mode changes.
+  function applyTexts(modeId = mode) {
+    text = TEXT[modeId];
+    document.documentElement.lang = text.lang;
+    document.documentElement.dataset.gameMode = modeId;
+    document.querySelectorAll("[data-t]").forEach((node) => { node.textContent = text[node.dataset.t]; });
+    document.querySelectorAll("[data-t-html]").forEach((node) => { node.innerHTML = text[node.dataset.tHtml]; });
+    const previewLevels = modeId === mode ? levels : window.StortorgetLevels.applyMode(window.StortorgetLevels, modeId);
+    document.querySelectorAll("[data-tower-name]").forEach((node) => {
+      const definition = previewLevels.TOWER_TYPES[node.dataset.towerName];
+      node.textContent = definition.name;
+      node.dataset.short = definition.shortName;
+    });
+    document.querySelectorAll("[data-tower-tag]").forEach((node) => {
+      node.textContent = text.taglines[node.dataset.towerTag];
+    });
+    document.querySelectorAll("[data-tower-cost]").forEach((node) => {
+      node.textContent = text.money(previewLevels.TOWER_TYPES[node.dataset.towerCost].cost);
+    });
+    const grid = element("how-to-grid");
+    grid.innerHTML = "";
+    text.steps.forEach(([title, body], index) => {
+      const card = document.createElement("div");
+      const number = document.createElement("span");
+      const heading = document.createElement("strong");
+      const copy = document.createElement("p");
+      number.textContent = String(index + 1).padStart(2, "0");
+      heading.textContent = title;
+      copy.textContent = body;
+      card.append(number, heading, copy);
+      grid.append(card);
+    });
+    document.querySelectorAll(".mode-switch [data-mode]").forEach((button) => {
+      button.setAttribute("aria-checked", String(button.dataset.mode === modeId));
+    });
+    element("intro-title").textContent = ui.helpOpen ? text.helpTitle : text.introTitle;
+    const switching = modeId !== mode && runInProgress();
+    const startLabel = switching ? t("newRun", { mode: text.modeName })
+      : ui.helpOpen ? text.helpBack : text.introStart;
+    element("start-game").innerHTML = `${startLabel} <span>→</span>`;
+    element("intro-best").textContent = (() => {
+      const best = readBest(modeId);
+      return best ? fill(text.best, { n: best }) : text.noBest;
+    })();
+    setText("mode-button", text.modeShort);
+    for (const [id, key] of [["pause-button", "pause"], ["speed-button", "speed"], ["sound-button", "sound"], ["help-button", "help"], ["mode-button", "modeButton"]]) {
+      element(id).title = text[key];
+    }
+    element("mode-button").setAttribute("aria-label", text.modeButton);
+    element("close-selection").setAttribute("aria-label", text.closeSelection);
+  }
+
+  function switchMode(modeId) {
+    mode = modeId;
+    saveMode(modeId);
+    game = new Game({ mode });
+    levels = game.levels;
+    applyTexts(modeId);
+    resetGame();
+    toast(t("toastMode"));
+  }
+
   function openHelp() {
     ui.helpOpen = true;
-    element("intro-title").textContent = "How to hold Stortorget";
-    element("start-game").innerHTML = "Back to the defence <span>→</span>";
+    ui.pendingMode = mode;
+    applyTexts(mode);
     element("intro-modal").hidden = false;
     element("start-game").focus();
   }
 
-  element("help-button").addEventListener("click", openHelp);
-  element("start-game").addEventListener("click", () => {
-    initAudio();
+  function closeIntro() {
     element("intro-modal").hidden = true;
     ui.helpOpen = false;
+    if (ui.pendingMode !== mode) {
+      ui.pendingMode = mode;
+      applyTexts(mode);
+    }
+  }
+
+  document.querySelectorAll(".mode-switch [data-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ui.pendingMode = button.dataset.mode;
+      applyTexts(ui.pendingMode);
+      if (!runInProgress() && ui.pendingMode !== mode) {
+        // Nothing to lose yet: switch straight away so the shop shows real prices.
+        const wasHelp = ui.helpOpen;
+        switchMode(ui.pendingMode);
+        ui.helpOpen = wasHelp;
+        ui.started = wasHelp;
+        applyTexts(mode);
+      }
+    });
+  });
+
+  element("help-button").addEventListener("click", openHelp);
+  element("mode-button").addEventListener("click", openHelp);
+  element("start-game").addEventListener("click", () => {
+    initAudio();
+    const switching = ui.pendingMode !== mode;
+    element("intro-modal").hidden = true;
+    ui.helpOpen = false;
+    if (switching) switchMode(ui.pendingMode);
     ui.started = true;
     ui.paused = false;
     accumulator = 0;
     canvas.focus();
+    applyTexts(mode);
     updateHUD();
   });
   element("restart-game").addEventListener("click", () => {
@@ -1548,13 +1876,22 @@
     resetGame();
     canvas.focus();
   });
+  element("endless-game").addEventListener("click", () => {
+    initAudio();
+    if (!game.continueEndless()) return;
+    element("end-modal").hidden = true;
+    ui.endShown = false;
+    accumulator = 0;
+    processEvents();
+    canvas.focus();
+    updateHUD();
+  });
 
   document.addEventListener("keydown", (event) => {
     if (event.repeat) return;
     if (ui.helpOpen || !element("intro-modal").hidden) {
       if (event.key === "Escape" && ui.started) {
-        element("intro-modal").hidden = true;
-        ui.helpOpen = false;
+        closeIntro();
         canvas.focus();
       }
       return;
@@ -1621,13 +1958,16 @@
   loadMap();
   resize();
   fitCamera();
+  applyTexts(mode);
   updateHUD();
   requestAnimationFrame(frame);
 
   // A small read-only-friendly handle makes browser smoke tests and debugging easy.
   window.stortorget = {
-    game,
-    levels,
+    get game() { return game; },
+    get levels() { return levels; },
+    get mode() { return mode; },
+    setMode: switchMode,
     get camera() { return { ...camera }; },
     get ready() { return mapReady; },
     get effects() {
@@ -1636,7 +1976,7 @@
         shake: ui.shake,
         particles: ui.particles.length,
         recoil: ui.recoil.size,
-        combo: { ...ui.combo },
+        combo: { ...game.streak },
       };
     },
     startWave: startNextWave,

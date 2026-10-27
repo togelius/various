@@ -11,10 +11,17 @@
   "use strict";
 
   const distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const hash01 = (value) => {
+    let x = Math.imul(value ^ 0x9e3779b9, 0x85ebca6b);
+    x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+    return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  };
 
   class Game {
     constructor(options = {}) {
-      this.levels = options.levels || levels;
+      const base = options.levels || levels;
+      this.levels = options.mode ? levels.applyMode(base, options.mode) : base;
+      this.mode = this.levels.mode || null;
       this.config = { ...this.levels.CONFIG, ...(options.config || {}) };
       this.events = [];
       this.reset();
@@ -37,6 +44,14 @@
       this.nextTowerId = 1;
       this.nextEnemyId = 1;
       this.nextProjectileId = 1;
+      this.nextPickupId = 1;
+      this.pickups = [];
+      this.streak = { count: 0, lastKillAt: -Infinity, best: 0 };
+      this.fireworksTimer = 0;
+      this.fireworksLeft = 0;
+      this.gustTimer = 0;
+      this.endless = false;
+      this.endlessWaves = new Map();
       this.stats = {
         kills: 0,
         leaks: 0,
@@ -49,6 +64,15 @@
         knockback: 0,
         fikaUses: 0,
         earlyBonus: 0,
+        tips: 0,
+        streakBonus: 0,
+        bestStreak: 0,
+        sentHome: 0,
+        homeTolls: 0,
+        gusts: 0,
+        pickupsDropped: 0,
+        pickupsCollected: 0,
+        pickupCash: 0,
         damageByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
         shotsByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
         spentByType: Object.fromEntries(Object.keys(this.levels.TOWER_TYPES).map((type) => [type, 0])),
@@ -66,7 +90,15 @@
     }
 
     getWave(number = this.currentWave) {
-      return this.levels.WAVES[number - 1] || null;
+      if (number < 1) return null;
+      if (number <= this.levels.WAVES.length) return this.levels.WAVES[number - 1];
+      if (!this.endless) return null;
+      if (!this.endlessWaves.has(number)) this.endlessWaves.set(number, levels.makeEndlessWave(this.levels, number));
+      return this.endlessWaves.get(number);
+    }
+
+    get totalWaves() {
+      return this.levels.WAVES.length;
     }
 
     getNextWave() {
@@ -116,13 +148,14 @@
     buildTower(padId, typeId) {
       const pad = this.levels.BUILD_PADS.find((item) => item.id === padId);
       const definition = this.levels.TOWER_TYPES[typeId];
-      if (!this.canBuild()) return { ok: false, reason: "The game is over" };
-      if (!pad || !definition) return { ok: false, reason: "Unknown build site" };
+      if (!this.canBuild()) return { ok: false, code: "over", reason: "The game is over" };
+      if (!pad || !definition) return { ok: false, code: "site", reason: "Unknown build site" };
       if (this.towers.some((tower) => tower.padId === padId)) {
-        return { ok: false, reason: "That site is occupied" };
+        return { ok: false, code: "occupied", reason: "That site is occupied" };
       }
       if (this.money < definition.cost) {
-        return { ok: false, reason: `You need ${definition.cost - this.money} kr more` };
+        const amount = definition.cost - this.money;
+        return { ok: false, code: "funds", amount, reason: `You need ${amount} kr more` };
       }
 
       const tower = {
@@ -147,11 +180,13 @@
 
     upgradeTower(towerId) {
       const tower = this.towers.find((item) => item.id === towerId);
-      if (!tower) return { ok: false, reason: "Select a defence first" };
-      if (!this.canBuild()) return { ok: false, reason: "The game is over" };
+      if (!tower) return { ok: false, code: "select", reason: "Select a defence first" };
+      if (!this.canBuild()) return { ok: false, code: "over", reason: "The game is over" };
       const cost = this.getUpgradeCost(tower);
-      if (cost === null) return { ok: false, reason: "Already at maximum level" };
-      if (this.money < cost) return { ok: false, reason: `You need ${cost - this.money} kr more` };
+      if (cost === null) return { ok: false, code: "max", reason: "Already at maximum level" };
+      if (this.money < cost) {
+        return { ok: false, code: "funds", amount: cost - this.money, reason: `You need ${cost - this.money} kr more` };
+      }
       tower.level += 1;
       tower.invested += cost;
       this.money -= cost;
@@ -163,8 +198,8 @@
 
     sellTower(towerId) {
       const index = this.towers.findIndex((item) => item.id === towerId);
-      if (index < 0) return { ok: false, reason: "Select a defence first" };
-      if (!this.canBuild()) return { ok: false, reason: "The game is over" };
+      if (index < 0) return { ok: false, code: "select", reason: "Select a defence first" };
+      if (!this.canBuild()) return { ok: false, code: "over", reason: "The game is over" };
       const tower = this.towers[index];
       const refund = Math.floor(tower.invested * this.config.sellRefund);
       this.towers.splice(index, 1);
@@ -189,6 +224,7 @@
       this.phase = "wave";
       this.waveElapsed = 0;
       this.intermission = 0;
+      this.gustTimer = this.config.gustInterval || 0;
       this.spawnQueue = [];
       wave.groups.forEach((group) => {
         for (let index = 0; index < group.count; index += 1) {
@@ -206,6 +242,7 @@
         name: wave.name,
         routes: wave.routes,
         earlyBonus,
+        endless: Boolean(wave.endless),
       });
       return true;
     }
@@ -237,14 +274,17 @@
     }
 
     useFika() {
-      if (this.phase !== "wave") return { ok: false, reason: "Fika works during an attack" };
+      if (this.phase !== "wave") return { ok: false, code: "fikaWave", reason: "Fika works during an attack" };
       if (this.fikaCooldown > 0) {
-        return { ok: false, reason: `Fika is ready in ${Math.ceil(this.fikaCooldown)} s` };
+        const seconds = Math.ceil(this.fikaCooldown);
+        return { ok: false, code: "fikaCooldown", seconds, reason: `Fika is ready in ${seconds} s` };
       }
       this.fikaRemaining = this.config.fikaDuration;
       this.fikaCooldown = this.config.fikaCooldown;
+      this.fireworksTimer = 0;
+      this.fireworksLeft = this.config.fikaKind === "fireworks" ? this.config.fireworksVolleys : 0;
       this.stats.fikaUses += 1;
-      this.emit("fika", { duration: this.config.fikaDuration });
+      this.emit("fika", { duration: this.config.fikaDuration, kind: this.config.fikaKind });
       return { ok: true };
     }
 
@@ -254,6 +294,7 @@
       this.elapsed += dt;
       this.fikaCooldown = Math.max(0, this.fikaCooldown - dt);
       this.fikaRemaining = Math.max(0, this.fikaRemaining - dt);
+      this.updatePickups(dt);
 
       if (this.phase === "intermission") {
         this.intermission = Math.max(0, this.intermission - dt);
@@ -271,11 +312,93 @@
       this.enemies = this.enemies.filter((enemy) => !enemy.dead);
       if (this.phase === "lost") return;
 
+      if (this.fireworksLeft > 0) this.updateFireworks(dt);
+      if (this.config.gustInterval) this.updateGust(dt);
+
       this.updateTowers(dt);
       this.updateProjectiles(dt);
       this.enemies = this.enemies.filter((enemy) => !enemy.dead);
       this.projectiles = this.projectiles.filter((projectile) => !projectile.dead);
       this.checkWaveComplete();
+    }
+
+    updatePickups(dt) {
+      if (!this.pickups.length) return;
+      for (const pickup of this.pickups) pickup.life -= dt;
+      const expired = this.pickups.filter((pickup) => pickup.life <= 0);
+      if (!expired.length) return;
+      this.pickups = this.pickups.filter((pickup) => pickup.life > 0);
+      for (const pickup of expired) this.emit("pickupExpired", { pickup });
+    }
+
+    collectPickup(pickupId) {
+      const pickup = this.pickups.find((item) => item.id === pickupId);
+      if (!pickup) return { ok: false, code: "pickup", reason: "Too slow" };
+      this.pickups = this.pickups.filter((item) => item !== pickup);
+      this.money += pickup.value;
+      this.stats.earned += pickup.value;
+      this.stats.pickupsCollected += 1;
+      this.stats.pickupCash += pickup.value;
+      this.emit("pickup", { pickup, value: pickup.value, x: pickup.x, y: pickup.y });
+      return { ok: true, value: pickup.value };
+    }
+
+    // Happy Hour: volleys of fireworks hit every attacker on the map.
+    updateFireworks(dt) {
+      const interval = this.config.fikaDuration / this.config.fireworksVolleys;
+      this.fireworksTimer -= dt;
+      if (this.fireworksTimer > 0) return;
+      this.fireworksTimer += interval;
+      this.fireworksLeft -= 1;
+      const damage = this.config.fireworksDamage * (this.getWave()?.hpScale || 1);
+      const targets = this.enemies.filter((enemy) => !enemy.dead);
+      this.emit("fireworks", { targets: targets.map((enemy) => ({ x: enemy.x, y: enemy.y })) });
+      for (const enemy of targets) this.damageEnemy(enemy, damage, "fika");
+    }
+
+    // Skånsk blåst: a regular gust shoves every attacker back along its street.
+    updateGust(dt) {
+      this.gustTimer -= dt;
+      if (this.gustTimer > 0) return;
+      this.gustTimer += this.config.gustInterval;
+      if (!this.enemies.length) return;
+      this.stats.gusts += 1;
+      for (const enemy of this.enemies) {
+        if (!enemy.dead) this.pushEnemy(enemy, this.config.gustPush, false);
+      }
+      this.emit("gust", { count: this.enemies.length });
+    }
+
+    pushEnemy(enemy, requestedAmount, canSendHome) {
+      const definition = this.levels.ENEMY_TYPES[enemy.type];
+      const route = this.getRoute(enemy.routeId);
+      const amount = Math.min(enemy.distance, requestedAmount * (definition.knockbackFactor ?? 1));
+      enemy.distance = Math.max(0, enemy.distance - amount);
+      enemy.progress = Math.min(1, enemy.distance / route.length);
+      const position = levels.pointOnRoute(route, enemy.distance);
+      enemy.x = position.x;
+      enemy.y = position.y;
+      enemy.angle = position.angle;
+      this.stats.knockback += amount;
+      if (canSendHome && this.config.goHomeHpRatio && enemy.type !== "boss"
+        && enemy.hp <= enemy.maxHp * this.config.goHomeHpRatio) {
+        this.sendHome(enemy);
+      }
+      return amount;
+    }
+
+    // A battered Dane blown back by the wind gives up, pays the bridge toll and leaves.
+    sendHome(enemy) {
+      const definition = this.levels.ENEMY_TYPES[enemy.type];
+      const payout = definition.bounty + this.config.homeToll;
+      enemy.dead = true;
+      this.money += payout;
+      this.stats.earned += payout;
+      this.stats.homeTolls += this.config.homeToll;
+      this.stats.sentHome += 1;
+      this.stats.kills += 1;
+      this.emit("home", { enemy, payout, x: enemy.x, y: enemy.y });
+      this.registerKill(enemy);
     }
 
     updateEnemies(dt) {
@@ -434,17 +557,7 @@
         this.emit("slow", { enemy: target, x: target.x, y: target.y });
       }
       if (!target.dead && projectile.knockback > 0) {
-        const definition = this.levels.ENEMY_TYPES[target.type];
-        const route = this.getRoute(target.routeId);
-        const requested = projectile.knockback * (definition.knockbackFactor ?? 1);
-        const amount = Math.min(target.distance, requested);
-        target.distance = Math.max(0, target.distance - amount);
-        target.progress = Math.min(1, target.distance / route.length);
-        const position = levels.pointOnRoute(route, target.distance);
-        target.x = position.x;
-        target.y = position.y;
-        target.angle = position.angle;
-        this.stats.knockback += amount;
+        const amount = this.pushEnemy(target, projectile.knockback, true);
         this.emit("knockback", { enemy: target, amount, x: target.x, y: target.y });
       }
     }
@@ -454,7 +567,7 @@
       const applied = Math.min(enemy.hp, Math.max(0, amount));
       enemy.hp -= applied;
       this.stats.damage += applied;
-      if (sourceType) this.stats.damageByType[sourceType] += applied;
+      if (sourceType && sourceType in this.stats.damageByType) this.stats.damageByType[sourceType] += applied;
       this.emit("hit", {
         enemy,
         amount: applied,
@@ -466,22 +579,58 @@
       if (enemy.hp > 0) return false;
       enemy.dead = true;
       const definition = this.levels.ENEMY_TYPES[enemy.type];
-      this.money += definition.bounty;
+      // Tips are pseudo-random per attacker so runs stay deterministic.
+      const tip = this.config.tipMax
+        ? Math.round(definition.bounty * (this.config.tipMin + (this.config.tipMax - this.config.tipMin) * hash01(enemy.id)))
+        : 0;
+      this.money += definition.bounty + tip;
       this.stats.kills += 1;
-      this.stats.earned += definition.bounty;
+      this.stats.earned += definition.bounty + tip;
+      this.stats.tips += tip;
       this.emit("kill", {
         enemy,
         bounty: definition.bounty,
+        tip,
+        sourceType,
         x: enemy.x,
         y: enemy.y,
       });
+      this.registerKill(enemy);
       return true;
+    }
+
+    registerKill(enemy) {
+      const streak = this.streak;
+      streak.count = this.elapsed - streak.lastKillAt <= this.config.streakWindow ? streak.count + 1 : 1;
+      streak.lastKillAt = this.elapsed;
+      streak.best = Math.max(streak.best, streak.count);
+      this.stats.bestStreak = Math.max(this.stats.bestStreak, streak.count);
+      if (streak.count % this.config.streakStep === 0) {
+        const reward = Math.min(this.config.streakCap, streak.count);
+        this.money += reward;
+        this.stats.earned += reward;
+        this.stats.streakBonus += reward;
+        this.emit("streak", { count: streak.count, reward, x: enemy.x, y: enemy.y });
+      }
+      if (this.config.pickupEvery && this.stats.kills % this.config.pickupEvery === 0) {
+        const pickup = {
+          id: this.nextPickupId++,
+          x: enemy.x,
+          y: enemy.y,
+          value: this.config.pickupValue + this.config.pickupValuePerWave * this.currentWave,
+          life: this.config.pickupLife,
+          maxLife: this.config.pickupLife,
+        };
+        this.pickups.push(pickup);
+        this.stats.pickupsDropped += 1;
+        this.emit("pickupDrop", { pickup });
+      }
     }
 
     checkWaveComplete() {
       if (this.phase !== "wave" || this.spawnQueue.length || this.enemies.length) return;
       this.projectiles.length = 0;
-      if (this.currentWave >= this.levels.WAVES.length) {
+      if (this.currentWave >= this.levels.WAVES.length && !this.endless) {
         this.phase = "won";
         this.emit("win", { stats: { ...this.stats }, health: this.health });
         return;
@@ -500,6 +649,17 @@
         healed,
         nextWave: this.currentWave + 1,
       });
+    }
+
+    // After the authored finale, keep going until the square falls.
+    continueEndless() {
+      if (this.phase !== "won") return false;
+      this.endless = true;
+      this.phase = "intermission";
+      this.intermission = this.config.intermissionSeconds;
+      this.health = Math.min(this.config.maxHealth, this.health + 1);
+      this.emit("endless", { nextWave: this.currentWave + 1 });
+      return true;
     }
   }
 

@@ -27,6 +27,31 @@ If macOS asks whether Node may accept local network connections, allow it. No ga
 
 ## How to play
 
+### American or Skånska
+
+The intro screen (and the **US / SK** button in the header) switches between two editions. Each one renames everything and tweaks a few rules; switching during a run starts a new run.
+
+| | 🇺🇸 American | Skånska |
+|---|---|---|
+| Statue | Some guy on a horse | Kalle på hästen |
+| Defences | Freedom fry truck, Donut cannon, Slushie truck, Drive-thru coffee, Leaf blower | Falafelkiosken, Spiddekagakastaren, Glassbilen, Bärstältet, Skånsk blåst |
+| Supersized | Towers reach 15% further, splash 20% wider and cost 20% more; the Danes have 25% more health and are bigger | — |
+| Money | Every kill pays a 5–15% tip | A battered Dane hit by wind gives up, goes home *i rulleböre* and pays a 6 kr bridge toll on top of the bounty |
+| Special | **Happy Hour**: five volleys of fireworks hit every attacker on the map | **Fika** lasts 7 s; wind pushes 30% further; a **Skånsk blåst** gust shoves every Dane back every 15 s |
+| Pickup | Golden donut 🍩 | En bärs 🍺 |
+| Units | feet and dollars | metres and kronor |
+
+Locals shout back in mint-coloured bubbles — in Skånska that means *Ditt ålahue!*, *Bonnaröv!*, *Rälig dansk!*, *Mög!* and *Spiddekaga i nyllet!*; in American, *Not today, Hamlet!* and *Supersize THIS!*. The edition is remembered per browser; first-time visitors with a Swedish browser start in Skånska.
+
+### Both editions
+
+- **Streaks pay.** Kills less than 1.35 s apart build a streak; every fifth kill in a row pays a bonus (5, 10, 15, 20, then 25 kr).
+- **Golden pickups.** Every ninth kill drops a donut or a bärs. Tap it within seven seconds for 12 kr plus 2 kr per wave.
+- **Canal splashes.** Danes who fall near the canals by Malmö Central go in with a splash.
+- **Endless mode.** Winning all eight waves offers *Keep going — endless* / *Fortsätt — bron e öppen*: generated waves on every street, 16% tougher each time, with a boss every third wave. Each edition keeps its own record of waves cleared.
+
+### Defences
+
 Choose one of five defences, then choose a white build site on the map:
 
 - **Falafel stand:** quick shots and 50% bonus damage against tanks and bosses.
@@ -78,6 +103,10 @@ npm run check
 npm test
 ```
 
+- `js/text.js` — interface copy for the American and Skånska editions
+
+Mode rules live in `MODES` in `js/levels.js`; `applyMode` derives a mode's towers, attackers, wave names and config without mutating the shared content, and `new Game({ mode })` uses it. Tips are a hash of the attacker id, so every mode stays deterministic.
+
 The game simulation runs at 60 fixed steps per second and is independent of the renderer, so complete games can be tested quickly in Node.
 
 ## Balance lab
@@ -88,6 +117,10 @@ npm run balance
 
 # Three deterministic seeds per cell (72 complete games)
 npm run balance:deep
+
+# The same matrix under each edition's rules
+npm run balance:american
+npm run balance:skanska
 
 # Focus a particular player/content combination
 node tools/balance-lab.js --persona warden --scenario fortified --seed 42

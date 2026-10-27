@@ -19,11 +19,31 @@ node tools/balance-lab.js --persona architect --scenario baseline --seed 42
 # Full runs, per-wave records, aggregates, and findings as JSON on stdout
 node tools/balance-lab.js --json --deep
 
+# Under an edition's rules: classic (default), american, or skanska
+node tools/balance-lab.js --mode american --deep
+
 # Harness regressions
 node --test test/personas.test.js
 ```
 
 Valid persona IDs are `allrounder`, `rookie`, `striker`, `warden`, `architect`, and `sprinter`. Valid scenario IDs are `baseline`, `fortified`, `rush`, and `lean-start`. The CLI has no dependencies and does not write report files.
+
+## Editions
+
+`--mode` runs every persona under the American or Skånska rule tweaks (see `MODES` in `js/levels.js`); `classic` is the shared content with no tweaks, which the unit tests use. Streak payouts and golden pickups apply in every mode, but personas never tap pickups, so simulated income from pickups is zero.
+
+Deep runs (72 games per mode, base seed 7) when the editions were introduced:
+
+| Persona | Classic win | American win | Skånska win |
+|---|---|---|---|
+| allrounder | 100% | 100% | 100% |
+| rookie | 8% | 17% | 17% |
+| striker | 100% | 100% | 100% |
+| warden | 42% | 100% | 42% |
+| architect | 100% | 100% | 100% |
+| sprinter | 100% | 100% | 100% |
+
+American is the forgiving edition: Happy Hour's fireworks clear crowds, which rescues the cautious warden, even though towers cost 20% more and the Danes have 25% more health. Tips average about 300 kr per game. Skånska plays close to classic; the warden, the persona that buys wind, sends about five Danes home per game. The personas rarely buy wind, so the lab undersells the Skånska wind bonus for players who like it.
 
 ## Player model
 
