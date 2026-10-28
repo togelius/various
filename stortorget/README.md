@@ -66,16 +66,26 @@ Attacks arrive along named, real streets. Route previews show which approaches t
 
 Combat includes recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
 
-The attackers have dozens of short Danish lines, with separate pools for ordinary chatter, fika, defeat, statue leaks, and wind knockback. References include Roskilde and 1658, the Belts and Øresund, Skåne, LEGO versus IKEA, wienerbrød versus kanelboller, frikadeller versus falafel, cycling, Dannebrog, the Little Mermaid versus Karl’s horse, Helsingør versus Helsingborg, and ABBA versus Aqua. Simultaneous bubbles vary, and an enemy avoids immediately repeating itself when alternatives exist.
+The attackers speak real Danish, and plenty of it. Stock lines per attacker type live in `js/levels.js`; `js/danish.js` adds about 150 more, drawn from shuffled bags so a pool plays through before anything repeats. The first Dane on each street comments on where they are, and there are separate pools for being slowed by ice cream, knocked back, blown by a gust, dazzled by Happy Hour fireworks, sent home over the bridge, falling into the canal, leaking onto the square and dying. A few lines answer the edition you chose.
 
-A tiny phrasebook for the playful taunts (not historical claims):
+The rivalry material:
 
-- **Skåne er dansk!** — “Skåne is Danish!”
-- **Roskilde tæller ikke!** — “Roskilde doesn’t count!”
-- **Havfruen > hesten** — “The Mermaid beats the horse.”
-- **Hvor er min cykel?** — “Where is my bike?”
-- **Det er ikke hyggeligt!** — “This isn’t cosy!”
-- **Kaffe og wienerbrød!** — “Coffee and Danish pastry!”
+- **History:** 1658 and the frozen Belts, Lund 1676 ("var uafgjort!" — it wasn't), the Kalmar Union, Ven and Tycho Brahe, Kristianstad named after Christian IV, Skåne, Halland and Blekinge.
+- **Bron/Broen:** Saga Norén, Martin Rohde and the body on the border ("Halvt dansk, halvt svensk!"), Øresundstoget running late, the bridge toll.
+- **Riget:** Stig Helmer screamed *Danskjävlar!* from the hospital roof; the boss answers "Danskjävlar? Ja tak!" and "Hils Helmer!".
+- **Football:** Denmark won EM '92 in Gothenburg, in Sweden, without even qualifying. "Mål! Som i '92!", "Schmeichel tog den!".
+- **Poking at Swedes:** Systembolaget, lagom, queuing, Volvo, the weaker krona ("Jeres kroner er legepenge!"), IKEA naming rugs after Danish towns ("Tørrer I fødderne på Danmark?").
+- **How Swedes mock Danes, turned around:** the potato-in-the-mouth pronunciation ("Vi taler ikke med kartofler!"), the numbers ("Halvfems! Prøv at sige det!"), rødgrød med fløde.
+- **Real Danish:** sgu, pyt, hold da op, hold da helt ferie, puha, av for pokker, øv bøv, skidegodt (Olsen-banden's Benny, along with Egon's "Jeg har en plan!"), hygge, guf and flødebolle on the soft ice.
+
+A tiny phrasebook (taunts, not historical claims):
+
+- **Skåne er dansk!** — "Skåne is Danish!"
+- **Jeres kroner er legepenge!** — "Your kronor are play money!"
+- **Lund 1676 var uafgjort!** — "Lund 1676 was a draw!"
+- **Hold da helt ferie!** — "Take a whole holiday!", i.e. "Holy cow!"
+- **Pyt med det!** — "Never mind!"
+- **Vi taler ikke med kartofler!** — "We don't talk with potatoes!"
 
 **Controls:** drag to pan; pinch or scroll to zoom; use the map buttons to zoom or fit the whole neighbourhood. Keyboard shortcuts: `1`–`5` select defences, `F` activates fika, `P` pauses, `Space` starts the next wave, and `0` refits the map. The header also provides pause, 2× speed, sound, and help controls.
 

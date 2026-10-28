@@ -3,6 +3,7 @@
 
   const Game = window.StortorgetEngine.Game;
   const { TEXT, fill } = window.StortorgetText;
+  const DANISH = window.StortorgetDanish;
   const MODE_STORAGE_KEY = "stortorget-mode";
   let mode = loadMode();
   let game = new Game({ mode });
@@ -41,6 +42,9 @@
     helpOpen: false,
     pendingMode: mode,
     lastRetortAt: -100,
+    lastSlowQuipAt: -100,
+    fireworksSpoken: 0,
+    routesGreeted: new Set(),
   };
 
   // Approximate centre line of the canals north of the old town, in map pixels.
@@ -882,7 +886,7 @@
     const activeTexts = new Set(ui.quips.map((quip) => quip.text));
     const previous = ui.quipHistory.get(enemy.id);
     if (activeTexts.has(text) || text === previous) {
-      const alternatives = levels.ENEMY_TYPES[enemy.type].quips.filter((phrase) => !activeTexts.has(phrase) && phrase !== previous);
+      const alternatives = chatterPool(enemy.type).filter((phrase) => !activeTexts.has(phrase) && phrase !== previous);
       if (!alternatives.length) {
         if (activeTexts.has(text)) return;
       } else {
@@ -908,16 +912,42 @@
     if (!options.silent) playSound("quip", { boss });
   }
 
+  // Danish lines come out of shuffled bags, so a pool plays through before it repeats.
+  const lineBags = new Map();
+
+  function danishLine(key, pool) {
+    if (!pool || !pool.length) return null;
+    let bag = lineBags.get(key);
+    if (!bag || !bag.length) {
+      bag = pool.slice();
+      for (let index = bag.length - 1; index > 0; index -= 1) {
+        const swap = Math.floor(Math.random() * (index + 1));
+        [bag[index], bag[swap]] = [bag[swap], bag[index]];
+      }
+      lineBags.set(key, bag);
+    }
+    return bag.pop();
+  }
+
+  function chatterPool(type) {
+    return [...levels.ENEMY_TYPES[type].quips, ...(DANISH.CHATTER[type] || []), ...(DANISH.MODE[mode] || [])];
+  }
+
+  function eventPool(name) {
+    return [...(levels.QUIPS[name] || []), ...(DANISH.EVENTS[name] || [])];
+  }
+
+  function danishSay(enemy, name, options = {}) {
+    const line = danishLine(`event:${name}`, eventPool(name));
+    if (line) addQuip(enemy, line, { silent: true, duration: 1.5, ...options });
+  }
+
   function updateQuipSchedule() {
     if (game.phase !== "wave") return;
     for (const enemy of game.enemies) {
       const next = ui.quipSchedule.get(enemy.id);
       if (!next || game.elapsed < next) continue;
-      const phrases = levels.ENEMY_TYPES[enemy.type].quips;
-      const previous = ui.quipHistory.get(enemy.id);
-      const candidates = phrases.filter((phrase) => phrase !== previous);
-      const index = (enemy.id + game.currentWave + Math.floor(game.elapsed)) % candidates.length;
-      addQuip(enemy, candidates[index]);
+      addQuip(enemy, danishLine(`chatter:${mode}:${enemy.type}`, chatterPool(enemy.type)));
       ui.quipSchedule.set(enemy.id, game.elapsed + 8 + enemy.id % 6);
     }
   }
@@ -1187,17 +1217,22 @@
         playSound("wave");
       } else if (event.type === "spawn") {
         const enemy = event.enemy;
-        const phrases = levels.ENEMY_TYPES[enemy.type].quips;
         ui.quipSchedule.set(enemy.id, game.elapsed + 4 + enemy.id % 5);
+        const routeKey = `${game.currentWave}:${enemy.routeId}`;
         if (enemy.type === "boss") {
           ui.routePreview = 3;
           const route = game.getRoute(enemy.routeId).name.toUpperCase();
-          showWaveBanner(t(game.endless ? "bannerEndlessBoss" : "bannerBoss", { route }), phrases[0], 2400);
-          addQuip(enemy, phrases[0], { silent: true });
+          const intro = danishLine("bossIntro", DANISH.EVENTS.bossIntro);
+          showWaveBanner(t(game.endless ? "bannerEndlessBoss" : "bannerBoss", { route }), intro, 2400);
+          addQuip(enemy, intro, { silent: true });
           addShake(5);
           playSound("boss");
+        } else if (!ui.routesGreeted.has(routeKey) && DANISH.ROUTES[enemy.routeId]) {
+          // The first Dane on each street this wave comments on where they are.
+          ui.routesGreeted.add(routeKey);
+          addQuip(enemy, danishLine(`route:${enemy.routeId}`, DANISH.ROUTES[enemy.routeId]));
         } else if (enemy.id % 4 === 0) {
-          addQuip(enemy, phrases[enemy.id % phrases.length]);
+          addQuip(enemy, danishLine(`chatter:${mode}:${enemy.type}`, chatterPool(enemy.type)));
         }
       } else if (event.type === "shot") {
         const duration = event.projectileType === "bulle" ? 0.22 : 0.13;
@@ -1234,9 +1269,10 @@
         if (event.tip) {
           addFloater({ x: event.x, y: event.y + 12, text: t("tip", { tip: event.tip }), color: "#ffb3c7", size: 9, xOffset: 14, life: 1, maxLife: 1 });
         }
-        if (event.enemy.id % 5 === 0) {
-          const quips = levels.QUIPS.defeat;
-          addQuip(event.enemy, quips[event.enemy.id % quips.length], { silent: true, duration: 1.4 });
+        if (splashed) {
+          danishSay(event.enemy, "splash", { duration: 1.4 });
+        } else if (event.enemy.id % 5 === 0) {
+          danishSay(event.enemy, "defeat", { duration: 1.4 });
         } else if (event.enemy.id % 3 === 0) {
           addLocalQuip(event, text.retorts, { fromTower: true });
         }
@@ -1250,7 +1286,8 @@
         burst(event.x, event.y, "#c5f4ff", 10, { speed: 55, life: 0.6, lift: 25 });
         burst(event.x, event.y, "#ffd166", 6, { speed: 30, gravity: 60 });
         addFloater({ x: event.x, y: event.y, text: `+${event.payout}`, color: "#ffe092", size: 13, xOffset: 8 });
-        addLocalQuip(event, text.homeQuips, { force: true });
+        if (event.enemy.id % 2 === 0) danishSay(event.enemy, "home", { duration: 1.6 });
+        else addLocalQuip(event, text.homeQuips, { force: true });
         playSound("home");
       } else if (event.type === "gust") {
         for (let index = 0; index < (reducedMotion ? 4 : 26); index += 1) {
@@ -1259,6 +1296,8 @@
           ui.particles.push({ x, y, vx: -140 - Math.random() * 90, vy: (Math.random() - 0.5) * 12, color: "rgba(230, 255, 252, .7)", size: 1.3, life: 0.9, maxLife: 0.9, lift: 0 });
         }
         addLocalQuip(levels.STATUE, text.gustQuips, { force: true });
+        const windswept = game.enemies.find((enemy) => !enemy.dead);
+        if (windswept) danishSay(windswept, "gust");
         addShake(2);
         playSound("gust");
       } else if (event.type === "fireworks") {
@@ -1269,6 +1308,8 @@
           burst(target.x, target.y - 8, color, 9, { speed: 70, gravity: 70, life: 0.65, size: 1.7 });
         });
         if (event.targets.length) addLocalQuip(levels.STATUE, text.fireworksQuips);
+        const dazzled = game.enemies.filter((enemy) => !enemy.dead)[ui.fireworksSpoken++ % 3];
+        if (dazzled) danishSay(dazzled, "fireworks");
         addShake(2.2);
         playSound("fireworks");
       } else if (event.type === "pickupDrop") {
@@ -1292,19 +1333,20 @@
         burst(event.x, event.y, "#5c615b", 7, { speed: 22, life: 1.1, grow: 5, size: 3, lift: 14 });
         addShake(3.4);
         playSound("explosion");
+      } else if (event.type === "slow") {
+        if (event.enemy.id % 4 === 0 && game.elapsed - ui.lastSlowQuipAt > 4) {
+          ui.lastSlowQuipAt = game.elapsed;
+          danishSay(event.enemy, "slow", { duration: 1.4 });
+        }
       } else if (event.type === "knockback") {
         burst(event.x, event.y, "#c5f4ff", 5, { speed: 35, life: 0.4, lift: 0 });
-        if (event.enemy.id % 3 === 0) {
-          const quips = levels.QUIPS.knockback;
-          addQuip(event.enemy, quips[(event.enemy.id + game.currentWave) % quips.length], { silent: true, duration: 1.5 });
-        }
+        if (event.enemy.id % 3 === 0) danishSay(event.enemy, "knockback");
         playSound("knockback");
       } else if (event.type === "leak") {
         addShake(9);
         ui.statueHit = 1;
         addFloater({ x: event.x, y: event.y, text: `−${event.damage}`, color: "#ff8a7e", size: 20, life: 1.1, maxLife: 1.1 });
-        const quips = levels.QUIPS.leak;
-        addQuip(event.enemy, quips[(event.enemy.id + game.currentWave) % quips.length], { silent: true, duration: 1.5 });
+        danishSay(event.enemy, "leak");
         const vignette = element("damage-vignette");
         vignette.classList.remove("flash");
         void vignette.offsetWidth;
@@ -1322,10 +1364,7 @@
           { x: levels.STATUE.x, y: levels.STATUE.y, radius: 105, color: "#fff2c7", life: 0.55, maxLife: 0.55 },
         );
         if (event.kind !== "fireworks") {
-          game.enemies.slice(0, 2).forEach((enemy, index) => {
-            const quips = levels.QUIPS.fika;
-            addQuip(enemy, quips[(game.currentWave + index) % quips.length], { silent: index > 0 });
-          });
+          game.enemies.slice(0, 2).forEach((enemy, index) => danishSay(enemy, "fika", { silent: index > 0, duration: 2 }));
         }
         addShake(1);
         playSound("fika");
@@ -1530,6 +1569,9 @@
     ui.shakeOffset = { x: 0, y: 0 };
     ui.statueHit = 0;
     ui.lastRetortAt = -100;
+    ui.lastSlowQuipAt = -100;
+    ui.routesGreeted.clear();
+    lineBags.clear();
     clearTimeout(waveBannerTimer);
     element("wave-banner").classList.remove("visible");
     ui.paused = false;
