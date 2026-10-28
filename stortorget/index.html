@@ -14,6 +14,7 @@
   <script defer src="js/danish.js"></script>
   <script defer src="js/levels.js"></script>
   <script defer src="js/engine.js"></script>
+  <script defer src="js/report.js"></script>
   <script defer src="js/ui.js"></script>
 </head>
 <body>
@@ -78,8 +79,10 @@
             <span id="selection-kicker">LEVEL 1</span>
             <strong id="selection-name">Falafel stand</strong>
             <small id="selection-stats">13 damage · 0.62 s reload</small>
+            <small id="selection-landmark" class="selection-landmark"></small>
           </div>
           <div class="selection-actions">
+            <button id="target-button" class="target-button" type="button">Target: First</button>
             <button id="upgrade-button" class="upgrade-button" type="button">Upgrade <span>50 kr</span></button>
             <button id="sell-button" class="sell-button" type="button">Sell <span>42 kr</span></button>
             <button id="close-selection" class="close-selection" type="button" aria-label="Close selected defence">×</button>
@@ -184,6 +187,25 @@
         <div><strong id="end-towers">0</strong><span data-t="endTowers">Defences built</span></div>
       </div>
       <p id="end-best" class="end-best"></p>
+      <section id="battle-report" class="battle-report" aria-label="Battle report">
+        <p id="report-tip" class="report-tip"></p>
+        <div class="report-highlights">
+          <span id="report-mvp"></span>
+          <span id="report-value"></span>
+          <span id="report-streak"></span>
+        </div>
+        <p id="report-hardest" class="report-hardest"></p>
+        <details id="report-details" class="report-details">
+          <summary id="report-title">Battle report</summary>
+          <div class="report-content">
+            <div class="report-map-wrap">
+              <canvas id="report-map" width="503" height="594" aria-label="Map of stops and leaks"></canvas>
+              <div class="report-legend"><span><i class="stop-dot"></i> <span data-t="reportStops">Stopped</span></span><span><i class="leak-dot"></i> <span data-t="reportLeaks">Leaked</span></span></div>
+            </div>
+            <ul id="report-towers" class="report-towers"></ul>
+          </div>
+        </details>
+      </section>
       <button id="endless-game" class="primary-button modal-primary endless-button" type="button" hidden><span data-t="endless">Keep going — endless</span> <span>∞</span></button>
       <button id="restart-game" class="primary-button modal-primary" type="button"><span data-t="restart">Play again</span> <span>↻</span></button>
     </div>

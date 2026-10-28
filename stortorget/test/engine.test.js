@@ -528,7 +528,7 @@ test("espresso boosts attack rate without firing or stacking multiple auras", ()
   const falafel = game.buildTower("sq-se", "falafel").tower;
   const espresso = game.buildTower("sq-ne", "espresso").tower;
   assert.equal(game.buildTower("sq-sw", "espresso").ok, true, "A second overlapping cart is allowed");
-  assert.equal(game.getFireRateMultiplier(falafel), 1.16, "Only the strongest equal aura applies");
+  assert.equal(game.getFireRateMultiplier(falafel), 1.22, "The strongest aura, including Lilla Torg's bonus, applies");
   assert.equal(game.getFireRateMultiplier(espresso), 1, "Support carts do not boost themselves");
 
   assert.equal(game.upgradeTower(espresso.id).ok, true);

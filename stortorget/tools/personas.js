@@ -27,6 +27,7 @@ const PERSONAS = [
       safety: 0.8,
     },
     typeWeights: { falafel: 1.08, bulle: 1, glass: 0.85, espresso: 0.9, vind: 0.9 },
+    targetModes: { falafel: "strong" },
   },
   {
     id: "rookie",
@@ -75,6 +76,7 @@ const PERSONAS = [
       safety: 0.35,
     },
     typeWeights: { falafel: 1.18, bulle: 1.22, glass: 0.55, espresso: 0.45, vind: 0.55 },
+    targetModes: { falafel: "strong", glass: "fast", vind: "fast" },
   },
   {
     id: "warden",
@@ -99,6 +101,7 @@ const PERSONAS = [
       safety: 1.35,
     },
     typeWeights: { falafel: 0.82, bulle: 0.85, glass: 1.35, espresso: 0.8, vind: 1.28 },
+    targetModes: { falafel: "strong", glass: "fast", vind: "fast" },
   },
   {
     id: "architect",
@@ -123,6 +126,7 @@ const PERSONAS = [
       safety: 0.75,
     },
     typeWeights: { falafel: 0.92, bulle: 0.95, glass: 0.85, espresso: 1.65, vind: 0.9 },
+    targetModes: { falafel: "strong" },
   },
   {
     id: "sprinter",
@@ -501,6 +505,9 @@ function planPurchases(game, persona, random, decisions, includeDecisions) {
       result = game.upgradeTower(choice.towerId);
     }
     if (!result.ok) break;
+    if (choice.action === "build" && persona.targetModes?.[choice.type]) {
+      game.setTargetMode(result.tower.id, persona.targetModes[choice.type]);
+    }
     if (includeDecisions) {
       decisions.push({
         at: Number(game.elapsed.toFixed(3)),
@@ -509,6 +516,7 @@ function planPurchases(game, persona, random, decisions, includeDecisions) {
         type: choice.type,
         ...(choice.padId ? { padId: choice.padId } : { towerId: choice.towerId }),
         level: result.tower.level,
+        ...(result.tower.targetMode && result.tower.targetMode !== "first" ? { targetMode: result.tower.targetMode } : {}),
         utility: Number(choice.utility.toFixed(3)),
       });
     }

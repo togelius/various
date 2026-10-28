@@ -91,6 +91,8 @@ async function desktop(browser, baseUrl) {
   }), true);
   let point = await canvasPoint(page, 277, 288);
   await page.mouse.click(point.x, point.y);
+  await page.click("#target-button");
+  assert.equal(await page.evaluate(() => window.stortorget.game.towers[0].targetMode), "strong");
   await page.click("#upgrade-button");
   assert.equal(await page.evaluate(() => window.stortorget.game.towers[0].level), 2);
   await page.click("#close-selection");
@@ -206,6 +208,64 @@ async function mobile(browser, baseUrl, viewport, name) {
   return { ...metrics, pinch: [before, after], errors };
 }
 
+async function landmarks(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const errors = watch(page);
+  await openGame(page, baseUrl, "skanska");
+  await page.click('[data-tower="espresso"]');
+  const point = await canvasPoint(page, 177, 344);
+  await page.mouse.click(point.x, point.y);
+  await page.mouse.click(point.x, point.y);
+  assert.ok(await page.locator("#selection-landmark").textContent());
+  assert.match(await page.locator("#selection-landmark").textContent(), /Lilla Torg/);
+  assert.ok(await page.evaluate(() => window.stortorget.game.getTowerStats(window.stortorget.game.towers[0]).haste > 0.16));
+  assert.equal(await page.locator("#target-button").isVisible(), false, "Support carts do not need target priorities");
+  await page.click("#close-selection");
+  await page.evaluate(() => {
+    const game = window.stortorget.game;
+    game.currentWave = 4;
+    game.phase = "intermission";
+    game.intermission = 20;
+  });
+  await page.click("#next-wave");
+  await page.waitForFunction(() => window.stortorget.game.enemies.filter((enemy) => enemy.train).length === 3);
+  assert.ok(await page.evaluate(() => window.stortorget.game.getNextTrainArrival()));
+  assert.match(await page.locator("#toast").textContent(), /Tåg|train/i);
+  await page.screenshot({ path: path.join(artifacts, "landmarks.png"), fullPage: true });
+  assert.deepEqual(errors, []);
+  await context.close();
+  return { cafeBoost: true, trainBatch: true, errors };
+}
+
+async function bossPhase(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = watch(page);
+  await openGame(page, baseUrl, "american");
+  await page.evaluate(() => {
+    const api = window.stortorget;
+    const game = api.game;
+    game.currentWave = 8;
+    game.phase = "wave";
+    game.spawnQueue = [];
+    game.spawnEnemy({ routeId: "centralen", typeId: "boss" });
+    const boss = game.enemies[0];
+    boss.hp = boss.maxHp * 0.6;
+    game.damageEnemy(boss, boss.maxHp * 0.1, "falafel");
+    api.step(0.01);
+  });
+  assert.equal(await page.evaluate(() => window.stortorget.game.enemies[0].bossPhase), "telegraph");
+  assert.ok(await page.locator("#wave-banner").evaluate((node) => node.classList.contains("visible")));
+  assert.match(await page.locator("#wave-banner-title").textContent(), /charge|Dannebrog/i);
+  await page.screenshot({ path: path.join(artifacts, "boss-telegraph.png"), fullPage: true });
+  await page.evaluate(() => window.stortorget.step(2.3));
+  assert.equal(await page.evaluate(() => window.stortorget.game.enemies[0].bossPhase), "charge");
+  assert.deepEqual(errors, []);
+  await context.close();
+  return { telegraph: true, charge: true, errors };
+}
+
 async function directFile(browser) {
   const page = await browser.newPage();
   const errors = watch(page);
@@ -248,14 +308,21 @@ async function fullGame(browser) {
       if (game.phase === "wave" && game.enemies.length && game.fikaCooldown <= 0) game.useFika();
       api.step(1);
     }
-    return { phase: game.phase, wave: game.currentWave, health: game.health, kills: game.stats.kills, leaks: game.stats.leaks };
+    return { phase: game.phase, wave: game.currentWave, health: game.health, kills: game.stats.kills, leaks: game.stats.leaks, bossPhases: game.stats.bossPhases, bossKills: game.stats.bossKills };
   });
   assert.equal(result.phase, "won");
   assert.equal(result.wave, 8);
+  assert.ok(result.bossPhases >= 1, "The boss should telegraph a phase");
+  assert.equal(result.bossKills, 1);
   await page.waitForTimeout(650);
   assert.ok(await page.locator("#end-modal").isVisible());
   assert.equal(await page.locator("#end-title").textContent(), "Stortorget stands!");
   assert.ok(await page.locator("#endless-game").isVisible(), "Winning offers endless mode");
+  assert.ok(await page.locator("#battle-report").isVisible());
+  await page.click("#report-title");
+  assert.equal(await page.locator("#report-details").evaluate((node) => node.open), true);
+  assert.ok(await page.locator("#report-towers li").count() > 0);
+  assert.equal(await page.locator("#report-map").evaluate((node) => node.width), 503);
   await page.screenshot({ path: path.join(artifacts, "victory.png"), fullPage: true });
   await page.click("#restart-game");
   assert.equal(await page.evaluate(() => window.stortorget.game.currentWave), 0);
@@ -276,6 +343,8 @@ async function fullGame(browser) {
     report.fullGame = await fullGame(browser);
     report.desktop = await desktop(browser, baseUrl);
     report.combat = await combat(browser, baseUrl);
+    report.landmarks = await landmarks(browser, baseUrl);
+    report.bossPhase = await bossPhase(browser, baseUrl);
     report.mobile = await mobile(browser, baseUrl, { width: 390, height: 844 }, "iphone");
     report.smallMobile = await mobile(browser, baseUrl, { width: 360, height: 640 }, "small-phone");
     report.screenshots = artifacts;

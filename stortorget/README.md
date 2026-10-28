@@ -60,7 +60,15 @@ Choose one of five defences, then choose a white build site on the map:
 - **Espresso cart:** boosts the fire rate of nearby attacking defences; only the strongest overlapping aura applies.
 - **Öresund wind:** knocks attackers backwards along their route, with reduced effect on heavy enemies.
 
-Tap a built defence to **upgrade** it twice or **sell** it. Espresso boosts appear as support links and a small gold marker on affected towers.
+Tap a built defence to **upgrade** it twice or **sell** it. Espresso boosts appear as support links and a small gold marker on affected towers. Attacking defences also have an optional **Target** button: **First**, **Strongest**, or **Fastest**, with First as the default.
+
+Landmarks add small, visible local effects:
+
+- **Lilla Torg:** espresso carts within the café area gain +6 percentage points of haste.
+- **Canal bridges:** nearby wind towers gain 25% knockback.
+- **Malmö Central:** the same scheduled attackers arrive in train-sized batches of up to three, with a countdown, map pulse, and horn. No extra attackers are added.
+
+At half health, the boss stops for a **2.2-second Dannebrog warning**, charges at double speed for four seconds, then takes a short recovery. The warning is a real damage window, and the phase happens only once per boss. The end screen includes a compact **battle report** with an expandable stop/leak map, most damaging defence, damage per cost, best streak, and hardest-wave details.
 
 Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. **Fika break** slows every attacker for five seconds and recharges during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1.
 
@@ -100,9 +108,11 @@ Map image: **© OpenStreetMap contributors**, rendered from the OSM Standard til
 Plain JavaScript, HTML, Canvas 2D, and CSS. No runtime dependencies.
 
 - `js/levels.js` — map geometry, routes, build sites, unit statistics, enemy personalities, and waves
-- `js/engine.js` — deterministic simulation, economy, combat, support/control effects, telemetry, and win/loss rules
-- `js/ui.js` — DPR-aware renderer, animation, sound, speech, input, and interface
+- `js/engine.js` — deterministic simulation, economy, combat, targeting, landmarks, boss phases, history, and win/loss rules
+- `js/report.js` — dependency-free battle-report aggregation for browser and Node tests
+- `js/ui.js` — DPR-aware renderer, animation, sound, speech, input, report, and interface
 - `test/engine.test.js` — dependency-free mechanics and complete-game regression tests
+- `test/features.test.js` — targeting, landmark, train, boss-phase, report, and persona integration tests
 - `tools/personas.js` — seeded utility-driven synthetic players and cloned content scenarios
 - `tools/balance-lab.js` — balance matrix, aggregates, and findings CLI
 - `test/personas.test.js` — persona determinism, diversity, viability, and telemetry tests
@@ -145,7 +155,7 @@ The design is inspired by [Automated Playtesting with Procedural Personas throug
 
 ## Browser smoke tests
 
-The optional browser runner checks direct-file launch, construction and upgrades, a complete first wave, all eight waves through victory and restart, combat effects, espresso/wind mechanics, Danish speech, explosion shake, shake-aligned placement, and two mobile viewports with touch placement and pinch zoom.
+The optional browser runner checks direct-file launch, construction and upgrades, a complete first wave, all eight waves through victory and restart, combat effects, target switching, espresso/wind and landmark mechanics, train arrivals, boss telegraph/charge, the expanded battle report, Danish speech, explosion shake, shake-aligned placement, and two mobile viewports with touch placement and pinch zoom.
 
 ```sh
 npm install --no-save playwright

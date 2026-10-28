@@ -115,6 +115,43 @@
     { id: "gustav-adolf", x: 271, y: 535 },
   ];
 
+  const LANDMARKS = [
+    {
+      id: "lilla-torg",
+      name: "Lilla Torg",
+      x: 177,
+      y: 344,
+      radius: 78,
+      tower: "espresso",
+      effect: "haste",
+      amount: 0.06,
+      icon: "☕",
+      textKey: "landmarkLilla",
+    },
+    {
+      id: "broarna",
+      name: "Canal bridges",
+      x: 290,
+      y: 112,
+      radius: 90,
+      tower: "vind",
+      effect: "knockback",
+      amount: 1.25,
+      icon: "≋",
+      textKey: "landmarkWind",
+    },
+    {
+      id: "centralen",
+      name: "Malmö Central",
+      x: 331,
+      y: 61,
+      radius: 75,
+      effect: "train",
+      icon: "▣",
+      textKey: "landmarkCentral",
+    },
+  ];
+
   const TOWER_TYPES = {
     falafel: {
       id: "falafel",
@@ -378,6 +415,7 @@
     pickupLife: 7,
     pickupValue: 12,
     pickupValuePerWave: 2,
+    trainBatchSize: 3,
     endlessHpGrowth: 1.16,
   };
 
@@ -533,6 +571,7 @@
     STATUE,
     ROUTES: PREPARED_ROUTES,
     BUILD_PADS,
+    LANDMARKS,
     TOWER_TYPES,
     ENEMY_TYPES,
     WAVES,

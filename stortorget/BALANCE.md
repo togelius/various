@@ -57,7 +57,7 @@ At each planning point, an agent scores **every affordable tower-type/build-pad 
 - purchase cost, cash reserve, repeated-type and overlapping-control diminishing returns, and upgrade value;
 - persona-specific utility and tower preference weights.
 
-`strategy` controls planning horizon and residual evaluation error. Seeded decision noise perturbs utility scores rather than engine combat. `reaction` controls how often an agent reassesses fika and early calls. Each persona also has an early-call preference, purchase cap, reserve, and fika threat threshold. Thus strategy and reaction can change purchases, fika timing, income, and survival.
+`strategy` controls planning horizon and residual evaluation error. Seeded decision noise perturbs utility scores rather than engine combat. `reaction` controls how often an agent reassesses fika and early calls. Each persona also has an early-call preference, purchase cap, reserve, and fika threat threshold. Thus strategy and reaction can change purchases, fika timing, income, and survival. The striker and warden assign strongest/fastest targeting where appropriate; the allrounder and architect use strongest targeting for falafel, and those choices appear in decision logs.
 
 The six archetypes are:
 

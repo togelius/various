@@ -50,6 +50,9 @@
       this.fireworksTimer = 0;
       this.fireworksLeft = 0;
       this.gustTimer = 0;
+      this.lastTrainAt = null;
+      this.activeWaveRecord = null;
+      this.history = { kills: [], leaks: [], waves: [] };
       this.endless = false;
       this.endlessWaves = new Map();
       this.stats = {
@@ -70,6 +73,8 @@
         sentHome: 0,
         homeTolls: 0,
         gusts: 0,
+        bossKills: 0,
+        bossPhases: 0,
         pickupsDropped: 0,
         pickupsCollected: 0,
         pickupCash: 0,
@@ -87,6 +92,11 @@
 
     drainEvents() {
       return this.events.splice(0, this.events.length);
+    }
+
+    recordPoint(collection, point) {
+      collection.push(point);
+      if (collection.length > 2000) collection.splice(0, collection.length - 2000);
     }
 
     getWave(number = this.currentWave) {
@@ -109,8 +119,31 @@
       return this.levels.ROUTES.find((route) => route.id === routeId);
     }
 
+    getLandmarkModifiers(tower) {
+      const modifiers = { hasteBonus: 0, knockbackMultiplier: 1, ids: [] };
+      for (const landmark of this.levels.LANDMARKS || []) {
+        if (!landmark.tower || landmark.tower !== tower.type) continue;
+        if (distanceBetween(tower, landmark) > landmark.radius) continue;
+        modifiers.ids.push(landmark.id);
+        if (landmark.effect === "haste") modifiers.hasteBonus += landmark.amount;
+        if (landmark.effect === "knockback") modifiers.knockbackMultiplier *= landmark.amount;
+      }
+      return modifiers;
+    }
+
+    getTowerLandmarks(tower) {
+      return (this.levels.LANDMARKS || []).filter((landmark) => landmark.tower === tower.type
+        && distanceBetween(tower, landmark) <= landmark.radius);
+    }
+
     getTowerStats(tower) {
-      return this.levels.TOWER_TYPES[tower.type].levels[tower.level - 1];
+      const stats = this.levels.TOWER_TYPES[tower.type].levels[tower.level - 1];
+      const modifiers = this.getLandmarkModifiers(tower);
+      return {
+        ...stats,
+        ...(stats.haste ? { haste: stats.haste + modifiers.hasteBonus } : {}),
+        ...(stats.knockback ? { knockback: stats.knockback * modifiers.knockbackMultiplier } : {}),
+      };
     }
 
     getFireRateMultiplier(tower) {
@@ -133,12 +166,36 @@
       return definition.levels[tower.level].upgradeCost;
     }
 
+    setTargetMode(towerId, mode) {
+      const tower = this.towers.find((item) => item.id === towerId);
+      if (!tower || this.levels.TOWER_TYPES[tower.type].support) return false;
+      if (!["first", "strong", "fast"].includes(mode)) return false;
+      tower.targetMode = mode;
+      this.emit("targetMode", { tower, mode });
+      return true;
+    }
+
+    cycleTargetMode(towerId) {
+      const tower = this.towers.find((item) => item.id === towerId);
+      if (!tower || this.levels.TOWER_TYPES[tower.type].support) return null;
+      const modes = ["first", "strong", "fast"];
+      const next = modes[(modes.indexOf(tower.targetMode) + 1) % modes.length];
+      this.setTargetMode(towerId, next);
+      return next;
+    }
+
     getActiveRoutes() {
       if (this.phase === "wave") return this.getWave()?.routes || [];
       if (this.phase === "ready" || this.phase === "intermission") {
         return this.getNextWave()?.routes || [];
       }
       return [];
+    }
+
+    getNextTrainArrival() {
+      const next = this.spawnQueue.find((item) => item.train);
+      if (!next) return null;
+      return { time: next.time, in: Math.max(0, next.time - this.waveElapsed), count: next.batchSize };
     }
 
     canBuild() {
@@ -166,6 +223,7 @@
         y: pad.y,
         level: 1,
         cooldown: 0,
+        targetMode: "first",
         angle: -Math.PI / 2,
         invested: definition.cost,
       };
@@ -225,18 +283,33 @@
       this.waveElapsed = 0;
       this.intermission = 0;
       this.gustTimer = this.config.gustInterval || 0;
+      this.lastTrainAt = null;
       this.spawnQueue = [];
+      const trainBatchSize = Math.max(1, this.config.trainBatchSize || 3);
       wave.groups.forEach((group) => {
         for (let index = 0; index < group.count; index += 1) {
+          const train = group.route === "centralen";
+          const batch = train ? Math.floor(index / trainBatchSize) : index;
           this.spawnQueue.push({
-            time: group.at + index * group.every,
+            time: group.at + batch * group.every * (train ? trainBatchSize : 1),
             routeId: group.route,
             typeId: group.type,
+            train,
+            batchSize: train ? Math.min(trainBatchSize, group.count - batch * trainBatchSize) : 1,
             order: this.spawnQueue.length,
           });
         }
       });
       this.spawnQueue.sort((a, b) => a.time - b.time || a.order - b.order);
+      this.activeWaveRecord = {
+        wave: this.currentWave,
+        name: wave.name,
+        startedAt: this.elapsed,
+        kills: this.stats.kills,
+        leaks: this.stats.leaks,
+        leakDamage: this.stats.leakDamage,
+        healthStart: this.health,
+      };
       this.emit("wave", {
         wave: this.currentWave,
         name: wave.name,
@@ -268,6 +341,10 @@
         slowTimer: 0,
         slowFactor: 1,
         dead: false,
+        train: Boolean(item.train),
+        bossPhase: null,
+        bossPhaseTriggered: false,
+        bossPhaseTimer: 0,
       };
       this.enemies.push(enemy);
       this.emit("spawn", { enemy });
@@ -305,7 +382,12 @@
 
       this.waveElapsed += dt;
       while (this.spawnQueue.length && this.spawnQueue[0].time <= this.waveElapsed + 1e-9) {
-        this.spawnEnemy(this.spawnQueue.shift());
+        const item = this.spawnQueue.shift();
+        if (item.train && this.lastTrainAt !== item.time) {
+          this.lastTrainAt = item.time;
+          this.emit("train", { routeId: item.routeId, count: item.batchSize, wave: this.currentWave });
+        }
+        this.spawnEnemy(item);
       }
 
       this.updateEnemies(dt);
@@ -397,8 +479,48 @@
       this.stats.homeTolls += this.config.homeToll;
       this.stats.sentHome += 1;
       this.stats.kills += 1;
+      this.recordPoint(this.history.kills, {
+        x: enemy.x,
+        y: enemy.y,
+        routeId: enemy.routeId,
+        type: enemy.type,
+        wave: this.currentWave,
+        sourceType: "home",
+      });
       this.emit("home", { enemy, payout, x: enemy.x, y: enemy.y });
       this.registerKill(enemy);
+    }
+
+    updateBossPhaseTrigger(enemy) {
+      if (enemy.type !== "boss" || enemy.bossPhaseTriggered || enemy.hp <= 0 || enemy.hp > enemy.maxHp * 0.5) return;
+      enemy.bossPhaseTriggered = true;
+      enemy.bossPhase = "telegraph";
+      enemy.bossPhaseTimer = 2.2;
+      this.stats.bossPhases += 1;
+      this.emit("bossTelegraph", { enemy, duration: 2.2, x: enemy.x, y: enemy.y });
+    }
+
+    updateBossPhase(enemy, dt) {
+      if (!enemy.bossPhase) return 1;
+      enemy.bossPhaseTimer -= dt;
+      if (enemy.bossPhase === "telegraph") {
+        if (enemy.bossPhaseTimer > 0) return 0;
+        enemy.bossPhase = "charge";
+        enemy.bossPhaseTimer = 4;
+        this.emit("bossCharge", { enemy, duration: 4, x: enemy.x, y: enemy.y });
+      }
+      if (enemy.bossPhase === "charge") {
+        if (enemy.bossPhaseTimer > 0) return 2;
+        enemy.bossPhase = "recover";
+        enemy.bossPhaseTimer = 1.5;
+        this.emit("bossRecover", { enemy, duration: 1.5, x: enemy.x, y: enemy.y });
+      }
+      if (enemy.bossPhase === "recover") {
+        if (enemy.bossPhaseTimer > 0) return 0.65;
+        enemy.bossPhase = null;
+        enemy.bossPhaseTimer = 0;
+      }
+      return 1;
     }
 
     updateEnemies(dt) {
@@ -409,7 +531,8 @@
         enemy.slowTimer = Math.max(0, enemy.slowTimer - dt);
         const localSlow = enemy.slowTimer > 0 ? enemy.slowFactor : 1;
         const fikaSlow = this.fikaRemaining > 0 ? this.config.fikaSlowFactor : 1;
-        enemy.distance += enemy.speed * localSlow * fikaSlow * dt;
+        const bossSpeed = this.updateBossPhase(enemy, dt);
+        enemy.distance += enemy.speed * localSlow * fikaSlow * bossSpeed * dt;
         const route = routeMap.get(enemy.routeId);
         enemy.progress = Math.min(1, enemy.distance / route.length);
 
@@ -418,6 +541,14 @@
           this.health = Math.max(0, this.health - definition.leak);
           this.stats.leaks += 1;
           this.stats.leakDamage += definition.leak;
+          this.recordPoint(this.history.leaks, {
+            x: enemy.x,
+            y: enemy.y,
+            routeId: enemy.routeId,
+            type: enemy.type,
+            wave: this.currentWave,
+            damage: definition.leak,
+          });
           this.emit("leak", {
             enemy,
             damage: definition.leak,
@@ -428,6 +559,7 @@
           if (this.health === 0) {
             this.phase = "lost";
             this.projectiles.length = 0;
+            this.finishWaveRecord("lost");
             this.emit("lose", { wave: this.currentWave, stats: { ...this.stats } });
             return;
           }
@@ -455,11 +587,17 @@
 
     findTarget(tower, range) {
       let best = null;
+      let bestScore = -Infinity;
       let bestProgress = -Infinity;
+      const mode = tower.targetMode || "first";
       for (const enemy of this.enemies) {
         if (enemy.dead || distanceBetween(tower, enemy) > range) continue;
-        if (enemy.progress > bestProgress || (enemy.progress === bestProgress && enemy.id < best?.id)) {
+        const score = mode === "strong" ? enemy.maxHp : mode === "fast" ? enemy.speed : enemy.progress;
+        if (score > bestScore
+          || (score === bestScore && enemy.progress > bestProgress)
+          || (score === bestScore && enemy.progress === bestProgress && enemy.id < best?.id)) {
           best = enemy;
+          bestScore = score;
           bestProgress = enemy.progress;
         }
       }
@@ -576,7 +714,10 @@
         x: enemy.x,
         y: enemy.y,
       });
-      if (enemy.hp > 0) return false;
+      if (enemy.hp > 0) {
+        this.updateBossPhaseTrigger(enemy);
+        return false;
+      }
       enemy.dead = true;
       const definition = this.levels.ENEMY_TYPES[enemy.type];
       // Tips are pseudo-random per attacker so runs stay deterministic.
@@ -587,6 +728,15 @@
       this.stats.kills += 1;
       this.stats.earned += definition.bounty + tip;
       this.stats.tips += tip;
+      if (enemy.type === "boss") this.stats.bossKills += 1;
+      this.recordPoint(this.history.kills, {
+        x: enemy.x,
+        y: enemy.y,
+        routeId: enemy.routeId,
+        type: enemy.type,
+        wave: this.currentWave,
+        sourceType,
+      });
       this.emit("kill", {
         enemy,
         bounty: definition.bounty,
@@ -627,11 +777,29 @@
       }
     }
 
+    finishWaveRecord(outcome) {
+      if (!this.activeWaveRecord) return;
+      const start = this.activeWaveRecord;
+      this.history.waves.push({
+        wave: start.wave,
+        name: start.name,
+        outcome,
+        kills: this.stats.kills - start.kills,
+        leaks: this.stats.leaks - start.leaks,
+        leakDamage: this.stats.leakDamage - start.leakDamage,
+        health: this.health,
+        healthLost: Math.max(0, start.healthStart - this.health),
+        duration: this.elapsed - start.startedAt,
+      });
+      this.activeWaveRecord = null;
+    }
+
     checkWaveComplete() {
       if (this.phase !== "wave" || this.spawnQueue.length || this.enemies.length) return;
       this.projectiles.length = 0;
       if (this.currentWave >= this.levels.WAVES.length && !this.endless) {
         this.phase = "won";
+        this.finishWaveRecord("cleared");
         this.emit("win", { stats: { ...this.stats }, health: this.health });
         return;
       }
@@ -643,6 +811,7 @@
       this.health = Math.min(this.config.maxHealth, this.health + 1);
       this.phase = "intermission";
       this.intermission = this.config.intermissionSeconds;
+      this.finishWaveRecord("cleared");
       this.emit("waveComplete", {
         wave: this.currentWave,
         reward,

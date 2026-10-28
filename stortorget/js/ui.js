@@ -351,6 +351,48 @@
     context.globalAlpha = 1;
   }
 
+  function drawLandmarks() {
+    for (const landmark of levels.LANDMARKS || []) {
+      const point = worldToScreen(landmark);
+      if (point.x < -70 || point.x > view.width + 70 || point.y < -50 || point.y > view.height + 50) continue;
+      const selected = landmark.tower && landmark.tower === ui.selectedType;
+      const occupied = landmark.tower && game.towers.some((tower) => game.getTowerLandmarks(tower).some((item) => item.id === landmark.id));
+      const arrival = landmark.effect === "train" && game.phase === "wave" ? game.getNextTrainArrival() : null;
+      const showCountdown = arrival && arrival.in <= 5;
+      const active = selected || occupied || showCountdown;
+      const color = landmark.effect === "haste" ? "#e6c07a" : landmark.effect === "knockback" ? "#9ddbd7" : "#82baff";
+      context.save();
+      context.globalAlpha = active ? 1 : 0.62;
+      context.fillStyle = "rgba(12, 37, 32, .88)";
+      context.strokeStyle = color;
+      context.lineWidth = active ? 2 : 1;
+      context.beginPath();
+      context.arc(point.x, point.y, active ? 10 : 8, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.fillStyle = color;
+      context.font = `${showCountdown ? 13 : 11}px -apple-system, sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(landmark.effect === "train" ? "🚆" : landmark.icon, point.x, point.y + 0.5);
+      const label = showCountdown ? `🚆 ${t("trainCountdown", { s: Math.max(1, Math.ceil(arrival.in)) })}` : active ? t(landmark.textKey) : "";
+      if (label) {
+        context.font = "800 9px -apple-system, sans-serif";
+        const width = context.measureText(label).width + 12;
+        const x = clamp(point.x + 13, 5, Math.max(5, view.width - width - 5));
+        const y = clamp(point.y - 24, 5, view.height - 24);
+        context.fillStyle = "rgba(10, 32, 27, .92)";
+        context.beginPath();
+        context.roundRect(x, y, width, 19, 5);
+        context.fill();
+        context.fillStyle = "#f2f6eb";
+        context.textAlign = "left";
+        context.fillText(label, x + 6, y + 10);
+      }
+      context.restore();
+    }
+  }
+
   function drawBuildPads(time) {
     for (const pad of levels.BUILD_PADS) {
       if (game.towers.some((tower) => tower.padId === pad.id)) continue;
@@ -611,6 +653,23 @@
       context.fill();
     }
 
+    if (enemy.bossPhase) {
+      const phaseColor = enemy.bossPhase === "charge" ? "#ff7a72" : enemy.bossPhase === "recover" ? "#9ddbd7" : "#ffd166";
+      context.strokeStyle = phaseColor;
+      context.lineWidth = 2.5;
+      context.globalAlpha = 0.65 + Math.sin(game.elapsed * 10) * 0.2;
+      context.beginPath();
+      context.arc(0, 0, size + 7 + (enemy.bossPhase === "charge" ? 3 : 0), 0, Math.PI * 2);
+      context.stroke();
+      context.globalAlpha = 1;
+      context.fillStyle = phaseColor;
+      context.font = "900 12px -apple-system, sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      const label = enemy.bossPhase === "telegraph" ? `${Math.max(1, Math.ceil(enemy.bossPhaseTimer))}` : enemy.bossPhase === "charge" ? "»" : "~";
+      context.fillText(label, 0, size + 17);
+    }
+
     if (enemy.hp < enemy.maxHp || enemy.type === "tank" || enemy.type === "boss") {
       const width = size * 2.2;
       const y = -size - (enemy.type === "boss" ? 20 : 10);
@@ -846,6 +905,7 @@
     drawMap(time);
     drawSpawnMarkers();
     drawBuildPads(time);
+    drawLandmarks();
     game.towers.forEach(drawTower);
     game.enemies.slice().sort((a, b) => a.y - b.y).forEach(drawEnemy);
     drawProjectiles();
@@ -1091,6 +1151,11 @@
       tone(880, 0.2, 0.16, 0.025, "triangle");
     } else if (name === "sell") {
       tone(500, 0.12, 0, 0.025, "triangle", 320);
+    } else if (name === "train") {
+      if (!allowSound("train", 0.4)) return;
+      tone(220, 0.28, 0, 0.045, "triangle", 196);
+      tone(330, 0.32, 0.18, 0.035, "triangle", 262);
+      noise(0.35, 0, 0.018, 600);
     } else if (name === "wave" || name === "boss") {
       const root = name === "boss" ? 82 : 196;
       tone(root, 0.28, 0, name === "boss" ? 0.075 : 0.05, "square", root * 0.85);
@@ -1140,6 +1205,72 @@
     }
   }
 
+  function renderReportMap(report) {
+    const reportCanvas = element("report-map");
+    const reportContext = reportCanvas.getContext("2d");
+    reportContext.clearRect(0, 0, reportCanvas.width, reportCanvas.height);
+    if (mapRender) reportContext.drawImage(mapRender, 0, 0);
+    else {
+      reportContext.fillStyle = "#d9ddcf";
+      reportContext.fillRect(0, 0, reportCanvas.width, reportCanvas.height);
+    }
+    reportContext.globalAlpha = 0.42;
+    for (const point of report.killPoints) {
+      reportContext.fillStyle = point.sourceType === "home" ? "#4c9ca5" : "#16876c";
+      reportContext.beginPath();
+      reportContext.arc(point.x, point.y, 2.1, 0, Math.PI * 2);
+      reportContext.fill();
+    }
+    reportContext.globalAlpha = 0.95;
+    reportContext.strokeStyle = "#b82f3d";
+    reportContext.fillStyle = "#e66b62";
+    for (const point of report.leakPoints) {
+      reportContext.beginPath();
+      reportContext.arc(point.x, point.y, 3.5 + Math.min(3, point.damage), 0, Math.PI * 2);
+      reportContext.fill();
+      reportContext.stroke();
+    }
+    reportContext.globalAlpha = 1;
+  }
+
+  function renderBattleReport() {
+    element("end-modal").classList.toggle("report-open", element("report-details").open);
+    const report = window.StortorgetReport.buildReport(game);
+    let tip = t("reportTipFlawless");
+    if (report.topLeakRoute) tip = t("reportTipLeak", { route: report.topLeakRoute.name, damage: report.topLeakRoute.damage });
+    else if (report.dominantShare >= 0.7) tip = t("reportTipMix", { name: report.dominantName });
+    setText("report-tip", tip);
+    setText("report-mvp", report.mostDamage ? t("reportMostDamage", { name: report.mostDamage.name, damage: Math.round(report.mostDamage.damage) }) : t("reportNoTowers"));
+    setText("report-value", report.bestValue ? t("reportBestValue", { name: report.bestValue.name, efficiency: report.bestValue.efficiency.toFixed(1) }) : "");
+    setText("report-streak", t("reportStreak", { n: report.bestStreak }));
+    setText("report-hardest", report.hardestWave && report.hardestWave.leakDamage > 0
+      ? t("reportHardest", { wave: report.hardestWave.wave, damage: report.hardestWave.leakDamage })
+      : "");
+    setText("report-title", t("reportTitle"));
+
+    const list = element("report-towers");
+    list.replaceChildren();
+    if (!report.towerRows.length) {
+      const item = document.createElement("li");
+      item.className = "report-tower";
+      item.textContent = t("reportNoTowers");
+      list.append(item);
+    }
+    for (const row of [...report.towerRows].sort((a, b) => b.damage - a.damage)) {
+      const item = document.createElement("li");
+      item.className = "report-tower";
+      const name = document.createElement("strong");
+      name.textContent = row.name;
+      const metric = document.createElement("span");
+      metric.textContent = `${Math.round(row.damage)} ${t("reportDamage")}`;
+      const detail = document.createElement("small");
+      detail.textContent = `${formatMoney(row.spent)} · ${row.efficiency.toFixed(1)} ${t("reportEfficiency")}`;
+      item.append(name, metric, detail);
+      list.append(item);
+    }
+    renderReportMap(report);
+  }
+
   function showEnd(won) {
     if (ui.endShown) return;
     ui.endShown = true;
@@ -1157,6 +1288,7 @@
     element("end-kills").textContent = game.stats.kills;
     element("end-health").textContent = game.health;
     element("end-towers").textContent = game.stats.towersBuilt;
+    renderBattleReport();
     element("end-modal").hidden = false;
     playSound(won ? "win" : "lose");
     element(won ? "endless-game" : "restart-game").focus();
@@ -1234,6 +1366,24 @@
         } else if (enemy.id % 4 === 0) {
           addQuip(enemy, danishLine(`chatter:${mode}:${enemy.type}`, chatterPool(enemy.type)));
         }
+      } else if (event.type === "train") {
+        const central = levels.LANDMARKS.find((landmark) => landmark.effect === "train");
+        if (central) ui.rings.push({ x: central.x, y: central.y, radius: 42, color: "#9bc7ff", life: 0.7, maxLife: 0.7, width: 3 });
+        toast(t("trainArrival", { n: event.count }));
+        playSound("train");
+      } else if (event.type === "bossTelegraph") {
+        showWaveBanner("BOSS PHASE", t("bossPhaseWarning", { s: Math.ceil(event.duration) }), 2200);
+        addQuip(event.enemy, "Dannebrog!", { silent: true, duration: 2.2 });
+        ui.rings.push({ x: event.x, y: event.y, radius: 65, color: "#ffd166", life: 0.9, maxLife: 0.9, width: 4 });
+        addShake(2.5);
+        playSound("boss");
+      } else if (event.type === "bossCharge") {
+        toast(t("bossCharge"), true);
+        ui.rings.push({ x: event.x, y: event.y, radius: 80, color: "#ff7a72", life: 0.7, maxLife: 0.7, width: 4 });
+        addShake(4);
+        playSound("boss");
+      } else if (event.type === "bossRecover") {
+        toast(t("bossRecover"));
       } else if (event.type === "shot") {
         const duration = event.projectileType === "bulle" ? 0.22 : 0.13;
         ui.recoil.set(event.tower.id, duration);
@@ -1402,6 +1552,15 @@
       boost: multiplier > 1 ? text.selectionBoost : "",
     }));
     setText("selection-name", definition.name);
+    const landmarks = game.getTowerLandmarks(tower);
+    setText("selection-landmark", landmarks.map((landmark) => `${landmark.name} · ${t(landmark.textKey)}`).join(" · "));
+    const targetButton = element("target-button");
+    targetButton.hidden = Boolean(definition.support);
+    if (!definition.support) {
+      const modeKey = { first: "targetFirst", strong: "targetStrong", fast: "targetFast" }[tower.targetMode || "first"];
+      targetButton.textContent = `${t("targetLabel")}: ${t(modeKey)}`;
+      targetButton.setAttribute("aria-label", `${t("targetLabel")}: ${t(modeKey)}`);
+    }
     if (definition.support) {
       const allies = game.towers.filter((ally) => ally.id !== tower.id && !levels.TOWER_TYPES[ally.type].support && Math.hypot(ally.x - tower.x, ally.y - tower.y) <= stats.range).length;
       setText("selection-stats", t("supportStats", { pct: Math.round(stats.haste * 100), n: allies, allies: allies === 1 ? text.ally : text.allies }));
@@ -1579,6 +1738,8 @@
     ui.endShown = false;
     accumulator = 0;
     element("end-modal").hidden = true;
+    element("report-details").open = false;
+    element("end-modal").classList.remove("report-open");
     fitCamera();
     processEvents();
     updateHUD();
@@ -1781,6 +1942,10 @@
     if (resultFeedback(game.useFika())) processEvents();
     updateHUD();
   });
+  element("target-button").addEventListener("click", () => {
+    if (ui.selectedTowerId) game.cycleTargetMode(ui.selectedTowerId);
+    updateHUD();
+  });
   element("upgrade-button").addEventListener("click", () => {
     if (ui.selectedTowerId && resultFeedback(game.upgradeTower(ui.selectedTowerId))) processEvents();
     updateHUD();
@@ -1796,6 +1961,7 @@
     ui.selectedTowerId = null;
     updateHUD();
   });
+  element("report-details").addEventListener("toggle", renderBattleReport);
   element("zoom-in").addEventListener("click", () => zoomAt({ x: view.width / 2, y: view.height / 2 }, 1.3));
   element("zoom-out").addEventListener("click", () => zoomAt({ x: view.width / 2, y: view.height / 2 }, 1 / 1.3));
   element("zoom-fit").addEventListener("click", fitCamera);
