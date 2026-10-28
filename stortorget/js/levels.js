@@ -430,10 +430,10 @@
         vind: { name: "Skånsk blåst", shortName: "Blåst" },
       },
       waveNames: [
-        "Dom första", "Tångrörelsen", "Bråk på Lilla Torg", "Östfronten",
-        "Dom kom mä tåget", "Rusningstrafik", "Alla vägar bär te Stortorget", "Den siste dansken",
+        "Dom första ålahuena", "Från två håll", "Mög på Lilla Torg", "Östfronten",
+        "Dom kom mä Pågatåget", "Rusning", "Alla vägar bär te Stortorget", "Den siste dansken",
       ],
-      endlessNames: ["Bron e öppen", "Mer mög", "Ålahuen kommer", "Bonnaröven slår tebaka", "Rälig rusning", "Ingen fika i sikte"],
+      endlessNames: ["Bron e öppen", "Mer mög", "Ålahuena kommer", "Bonnaröven slår tebaka", "Rälig rusning", "Ingen fika i sikte", "Haur du sitt varden?"],
     },
   };
 

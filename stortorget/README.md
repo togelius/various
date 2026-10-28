@@ -41,7 +41,7 @@ The intro screen (and the **US / SK** button in the header) switches between two
 | Pickup | Golden donut 🍩 | En bärs 🍺 |
 | Units | feet and dollars | metres and kronor |
 
-Locals shout back in mint-coloured bubbles — in Skånska that means *Ditt ålahue!*, *Bonnaröv!*, *Rälig dansk!*, *Mög!* and *Spiddekaga i nyllet!*; in American, *Not today, Hamlet!* and *Supersize THIS!*. The edition is remembered per browser; first-time visitors with a Swedish browser start in Skånska.
+Locals shout back in mint-coloured bubbles — in Skånska that means *Ditt ålahue!*, *Bonnaröv!*, *Din klydderöv!*, *Jau grinar ihjäl mig!* and *Haur du sitt Malme? Nu haur du dä!*; in American, *Not today, Hamlet!* and *Supersize THIS!*. The Skånska copy, its spelling conventions and sources are collected in **[SKANSKA.md](SKANSKA.md)**. The edition is remembered per browser; first-time visitors with a Swedish browser start in Skånska.
 
 ### Both editions
 

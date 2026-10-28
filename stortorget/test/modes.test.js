@@ -39,7 +39,7 @@ test("modes rescale towers and Danes without touching the canonical content", ()
   assert.equal(skanska.TOWER_TYPES.falafel.cost, canonicalCost);
   assert.equal(skanska.TOWER_TYPES.bulle.name, "Spiddekagakastaren");
   assert.ok(skanska.TOWER_TYPES.vind.levels[2].knockback > levels.TOWER_TYPES.vind.levels[2].knockback);
-  assert.equal(skanska.WAVES[0].name, "Dom första");
+  assert.equal(skanska.WAVES[0].name, "Dom första ålahuena");
   assert.equal(skanska.CONFIG.fikaDuration, 7);
 
   assert.equal(levels.TOWER_TYPES.falafel.cost, canonicalCost, "applyMode must not mutate the shared levels");
