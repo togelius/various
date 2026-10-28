@@ -55,6 +55,9 @@
   const camera = { x: levels.MAP.width / 2, y: levels.MAP.height / 2, scale: 1 };
   let mapReady = false;
   let mapRender = null;
+  let mapStyle = null;
+  // Old-town roofs worth picking out: Sankt Petri's copper.
+  const ROOF_OVERRIDES = [{ x: 385, y: 200, roof: "copper" }];
   let lastFrame = 0;
   let accumulator = 0;
   let toastTimer = 0;
@@ -109,6 +112,15 @@
   function loadMap() {
     const image = new Image();
     image.onload = () => {
+      try {
+        mapStyle = window.StortorgetMapStyle.paint(image, { roofs: ROOF_OVERRIDES });
+        mapRender = mapStyle.canvas;
+        mapReady = true;
+        return;
+      } catch (_) {
+        // Pixels can be unreadable from file://; the plain map still works.
+        mapStyle = null;
+      }
       mapRender = document.createElement("canvas");
       mapRender.width = levels.MAP.width;
       mapRender.height = levels.MAP.height;
@@ -205,18 +217,34 @@
     context.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     context.fillStyle = "#19332d";
     context.fillRect(0, 0, view.width, view.height);
+    if (mapStyle) drawBackdrop();
     ui.shakeOffset.x = ui.shake > 0 && !reducedMotion ? Math.sin(time * 91.7) * ui.shake : 0;
     ui.shakeOffset.y = ui.shake > 0 && !reducedMotion ? Math.cos(time * 113.3) * ui.shake * 0.72 : 0;
     context.translate(ui.shakeOffset.x, ui.shakeOffset.y);
 
     beginWorldDraw();
+    context.save();
+    context.shadowColor = "rgba(0, 0, 0, .5)";
+    context.shadowBlur = 28;
+    context.shadowOffsetY = 8;
     context.fillStyle = "#d9ddcf";
     context.fillRect(0, 0, levels.MAP.width, levels.MAP.height);
-    if (mapReady) context.drawImage(mapRender, 0, 0);
-    context.strokeStyle = "rgba(222, 245, 232, 0.35)";
-    context.lineWidth = 1 / camera.scale;
+    context.restore();
+    if (mapReady) {
+      context.imageSmoothingQuality = "high";
+      context.drawImage(mapRender, 0, 0, levels.MAP.width, levels.MAP.height);
+    }
+    if (mapStyle) {
+      drawWater(time);
+      drawClouds(time);
+      drawDaylight();
+      drawMapLabels();
+    }
+    context.strokeStyle = "rgba(255, 244, 220, 0.4)";
+    context.lineWidth = 1.5 / camera.scale;
     context.strokeRect(0, 0, levels.MAP.width, levels.MAP.height);
 
+    drawRouteBeds();
     if (ui.routePreview > 0) drawRoutes(time);
     drawRanges();
     drawSupportAuras();
@@ -228,6 +256,136 @@
       context.textAlign = "center";
       context.fillText(t("mapLoading"), view.width / 2, view.height / 2);
     }
+  }
+
+  // The map, tiny and stretched, as a blurred table under the real one.
+  function drawBackdrop() {
+    const backdrop = mapStyle.backdrop;
+    const cover = Math.max(view.width / backdrop.width, view.height / backdrop.height) * 1.15;
+    const width = backdrop.width * cover;
+    const height = backdrop.height * cover;
+    const drift = (camera.x / levels.MAP.width - 0.5) * 40;
+    context.save();
+    context.imageSmoothingQuality = "high";
+    context.globalAlpha = 0.55;
+    context.drawImage(backdrop, (view.width - width) / 2 - drift, (view.height - height) / 2, width, height);
+    context.restore();
+    const shade = context.createRadialGradient(view.width / 2, view.height / 2, 0, view.width / 2, view.height / 2, Math.max(view.width, view.height) * 0.7);
+    shade.addColorStop(0, "rgba(14, 38, 33, .62)");
+    shade.addColorStop(1, "rgba(6, 18, 16, .92)");
+    context.fillStyle = shade;
+    context.fillRect(0, 0, view.width, view.height);
+  }
+
+  function drawWater(time) {
+    if (reducedMotion) return;
+    context.save();
+    context.strokeStyle = "#e9fbff";
+    context.lineCap = "round";
+    context.lineWidth = 0.9;
+    for (const sparkle of mapStyle.sparkles) {
+      const glint = Math.sin(time * 1.7 + sparkle.phase);
+      if (glint < 0.35) continue;
+      context.globalAlpha = (glint - 0.35) * 0.9;
+      const sway = Math.sin(time * 0.8 + sparkle.phase * 2) * 1.2;
+      context.beginPath();
+      context.moveTo(sparkle.x - sparkle.length / 2 + sway, sparkle.y);
+      context.lineTo(sparkle.x + sparkle.length / 2 + sway, sparkle.y);
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  // Soft cloud shadows drifting in from the Öresund.
+  function drawClouds(time) {
+    const drift = reducedMotion ? 0 : time * 6;
+    context.save();
+    context.beginPath();
+    context.rect(0, 0, levels.MAP.width, levels.MAP.height);
+    context.clip();
+    for (let index = 0; index < 3; index += 1) {
+      const span = levels.MAP.width + 420;
+      const x = ((index * 290 + drift) % span) - 210;
+      const y = 90 + index * 190 + Math.sin(index * 2.3) * 40;
+      const radius = 150 + index * 30;
+      const cloud = context.createRadialGradient(x, y, 0, x, y, radius);
+      cloud.addColorStop(0, "rgba(20, 36, 52, .14)");
+      cloud.addColorStop(1, "rgba(20, 36, 52, 0)");
+      context.fillStyle = cloud;
+      context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+    context.restore();
+  }
+
+  // Afternoon light warms towards golden hour by the last wave; endless runs at dusk.
+  function drawDaylight() {
+    const total = levels.WAVES.length;
+    const progress = clamp((game.currentWave - 1) / Math.max(1, total - 1), 0, 1);
+    const endless = game.currentWave > total;
+    context.save();
+    context.fillStyle = endless ? "rgba(40, 40, 110, .2)" : `rgba(255, 150, 70, ${0.11 * progress})`;
+    context.fillRect(0, 0, levels.MAP.width, levels.MAP.height);
+    context.restore();
+  }
+
+  function drawMapLabels() {
+    const fade = clamp((camera.scale - view.fitScale * 0.7) / (view.fitScale * 0.5), 0, 1);
+    if (fade <= 0) return;
+    context.save();
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.lineJoin = "round";
+    for (const label of window.StortorgetMapStyle.LABELS) {
+      const district = label.kind === "district";
+      const water = label.kind === "water";
+      const size = district ? 10 : label.kind === "street" ? 5 : 6.5;
+      context.save();
+      context.translate(label.x, label.y);
+      context.rotate(label.angle);
+      context.font = district ? `italic 600 ${size}px Georgia, "Times New Roman", serif`
+        : label.kind === "street" ? `700 ${size}px -apple-system, sans-serif`
+          : `italic 600 ${size}px Georgia, serif`;
+      if ("letterSpacing" in context) context.letterSpacing = label.kind === "street" ? "1px" : "0px";
+      context.globalAlpha = fade * (district ? 0.78 : 0.85);
+      context.strokeStyle = water ? "rgba(20, 70, 86, .55)" : "rgba(255, 246, 226, .75)";
+      context.lineWidth = district ? 2.2 : 1.6;
+      context.strokeText(label.text, 0, 0);
+      context.fillStyle = water ? "#dff6fa" : district ? "#5a3527" : "#4a3a30";
+      context.fillText(label.text, 0, 0);
+      context.restore();
+    }
+    context.restore();
+  }
+
+  function drawVignette() {
+    const glow = context.createRadialGradient(view.width / 2, view.height * 0.45, Math.min(view.width, view.height) * 0.35, view.width / 2, view.height / 2, Math.max(view.width, view.height) * 0.75);
+    glow.addColorStop(0, "rgba(0, 0, 0, 0)");
+    glow.addColorStop(1, "rgba(3, 14, 12, .38)");
+    context.fillStyle = glow;
+    context.fillRect(0, 0, view.width, view.height);
+  }
+
+  // The streets the Danes walk get a worn, warm glow so they read at a glance.
+  function drawRouteBeds() {
+    context.save();
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    for (const routeId of game.getActiveRoutes()) {
+      const route = game.getRoute(routeId);
+      if (!route) continue;
+      context.beginPath();
+      route.points.forEach((point, index) => {
+        if (index === 0) context.moveTo(point.x, point.y);
+        else context.lineTo(point.x, point.y);
+      });
+      context.strokeStyle = "rgba(120, 72, 40, .16)";
+      context.lineWidth = 11;
+      context.stroke();
+      context.strokeStyle = "rgba(255, 238, 196, .55)";
+      context.lineWidth = 6.5;
+      context.stroke();
+    }
+    context.restore();
   }
 
   function drawRoutes(time) {
@@ -432,224 +590,455 @@
     }
   }
 
-  function drawTower(tower) {
-    const point = worldToScreen(tower);
-    if (point.x < -30 || point.x > view.width + 30 || point.y < -30 || point.y > view.height + 30) return;
-    const definition = levels.TOWER_TYPES[tower.type];
-    const selected = tower.id === ui.selectedTowerId;
-    const recoil = ui.recoil.get(tower.id) || 0;
-    const visualScale = clamp(camera.scale, 0.62, 1) * (1 + recoil * 0.35);
-    context.save();
-    context.translate(point.x, point.y);
-    context.scale(visualScale, visualScale);
-    context.shadowColor = "rgba(0,0,0,.45)";
-    context.shadowBlur = 7;
-    context.fillStyle = "#163c34";
-    context.beginPath();
-    context.arc(0, 1, 14, 0, Math.PI * 2);
-    context.fill();
-    context.shadowBlur = 0;
-    context.fillStyle = definition.color;
-    context.beginPath();
-    context.arc(0, 0, 11.5, 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = selected ? "#ffe19a" : "rgba(239,255,247,.85)";
-    context.lineWidth = selected ? 3 : 1.5;
-    context.stroke();
+  const shadeCache = new Map();
 
-    if (!definition.support && tower.type !== "vind") {
+  // Lightens (amount > 0) or darkens (amount < 0) a #rrggbb colour.
+  function shade(color, amount) {
+    const key = `${color}${amount}`;
+    let value = shadeCache.get(key);
+    if (!value) {
+      const number = parseInt(color.slice(1), 16);
+      const mix = (channel) => Math.round(amount < 0 ? channel * (1 + amount) : channel + (255 - channel) * amount);
+      value = `rgb(${mix(number >> 16)}, ${mix((number >> 8) & 255)}, ${mix(number & 255)})`;
+      shadeCache.set(key, value);
+    }
+    return value;
+  }
+
+  function star(context, x, y, radius) {
+    context.beginPath();
+    for (let point = 0; point < 10; point += 1) {
+      const angle = -Math.PI / 2 + point * Math.PI / 5;
+      const length = point % 2 ? radius * 0.45 : radius;
+      context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length);
+    }
+    context.closePath();
+    context.fill();
+  }
+
+  function ball(context, x, y, radius, light, dark) {
+    const gradient = context.createRadialGradient(x - radius * 0.4, y - radius * 0.45, radius * 0.1, x, y, radius);
+    gradient.addColorStop(0, light);
+    gradient.addColorStop(1, dark);
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  // A defence as a little raised stall: shadow, plinth, lit top, barrel, food icon.
+  // Also used for the shop icons, so it only draws into the context it is given.
+  function drawTowerSprite(context, type, options = {}) {
+    const definition = levels.TOWER_TYPES[type];
+    const color = definition.color;
+    const level = options.level || 1;
+    const recoil = options.recoil || 0;
+    const time = options.time || 0;
+    const radius = 13;
+
+    context.fillStyle = "rgba(10, 22, 16, .34)";
+    context.beginPath();
+    context.ellipse(2.5, 10, 16, 6, 0, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = shade(color, -0.5);
+    context.beginPath();
+    context.arc(0, 3.5, radius, 0, Math.PI * 2);
+    context.fill();
+    const top = context.createRadialGradient(-5, -6, 1, 0, 0, radius);
+    top.addColorStop(0, shade(color, 0.4));
+    top.addColorStop(0.7, color);
+    top.addColorStop(1, shade(color, -0.18));
+    context.fillStyle = top;
+    context.beginPath();
+    context.arc(0, 0, radius, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = level >= 3 ? "#ffd166" : level === 2 ? "#e9f1f2" : "rgba(255, 250, 238, .7)";
+    context.lineWidth = level >= 3 ? 2.6 : level === 2 ? 2.1 : 1.4;
+    context.stroke();
+    context.fillStyle = shade(color, -0.32);
+    context.beginPath();
+    context.arc(0, 0.5, 8.6, 0, Math.PI * 2);
+    context.fill();
+
+    if (!definition.support && type !== "vind") {
+      const heavy = type === "bulle";
+      const thickness = heavy ? 7 : 4.6;
       context.save();
-      context.rotate(tower.angle);
+      context.rotate(options.angle || 0);
       context.translate(-recoil * 20, 0);
-      context.strokeStyle = tower.type === "bulle" ? "#6d3d25" : "#264b41";
-      context.lineWidth = tower.type === "bulle" ? 5 : 3;
-      context.lineCap = "round";
+      context.fillStyle = "#24302d";
       context.beginPath();
-      context.moveTo(4, 0);
-      context.lineTo(16, 0);
-      context.stroke();
+      context.roundRect(2, -thickness / 2, heavy ? 15 : 17, thickness, thickness / 2);
+      context.fill();
+      context.fillStyle = "rgba(255, 255, 255, .28)";
+      context.fillRect(4, -thickness / 2 + 0.8, heavy ? 11 : 13, 1.1);
+      context.fillStyle = shade(color, -0.2);
+      context.beginPath();
+      context.roundRect(heavy ? 14 : 16, -thickness / 2 - 1, 3.5, thickness + 2, 1.2);
+      context.fill();
       if (recoil > 0.025) {
         context.globalAlpha = clamp(recoil * 7, 0, 1);
         context.fillStyle = "#fff1ae";
+        context.shadowColor = "#ffd166";
+        context.shadowBlur = 10;
         context.beginPath();
-        context.arc(18, 0, tower.type === "bulle" ? 5 : 3, 0, Math.PI * 2);
+        context.arc(heavy ? 20 : 21, 0, heavy ? 5.5 : 3.6, 0, Math.PI * 2);
         context.fill();
+        context.shadowBlur = 0;
         context.globalAlpha = 1;
       }
       context.restore();
     }
 
-    if (tower.type === "falafel") {
-      context.fillStyle = "#f4d18d";
-      [[-3, -2], [3, -2], [0, 3]].forEach(([x, y]) => {
-        context.beginPath();
-        context.arc(x, y, 2.4, 0, Math.PI * 2);
-        context.fill();
-      });
-    } else if (tower.type === "bulle") {
-      context.fillStyle = "#713f29";
-      context.font = "18px Georgia, serif";
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillText("◎", 0, 0);
-    } else if (tower.type === "glass") {
-      context.fillStyle = "#f4fbff";
+    if (type === "falafel") {
+      [[-3, -1.5], [3, -1.5], [0, 3.2]].forEach(([x, y]) => ball(context, x, y, 3, "#f3cf86", "#9b5a26"));
+      context.fillStyle = "#7fcf6a";
       context.beginPath();
-      context.arc(0, -3, 4, 0, Math.PI * 2);
+      context.ellipse(0, -4.5, 2.4, 1.1, -0.4, 0, Math.PI * 2);
       context.fill();
-      context.fillStyle = "#e5bd83";
+    } else if (type === "bulle") {
+      ball(context, 0, 0, 6.4, "#f1bd78", "#a35d2b");
+      context.strokeStyle = "#f8e0b4";
+      context.lineWidth = 1.3;
+      context.lineCap = "round";
       context.beginPath();
-      context.moveTo(-4, 0);
-      context.lineTo(4, 0);
-      context.lineTo(0, 7);
+      for (let step = 0; step <= 26; step += 1) {
+        const angle = step * 0.48;
+        const length = 0.5 + step * 0.19;
+        context.lineTo(Math.cos(angle) * length, Math.sin(angle) * length);
+      }
+      context.stroke();
+      context.fillStyle = "#ffffff";
+      [[-3.6, -2.8], [3.2, -3.4], [3.8, 2.4], [-2.6, 3.8]].forEach(([x, y]) => context.fillRect(x - 0.6, y - 0.6, 1.2, 1.2));
+    } else if (type === "glass") {
+      context.fillStyle = "#e6b674";
+      context.beginPath();
+      context.moveTo(-4.4, -0.5);
+      context.lineTo(4.4, -0.5);
+      context.lineTo(0, 8.5);
       context.closePath();
       context.fill();
-    } else if (tower.type === "espresso") {
-      context.fillStyle = "#fff0d2";
-      context.fillRect(-5, -1, 9, 7);
-      context.strokeStyle = "#68452e";
+      context.strokeStyle = "rgba(140, 86, 40, .55)";
+      context.lineWidth = 0.7;
+      context.beginPath();
+      context.moveTo(-2.6, -0.5); context.lineTo(1.6, 5.2);
+      context.moveTo(2.6, -0.5); context.lineTo(-1.6, 5.2);
+      context.stroke();
+      ball(context, 0, -3.2, 4.6, "#ffffff", "#ffb8cf");
+      ball(context, 2.2, -6.4, 2.4, "#fff6fb", "#ff8fb1");
+    } else if (type === "espresso") {
+      context.fillStyle = "#f6efe2";
+      context.beginPath();
+      context.ellipse(0, 4.2, 6.6, 2, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#fffaf1";
+      context.beginPath();
+      context.roundRect(-4.6, -2.2, 8.4, 6.6, [1, 1, 3, 3]);
+      context.fill();
+      context.strokeStyle = "#fffaf1";
       context.lineWidth = 1.5;
       context.beginPath();
-      context.arc(5, 2, 3, -Math.PI / 2, Math.PI / 2);
+      context.arc(4.4, 0.8, 2.2, -Math.PI / 2, Math.PI / 2);
       context.stroke();
+      context.fillStyle = "#6a3f24";
       context.beginPath();
-      context.moveTo(-2, -3);
-      context.quadraticCurveTo(-4, -6, -1, -8);
-      context.moveTo(2, -3);
-      context.quadraticCurveTo(0, -6, 3, -8);
-      context.stroke();
-    } else if (tower.type === "vind") {
+      context.ellipse(-0.4, -2.2, 4.2, 1.2, 0, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = "rgba(255, 255, 255, .8)";
+      context.lineWidth = 1.1;
+      for (const offset of [-1.8, 1.4]) {
+        const sway = Math.sin(time * 3 + offset) * 0.9;
+        context.beginPath();
+        context.moveTo(offset, -4);
+        context.quadraticCurveTo(offset - 1.6 + sway, -6.5, offset + sway, -9);
+        context.stroke();
+      }
+    } else if (type === "vind") {
       context.save();
-      context.rotate(game.elapsed * 4 + tower.id);
-      context.fillStyle = "#efffff";
+      context.rotate(options.spin || 0);
       for (let blade = 0; blade < 3; blade += 1) {
         context.rotate(Math.PI * 2 / 3);
+        const gradient = context.createLinearGradient(0, -2, 0, 2);
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(1, "#bfe6ea");
+        context.fillStyle = gradient;
         context.beginPath();
-        context.ellipse(4, 0, 5, 2.2, 0.35, 0, Math.PI * 2);
+        context.ellipse(4.6, 0, 5.6, 2.3, 0.32, 0, Math.PI * 2);
         context.fill();
       }
       context.restore();
-      context.fillStyle = "#347b78";
-      context.beginPath();
-      context.arc(0, 0, 2.3, 0, Math.PI * 2);
-      context.fill();
+      ball(context, 0, 0, 2.4, "#9fe0dc", "#2f6f6c");
     }
 
-    for (let index = 0; index < tower.level; index += 1) {
-      context.fillStyle = "#ffe19a";
+    if (level > 1) {
+      context.fillStyle = "rgba(14, 30, 26, .82)";
+      const width = level * 7 + 4;
       context.beginPath();
-      context.arc((index - (tower.level - 1) / 2) * 5, 17, 1.7, 0, Math.PI * 2);
+      context.roundRect(-width / 2, 14.5, width, 8, 4);
       context.fill();
+      context.fillStyle = "#ffd166";
+      for (let index = 0; index < level; index += 1) star(context, (index - (level - 1) / 2) * 7, 18.5, 3);
     }
-    if (game.getFireRateMultiplier(tower) > 1) {
-      context.fillStyle = "#fff0a8";
+    if (options.boosted) {
+      const pulse = 0.75 + Math.sin(time * 6) * 0.25;
+      context.fillStyle = `rgba(255, 228, 140, ${0.35 * pulse})`;
       context.beginPath();
-      context.arc(-11, -11, 3, 0, Math.PI * 2);
+      context.arc(-11, -11, 6, 0, Math.PI * 2);
       context.fill();
+      ball(context, -11, -11, 3.4, "#fff6c8", "#d39a3c");
     }
+  }
+
+  function drawTower(tower) {
+    const point = worldToScreen(tower);
+    if (point.x < -30 || point.x > view.width + 30 || point.y < -30 || point.y > view.height + 30) return;
+    const selected = tower.id === ui.selectedTowerId;
+    const recoil = ui.recoil.get(tower.id) || 0;
+    const visualScale = clamp(camera.scale, 0.62, 1.15) * (1 + recoil * 0.3);
+    context.save();
+    context.translate(point.x, point.y);
+    context.scale(visualScale, visualScale);
+    if (selected) {
+      context.save();
+      context.rotate(reducedMotion ? 0 : game.elapsed * 0.8);
+      context.strokeStyle = "#ffe19a";
+      context.lineWidth = 2;
+      context.setLineDash([5, 4]);
+      context.beginPath();
+      context.arc(0, 1, 18, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
+    drawTowerSprite(context, tower.type, {
+      level: tower.level,
+      angle: tower.angle,
+      recoil,
+      time: game.elapsed,
+      spin: game.elapsed * 4 + tower.id,
+      boosted: game.getFireRateMultiplier(tower) > 1,
+    });
     context.restore();
   }
 
+  const DANE = {
+    shirt: "#d6343d",
+    cross: "#fbf6ee",
+    jeans: "#34466b",
+    skin: "#f3c9a4",
+    outline: "#3b1f22",
+    hair: "#f1d27a",
+  };
+
+  // A Dane in a Dannebrog shirt. Basic ones wave a little flag, runners wear a
+  // headband, tanks the horned roligan helmet, and the boss a crown and cape.
   function drawEnemy(enemy) {
     const point = worldToScreen(enemy);
-    if (point.x < -35 || point.x > view.width + 35 || point.y < -35 || point.y > view.height + 35) return;
+    if (point.x < -40 || point.x > view.width + 40 || point.y < -45 || point.y > view.height + 40) return;
     const definition = levels.ENEMY_TYPES[enemy.type];
     const size = definition.size;
     const stride = reducedMotion ? 0 : Math.sin(game.elapsed * 11 + enemy.id * 1.7);
-    const bob = Math.abs(stride) * -0.8;
+    const bob = Math.abs(stride) * -1;
     const facing = Math.cos(enemy.angle) >= 0 ? 1 : -1;
     const flash = (ui.hitFlashes.get(enemy.id) || 0) > 0;
-    const colors = { basic: "#d94f51", runner: "#ef735c", tank: "#a93746", boss: "#7e2639" };
+    const type = enemy.type;
+    const paint = (color) => (flash ? "#fff6e0" : color);
+    const chilled = enemy.slowTimer > 0 || game.fikaRemaining > 0;
+    const zoom = clamp(camera.scale / view.fitScale, 1, 1.8);
     context.save();
-    context.translate(point.x, point.y + bob);
-    context.fillStyle = "rgba(0,0,0,.28)";
-    context.beginPath();
-    context.ellipse(1, size + 4, size * 0.9, size * 0.35, 0, 0, Math.PI * 2);
-    context.fill();
+    context.translate(point.x, point.y);
+    context.scale(zoom, zoom);
 
-    context.strokeStyle = "#632f35";
-    context.lineWidth = Math.max(1.5, size * 0.18);
-    context.lineCap = "round";
+    context.fillStyle = chilled ? "rgba(150, 225, 255, .45)" : "rgba(20, 16, 12, .3)";
     context.beginPath();
-    context.moveTo(-size * 0.35, size * 0.55);
-    context.lineTo(-size * 0.35 + stride * 3, size + 4);
-    context.moveTo(size * 0.35, size * 0.55);
-    context.lineTo(size * 0.35 - stride * 3, size + 4);
-    context.moveTo(-size * 0.7, -size * 0.15);
-    context.lineTo(-size - 2, stride * 3);
-    context.moveTo(size * 0.7, -size * 0.15);
-    context.lineTo(size + 2, -stride * 3);
-    context.stroke();
-
-    if (enemy.slowTimer > 0 || game.fikaRemaining > 0) {
-      context.strokeStyle = "rgba(151, 225, 255, .9)";
-      context.lineWidth = 2;
-      context.beginPath();
-      context.arc(0, 0, size + 3, 0, Math.PI * 2);
-      context.stroke();
-    }
-    context.fillStyle = flash ? "#fff5dc" : colors[enemy.type];
-    context.strokeStyle = enemy.type === "boss" ? "#ffd166" : "rgba(255,255,255,.8)";
-    context.lineWidth = enemy.type === "boss" ? 2.5 : 1;
-    context.beginPath();
-    context.arc(0, 0, size, 0, Math.PI * 2);
+    context.ellipse(1, size + 4, size * (chilled ? 1.25 : 0.95), size * 0.36, 0, 0, Math.PI * 2);
     context.fill();
-    context.stroke();
+    context.translate(0, bob);
 
-    context.strokeStyle = "#fff7ed";
-    context.lineWidth = Math.max(1.5, size * 0.17);
-    context.beginPath();
-    context.moveTo(-size * 0.7, 0);
-    context.lineTo(size * 0.7, 0);
-    context.moveTo(-size * 0.18, -size * 0.72);
-    context.lineTo(-size * 0.18, size * 0.72);
-    context.stroke();
-
-    const headX = facing * size * 0.18;
-    const headY = -size * 0.58;
-    context.fillStyle = flash ? "#ffffff" : "#f0c5a0";
-    context.beginPath();
-    context.arc(headX, headY, size * 0.46, 0, Math.PI * 2);
-    context.fill();
-    context.fillStyle = "#3d3230";
-    const eyeY = headY - size * 0.06;
-    context.beginPath();
-    context.arc(headX - 1.5, eyeY, 0.75, 0, Math.PI * 2);
-    context.arc(headX + 1.5, eyeY, 0.75, 0, Math.PI * 2);
-    context.fill();
-    if (enemy.type === "tank" || enemy.type === "boss") {
-      context.strokeStyle = "#59362d";
-      context.lineWidth = 1.4;
+    if (type === "boss") {
+      context.fillStyle = paint("#8f1f2c");
       context.beginPath();
-      context.moveTo(headX - 2.5, headY + size * 0.2);
-      context.lineTo(headX + 2.5, headY + size * 0.2);
-      context.stroke();
-    }
-    if (enemy.type === "runner") {
-      context.strokeStyle = "#ffe0ad";
-      context.lineWidth = 2;
-      context.beginPath();
-      context.moveTo(headX - size * 0.45, headY - 1);
-      context.lineTo(headX + size * 0.45, headY - 2);
-      context.stroke();
-    }
-    if (enemy.type === "tank") {
-      context.fillStyle = "#738078";
-      context.beginPath();
-      context.arc(headX, headY - 1, size * 0.48, Math.PI, 0);
+      context.moveTo(-size * 0.75, -size * 0.55);
+      context.quadraticCurveTo(-size * 1.25 - stride * 1.5, size * 0.6, -size * 0.9, size + 2);
+      context.lineTo(size * 0.9, size + 2);
+      context.quadraticCurveTo(size * 1.25 + stride * 1.5, size * 0.6, size * 0.75, -size * 0.55);
+      context.closePath();
       context.fill();
     }
-    if (enemy.type === "boss") {
-      context.fillStyle = "#ffd166";
+
+    context.lineCap = "round";
+    context.strokeStyle = paint(DANE.jeans);
+    context.lineWidth = Math.max(2, size * 0.32);
+    context.beginPath();
+    context.moveTo(-size * 0.3, size * 0.5);
+    context.lineTo(-size * 0.32 + stride * 3, size + 3);
+    context.moveTo(size * 0.3, size * 0.5);
+    context.lineTo(size * 0.32 - stride * 3, size + 3);
+    context.stroke();
+    context.fillStyle = paint("#2a2524");
+    for (const side of [-1, 1]) {
       context.beginPath();
-      context.moveTo(headX - 9, headY - 3);
-      context.lineTo(headX - 8, headY - 12);
-      context.lineTo(headX - 3, headY - 7);
-      context.lineTo(headX, headY - 14);
-      context.lineTo(headX + 4, headY - 7);
-      context.lineTo(headX + 9, headY - 12);
-      context.lineTo(headX + 9, headY - 3);
+      context.ellipse(side * (size * 0.32 - stride * 3) + facing, size + 3.6, size * 0.22 + 0.6, size * 0.13 + 0.4, 0, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    const armSwing = stride * 3;
+    context.strokeStyle = paint(type === "boss" ? "#b8293a" : DANE.shirt);
+    context.lineWidth = Math.max(2, size * 0.26);
+    context.beginPath();
+    context.moveTo(-size * 0.7, -size * 0.2);
+    context.lineTo(-size - 1.5, size * 0.25 + armSwing);
+    context.moveTo(size * 0.7, -size * 0.2);
+    if (type === "basic") context.lineTo(size + 1, -size * 0.75);
+    else context.lineTo(size + 1.5, size * 0.25 - armSwing);
+    context.stroke();
+    context.fillStyle = paint(DANE.skin);
+    context.beginPath();
+    context.arc(-size - 1.5, size * 0.25 + armSwing, Math.max(1.3, size * 0.16), 0, Math.PI * 2);
+    context.arc(size + 1.5, type === "basic" ? -size * 0.75 : size * 0.25 - armSwing, Math.max(1.3, size * 0.16), 0, Math.PI * 2);
+    context.fill();
+
+    if (type === "basic") {
+      const wave = reducedMotion ? 0 : Math.sin(game.elapsed * 9 + enemy.id) * 1.2;
+      const poleX = size + 1;
+      const poleTop = -size * 0.75 - size * 1.1;
+      context.strokeStyle = "#7a5a3c";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(poleX, -size * 0.6);
+      context.lineTo(poleX, poleTop);
+      context.stroke();
+      context.fillStyle = paint(DANE.shirt);
+      context.beginPath();
+      context.moveTo(poleX, poleTop);
+      context.quadraticCurveTo(poleX + 4, poleTop - 1 + wave, poleX + 8, poleTop + wave);
+      context.lineTo(poleX + 8, poleTop + 5 + wave);
+      context.quadraticCurveTo(poleX + 4, poleTop + 4 + wave, poleX, poleTop + 5);
       context.closePath();
+      context.fill();
+      context.fillStyle = DANE.cross;
+      context.fillRect(poleX + 2.4, poleTop + wave * 0.4, 1.2, 5);
+      context.fillRect(poleX, poleTop + 2 + wave * 0.5, 8, 1.1);
+    }
+
+    // Torso with the Nordic cross, offset towards the hoist like the real flag.
+    context.save();
+    context.beginPath();
+    context.ellipse(0, 0, size * 0.86, size * 0.92, 0, 0, Math.PI * 2);
+    context.fillStyle = paint(type === "boss" ? "#c62a3a" : DANE.shirt);
+    context.fill();
+    context.clip();
+    context.fillStyle = paint(DANE.cross);
+    const bar = Math.max(1.6, size * 0.22);
+    context.fillRect(-size, -bar / 2 - size * 0.05, size * 2, bar);
+    context.fillRect(-facing * size * 0.28 - bar / 2, -size, bar, size * 2);
+    const sheen = context.createLinearGradient(-size, -size, size, size);
+    sheen.addColorStop(0, "rgba(255, 255, 255, .22)");
+    sheen.addColorStop(0.6, "rgba(255, 255, 255, 0)");
+    sheen.addColorStop(1, "rgba(40, 0, 10, .28)");
+    context.fillStyle = sheen;
+    context.fillRect(-size, -size, size * 2, size * 2);
+    context.restore();
+    context.strokeStyle = DANE.outline;
+    context.lineWidth = 1.1;
+    context.beginPath();
+    context.ellipse(0, 0, size * 0.86, size * 0.92, 0, 0, Math.PI * 2);
+    context.stroke();
+
+    const headR = size * (type === "boss" ? 0.5 : 0.52);
+    const headX = facing * size * 0.12;
+    const headY = -size * 0.92 - headR * 0.35;
+    if (type === "boss") {
+      context.fillStyle = paint("#e9c46a");
+      context.beginPath();
+      context.ellipse(headX, headY + headR * 0.75, headR * 0.85, headR * 0.7, 0, 0, Math.PI);
+      context.fill();
+    }
+    context.fillStyle = paint(DANE.skin);
+    context.beginPath();
+    context.arc(headX, headY, headR, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = DANE.outline;
+    context.lineWidth = 1;
+    context.stroke();
+    if (type === "basic" || type === "runner") {
+      context.fillStyle = paint(DANE.hair);
+      context.beginPath();
+      context.arc(headX, headY - headR * 0.1, headR * 1.02, Math.PI * 1.05, Math.PI * 1.95);
+      context.closePath();
+      context.fill();
+    }
+    const eyeX = headX + facing * headR * 0.28;
+    context.fillStyle = "#2c2324";
+    context.beginPath();
+    context.arc(eyeX - headR * 0.32, headY + headR * 0.02, Math.max(0.7, headR * 0.13), 0, Math.PI * 2);
+    context.arc(eyeX + headR * 0.32, headY + headR * 0.02, Math.max(0.7, headR * 0.13), 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "rgba(240, 110, 110, .5)";
+    context.beginPath();
+    context.arc(eyeX - headR * 0.52, headY + headR * 0.38, headR * 0.17, 0, Math.PI * 2);
+    context.arc(eyeX + headR * 0.52, headY + headR * 0.38, headR * 0.17, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "#7b3a33";
+    context.lineWidth = 0.9;
+    context.beginPath();
+    context.arc(eyeX, headY + headR * 0.34, headR * 0.26, 0.15 * Math.PI, 0.85 * Math.PI);
+    context.stroke();
+
+    if (type === "runner") {
+      context.fillStyle = paint("#ffffff");
+      context.fillRect(headX - headR, headY - headR * 0.52, headR * 2, headR * 0.34);
+      context.fillStyle = paint(DANE.shirt);
+      context.fillRect(headX - headR, headY - headR * 0.46, headR * 2, headR * 0.14);
+      context.strokeStyle = "rgba(255, 255, 255, .55)";
+      context.lineWidth = 1;
+      for (const offset of [-2, 1.5]) {
+        context.beginPath();
+        context.moveTo(-facing * (size + 2), offset);
+        context.lineTo(-facing * (size + 7), offset);
+        context.stroke();
+      }
+    } else if (type === "tank") {
+      const helmet = context.createLinearGradient(headX - headR, headY - headR, headX + headR, headY);
+      helmet.addColorStop(0, paint("#e7ecea"));
+      helmet.addColorStop(1, paint("#87928f"));
+      context.fillStyle = paint("#f4ead2");
+      for (const side of [-1, 1]) {
+        context.beginPath();
+        context.moveTo(headX + side * headR * 0.75, headY - headR * 0.35);
+        context.quadraticCurveTo(headX + side * headR * 1.9, headY - headR * 0.6, headX + side * headR * 1.55, headY - headR * 1.75);
+        context.quadraticCurveTo(headX + side * headR * 1.3, headY - headR * 0.95, headX + side * headR * 0.55, headY - headR * 0.75);
+        context.closePath();
+        context.fill();
+      }
+      context.fillStyle = helmet;
+      context.beginPath();
+      context.arc(headX, headY - headR * 0.08, headR * 1.04, Math.PI, 0);
+      context.closePath();
+      context.fill();
+      context.strokeStyle = DANE.outline;
+      context.lineWidth = 0.9;
+      context.stroke();
+      context.fillStyle = paint("#c0a15a");
+      context.fillRect(headX - headR * 1.04, headY - headR * 0.24, headR * 2.08, headR * 0.22);
+    } else if (type === "boss") {
+      context.fillStyle = paint("#ffd166");
+      context.strokeStyle = "#9a6a12";
+      context.lineWidth = 0.9;
+      const crownY = headY - headR * 0.55;
+      context.beginPath();
+      context.moveTo(headX - headR * 0.95, crownY);
+      context.lineTo(headX - headR * 1.05, crownY - headR * 1.15);
+      context.lineTo(headX - headR * 0.45, crownY - headR * 0.55);
+      context.lineTo(headX, crownY - headR * 1.4);
+      context.lineTo(headX + headR * 0.45, crownY - headR * 0.55);
+      context.lineTo(headX + headR * 1.05, crownY - headR * 1.15);
+      context.lineTo(headX + headR * 0.95, crownY);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      context.fillStyle = "#d6343d";
+      context.beginPath();
+      context.arc(headX, crownY - headR * 0.35, headR * 0.16, 0, Math.PI * 2);
       context.fill();
     }
 
@@ -670,13 +1059,18 @@
       context.fillText(label, 0, size + 17);
     }
 
-    if (enemy.hp < enemy.maxHp || enemy.type === "tank" || enemy.type === "boss") {
-      const width = size * 2.2;
-      const y = -size - (enemy.type === "boss" ? 20 : 10);
-      context.fillStyle = "rgba(13, 29, 26, .8)";
-      context.fillRect(-width / 2, y, width, 3.5);
-      context.fillStyle = enemy.hp / enemy.maxHp > 0.4 ? "#8de0ac" : "#ff8a76";
-      context.fillRect(-width / 2, y, width * clamp(enemy.hp / enemy.maxHp, 0, 1), 3.5);
+    if (enemy.hp < enemy.maxHp || type === "tank" || type === "boss") {
+      const width = Math.max(16, size * 2.3);
+      const y = headY - headR * (type === "tank" ? 1.8 : 1) - (type === "boss" ? 16 : 6);
+      const ratio = clamp(enemy.hp / enemy.maxHp, 0, 1);
+      context.fillStyle = "rgba(13, 29, 26, .85)";
+      context.beginPath();
+      context.roundRect(-width / 2 - 1, y - 1, width + 2, 5.5, 2.75);
+      context.fill();
+      context.fillStyle = ratio > 0.55 ? "#8de0ac" : ratio > 0.28 ? "#ffd166" : "#ff7a72";
+      context.beginPath();
+      context.roundRect(-width / 2, y, Math.max(1.5, width * ratio), 3.5, 1.75);
+      context.fill();
     }
     context.restore();
   }
@@ -733,37 +1127,62 @@
     const pulse = !reducedMotion && game.health <= 5 ? Math.sin(game.elapsed * 5) * 2 : 0;
     context.save();
     context.translate(point.x, point.y);
-    context.scale(clamp(camera.scale, 0.62, 1), clamp(camera.scale, 0.62, 1));
+    const statueScale = clamp(camera.scale, 0.62, 1.15);
+    context.scale(statueScale, statueScale);
     if (ui.statueHit > 0 && !reducedMotion) context.rotate(Math.sin(game.elapsed * 45) * ui.statueHit * 0.12);
-    context.shadowColor = "rgba(0,0,0,.5)";
-    context.shadowBlur = 12;
-    context.fillStyle = "#153d34";
+    context.fillStyle = "rgba(15, 20, 14, .35)";
     context.beginPath();
-    context.arc(0, 0, 20 + pulse, 0, Math.PI * 2);
+    context.ellipse(4, 13, 25, 9, 0, 0, Math.PI * 2);
     context.fill();
-    context.shadowBlur = 0;
-    context.strokeStyle = "rgba(235, 251, 241, .55)";
-    context.lineWidth = 3;
+    context.fillStyle = "#7f7766";
+    context.beginPath();
+    context.arc(0, 5, 21, 0, Math.PI * 2);
+    context.fill();
+    const stone = context.createRadialGradient(-7, -8, 2, 0, 0, 21);
+    stone.addColorStop(0, "#efe6cf");
+    stone.addColorStop(1, "#a9a08a");
+    context.fillStyle = stone;
+    context.beginPath();
+    context.arc(0, 0, 21, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "rgba(90, 80, 62, .5)";
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.arc(0, 0, 15.5, 0, Math.PI * 2);
+    context.stroke();
+    context.strokeStyle = "rgba(20, 30, 26, .55)";
+    context.lineWidth = 3.5;
+    context.beginPath();
+    context.arc(0, 0, 24.5 + pulse, 0, Math.PI * 2);
     context.stroke();
     context.strokeStyle = healthRatio > 0.3 ? "#ffd166" : "#ff7a72";
+    context.lineWidth = 3;
     context.lineCap = "round";
     context.beginPath();
-    context.arc(0, 0, 23 + pulse, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * healthRatio);
+    context.arc(0, 0, 24.5 + pulse, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * healthRatio);
     context.stroke();
-    context.fillStyle = "#b7ead5";
-    context.font = "32px Georgia, serif";
+    const bronze = context.createLinearGradient(-10, -16, 10, 14);
+    bronze.addColorStop(0, "#9fe2c6");
+    bronze.addColorStop(0.55, "#4f9c84");
+    bronze.addColorStop(1, "#2a5f51");
+    context.font = "34px Georgia, serif";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText("♞", 0, 1);
+    context.lineJoin = "round";
+    context.strokeStyle = "#1d3a32";
+    context.lineWidth = 2.5;
+    context.strokeText("♞", 0, -1);
+    context.fillStyle = bronze;
+    context.fillText("♞", 0, -1);
     context.font = "800 8px -apple-system, sans-serif";
     const label = text.statueLabel;
     const width = context.measureText(label).width + 12;
     context.fillStyle = "rgba(10, 32, 27, .9)";
     context.beginPath();
-    context.roundRect(-width / 2, 28, width, 17, 5);
+    context.roundRect(-width / 2, 31, width, 17, 5);
     context.fill();
     context.fillStyle = "#f1f7ed";
-    context.fillText(label, 0, 37);
+    context.fillText(label, 0, 40);
     context.restore();
   }
 
@@ -821,14 +1240,19 @@
       const age = particle.maxLife - particle.life;
       context.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
       context.fillStyle = particle.color;
+      const px = origin.x + particle.vx * age;
+      const py = origin.y + particle.vy * age + (particle.gravity || 0) * age * age / 2;
+      if (particle.confetti) {
+        context.save();
+        context.translate(px, py);
+        context.rotate(particle.spin * age);
+        context.scale(1, Math.cos(age * particle.spin * 0.7));
+        context.fillRect(-particle.size, -particle.size * 0.6, particle.size * 2, particle.size * 1.2);
+        context.restore();
+        continue;
+      }
       context.beginPath();
-      context.arc(
-        origin.x + particle.vx * age,
-        origin.y + particle.vy * age + (particle.gravity || 0) * age * age / 2,
-        Math.max(0.2, particle.size + (particle.grow || 0) * age),
-        0,
-        Math.PI * 2,
-      );
+      context.arc(px, py, Math.max(0.2, particle.size + (particle.grow || 0) * age), 0, Math.PI * 2);
       context.fill();
     }
     context.globalAlpha = 1;
@@ -912,6 +1336,7 @@
     drawStatue();
     drawPickups(time);
     drawEffects(dt);
+    drawVignette();
     drawQuips();
   }
 
@@ -1027,6 +1452,8 @@
         size: (options.size || 1.8) * (0.7 + Math.random() * 0.6),
         gravity: options.gravity || 0,
         grow: options.grow || 0,
+        confetti: Boolean(options.confetti),
+        spin: (Math.random() - 0.5) * 18,
         life,
         maxLife: life,
       });
@@ -1209,7 +1636,7 @@
     const reportCanvas = element("report-map");
     const reportContext = reportCanvas.getContext("2d");
     reportContext.clearRect(0, 0, reportCanvas.width, reportCanvas.height);
-    if (mapRender) reportContext.drawImage(mapRender, 0, 0);
+    if (mapRender) reportContext.drawImage(mapRender, 0, 0, levels.MAP.width, levels.MAP.height);
     else {
       reportContext.fillStyle = "#d9ddcf";
       reportContext.fillRect(0, 0, reportCanvas.width, reportCanvas.height);
@@ -1414,7 +1841,11 @@
         if (event.sourceType !== "bulle") burst(event.x, event.y, "#fff1cf", 2, { speed: 22, life: 0.25, lift: 0 });
       } else if (event.type === "kill") {
         const splashed = splashIfCanal(event);
-        if (!splashed) burst(event.x, event.y, "#e66b62", 7, { speed: 48, gravity: 65 });
+        if (!splashed) {
+          burst(event.x, event.y, "#d6343d", 6, { speed: 55, gravity: 70, lift: 30, size: 2, confetti: true, life: 0.9 });
+          burst(event.x, event.y, "#fbf6ee", 5, { speed: 50, gravity: 70, lift: 30, size: 2, confetti: true, life: 0.9 });
+          burst(event.x, event.y, "rgba(255, 246, 230, .7)", 4, { speed: 14, life: 0.5, grow: 7, size: 2.5, lift: 6 });
+        }
         addFloater({ x: event.x, y: event.y, text: `+${event.bounty}`, color: "#ffe092", xOffset: 8 });
         if (event.tip) {
           addFloater({ x: event.x, y: event.y + 12, text: t("tip", { tip: event.tip }), color: "#ffb3c7", size: 9, xOffset: 14, life: 1, maxLife: 1 });
@@ -2163,7 +2594,27 @@
     requestAnimationFrame(frame);
   }
 
+  function paintShopIcons() {
+    document.querySelectorAll(".tower-card").forEach((button) => {
+      const icon = button.querySelector(".tower-icon");
+      if (!icon || icon.querySelector("canvas")) return;
+      const size = 40;
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      const sprite = document.createElement("canvas");
+      sprite.width = size * ratio;
+      sprite.height = size * ratio;
+      const spriteContext = sprite.getContext("2d");
+      spriteContext.scale(ratio, ratio);
+      spriteContext.translate(size / 2 - 1, size / 2 - 3);
+      spriteContext.scale(1.25, 1.25);
+      drawTowerSprite(spriteContext, button.dataset.tower, { angle: -Math.PI / 4, spin: 0.6, level: 1 });
+      icon.replaceChildren(sprite);
+      icon.classList.add("sprite-icon");
+    });
+  }
+
   loadMap();
+  paintShopIcons();
   resize();
   fitCamera();
   applyTexts(mode);

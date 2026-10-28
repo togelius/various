@@ -10,6 +10,7 @@
   --gold: #ffd166;
   --danger: #ff7a72;
   --shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
+  --display: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
 }
@@ -104,8 +105,9 @@ canvas:focus-visible {
 
 .brand h1 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 850;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 800;
   letter-spacing: 0.16em;
 }
 
@@ -148,7 +150,9 @@ canvas:focus-visible {
 .stat strong {
   display: block;
   margin-top: 2px;
-  font-size: 20px;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -399,6 +403,8 @@ canvas:focus-visible {
 
 .wave-banner strong {
   overflow: hidden;
+  font-family: var(--display);
+  font-weight: 800;
   font-size: clamp(22px, 3.2vw, 38px);
   line-height: 1.1;
   letter-spacing: -0.035em;
@@ -486,7 +492,9 @@ canvas:focus-visible {
 
 .wave-copy h2 {
   margin: 7px 0 7px;
-  font-size: 18px;
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 800;
   line-height: 1.15;
 }
 
@@ -611,6 +619,17 @@ canvas:focus-visible {
   height: 43px;
   border-radius: 12px;
   font-weight: 800;
+}
+
+.tower-icon.sprite-icon {
+  grid-template: none;
+  gap: 0;
+  overflow: hidden;
+}
+
+.tower-icon.sprite-icon canvas {
+  width: 40px;
+  height: 40px;
 }
 
 .falafel-icon {
@@ -1096,6 +1115,8 @@ canvas:focus-visible {
 
 .modal-card h2 {
   margin: 7px 0 12px;
+  font-family: var(--display);
+  font-weight: 800;
   font-size: clamp(30px, 5vw, 44px);
   line-height: 1.05;
   letter-spacing: -0.04em;
@@ -1387,6 +1408,11 @@ noscript {
     width: 32px;
     height: 38px;
     border-radius: 9px;
+  }
+
+  .tower-icon.sprite-icon canvas {
+    width: 32px;
+    height: 32px;
   }
 
   .falafel-icon {

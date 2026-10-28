@@ -101,7 +101,18 @@ A tiny phrasebook (taunts, not historical claims):
 
 The bundled map covers approximately 800 × 680 metres around Stortorget, including Lilla Torg, Malmö Central, Norra Vallgatan, Gustav Adolfs torg, Södergatan, and Djäknegatan. Six hand-traced routes follow the streets and enter the square along its pedestrian diagonals. Fixed pavement sites avoid path-blocking and make placement reliable on touchscreens.
 
-Map image: **© OpenStreetMap contributors**, rendered from the OSM Standard tiles at zoom 16 and cropped to `55.6022–55.6094° N, 12.9950–13.0058° E`. Map data is available under the [Open Database License](https://www.openstreetmap.org/copyright). The statue marker uses coordinates `55.6061333, 13.0002444`. The game and all map assets run locally with no tile requests or API keys.
+Map image: **© OpenStreetMap contributors**, rendered from the OSM Standard tiles at zoom 16 and cropped to `55.6022–55.6094° N, 12.9950–13.0058° E`. Map data is available under the [Open Database License](https://www.openstreetmap.org/copyright). The statue marker uses coordinates `55.6061333, 13.0002444`. The game and all map assets run locally with no tile requests or API keys; the headline font (Bricolage Grotesque) comes from Google Fonts and falls back to the system font offline.
+
+**The look.** At load, `js/mapstyle.js` repaints the OSM image as an illustrated old town. Every pixel is sorted by its OSM colour into buildings, streets, squares, courtyards, water and parks. Labels, icons and footpath dashes are filled in from what surrounds them, and the classes are drawn back up at three times the size:
+
+- tiled and slate roofs lifted over their front walls, with shadows falling south-east
+- cream cobbled streets, and courtyards as small gardens
+- canals with stone quays and glinting water, and parks full of trees
+- Sankt Petri in copper
+
+At draw time come soft cloud shadows, a few hand-placed street names, and light that warms towards golden hour by the last wave (dusk in endless). The walking routes keep a warm glow, so they read through the roofs. If the pixels cannot be read (some `file://` setups), the plain map is used.
+
+The Danes wear Dannebrog shirts and come apart in red and white confetti: flag-wavers, runners in headbands, tanks in horned roligan helmets, and a caped, crowned boss. Each defence is a raised stall that gets a steel and then a gold rim as it levels up. The shop icons are drawn with the same sprites.
 
 ## Development
 
@@ -110,9 +121,11 @@ Plain JavaScript, HTML, Canvas 2D, and CSS. No runtime dependencies.
 - `js/levels.js` — map geometry, routes, build sites, unit statistics, enemy personalities, and waves
 - `js/engine.js` — deterministic simulation, economy, combat, targeting, landmarks, boss phases, history, and win/loss rules
 - `js/report.js` — dependency-free battle-report aggregation for browser and Node tests
+- `js/mapstyle.js` — repaints the OSM map as illustrated roofs, streets, quays and parks
 - `js/ui.js` — DPR-aware renderer, animation, sound, speech, input, report, and interface
 - `test/engine.test.js` — dependency-free mechanics and complete-game regression tests
 - `test/features.test.js` — targeting, landmark, train, boss-phase, report, and persona integration tests
+- `test/mapstyle.test.js` — map classification, label clean-up, roof lifting, and the real map's make-up
 - `tools/personas.js` — seeded utility-driven synthetic players and cloned content scenarios
 - `tools/balance-lab.js` — balance matrix, aggregates, and findings CLI
 - `test/personas.test.js` — persona determinism, diversity, viability, and telemetry tests
