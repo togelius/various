@@ -30,6 +30,8 @@
     rings: [],
     floaters: [],
     quips: [],
+    departures: [],
+    clearLife: 0,
     quipSchedule: new Map(),
     quipHistory: new Map(),
     hitFlashes: new Map(),
@@ -233,6 +235,9 @@
     if (mapReady) {
       context.imageSmoothingQuality = "high";
       context.drawImage(mapRender, 0, 0, levels.MAP.width, levels.MAP.height);
+      // Let the colourful actors read against the detailed little city.
+      context.fillStyle = "rgba(20, 45, 39, 0.13)";
+      context.fillRect(0, 0, levels.MAP.width, levels.MAP.height);
     }
     if (mapStyle) {
       drawWater(time);
@@ -440,7 +445,7 @@
     const pad = levels.BUILD_PADS.find((item) => item.id === ui.hoveredPadId);
     const occupied = game.towers.some((towerItem) => towerItem.padId === ui.hoveredPadId);
     if (pad && !occupied) {
-      drawRange(pad.x, pad.y, levels.TOWER_TYPES[ui.selectedType].range, levels.TOWER_TYPES[ui.selectedType].color);
+      drawRange(pad.x, pad.y, game.getPlacementPreview(pad.id, ui.selectedType).range, levels.TOWER_TYPES[ui.selectedType].color);
     }
   }
 
@@ -449,8 +454,9 @@
     for (const routeId of game.getActiveRoutes()) {
       const route = game.getRoute(routeId);
       if (!route) continue;
-      const start = worldToScreen(route.points[0]);
-      if (start.x < -60 || start.x > view.width + 60 || start.y < -60 || start.y > view.height + 60) continue;
+      const origin = worldToScreen(route.points[0]);
+      const start = { x: clamp(origin.x, 20, view.width - 20), y: clamp(origin.y, 66, view.height - 32) };
+      const offscreen = Math.hypot(start.x - origin.x, start.y - origin.y) > 2;
       context.save();
       context.shadowColor = "rgba(0,0,0,.45)";
       context.shadowBlur = 8;
@@ -466,12 +472,24 @@
       context.beginPath();
       context.arc(start.x, start.y, 2, 0, Math.PI * 2);
       context.fill();
-      if (showNames) {
+      if (offscreen) {
+        context.save();
+        context.translate(start.x, start.y);
+        context.rotate(Math.atan2(origin.y - start.y, origin.x - start.x));
+        context.fillStyle = route.color;
+        context.beginPath();
+        context.moveTo(14, 0);
+        context.lineTo(8, -4);
+        context.lineTo(8, 4);
+        context.fill();
+        context.restore();
+      }
+      if (showNames || offscreen) {
         const onRight = start.x > view.width * 0.63;
         const labelY = clamp(start.y - 13, 16, view.height - 16);
         context.font = "700 9px -apple-system, sans-serif";
         const width = context.measureText(route.name).width + 12;
-        const labelX = onRight ? start.x - width - 10 : start.x + 10;
+        const labelX = clamp(onRight ? start.x - width - 10 : start.x + 10, 8, view.width - width - 8);
         context.fillStyle = "rgba(10, 31, 27, 0.88)";
         context.beginPath();
         context.roundRect(labelX, labelY - 10, width, 18, 5);
@@ -794,7 +812,7 @@
     if (point.x < -30 || point.x > view.width + 30 || point.y < -30 || point.y > view.height + 30) return;
     const selected = tower.id === ui.selectedTowerId;
     const recoil = ui.recoil.get(tower.id) || 0;
-    const visualScale = clamp(camera.scale, 0.62, 1.15) * (1 + recoil * 0.3);
+    const visualScale = clamp(camera.scale * 1.22, 0.94, 1.45) * (1 + recoil * 0.3);
     context.save();
     context.translate(point.x, point.y);
     context.scale(visualScale, visualScale);
@@ -831,7 +849,7 @@
 
   // A Dane in a Dannebrog shirt. Basic ones wave a little flag, runners wear a
   // headband, tanks the horned roligan helmet, and the boss a crown and cape.
-  function drawEnemy(enemy) {
+  function drawEnemy(enemy, departure = null) {
     const point = worldToScreen(enemy);
     if (point.x < -40 || point.x > view.width + 40 || point.y < -45 || point.y > view.height + 40) return;
     const definition = levels.ENEMY_TYPES[enemy.type];
@@ -839,13 +857,22 @@
     const stride = reducedMotion ? 0 : Math.sin(game.elapsed * 11 + enemy.id * 1.7);
     const bob = Math.abs(stride) * -1;
     const facing = Math.cos(enemy.angle) >= 0 ? 1 : -1;
-    const flash = (ui.hitFlashes.get(enemy.id) || 0) > 0;
+    const flash = !departure && (ui.hitFlashes.get(enemy.id) || 0) > 0;
     const type = enemy.type;
     const paint = (color) => (flash ? "#fff6e0" : color);
-    const chilled = enemy.slowTimer > 0 || game.fikaRemaining > 0;
-    const zoom = clamp(camera.scale / view.fitScale, 1, 1.8);
+    const chilled = !departure && (enemy.slowTimer > 0 || (game.fikaRemaining > 0 && game.config.fikaKind === "slow"));
+    const zoom = clamp(camera.scale / view.fitScale * 1.25, 1.25, 2);
     context.save();
     context.translate(point.x, point.y);
+    if (departure) {
+      const progress = 1 - departure.life / departure.maxLife;
+      const direction = enemy.id % 2 ? 1 : -1;
+      context.translate(direction * progress * 26, -Math.sin(progress * Math.PI) * 32);
+      context.rotate(direction * progress * 2.8);
+      context.globalAlpha = Math.min(1, (1 - progress) * 2.5);
+      const shrink = 1 - progress * 0.55;
+      context.scale(shrink, shrink);
+    }
     context.scale(zoom, zoom);
 
     context.fillStyle = chilled ? "rgba(150, 225, 255, .45)" : "rgba(20, 16, 12, .3)";
@@ -1042,7 +1069,7 @@
       context.fill();
     }
 
-    if (enemy.bossPhase) {
+    if (!departure && enemy.bossPhase) {
       const phaseColor = enemy.bossPhase === "charge" ? "#ff7a72" : enemy.bossPhase === "recover" ? "#9ddbd7" : "#ffd166";
       context.strokeStyle = phaseColor;
       context.lineWidth = 2.5;
@@ -1059,7 +1086,7 @@
       context.fillText(label, 0, size + 17);
     }
 
-    if (enemy.hp < enemy.maxHp || type === "tank" || type === "boss") {
+    if (!departure && (enemy.hp < enemy.maxHp || type === "tank" || type === "boss")) {
       const width = Math.max(16, size * 2.3);
       const y = headY - headR * (type === "tank" ? 1.8 : 1) - (type === "boss" ? 16 : 6);
       const ratio = clamp(enemy.hp / enemy.maxHp, 0, 1);
@@ -1281,6 +1308,10 @@
     ui.particles.forEach((particle) => { particle.life -= effectDt; });
     ui.floaters.forEach((floater) => { floater.life -= effectDt; });
     ui.quips.forEach((quip) => { quip.life -= dt; });
+    ui.departures.forEach((departure) => { departure.life -= dt; });
+    ui.departures = ui.departures.filter((departure) => departure.life > 0);
+    ui.clearLife = Math.max(0, ui.clearLife - dt);
+    element("clear-card").hidden = ui.clearLife <= 0 || Boolean(ui.selectedTowerId || ui.selectedType);
     for (const [id, life] of ui.hitFlashes) {
       if (life <= effectDt) ui.hitFlashes.delete(id);
       else ui.hitFlashes.set(id, life - effectDt);
@@ -1298,6 +1329,7 @@
   }
 
   function drawQuips() {
+    const occupied = [];
     for (const quip of ui.quips) {
       const enemy = quip.local ? null : game.enemies.find((item) => item.id === quip.enemyId);
       const origin = worldToScreen(enemy || quip);
@@ -1308,7 +1340,13 @@
       const width = Math.ceil(context.measureText(quip.text).width) + 16;
       const height = boss ? 25 : 22;
       const x = clamp(origin.x - width / 2, 7, Math.max(7, view.width - width - 7));
-      const y = clamp(origin.y - (boss ? 48 : 38), 7, Math.max(7, view.height - height - 7));
+      let y = clamp(origin.y - (boss ? 60 : 48), 62, Math.max(62, view.height - height - 7));
+      const overlaps = () => occupied.some((rect) => x < rect.x + rect.width + 4 && x + width + 4 > rect.x
+        && y < rect.y + rect.height + 4 && y + height + 4 > rect.y);
+      for (let attempt = 0; attempt < 4 && overlaps(); attempt += 1) y -= height + 5;
+      if (y < 62) y = clamp(origin.y + 30, 62, view.height - height - 7);
+      if (overlaps()) { context.restore(); continue; }
+      occupied.push({ x, y, width, height });
       context.globalAlpha = clamp(quip.life / 0.25, 0, 1);
       context.shadowColor = "rgba(0,0,0,.35)";
       context.shadowBlur = 8;
@@ -1330,14 +1368,43 @@
     drawSpawnMarkers();
     drawBuildPads(time);
     drawLandmarks();
+    drawPlacementGhost();
     game.towers.forEach(drawTower);
-    game.enemies.slice().sort((a, b) => a.y - b.y).forEach(drawEnemy);
+    game.enemies.slice().sort((a, b) => a.y - b.y).forEach((enemy) => drawEnemy(enemy));
+    ui.departures.forEach((departure) => drawEnemy(departure.enemy, departure));
     drawProjectiles();
     drawStatue();
     drawPickups(time);
     drawEffects(dt);
     drawVignette();
     drawQuips();
+  }
+
+  function drawPlacementGhost() {
+    if (!ui.selectedType || !ui.hoveredPadId) return;
+    const preview = game.getPlacementPreview(ui.hoveredPadId, ui.selectedType);
+    if (!preview) return;
+    const pad = levels.BUILD_PADS.find((item) => item.id === ui.hoveredPadId);
+    const point = worldToScreen(pad);
+    const scale = clamp(camera.scale * 1.22, 0.94, 1.45);
+    context.save();
+    context.globalAlpha = 0.65;
+    context.translate(point.x, point.y);
+    context.scale(scale, scale);
+    drawTowerSprite(context, ui.selectedType, { level: 1, angle: -Math.PI / 4, time: game.elapsed });
+    context.restore();
+  }
+
+  function showWaveClear(event) {
+    const record = game.history.waves[game.history.waves.length - 1];
+    setText("clear-kicker", t("clearKicker", { n: event.wave }));
+    setText("clear-title", t(record?.leaks === 0 ? "clearPerfect" : "clearSurvived"));
+    setText("clear-joke", text.clearJokes[(event.wave - 1) % text.clearJokes.length]);
+    setText("clear-detail", t("clearDetail", {
+      kills: record?.kills || 0, reward: formatMoney(event.reward), healed: event.healed ? text.toastHealed : "",
+    }));
+    ui.clearLife = 4.5;
+    element("clear-card").hidden = false;
   }
 
   function addShake(amount) {
@@ -1756,6 +1823,7 @@
       if (event.type === "build") {
         burst(event.x, event.y, levels.TOWER_TYPES[event.tower.type].color, 12, { speed: 42, gravity: 45 });
         ui.rings.push({ x: event.x, y: event.y, radius: 24, color: levels.TOWER_TYPES[event.tower.type].color, life: 0.4, maxLife: 0.4 });
+        addLocalQuip(event, text.buildQuips[event.tower.type], { force: true });
         playSound("build");
       } else if (event.type === "upgrade") {
         burst(event.x, event.y, "#ffd166", 18, { speed: 55, gravity: 55 });
@@ -1763,9 +1831,10 @@
         addShake(1.2);
         playSound("upgrade");
       } else if (event.type === "sell") {
-        addFloater({ x: event.x, y: event.y, text: `+${event.refund} kr`, color: "#ffd166", life: 1, maxLife: 1 });
+        addFloater({ x: event.x, y: event.y, text: `+${formatMoney(event.refund)}`, color: "#ffd166", life: 1, maxLife: 1 });
         playSound("sell");
       } else if (event.type === "wave") {
+        ui.clearLife = 0;
         ui.routePreview = 6;
         showWaveBanner(t("bannerWave", {
           n: event.wave,
@@ -1842,6 +1911,10 @@
       } else if (event.type === "kill") {
         const splashed = splashIfCanal(event);
         if (!splashed) {
+          if (!reducedMotion) {
+            ui.departures.push({ enemy: { ...event.enemy }, life: 0.55, maxLife: 0.55 });
+            if (ui.departures.length > 24) ui.departures.shift();
+          }
           burst(event.x, event.y, "#d6343d", 6, { speed: 55, gravity: 70, lift: 30, size: 2, confetti: true, life: 0.9 });
           burst(event.x, event.y, "#fbf6ee", 5, { speed: 50, gravity: 70, lift: 30, size: 2, confetti: true, life: 0.9 });
           burst(event.x, event.y, "rgba(255, 246, 230, .7)", 4, { speed: 14, life: 0.5, grow: 7, size: 2.5, lift: 6 });
@@ -1936,7 +2009,7 @@
         playSound("leak");
       } else if (event.type === "waveComplete") {
         ui.routePreview = Infinity;
-        toast(t("toastCleared", { reward: formatMoney(event.reward), healed: event.healed ? text.toastHealed : "" }));
+        showWaveClear(event);
         playSound("clear");
       } else if (event.type === "fika") {
         toast(t("toastFika"));
@@ -2024,6 +2097,13 @@
     if (streakLive) setText("combo-chip", t("streak", { n: game.streak.count }));
 
     const remaining = game.enemies.length + game.spawnQueue.length;
+    const progress = element("wave-progress");
+    const total = game.getWave()?.groups.reduce((sum, group) => sum + group.count, 0) || 1;
+    const percent = Math.round(clamp(1 - remaining / total, 0, 1) * 100);
+    progress.hidden = game.phase !== "wave";
+    progress.setAttribute("aria-label", t("progressLabel"));
+    progress.setAttribute("aria-valuenow", String(percent));
+    progress.firstElementChild.style.width = `${percent}%`;
     const chip = element("phase-chip");
     chip.classList.toggle("wave", game.phase === "wave");
     chip.classList.toggle("fika", game.fikaRemaining > 0);
@@ -2085,6 +2165,7 @@
     pause.classList.toggle("active", ui.paused);
     pause.setAttribute("aria-label", ui.paused ? "Resume game" : "Pause game");
     setText("speed-button", `${ui.speed}×`);
+    element("speed-button").title = t("planningSpeed");
     setText("sound-button", soundEnabled ? "♪" : "×");
     element("sound-button").classList.toggle("active", soundEnabled);
     element("sound-button").setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
@@ -2097,6 +2178,21 @@
     else if (!game.towers.length && game.phase === "ready") hintText = t("hintFirst");
     setText("game-hint", hintText);
 
+    const preview = ui.selectedType && ui.hoveredPadId ? game.getPlacementPreview(ui.hoveredPadId, ui.selectedType) : null;
+    const previewElement = element("placement-preview");
+    previewElement.hidden = !preview;
+    if (preview) {
+      const useful = preview.support ? preview.allies > 0 : preview.routes.length > 0;
+      let message = preview.support
+        ? t(preview.allies ? "previewBoosts" : "previewNoAllies", { n: preview.allies })
+        : t(preview.routes.length ? "previewCovers" : "previewMisses", {
+          routes: preview.routes.map((id) => game.getRoute(id).name).join(" · "),
+        });
+      const missing = levels.TOWER_TYPES[ui.selectedType].cost - game.money;
+      if (missing > 0) message += t("previewFunds", { amount: formatMoney(missing) });
+      setText("placement-preview", message);
+      previewElement.classList.toggle("warning", !useful || missing > 0);
+    }
     canvas.classList.toggle("building", Boolean(ui.selectedType));
     updateSelection();
   }
@@ -2150,6 +2246,9 @@
     ui.rings.length = 0;
     ui.floaters.length = 0;
     ui.quips.length = 0;
+    ui.departures.length = 0;
+    ui.clearLife = 0;
+    element("clear-card").hidden = true;
     ui.quipSchedule.clear();
     ui.quipHistory.clear();
     ui.hitFlashes.clear();
@@ -2206,14 +2305,10 @@
         nearestTowerDistance = distance;
       }
     }
-    if (nearestTower) {
-      selectTower(nearestTower.id);
-      return;
-    }
-
     let nearestPad = null;
     let nearestPadDistance = 28;
     for (const pad of levels.BUILD_PADS) {
+      if (ui.selectedType && game.towers.some((tower) => tower.padId === pad.id)) continue;
       const screen = worldToScreen(pad);
       const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
       if (distance < nearestPadDistance) {
@@ -2222,7 +2317,15 @@
       }
     }
 
+    // At phone scale neighbouring sites are closer than the generous tap radius.
+    // Honour the closest target instead of letting a tower swallow an empty site's tap.
+    if (nearestTower && (!ui.selectedType || !nearestPad || nearestTowerDistance <= nearestPadDistance)) {
+      selectTower(nearestTower.id);
+      return;
+    }
+
     if (ui.selectedType && nearestPad) {
+      ui.hoveredPadId = nearestPad.id;
       const result = game.buildTower(nearestPad.id, ui.selectedType);
       if (resultFeedback(result)) {
         if (pointerType !== "mouse") ui.selectedType = null;
@@ -2458,6 +2561,7 @@
     saveMode(modeId);
     game = new Game({ mode });
     levels = game.levels;
+    paintShopIcons();
     applyTexts(modeId);
     resetGame();
     toast(t("toastMode"));
@@ -2577,7 +2681,8 @@
     lastFrame = seconds;
     const modalOpen = ui.helpOpen || !element("intro-modal").hidden || !element("end-modal").hidden;
     if (ui.started && !ui.paused && !modalOpen && game.phase !== "won" && game.phase !== "lost") {
-      accumulator += dt * ui.speed;
+      // Fast combat should not steal the player's time to inspect new approaches.
+      accumulator += dt * (game.phase === "intermission" ? 1 : ui.speed);
       const fixedStep = 1 / 60;
       let steps = 0;
       while (accumulator >= fixedStep && steps < 14) {
@@ -2597,7 +2702,7 @@
   function paintShopIcons() {
     document.querySelectorAll(".tower-card").forEach((button) => {
       const icon = button.querySelector(".tower-icon");
-      if (!icon || icon.querySelector("canvas")) return;
+      if (!icon) return;
       const size = 40;
       const ratio = Math.min(2, window.devicePixelRatio || 1);
       const sprite = document.createElement("canvas");

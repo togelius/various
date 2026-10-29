@@ -146,6 +146,26 @@
       };
     }
 
+    // Preview the same range used by combat, against this wave's actual streets.
+    // Intersect whole segments: checking just the route's vertices misses long roads.
+    getPlacementPreview(padId, type) {
+      const pad = this.levels.BUILD_PADS.find((item) => item.id === padId);
+      const definition = this.levels.TOWER_TYPES[type];
+      if (!pad || !definition || this.towers.some((tower) => tower.padId === padId)) return null;
+      const stats = this.getTowerStats({ ...pad, type, level: 1 });
+      const routes = this.getActiveRoutes().filter((id) => this.getRoute(id).segments.some(({ from, to }) => {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const lengthSquared = dx * dx + dy * dy;
+        const along = lengthSquared ? Math.max(0, Math.min(1,
+          ((pad.x - from.x) * dx + (pad.y - from.y) * dy) / lengthSquared)) : 0;
+        return Math.hypot(pad.x - from.x - dx * along, pad.y - from.y - dy * along) <= stats.range;
+      }));
+      const allies = definition.support ? this.towers.filter((tower) =>
+        !this.levels.TOWER_TYPES[tower.type].support && distanceBetween(pad, tower) <= stats.range).length : 0;
+      return { range: stats.range, routes, allies, support: Boolean(definition.support) };
+    }
+
     getFireRateMultiplier(tower) {
       if (this.levels.TOWER_TYPES[tower.type].support) return 1;
       let strongestBoost = 0;

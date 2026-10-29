@@ -8,6 +8,8 @@ A friendly, fully local tower defence game set on the real streets around Storto
 
 Open `index.html` in Safari, Chrome, or Firefox. There is no build step and no dependency installation.
 
+For a portable single-file copy, run `npm run build:standalone`. Open `dist/Stortorget.html` or send that file to a friend. All game code, styles, the favicon and the illustrated map source are embedded; the optional Google font falls back to a system font offline. To choose another destination, use `npm run build:standalone -- /absolute/path/Stortorget.html`.
+
 For a local web server (and to play on your phone), run:
 
 ```sh
@@ -60,6 +62,8 @@ Choose one of five defences, then choose a white build site on the map:
 - **Espresso cart:** boosts the fire rate of nearby attacking defences; only the strongest overlapping aura applies.
 - **Öresund wind:** knocks attackers backwards along their route, with reduced effect on heavy enemies.
 
+On a mouse, hovering over a build site previews the defence, its range and the incoming streets it can reach. Support previews count nearby attacking defences; empty coverage and insufficient funds are called out before buying. On touchscreens, the closest empty site wins over a neighbouring tower while building.
+
 Tap a built defence to **upgrade** it twice or **sell** it. Espresso boosts appear as support links and a small gold marker on affected towers. Attacking defences also have an optional **Target** button: **First**, **Strongest**, or **Fastest**, with First as the default.
 
 Landmarks add small, visible local effects:
@@ -70,9 +74,9 @@ Landmarks add small, visible local effects:
 
 At half health, the boss stops for a **2.2-second Dannebrog warning**, charges at double speed for four seconds, then takes a short recovery. The warning is a real damage window, and the phase happens only once per boss. The end screen includes a compact **battle report** with an expandable stop/leak map, most damaging defence, damage per cost, best streak, and hardest-wave details.
 
-Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. **Fika break** slows every attacker for five seconds and recharges during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1.
+Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. Entry arrows stay on screen when you zoom in. **Fika** slows every attacker for seven seconds in Skånska; **Happy Hour** fires fireworks in American. Both recharge during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1. Planning between waves always runs at 1×, even with combat at 2×. A wave progress bar tracks the remaining invasion, and a short wave-clear receipt celebrates a clean sweep or survival with the actual reward and repairs.
 
-Combat includes recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
+Combat uses larger, more legible actors, short cartoon knockouts, contextual vendor quips, speech bubbles that avoid one another, recoil, muzzle flashes, projectile trails, impact particles, damage numbers, explosion shockwaves, screen shake, kill streaks, and synthesized sound effects. Sound starts after the first user gesture, and reduced-motion preferences disable shake and heavy animation.
 
 The attackers speak real Danish, and plenty of it. Stock lines per attacker type live in `js/levels.js`; `js/danish.js` adds about 150 more, drawn from shuffled bags so a pool plays through before anything repeats. The first Dane on each street comments on where they are, and there are separate pools for being slowed by ice cream, knocked back, blown by a gust, dazzled by Happy Hour fireworks, sent home over the bridge, falling into the canal, leaking onto the square and dying. A few lines answer the edition you chose.
 
