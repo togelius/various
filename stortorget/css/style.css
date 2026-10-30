@@ -282,6 +282,29 @@ canvas:focus-visible {
   backdrop-filter: blur(8px);
 }
 
+.map-status-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.path-mode-chip {
+  padding: 6px 8px;
+  border: 1px solid rgba(221, 241, 230, 0.12);
+  border-radius: 7px;
+  background: rgba(10, 29, 26, 0.78);
+  color: #9fb4ad;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.path-mode-chip.random {
+  border-color: rgba(255, 209, 102, 0.35);
+  color: var(--gold);
+}
+
 .phase-chip.wave {
   border-color: rgba(255, 122, 114, 0.4);
   color: #ffd7d2;
@@ -1061,6 +1084,41 @@ canvas:focus-visible {
 .mode-switch button[aria-checked="true"] {
   background: var(--mint);
   color: #0b2d24;
+}
+
+.path-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-width: 340px;
+  margin: -8px auto 8px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.path-switch button {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.path-switch button[aria-checked="true"] {
+  background: rgba(113, 226, 189, 0.16);
+  color: var(--mint);
+}
+
+.path-note {
+  min-height: 28px;
+  margin: 0 auto 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .flag {

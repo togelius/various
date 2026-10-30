@@ -16,6 +16,7 @@
   <script defer src="js/text.js"></script>
   <script defer src="js/danish.js"></script>
   <script defer src="js/levels.js"></script>
+  <script defer src="js/routes.js"></script>
   <script defer src="js/engine.js"></script>
   <script defer src="js/report.js"></script>
   <script defer src="js/mapstyle.js"></script>
@@ -61,7 +62,10 @@
         <canvas id="game-canvas" tabindex="0" aria-label="Stortorget battlefield. Select a defence below, then choose a marked build site. Drag to pan and pinch or use the buttons to zoom."></canvas>
 
         <div class="map-topline">
-          <div id="phase-chip" class="phase-chip">BUILD PHASE</div>
+          <div class="map-status-chips">
+            <div id="phase-chip" class="phase-chip">BUILD PHASE</div>
+            <div id="path-mode-chip" class="path-mode-chip">CLASSIC PATHS</div>
+          </div>
           <div class="map-controls" aria-label="Map controls">
             <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in (+)">+</button>
             <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out (−)">−</button>
@@ -173,6 +177,11 @@
         <button type="button" role="radio" data-mode="american" aria-checked="false"><span class="flag" aria-hidden="true">🇺🇸</span> American</button>
         <button type="button" role="radio" data-mode="skanska" aria-checked="false"><span class="flag skane-flag" aria-hidden="true"></span> Skånska</button>
       </div>
+      <div class="path-switch" role="radiogroup" aria-label="Enemy routes">
+        <button type="button" role="radio" data-path="fixed" aria-checked="true">Classic paths</button>
+        <button type="button" role="radio" data-path="random" aria-checked="false">Random streets</button>
+      </div>
+      <p id="path-note" class="path-note">The original fixed lanes.</p>
       <span class="modal-eyebrow" data-t="introEyebrow">MALMÖ · 1658-ish</span>
       <div class="intro-statue" aria-hidden="true">♞</div>
       <h2 id="intro-title">Hold Stortorget.</h2>
@@ -205,6 +214,7 @@
           <span id="report-mvp"></span>
           <span id="report-value"></span>
           <span id="report-streak"></span>
+          <span id="report-combo"></span>
         </div>
         <p id="report-hardest" class="report-hardest"></p>
         <details id="report-details" class="report-details">

@@ -72,7 +72,18 @@ Landmarks add small, visible local effects:
 - **Canal bridges:** nearby wind towers gain 25% knockback.
 - **Malmö Central:** the same scheduled attackers arrive in train-sized batches of up to three, with a countdown, map pulse, and horn. No extra attackers are added.
 
-At half health, the boss stops for a **2.2-second Dannebrog warning**, charges at double speed for four seconds, then takes a short recovery. The warning is a real damage window, and the phase happens only once per boss. The end screen includes a compact **battle report** with an expandable stop/leak map, most damaging defence, damage per cost, best streak, and hardest-wave details.
+At half health, the boss stops for a **2.2-second Dannebrog warning**, charges at double speed for four seconds, then takes a short recovery. The warning is a real damage window, and the phase happens only once per boss. The end screen includes a compact **battle report** with an expandable stop/leak map, most damaging defence, damage per cost, best streak, Shatter damage, and hardest-wave details.
+
+### Route modes and counterplay
+
+The intro’s route selector is independent of the edition and remembered by the browser:
+
+- **Classic paths** preserves the six original hand-traced routes exactly.
+- **Random streets** generates a new route for every attacker from a seeded street graph. Paths follow the original roads plus authored alternates such as Skomakaregatan, Kalendegatan, and Stora Nygatan. Each detour is capped at 1.65× the shortest path, and speed normalization limits arrival-time scaling to 0.8–1.15×. The seed is shown on the map and is reproducible in tests.
+
+After a wave finishes spawning, **Call wave** becomes available while its attackers are still alive. Accepting another wave pays 8 plus 2 per surviving attacker, capped at 30. Old and new waves overlap with separate ownership, completion records, and one-time rewards.
+
+Counterplay includes **armoured attackers** that take 45% mortar splash damage, **Dannebrog bearers** that give nearby allies a non-stacking 22% speed boost, and **Shatter**: a slowed enemy takes 25% extra mortar damage. Armour still affects the reduced splash before Shatter, and ordinary single-target hits are unchanged.
 
 Attacks arrive along named, real streets. Route previews show which approaches the next wave uses; later waves merge from several directions. Entry arrows stay on screen when you zoom in. **Fika** slows every attacker for seven seconds in Skånska; **Happy Hour** fires fireworks in American. Both recharge during and between waves. Clearing a wave earns funds and repairs one statue health. Starting the next wave before the countdown ends earns an early bonus of up to 20 kr. There is no timer before wave 1. Planning between waves always runs at 1×, even with combat at 2×. A wave progress bar tracks the remaining invasion, and a short wave-clear receipt celebrates a clean sweep or survival with the actual reward and repairs.
 
@@ -123,12 +134,14 @@ The Danes wear Dannebrog shirts and come apart in red and white confetti: flag-w
 Plain JavaScript, HTML, Canvas 2D, and CSS. No runtime dependencies.
 
 - `js/levels.js` — map geometry, routes, build sites, unit statistics, enemy personalities, and waves
-- `js/engine.js` — deterministic simulation, economy, combat, targeting, landmarks, boss phases, history, and win/loss rules
+- `js/engine.js` — deterministic simulation, economy, combat, targeting, landmarks, boss phases, overlapping waves, and history
+- `js/routes.js` — seeded street graph, shortest paths, bounded randomized routes, and reproducible PRNG
 - `js/report.js` — dependency-free battle-report aggregation for browser and Node tests
 - `js/mapstyle.js` — repaints the OSM map as illustrated roofs, streets, quays and parks
 - `js/ui.js` — DPR-aware renderer, animation, sound, speech, input, report, and interface
 - `test/engine.test.js` — dependency-free mechanics and complete-game regression tests
-- `test/features.test.js` — targeting, landmark, train, boss-phase, report, and persona integration tests
+- `test/features.test.js` — targeting, landmark, train, boss-phase, report, overlap, counter, and persona integration tests
+- `test/routes.test.js` — graph connectivity, geometry, seed reproducibility, and bounded random-route tests
 - `test/mapstyle.test.js` — map classification, label clean-up, roof lifting, and the real map's make-up
 - `tools/personas.js` — seeded utility-driven synthetic players and cloned content scenarios
 - `tools/balance-lab.js` — balance matrix, aggregates, and findings CLI
@@ -159,6 +172,12 @@ npm run balance:deep
 npm run balance:american
 npm run balance:skanska
 
+# Compare against the seeded random street graph
+npm run balance:random
+
+# Custom route and decision seeds
+node tools/balance-lab.js --routes random --route-seed 123 --seed 7 --deep
+
 # Focus a particular player/content combination
 node tools/balance-lab.js --persona warden --scenario fortified --seed 42
 
@@ -172,7 +191,7 @@ The design is inspired by [Automated Playtesting with Procedural Personas throug
 
 ## Browser smoke tests
 
-The optional browser runner checks direct-file launch, construction and upgrades, a complete first wave, all eight waves through victory and restart, combat effects, target switching, espresso/wind and landmark mechanics, train arrivals, boss telegraph/charge, the expanded battle report, Danish speech, explosion shake, shake-aligned placement, and two mobile viewports with touch placement and pinch zoom.
+The optional browser runner checks direct-file launch, construction and upgrades, a complete first wave, all eight waves through victory and restart, combat effects, target switching, espresso/wind and landmark mechanics, train arrivals, boss telegraph/charge, the expanded battle report, seeded random routes and Classic restoration, overlap calls, armoured/banner counters, Shatter, Danish speech, explosion shake, shake-aligned placement, and two mobile viewports with touch placement and pinch zoom.
 
 ```sh
 npm install --no-save playwright

@@ -19,6 +19,12 @@ node tools/balance-lab.js --persona architect --scenario baseline --seed 42
 # Full runs, per-wave records, aggregates, and findings as JSON on stdout
 node tools/balance-lab.js --json --deep
 
+# The same matrix on the seeded random street graph
+node tools/balance-lab.js --routes random --deep
+
+# Independent route and decision seeds
+node tools/balance-lab.js --routes random --route-seed 123 --seed 7 --deep
+
 # Under an edition's rules: classic (default), american, or skanska
 node tools/balance-lab.js --mode american --deep
 
@@ -26,7 +32,7 @@ node tools/balance-lab.js --mode american --deep
 node --test test/personas.test.js
 ```
 
-Valid persona IDs are `allrounder`, `rookie`, `striker`, `warden`, `architect`, and `sprinter`. Valid scenario IDs are `baseline`, `fortified`, `rush`, and `lean-start`. The CLI has no dependencies and does not write report files.
+Valid persona IDs are `allrounder`, `rookie`, `striker`, `warden`, `architect`, and `sprinter`. Valid scenario IDs are `baseline`, `fortified`, `rush`, and `lean-start`. `--routes random` uses the seeded street graph; `--route-seed` controls route generation independently of decision noise. The CLI has no dependencies and does not write report files.
 
 ## Editions
 
@@ -57,7 +63,7 @@ At each planning point, an agent scores **every affordable tower-type/build-pad 
 - purchase cost, cash reserve, repeated-type and overlapping-control diminishing returns, and upgrade value;
 - persona-specific utility and tower preference weights.
 
-`strategy` controls planning horizon and residual evaluation error. Seeded decision noise perturbs utility scores rather than engine combat. `reaction` controls how often an agent reassesses fika and early calls. Each persona also has an early-call preference, purchase cap, reserve, and fika threat threshold. Thus strategy and reaction can change purchases, fika timing, income, and survival. The striker and warden assign strongest/fastest targeting where appropriate; the allrounder and architect use strongest targeting for falafel, and those choices appear in decision logs.
+`strategy` controls planning horizon and residual evaluation error. Seeded decision noise perturbs utility scores rather than engine combat. `reaction` controls how often an agent reassesses fika, early calls, and overlapping early calls. Each persona also has an early-call preference, overlap-risk threshold, purchase cap, reserve, and fika threat threshold. Thus strategy and reaction can change purchases, fika timing, income, and survival. The striker and warden assign strongest/fastest targeting where appropriate; the allrounder and architect use strongest targeting for falafel, and those choices appear in decision logs. Imprecise personas decline overlaps they cannot survive.
 
 The six archetypes are:
 
@@ -95,7 +101,7 @@ const result = runPersona("warden", { levels: custom, seed: 9, decisionLog: true
 
 ## Metrics and findings
 
-`runPersona()` returns the outcome, reached/completed waves, health, kills, leaks and leak damage, funds and elapsed time, fika uses, early-call income, total damage/shots/knockback, and damage/shots/spending by tower type. Tower telemetry includes final pads, levels and investment, per-type counts, and level lists. Aura checks are exposed as `supportedTowers` and `maxFireRateMultiplier`.
+`runPersona()` returns the outcome, reached/completed waves, health, kills, leaks and leak damage, funds and elapsed time, fika uses, early and overlap-call income/counts, Shatter damage, total damage/shots/knockback, and damage/shots/spending by tower type. Tower telemetry includes final pads, levels and investment, per-type counts, and level lists. Aura checks are exposed as `supportedTowers` and `maxFireRateMultiplier`. Route mode and route seed are returned separately from the edition and decision seed. Random-route planning uses classic coverage as an approximation because exact future paths are unknowable; combat always uses the generated graph route.
 
 `perWave` records early bonus, kills, leaks, leak damage, health, funds, duration, tower count, and a cleared/lost/timeout outcome. Pass `decisionLog: true` for compact build, upgrade, fika, and wave-call decisions. The JSON CLI includes complete run records plus persona, scenario, persona/scenario-cell, and wave aggregates.
 

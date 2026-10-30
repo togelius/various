@@ -12,6 +12,7 @@ const PERSONAS = [
     reaction: 0.78,
     noise: 0.025,
     earlyCall: 0.74,
+    overlapRisk: 0.1,
     purchaseLimit: 4,
     reserve: 10,
     fikaThreshold: 2.6,
@@ -37,6 +38,7 @@ const PERSONAS = [
     reaction: 0.22,
     noise: 0.38,
     earlyCall: 0.44,
+    overlapRisk: 0,
     purchaseLimit: 1,
     reserve: 40,
     fikaThreshold: 1.35,
@@ -61,6 +63,7 @@ const PERSONAS = [
     reaction: 0.85,
     noise: 0.055,
     earlyCall: 0.98,
+    overlapRisk: 0.1,
     purchaseLimit: 4,
     reserve: 0,
     fikaThreshold: 3.25,
@@ -86,6 +89,7 @@ const PERSONAS = [
     reaction: 0.72,
     noise: 0.04,
     earlyCall: 0.16,
+    overlapRisk: 0.05,
     purchaseLimit: 4,
     reserve: 25,
     fikaThreshold: 1.9,
@@ -111,6 +115,7 @@ const PERSONAS = [
     reaction: 0.68,
     noise: 0.02,
     earlyCall: 0.55,
+    overlapRisk: 0.45,
     purchaseLimit: 5,
     reserve: 10,
     fikaThreshold: 2.7,
@@ -136,6 +141,7 @@ const PERSONAS = [
     reaction: 0.96,
     noise: 0.16,
     earlyCall: 0.99,
+    overlapRisk: 0,
     purchaseLimit: 3,
     reserve: 0,
     fikaThreshold: 1.65,
@@ -295,17 +301,21 @@ function createGeometry(gameLevels) {
 
 function waveTraits(game) {
   const wave = game.getNextWave();
-  if (!wave) return { splash: 0, runners: 0, tanks: 0, bosses: 0 };
+  if (!wave) return { splash: 0, runners: 0, tanks: 0, bosses: 0, armored: 0, banners: 0 };
   let count = 0;
   let runners = 0;
   let tanks = 0;
   let bosses = 0;
+  let armored = 0;
+  let banners = 0;
   let spawnSeconds = 0;
   for (const group of wave.groups) {
     count += group.count;
     if (group.type === "runner") runners += group.count;
     if (group.type === "tank") tanks += group.count;
     if (group.type === "boss") bosses += group.count;
+    if (group.type === "armored") armored += group.count;
+    if (group.type === "banner") banners += group.count;
     spawnSeconds = Math.max(spawnSeconds, group.at + group.every * Math.max(0, group.count - 1));
   }
   const density = count / Math.max(12, spawnSeconds);
@@ -314,6 +324,8 @@ function waveTraits(game) {
     runners: count ? runners / count : 0,
     tanks: count ? tanks / count : 0,
     bosses: count ? bosses / count : 0,
+    armored: count ? armored / count : 0,
+    banners: count ? banners / count : 0,
   };
 }
 
@@ -344,8 +356,8 @@ function attackDps(stats) {
 
 function situationalTypeMultiplier(typeId, stats, traits, strategy) {
   let multiplier = 1;
-  if (typeId === "bulle" && stats.splash) multiplier += 0.55 * traits.splash;
-  if (typeId === "falafel") multiplier += traits.tanks * 0.12 + traits.bosses * 0.18;
+  if (typeId === "bulle" && stats.splash) multiplier += 0.55 * traits.splash - traits.armored * 0.45;
+  if (typeId === "falafel") multiplier += traits.tanks * 0.12 + traits.bosses * 0.18 + traits.armored * 0.18 + traits.banners * 0.1;
   if (typeId === "glass") multiplier += traits.runners * 0.28;
   if (typeId === "vind") multiplier += traits.runners * 0.16 - traits.bosses * 0.35;
   return 1 + (multiplier - 1) * (0.35 + strategy * 0.65);
@@ -572,7 +584,7 @@ function runPersona(personaReference = "allrounder", options = {}) {
   const cosmeticRandom = createRng(seed, `cosmetic:${persona.id}`);
   const flair = ["circle", "diamond", "triangle", "square"][Math.floor(cosmeticRandom() * 4)];
   const gameLevels = options.levels ? cloneData(options.levels) : createScenarioLevels(scenario);
-  const game = new Game({ levels: gameLevels, mode: options.mode || null });
+  const game = new Game({ levels: gameLevels, mode: options.mode || null, routeMode: options.routeMode || "fixed", seed: options.routeSeed ?? seed });
   game.geometry = createGeometry(gameLevels);
 
   const includeDecisions = Boolean(options.decisionLog || options.includeDecisions);
@@ -584,31 +596,17 @@ function runPersona(personaReference = "allrounder", options = {}) {
   let nextEarlyThink = 0;
   let desiredWait = 0;
   let nextFikaThink = 0;
-  let activeWave = null;
+  const activeWaves = new Map();
   let steps = 0;
 
-  function finishWave(outcome) {
-    if (!activeWave) return;
-    perWave.push({
-      wave: activeWave.wave,
-      name: activeWave.name,
-      outcome,
-      earlyBonus: activeWave.earlyBonus,
-      kills: game.stats.kills - activeWave.kills,
-      leaks: game.stats.leaks - activeWave.leaks,
-      leakDamage: game.stats.leakDamage - activeWave.leakDamage,
-      health: game.health,
-      money: game.money,
-      duration: Number((game.elapsed - activeWave.startedAt).toFixed(3)),
-      towers: game.towers.length,
-    });
-    activeWave = null;
+  function finishWave(outcome, waveNumber) {
+    activeWaves.delete(waveNumber);
   }
 
   function processEvents() {
     for (const event of game.drainEvents()) {
       if (event.type === "wave") {
-        activeWave = {
+        activeWaves.set(event.wave, {
           wave: event.wave,
           name: event.name,
           earlyBonus: event.earlyBonus,
@@ -616,26 +614,28 @@ function runPersona(personaReference = "allrounder", options = {}) {
           kills: game.stats.kills,
           leaks: game.stats.leaks,
           leakDamage: game.stats.leakDamage,
-        };
+        });
         nextFikaThink = game.elapsed + reactionDelay;
+        nextEarlyThink = game.elapsed + reactionDelay;
       } else if (event.type === "waveComplete") {
-        finishWave("cleared");
+        finishWave("cleared", event.wave);
       } else if (event.type === "lose") {
-        finishWave("lost");
+        finishWave("lost", game.currentWave);
       } else if (event.type === "win") {
-        finishWave("cleared");
+        for (const number of activeWaves.keys()) finishWave("cleared", number);
       }
     }
   }
 
   function startWave(early) {
-    const expectedBonus = early ? Math.max(0, Math.ceil(game.intermission)) : 0;
+    const expectedBonus = early ? game.getEarlyCallBonus() : 0;
+    const overlap = game.phase === "wave";
     if (!game.startWave()) return false;
     if (includeDecisions) {
       decisions.push({
         at: Number(game.elapsed.toFixed(3)),
         wave: game.currentWave,
-        action: early ? "early-call" : "start",
+        action: overlap ? "overlap-call" : early ? "early-call" : "start",
         earlyBonus: expectedBonus,
       });
     }
@@ -665,19 +665,27 @@ function runPersona(personaReference = "allrounder", options = {}) {
           nextEarlyThink = game.elapsed + reactionDelay;
         }
       }
-    } else if (game.phase === "wave" && game.elapsed >= nextFikaThink) {
-      if (game.fikaCooldown <= 0 && game.enemies.length && fikaThreat(game) >= persona.fikaThreshold) {
-        const result = game.useFika();
-        if (result.ok && includeDecisions) {
-          decisions.push({
-            at: Number(game.elapsed.toFixed(3)),
-            wave: game.currentWave,
-            action: "fika",
-            threat: Number(fikaThreat(game).toFixed(3)),
-          });
+    } else if (game.phase === "wave") {
+      if (game.elapsed >= nextFikaThink) {
+        if (game.fikaCooldown <= 0 && game.enemies.length && fikaThreat(game) >= persona.fikaThreshold) {
+          const result = game.useFika();
+          if (result.ok && includeDecisions) {
+            decisions.push({
+              at: Number(game.elapsed.toFixed(3)),
+              wave: game.currentWave,
+              action: "fika",
+              threat: Number(fikaThreat(game).toFixed(3)),
+            });
+          }
         }
+        nextFikaThink = game.elapsed + reactionDelay;
       }
-      nextFikaThink = game.elapsed + reactionDelay;
+      if (game.elapsed >= nextEarlyThink && game.canStartWave() && game.enemies.length && persona.overlapRisk > 0) {
+        const threat = fikaThreat(game);
+        const allowance = persona.overlapRisk * 4;
+        if (threat <= allowance || (game.fikaRemaining > 0 && threat <= allowance * 2)) startWave(true);
+        nextEarlyThink = game.elapsed + reactionDelay;
+      }
     }
 
     if (game.phase === "won" || game.phase === "lost") break;
@@ -686,7 +694,8 @@ function runPersona(personaReference = "allrounder", options = {}) {
     processEvents();
   }
 
-  if (activeWave) finishWave(game.phase === "won" ? "cleared" : game.phase === "lost" ? "lost" : "timeout");
+  for (const number of activeWaves.keys()) finishWave(game.phase === "won" ? "cleared" : game.phase === "lost" ? "lost" : "timeout", number);
+  perWave.push(...game.history.waves.map((wave) => ({ ...wave })));
   game.drainEvents();
   const outcome = game.phase === "won" || game.phase === "lost" ? game.phase : "timeout";
   const maxFireRateMultiplier = game.towers.reduce((maximum, tower) => Math.max(maximum, game.getFireRateMultiplier(tower)), 1);
@@ -696,6 +705,8 @@ function runPersona(personaReference = "allrounder", options = {}) {
     persona: persona.id,
     scenario: options.levels && !options.scenario ? "custom" : scenario.id,
     mode: game.mode || "classic",
+    routeMode: game.routeMode,
+    routeSeed: game.seed,
     seed,
     flair,
     outcome,
@@ -712,6 +723,8 @@ function runPersona(personaReference = "allrounder", options = {}) {
     elapsed: Number(game.elapsed.toFixed(6)),
     fikaUses: game.stats.fikaUses,
     earlyBonus: game.stats.earlyBonus,
+    overlapCalls: game.stats.overlapCalls,
+    shatterDamage: game.stats.shatterDamage,
     tips: game.stats.tips,
     streakBonus: game.stats.streakBonus,
     sentHome: game.stats.sentHome,

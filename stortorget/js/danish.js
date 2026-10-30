@@ -37,6 +37,16 @@
       "Kristianstad er opkaldt efter os!", "Tilbage til 1657!", "Schmeichel tog den!",
       "Margrethe ville være stolt!", "En rød pølse, tak!",
     ],
+    armored: [
+      "Jeg har skjoldet med!", "Pansret og parat!", "Stål på brystet!", "Kugler? Bare regn!",
+      "Dit stål er svensk!", "Skjoldet holder!", "Pansret fremad!", "Mere panser, tak!",
+      "Hvem er bange?", "Stål er tungt!", "Jeg er ikke blød!", "Kom bare, kanoner!",
+    ],
+    banner: [
+      "Flaget først!", "Med flaget i front!", "Dannebrog til front!", "Samlet under korset!",
+      "Rød og hvid, frem!", "Se på mit flag!", "Følg korset!", "For kongen og flaget!",
+      "Hold flaget højt!", "Til torvet, sammen!", "Mere tempo, folkens!", "Danmark, vi marcherer!",
+    ],
     boss: [
       "Jeg er Store Dansker!", "Kalmarunionen genopstår!", "Skåne, Halland, Blekinge!",
       "Hele Skåneland er mit!", "Riget kalder!", "Helmer, jeg kommer!",

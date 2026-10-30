@@ -208,6 +208,100 @@ async function mobile(browser, baseUrl, viewport, name) {
   return { ...metrics, pinch: [before, after], errors };
 }
 
+async function randomRoutes(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = watch(page);
+  await page.addInitScript(() => localStorage.setItem("stortorget-path-mode", "random"));
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => window.stortorget?.ready);
+  assert.equal(await page.locator('[data-path="random"]').getAttribute("aria-checked"), "true");
+  await page.click("#start-game");
+  await page.click("#next-wave");
+  await page.waitForFunction(() => window.stortorget.game.enemies.length > 0);
+  const first = await page.evaluate(() => {
+    const api = window.stortorget;
+    const enemy = api.game.enemies[0];
+    return { route: enemy.route, speed: enemy.speed, seed: api.pathSeed, mode: api.routeMode };
+  });
+  assert.equal(first.mode, "random");
+  assert.equal(first.route.randomized, true);
+  assert.equal(first.route.entryId, "sodergatan");
+  assert.deepEqual(first.route.points.at(-1), { x: 244.4, y: 269.5 });
+  assert.ok(first.route.length <= first.route.baseLength * 1.65 + 1e-9);
+  assert.ok(first.speed >= 18 * 0.8 && first.speed <= 18 * 1.15);
+  assert.match(await page.locator("#path-mode-chip").getAttribute("title"), new RegExp(String(first.seed)));
+  await page.screenshot({ path: path.join(artifacts, "random-streets.png"), fullPage: true });
+
+  await page.evaluate(() => {
+    const api = window.stortorget;
+    api.reset();
+    api.startWave();
+    api.step(0.05);
+  });
+  const replay = await page.evaluate(() => window.stortorget.game.enemies[0].route.points);
+  assert.deepEqual(replay, first.route.points);
+  await page.evaluate(() => window.stortorget.setPathMode("fixed"));
+  await page.click("#next-wave");
+  await page.waitForFunction(() => window.stortorget.game.enemies.length > 0);
+  assert.equal(await page.evaluate(() => window.stortorget.routeMode), "fixed");
+  assert.equal(await page.evaluate(() => window.stortorget.game.enemies[0].route.randomized), undefined);
+  assert.equal(await page.evaluate(() => localStorage.getItem("stortorget-path-mode")), "fixed");
+  assert.deepEqual(errors, []);
+  await context.close();
+  return { randomized: true, replay: true, fixedRestored: true, errors };
+}
+
+async function overlapAndCounters(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const errors = watch(page);
+  await openGame(page, baseUrl, "american");
+  await page.click("#next-wave");
+  await page.evaluate(() => {
+    const api = window.stortorget;
+    api.step(0.05);
+    api.game.spawnQueue = [];
+    api.step(0.05);
+  });
+  assert.equal(await page.locator("#next-wave").isEnabled(), true);
+  await page.click("#next-wave");
+  const overlap = await page.evaluate(() => ({
+    wave: window.stortorget.game.currentWave,
+    calls: window.stortorget.game.stats.overlapCalls,
+    states: window.stortorget.game.waveStates.size,
+  }));
+  assert.deepEqual(overlap, { wave: 2, calls: 1, states: 2 });
+  await page.evaluate(() => {
+    const api = window.stortorget;
+    const game = api.game;
+    game.currentWave = 4;
+    game.phase = "wave";
+    game.spawnQueue = [];
+    game.spawnEnemy({ routeId: "djaknegatan", typeId: "armored" });
+    const enemy = game.enemies.at(-1);
+    enemy.slowTimer = 1;
+    game.impactProjectile({ type: "bulle", damage: 40, splash: 20, x: enemy.x, y: enemy.y }, enemy);
+    game.spawnEnemy({ routeId: "djaknegatan", typeId: "banner" });
+    game.spawnEnemy({ routeId: "djaknegatan", typeId: "basic" });
+    api.step(0.01);
+  });
+  const counters = await page.evaluate(() => {
+    const game = window.stortorget.game;
+    const banner = game.enemies.find((enemy) => enemy.type === "banner");
+    const ally = game.enemies.find((enemy) => enemy.type === "basic");
+    ally.x = banner.x + 10;
+    ally.y = banner.y;
+    return { shatter: game.stats.shatterDamage, boost: game.getBannerBoost(ally) };
+  });
+  assert.ok(counters.shatter > 0);
+  assert.equal(counters.boost, 1.22);
+  await page.screenshot({ path: path.join(artifacts, "counters.png"), fullPage: true });
+  assert.deepEqual(errors, []);
+  await context.close();
+  return { overlap, ...counters, errors };
+}
+
 async function landmarks(browser, baseUrl) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
@@ -277,10 +371,18 @@ async function directFile(browser) {
   return { loaded: true, errors };
 }
 
-async function fullGame(browser) {
+async function fullGame(browser, routeMode = "fixed") {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = watch(page);
+  if (routeMode === "random") await page.addInitScript(() => localStorage.setItem("stortorget-path-mode", "random"));
   await openGame(page, `file://${path.join(root, "index.html")}`);
+  if (routeMode === "random") {
+    await page.evaluate(() => {
+      const api = window.stortorget;
+      api.game.seed = 42;
+      api.game.routeRandom = window.StortorgetRoutes.createRng(42);
+    });
+  }
   await page.click("#pause-button");
   const result = await page.evaluate(() => {
     const api = window.stortorget;
@@ -308,7 +410,7 @@ async function fullGame(browser) {
       if (game.phase === "wave" && game.enemies.length && game.fikaCooldown <= 0) game.useFika();
       api.step(1);
     }
-    return { phase: game.phase, wave: game.currentWave, health: game.health, kills: game.stats.kills, leaks: game.stats.leaks, bossPhases: game.stats.bossPhases, bossKills: game.stats.bossKills };
+    return { phase: game.phase, wave: game.currentWave, health: game.health, kills: game.stats.kills, leaks: game.stats.leaks, bossPhases: game.stats.bossPhases, bossKills: game.stats.bossKills, routeMode: game.routeMode };
   });
   assert.equal(result.phase, "won");
   assert.equal(result.wave, 8);
@@ -341,8 +443,11 @@ async function fullGame(browser) {
     const report = { baseUrl };
     report.directFile = await directFile(browser);
     report.fullGame = await fullGame(browser);
+    report.randomFullGame = await fullGame(browser, "random");
     report.desktop = await desktop(browser, baseUrl);
     report.combat = await combat(browser, baseUrl);
+    report.randomRoutes = await randomRoutes(browser, baseUrl);
+    report.overlapAndCounters = await overlapAndCounters(browser, baseUrl);
     report.landmarks = await landmarks(browser, baseUrl);
     report.bossPhase = await bossPhase(browser, baseUrl);
     report.mobile = await mobile(browser, baseUrl, { width: 390, height: 844 }, "iphone");

@@ -170,7 +170,13 @@ function runMatrix(options = {}) {
   for (const scenario of scenarioIds) {
     for (const persona of personaIds) {
       for (let repetition = 0; repetition < repetitions; repetition += 1) {
-        results.push(runPersona(persona, { scenario, seed: seed + repetition, mode }));
+        results.push(runPersona(persona, {
+          scenario,
+          seed: seed + repetition,
+          mode,
+          routeMode: options.routes || "fixed",
+          routeSeed: options.routeSeed ?? seed + repetition,
+        }));
       }
     }
   }
@@ -201,7 +207,7 @@ function formatHuman(results, summary, options) {
   const personaCount = new Set(results.map((result) => result.persona)).size;
   const scenarioCount = new Set(results.map((result) => result.scenario)).size;
   const repetitions = options.deep ? 3 : 1;
-  lines.push(`Balance lab [${options.mode || "classic"}]: ${results.length} games | ${personaCount} persona(s) × ${scenarioCount} scenario(s) × ${repetitions} seed(s) | base seed ${options.seed ?? 7}`);
+  lines.push(`Balance lab [${options.mode || "classic"} · ${options.routes || "fixed"}]: ${results.length} games | ${personaCount} persona(s) × ${scenarioCount} scenario(s) × ${repetitions} seed(s) | base seed ${options.seed ?? 7}`);
   lines.push("Win rates are simulation outcomes, not estimates of human success or enjoyment.");
   lines.push("");
   lines.push("Overall by persona");
@@ -227,7 +233,7 @@ function formatHuman(results, summary, options) {
 }
 
 function usage() {
-  return `Usage: node tools/balance-lab.js [options]\n\nOptions:\n  --deep             Run three deterministic seeds per persona/scenario cell\n  --json             Emit machine-readable results and aggregates\n  --persona <id>     Limit to one persona (${PERSONAS.map((persona) => persona.id).join(", ")})\n  --scenario <id>    Limit to one scenario (${SCENARIOS.map((scenario) => scenario.id).join(", ")})\n  --seed <n>         Base integer seed (default: 7)\n  --mode <id>        Rule set: ${MODE_IDS.join(", ")} (default: classic)\n  --help             Show this help\n`;
+  return `Usage: node tools/balance-lab.js [options]\n\nOptions:\n  --deep             Run three deterministic seeds per persona/scenario cell\n  --json             Emit machine-readable results and aggregates\n  --persona <id>     Limit to one persona (${PERSONAS.map((persona) => persona.id).join(", ")})\n  --scenario <id>    Limit to one scenario (${SCENARIOS.map((scenario) => scenario.id).join(", ")})\n  --seed <n>         Base integer seed (default: 7)\n  --mode <id>        Rule set: ${MODE_IDS.join(", ")} (default: classic)\n  --routes <mode>  Path mode: fixed or random (default: fixed)\n  --route-seed <n> Base route-generation seed (default: the decision seed)\n  --help             Show this help\n`;
 }
 
 function parseArguments(argv) {
@@ -237,7 +243,7 @@ function parseArguments(argv) {
     if (argument === "--deep") options.deep = true;
     else if (argument === "--json") options.json = true;
     else if (argument === "--help" || argument === "-h") options.help = true;
-    else if (["--persona", "--scenario", "--seed", "--mode"].includes(argument)) {
+    else if (["--persona", "--scenario", "--seed", "--mode", "--routes", "--route-seed"].includes(argument)) {
       const value = argv[index + 1];
       if (value === undefined || value.startsWith("--")) throw new Error(`${argument} requires a value`);
       index += 1;
@@ -250,6 +256,12 @@ function parseArguments(argv) {
       } else if (argument === "--scenario") {
         if (!SCENARIOS.some((scenario) => scenario.id === value)) throw new Error(`Unknown scenario: ${value}`);
         options.scenario = value;
+      } else if (argument === "--routes") {
+        if (!["fixed", "random"].includes(value)) throw new Error("--routes must be fixed or random");
+        options.routes = value;
+      } else if (argument === "--route-seed") {
+        if (!/^-?\d+$/.test(value)) throw new Error("--route-seed requires an integer");
+        options.routeSeed = Number(value);
       } else {
         if (!/^-?\d+$/.test(value)) throw new Error("--seed requires an integer");
         options.seed = Number(value);

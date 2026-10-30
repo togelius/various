@@ -1,13 +1,14 @@
 (function (root, factory) {
   const isNode = typeof module === "object" && module.exports;
   const levels = isNode ? require("./levels.js") : root.StortorgetLevels;
-  const api = factory(levels);
+  const routes = isNode ? require("./routes.js") : root.StortorgetRoutes;
+  const api = factory(levels, routes);
   if (isNode) {
     module.exports = api;
   } else {
     root.StortorgetEngine = api;
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, function (levels) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (levels, routes) {
   "use strict";
 
   const distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -22,12 +23,15 @@
       const base = options.levels || levels;
       this.levels = options.mode ? levels.applyMode(base, options.mode) : base;
       this.mode = this.levels.mode || null;
+      this.routeMode = options.routeMode === "random" ? "random" : "fixed";
+      this.seed = options.seed ?? Math.floor(Math.random() * 0x100000000);
       this.config = { ...this.levels.CONFIG, ...(options.config || {}) };
       this.events = [];
       this.reset();
     }
 
     reset() {
+      this.routeRandom = routes.createRng(this.seed);
       this.money = this.config.startingMoney;
       this.health = this.config.startingHealth;
       this.phase = "ready";
@@ -52,6 +56,7 @@
       this.gustTimer = 0;
       this.lastTrainAt = null;
       this.activeWaveRecord = null;
+      this.waveStates = new Map();
       this.history = { kills: [], leaks: [], waves: [] };
       this.endless = false;
       this.endlessWaves = new Map();
@@ -67,6 +72,8 @@
         knockback: 0,
         fikaUses: 0,
         earlyBonus: 0,
+        overlapCalls: 0,
+        shatterDamage: 0,
         tips: 0,
         streakBonus: 0,
         bestStreak: 0,
@@ -153,14 +160,21 @@
       const definition = this.levels.TOWER_TYPES[type];
       if (!pad || !definition || this.towers.some((tower) => tower.padId === padId)) return null;
       const stats = this.getTowerStats({ ...pad, type, level: 1 });
-      const routes = this.getActiveRoutes().filter((id) => this.getRoute(id).segments.some(({ from, to }) => {
+      const intersects = (from, to) => {
         const dx = to.x - from.x;
         const dy = to.y - from.y;
         const lengthSquared = dx * dx + dy * dy;
         const along = lengthSquared ? Math.max(0, Math.min(1,
           ((pad.x - from.x) * dx + (pad.y - from.y) * dy) / lengthSquared)) : 0;
         return Math.hypot(pad.x - from.x - dx * along, pad.y - from.y - dy * along) <= stats.range;
-      }));
+      };
+      const routes = this.getActiveRoutes().filter((id) => {
+        if (this.routeMode === "random") {
+          return routes.getGraphEdges().some((edge) => edge.points.some((point, index) => index > 0
+            && intersects(edge.points[index - 1], point)));
+        }
+        return this.getRoute(id).segments.some(({ from, to }) => intersects(from, to));
+      });
       const allies = definition.support ? this.towers.filter((tower) =>
         !this.levels.TOWER_TYPES[tower.type].support && distanceBetween(pad, tower) <= stats.range).length : 0;
       return { range: stats.range, routes, allies, support: Boolean(definition.support) };
@@ -205,7 +219,14 @@
     }
 
     getActiveRoutes() {
-      if (this.phase === "wave") return this.getWave()?.routes || [];
+      if (this.phase === "wave") {
+        if (!this.waveStates.size) return this.getWave()?.routes || [];
+        const routes = new Set();
+        for (const number of this.waveStates.keys()) {
+          for (const routeId of this.getWave(number)?.routes || []) routes.add(routeId);
+        }
+        return [...routes];
+      }
       if (this.phase === "ready" || this.phase === "intermission") {
         return this.getNextWave()?.routes || [];
       }
@@ -286,17 +307,33 @@
       return { ok: true, refund };
     }
 
+    canStartWave() {
+      if (!this.getNextWave()) return false;
+      if (this.phase === "ready" || this.phase === "intermission") return true;
+      return this.phase === "wave" && this.spawnQueue.length === 0;
+    }
+
+    getEarlyCallBonus() {
+      if (this.phase === "intermission") return Math.max(0, Math.ceil(this.intermission));
+      if (this.phase === "wave" && this.spawnQueue.length === 0 && this.enemies.length > 0) {
+        return Math.min(30, 8 + this.enemies.length * 2);
+      }
+      return 0;
+    }
+
     startWave() {
-      if (this.phase !== "ready" && this.phase !== "intermission") return false;
+      if (!this.canStartWave()) return false;
       const wave = this.getNextWave();
       if (!wave) return false;
 
-      const earlyBonus = this.phase === "intermission" ? Math.max(0, Math.ceil(this.intermission)) : 0;
+      const overlap = this.phase === "wave";
+      const earlyBonus = this.getEarlyCallBonus();
       if (earlyBonus > 0) {
         this.money += earlyBonus;
         this.stats.earned += earlyBonus;
         this.stats.earlyBonus += earlyBonus;
       }
+      if (overlap) this.stats.overlapCalls += 1;
 
       this.currentWave += 1;
       this.phase = "wave";
@@ -321,20 +358,25 @@
         }
       });
       this.spawnQueue.sort((a, b) => a.time - b.time || a.order - b.order);
-      this.activeWaveRecord = {
+      const record = {
         wave: this.currentWave,
         name: wave.name,
         startedAt: this.elapsed,
-        kills: this.stats.kills,
-        leaks: this.stats.leaks,
-        leakDamage: this.stats.leakDamage,
+        kills: 0,
+        leaks: 0,
+        leakDamage: 0,
+        earlyBonus,
         healthStart: this.health,
       };
+      this.activeWaveRecord = record;
+      this.waveStates.set(this.currentWave, { record, spawnComplete: false });
       this.emit("wave", {
         wave: this.currentWave,
         name: wave.name,
         routes: wave.routes,
         earlyBonus,
+        overlap,
+        overlapCount: overlap ? this.enemies.length : 0,
         endless: Boolean(wave.endless),
       });
       return true;
@@ -342,14 +384,21 @@
 
     spawnEnemy(item) {
       const definition = this.levels.ENEMY_TYPES[item.typeId];
-      const route = this.getRoute(item.routeId);
+      const originalRoute = this.getRoute(item.routeId);
+      const route = this.routeMode === "random" ? routes.makeRandomRoute(item.routeId, this.routeRandom) : originalRoute;
+      const speedScale = this.routeMode === "random"
+        ? Math.max(0.8, Math.min(1.15, route.baseLength / route.length))
+        : 1;
       const wave = this.getWave();
       const maxHp = Math.round(definition.hp * wave.hpScale);
       const position = levels.pointOnRoute(route, 0);
       const enemy = {
         id: this.nextEnemyId++,
         type: item.typeId,
+        wave: item.wave || this.currentWave,
         routeId: item.routeId,
+        route,
+        pathId: route.id,
         distance: 0,
         progress: 0,
         x: position.x,
@@ -357,7 +406,7 @@
         angle: position.angle,
         hp: maxHp,
         maxHp,
-        speed: definition.speed,
+        speed: definition.speed * speedScale,
         slowTimer: 0,
         slowFactor: 1,
         dead: false,
@@ -408,6 +457,10 @@
           this.emit("train", { routeId: item.routeId, count: item.batchSize, wave: this.currentWave });
         }
         this.spawnEnemy(item);
+      }
+      if (this.spawnQueue.length === 0) {
+        const state = this.waveStates.get(this.currentWave);
+        if (state) state.spawnComplete = true;
       }
 
       this.updateEnemies(dt);
@@ -473,7 +526,7 @@
 
     pushEnemy(enemy, requestedAmount, canSendHome) {
       const definition = this.levels.ENEMY_TYPES[enemy.type];
-      const route = this.getRoute(enemy.routeId);
+      const route = enemy.route || this.getRoute(enemy.routeId);
       const amount = Math.min(enemy.distance, requestedAmount * (definition.knockbackFactor ?? 1));
       enemy.distance = Math.max(0, enemy.distance - amount);
       enemy.progress = Math.min(1, enemy.distance / route.length);
@@ -499,12 +552,14 @@
       this.stats.homeTolls += this.config.homeToll;
       this.stats.sentHome += 1;
       this.stats.kills += 1;
+      const waveState = this.waveStates.get(enemy.wave);
+      if (waveState) waveState.record.kills += 1;
       this.recordPoint(this.history.kills, {
         x: enemy.x,
         y: enemy.y,
         routeId: enemy.routeId,
         type: enemy.type,
-        wave: this.currentWave,
+        wave: enemy.wave,
         sourceType: "home",
       });
       this.emit("home", { enemy, payout, x: enemy.x, y: enemy.y });
@@ -543,6 +598,16 @@
       return 1;
     }
 
+    getBannerBoost(enemy) {
+      if (enemy.type === "banner") return 1;
+      for (const banner of this.enemies) {
+        if (banner.dead || banner.type !== "banner" || banner.id === enemy.id) continue;
+        const definition = this.levels.ENEMY_TYPES.banner;
+        if (distanceBetween(enemy, banner) <= definition.auraRadius) return definition.auraSpeed;
+      }
+      return 1;
+    }
+
     updateEnemies(dt) {
       const routeMap = new Map(this.levels.ROUTES.map((route) => [route.id, route]));
       for (const enemy of this.enemies) {
@@ -552,8 +617,9 @@
         const localSlow = enemy.slowTimer > 0 ? enemy.slowFactor : 1;
         const fikaSlow = this.fikaRemaining > 0 ? this.config.fikaSlowFactor : 1;
         const bossSpeed = this.updateBossPhase(enemy, dt);
-        enemy.distance += enemy.speed * localSlow * fikaSlow * bossSpeed * dt;
-        const route = routeMap.get(enemy.routeId);
+        const bannerSpeed = this.getBannerBoost(enemy);
+        enemy.distance += enemy.speed * localSlow * fikaSlow * bossSpeed * bannerSpeed * dt;
+        const route = enemy.route || routeMap.get(enemy.routeId);
         enemy.progress = Math.min(1, enemy.distance / route.length);
 
         if (enemy.distance >= route.length) {
@@ -561,12 +627,17 @@
           this.health = Math.max(0, this.health - definition.leak);
           this.stats.leaks += 1;
           this.stats.leakDamage += definition.leak;
+          const waveState = this.waveStates.get(enemy.wave);
+          if (waveState) {
+            waveState.record.leaks += 1;
+            waveState.record.leakDamage += definition.leak;
+          }
           this.recordPoint(this.history.leaks, {
             x: enemy.x,
             y: enemy.y,
             routeId: enemy.routeId,
             type: enemy.type,
-            wave: this.currentWave,
+            wave: enemy.wave,
             damage: definition.leak,
           });
           this.emit("leak", {
@@ -697,7 +768,10 @@
         });
         for (const enemy of this.enemies) {
           if (!enemy.dead && distanceBetween(projectile, enemy) <= projectile.splash) {
-            this.damageEnemy(enemy, projectile.damage, projectile.type);
+            const definition = this.levels.ENEMY_TYPES[enemy.type];
+            const baseDamage = projectile.damage * (definition.splashFactor ?? 1);
+            const shatterBonus = enemy.slowTimer > 0 ? baseDamage * 0.25 : 0;
+            this.damageEnemy(enemy, baseDamage + shatterBonus, projectile.type, { shatterBonus });
           }
         }
         return;
@@ -720,20 +794,25 @@
       }
     }
 
-    damageEnemy(enemy, amount, sourceType = null) {
+    damageEnemy(enemy, amount, sourceType = null, combo = {}) {
       if (enemy.dead) return false;
       const applied = Math.min(enemy.hp, Math.max(0, amount));
       enemy.hp -= applied;
       this.stats.damage += applied;
       if (sourceType && sourceType in this.stats.damageByType) this.stats.damageByType[sourceType] += applied;
+      const comboBonus = Math.min(applied, combo.shatterBonus || 0);
+      this.stats.shatterDamage += comboBonus;
       this.emit("hit", {
         enemy,
         amount: applied,
         sourceType,
+        combo: comboBonus > 0 ? "shatter" : null,
+        comboBonus,
         killed: enemy.hp <= 0,
         x: enemy.x,
         y: enemy.y,
       });
+      if (comboBonus > 0) this.emit("shatter", { enemy, bonus: comboBonus, x: enemy.x, y: enemy.y });
       if (enemy.hp > 0) {
         this.updateBossPhaseTrigger(enemy);
         return false;
@@ -746,6 +825,8 @@
         : 0;
       this.money += definition.bounty + tip;
       this.stats.kills += 1;
+      const waveState = this.waveStates.get(enemy.wave);
+      if (waveState) waveState.record.kills += 1;
       this.stats.earned += definition.bounty + tip;
       this.stats.tips += tip;
       if (enemy.type === "boss") this.stats.bossKills += 1;
@@ -754,7 +835,7 @@
         y: enemy.y,
         routeId: enemy.routeId,
         type: enemy.type,
-        wave: this.currentWave,
+        wave: enemy.wave,
         sourceType,
       });
       this.emit("kill", {
@@ -797,47 +878,66 @@
       }
     }
 
-    finishWaveRecord(outcome) {
-      if (!this.activeWaveRecord) return;
-      const start = this.activeWaveRecord;
+    finishWaveRecord(outcome, waveNumber = this.currentWave) {
+      const state = this.waveStates.get(waveNumber);
+      const start = state?.record || (this.activeWaveRecord?.wave === waveNumber ? this.activeWaveRecord : null);
+      if (!start) return;
       this.history.waves.push({
         wave: start.wave,
         name: start.name,
         outcome,
-        kills: this.stats.kills - start.kills,
-        leaks: this.stats.leaks - start.leaks,
-        leakDamage: this.stats.leakDamage - start.leakDamage,
+        kills: start.kills,
+        leaks: start.leaks,
+        leakDamage: start.leakDamage,
+        earlyBonus: start.earlyBonus,
+        money: this.money,
+        towers: this.towers.length,
         health: this.health,
         healthLost: Math.max(0, start.healthStart - this.health),
         duration: this.elapsed - start.startedAt,
       });
-      this.activeWaveRecord = null;
+      this.waveStates.delete(waveNumber);
+      if (this.activeWaveRecord?.wave === waveNumber) this.activeWaveRecord = null;
     }
 
     checkWaveComplete() {
-      if (this.phase !== "wave" || this.spawnQueue.length || this.enemies.length) return;
+      if (this.phase !== "wave") return;
+      if (this.spawnQueue.length === 0) {
+        const state = this.waveStates.get(this.currentWave);
+        if (state) state.spawnComplete = true;
+      }
+
+      const completed = [];
+      for (const [number, state] of this.waveStates) {
+        if (state.spawnComplete && !this.enemies.some((enemy) => enemy.wave === number)) completed.push(number);
+      }
+      completed.sort((a, b) => a - b);
+      for (const number of completed) {
+        this.finishWaveRecord("cleared", number);
+        if (number >= this.levels.WAVES.length && !this.endless) continue;
+        const reward = 30 + number * 5;
+        this.money += reward;
+        this.stats.earned += reward;
+        const healed = this.health < this.config.maxHealth;
+        this.health = Math.min(this.config.maxHealth, this.health + 1);
+        this.emit("waveComplete", {
+          wave: number,
+          reward,
+          healed,
+          nextWave: number + 1,
+          overlap: this.waveStates.size > 0,
+        });
+      }
+
+      if (this.enemies.length || this.spawnQueue.length || this.waveStates.size) return;
       this.projectiles.length = 0;
       if (this.currentWave >= this.levels.WAVES.length && !this.endless) {
         this.phase = "won";
-        this.finishWaveRecord("cleared");
         this.emit("win", { stats: { ...this.stats }, health: this.health });
-        return;
+      } else {
+        this.phase = "intermission";
+        this.intermission = this.config.intermissionSeconds;
       }
-
-      const reward = 30 + this.currentWave * 5;
-      this.money += reward;
-      this.stats.earned += reward;
-      const healed = this.health < this.config.maxHealth;
-      this.health = Math.min(this.config.maxHealth, this.health + 1);
-      this.phase = "intermission";
-      this.intermission = this.config.intermissionSeconds;
-      this.finishWaveRecord("cleared");
-      this.emit("waveComplete", {
-        wave: this.currentWave,
-        reward,
-        healed,
-        nextWave: this.currentWave + 1,
-      });
     }
 
     // After the authored finale, keep going until the square falls.

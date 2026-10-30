@@ -279,6 +279,39 @@
         "Hvem er Karl X?", "Havfruen er bedre!", "Det er ikke hyggeligt!",
       ],
     },
+    armored: {
+      id: "armored",
+      name: "Pansret dans kjävel",
+      hp: 90,
+      speed: 14,
+      bounty: 20,
+      leak: 1,
+      size: 10,
+      knockbackFactor: 0.75,
+      splashFactor: 0.45,
+      quips: [
+        "Skjold!", "Prøv med en falafel!", "Dannebrog beskytter!", "Boller? Nej tak!",
+        "Vi er pansrede!", "Fremad, panser!", "Stål er bedre!", "Mere stål!",
+        "Kom nu, Malmö!", "Hvad så?", "Frikadeller!", "Skåne er dansk!",
+      ],
+    },
+    banner: {
+      id: "banner",
+      name: "Dannebrogsbærer",
+      hp: 70,
+      speed: 16,
+      bounty: 22,
+      leak: 1,
+      size: 9,
+      knockbackFactor: 0.8,
+      auraRadius: 55,
+      auraSpeed: 1.22,
+      quips: [
+        "Dannebrog!", "Følg flaget!", "Hurtigere!", "Fremad!", "Samling!",
+        "For Danmark!", "Skåne er dansk!", "Malmö er vores!", "Roskilde tæller ikke!",
+        "Ingen stopper os!", "Sådan, så!", "Til torvet!",
+      ],
+    },
     boss: {
       id: "boss",
       name: "Store dans kjäveln",
@@ -330,7 +363,8 @@
       hpScale: 1.45,
       routes: ["djaknegatan", "baltzarsgatan", "sodergatan"],
       groups: [
-        { route: "djaknegatan", type: "basic", count: 10, every: 1.25, at: 0 },
+        { route: "djaknegatan", type: "basic", count: 7, every: 1.25, at: 0 },
+        { route: "djaknegatan", type: "armored", count: 3, every: 3, at: 4 },
         { route: "baltzarsgatan", type: "runner", count: 6, every: 1.6, at: 4 },
         { route: "sodergatan", type: "tank", count: 2, every: 5, at: 7 },
         { route: "sodergatan", type: "basic", count: 6, every: 1.3, at: 2 },
@@ -342,9 +376,11 @@
       routes: ["centralen", "norravallgatan", "lillatorg"],
       groups: [
         { route: "centralen", type: "basic", count: 10, every: 1.2, at: 0 },
-        { route: "centralen", type: "tank", count: 3, every: 4, at: 6 },
+        { route: "centralen", type: "tank", count: 2, every: 4, at: 6 },
+        { route: "centralen", type: "armored", count: 1, every: 4, at: 10 },
         { route: "norravallgatan", type: "runner", count: 8, every: 1.35, at: 2 },
-        { route: "lillatorg", type: "basic", count: 9, every: 1.25, at: 4 },
+        { route: "lillatorg", type: "basic", count: 7, every: 1.25, at: 4 },
+        { route: "lillatorg", type: "banner", count: 2, every: 4, at: 7 },
       ],
     },
     {
@@ -352,10 +388,12 @@
       hpScale: 2,
       routes: ["sodergatan", "baltzarsgatan", "lillatorg", "djaknegatan"],
       groups: [
-        { route: "sodergatan", type: "basic", count: 10, every: 1.15, at: 0 },
+        { route: "sodergatan", type: "basic", count: 8, every: 1.15, at: 0 },
+        { route: "sodergatan", type: "banner", count: 2, every: 4, at: 6 },
         { route: "baltzarsgatan", type: "basic", count: 9, every: 1.2, at: 1.5 },
         { route: "lillatorg", type: "runner", count: 9, every: 1.35, at: 4 },
-        { route: "djaknegatan", type: "tank", count: 5, every: 3.5, at: 3 },
+        { route: "djaknegatan", type: "tank", count: 3, every: 3.5, at: 3 },
+        { route: "djaknegatan", type: "armored", count: 2, every: 4, at: 6 },
       ],
     },
     {
@@ -363,10 +401,13 @@
       hpScale: 2.35,
       routes: ["centralen", "norravallgatan", "djaknegatan", "baltzarsgatan", "sodergatan", "lillatorg"],
       groups: [
-        { route: "centralen", type: "basic", count: 8, every: 1.25, at: 0 },
+        { route: "centralen", type: "basic", count: 7, every: 1.25, at: 0 },
+        { route: "centralen", type: "banner", count: 1, every: 1, at: 6 },
         { route: "norravallgatan", type: "runner", count: 8, every: 1.3, at: 2 },
-        { route: "djaknegatan", type: "basic", count: 8, every: 1.2, at: 1 },
-        { route: "baltzarsgatan", type: "tank", count: 4, every: 3.4, at: 5 },
+        { route: "djaknegatan", type: "basic", count: 6, every: 1.2, at: 1 },
+        { route: "djaknegatan", type: "armored", count: 2, every: 3, at: 4 },
+        { route: "baltzarsgatan", type: "tank", count: 3, every: 3.4, at: 5 },
+        { route: "baltzarsgatan", type: "armored", count: 1, every: 3.4, at: 8 },
         { route: "sodergatan", type: "basic", count: 8, every: 1.15, at: 3 },
         { route: "lillatorg", type: "runner", count: 8, every: 1.25, at: 6 },
         { route: "centralen", type: "tank", count: 3, every: 4, at: 10 },
@@ -378,11 +419,15 @@
       routes: ["centralen", "norravallgatan", "djaknegatan", "baltzarsgatan", "sodergatan", "lillatorg"],
       groups: [
         { route: "centralen", type: "boss", count: 1, every: 1, at: 24 },
-        { route: "centralen", type: "basic", count: 8, every: 1.2, at: 0 },
+        { route: "centralen", type: "basic", count: 7, every: 1.2, at: 0 },
+        { route: "centralen", type: "banner", count: 1, every: 1, at: 7 },
         { route: "norravallgatan", type: "runner", count: 8, every: 1.3, at: 2 },
-        { route: "djaknegatan", type: "tank", count: 3, every: 4.2, at: 5 },
-        { route: "baltzarsgatan", type: "basic", count: 8, every: 1.15, at: 1 },
-        { route: "sodergatan", type: "basic", count: 8, every: 1.15, at: 3 },
+        { route: "djaknegatan", type: "tank", count: 2, every: 4.2, at: 5 },
+        { route: "djaknegatan", type: "armored", count: 1, every: 4.2, at: 8 },
+        { route: "baltzarsgatan", type: "basic", count: 6, every: 1.15, at: 1 },
+        { route: "baltzarsgatan", type: "armored", count: 2, every: 3, at: 5 },
+        { route: "sodergatan", type: "basic", count: 7, every: 1.15, at: 3 },
+        { route: "sodergatan", type: "banner", count: 1, every: 1, at: 9 },
         { route: "lillatorg", type: "runner", count: 8, every: 1.25, at: 6 },
         { route: "sodergatan", type: "tank", count: 2, every: 5, at: 12 },
       ],
@@ -519,11 +564,14 @@
     const routes = levels.ROUTES.map((route) => route.id);
     const groups = routes.map((route, index) => ({
       route,
-      type: index % 2 ? "runner" : "basic",
+      type: step >= 2 && index % 3 === 0 ? "armored" : index % 2 ? "runner" : "basic",
       count: 7 + step,
       every,
       at: index * 0.8,
     }));
+    if (step >= 2) {
+      groups.push({ route: routes[(step + 1) % routes.length], type: "banner", count: 1 + Math.floor(step / 5), every: 4, at: 7 });
+    }
     groups.push({ route: routes[step % routes.length], type: "tank", count: 2 + Math.floor(step / 2), every: 3.4, at: 5 });
     groups.push({ route: routes[(step + 3) % routes.length], type: "tank", count: 1 + Math.floor(step / 3), every: 4, at: 9 });
     if (step % 3 === 0) {

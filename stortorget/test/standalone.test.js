@@ -14,7 +14,7 @@ test("portable build embeds the map and ordered, parseable scripts after the pag
     execFileSync(process.execPath, [path.join(__dirname, "../tools/build-standalone.js"), output]);
     const html = fs.readFileSync(output, "utf8");
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-    assert.equal(scripts.length, 7);
+    assert.equal(scripts.length, 8);
     for (const [index, script] of scripts.entries()) new vm.Script(script[1], { filename: `bundle-${index}.js` });
     assert.ok(html.indexOf('<canvas id="game-canvas"') < scripts[0].index);
     assert.match(html, /image.src = "data:image\/png;base64,/);

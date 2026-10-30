@@ -1,6 +1,6 @@
 {
   "name": "stortorget-tower-defence",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "description": "A map-based tower defence game around Stortorget in Malmö",
   "scripts": {
@@ -9,9 +9,10 @@
     "test:browser": "node test/browser-smoke.cjs",
     "balance": "node tools/balance-lab.js",
     "balance:deep": "node tools/balance-lab.js --deep",
-    "check": "node --check server.js && node --check js/text.js && node --check js/levels.js && node --check js/engine.js && node --check js/report.js && node --check js/mapstyle.js && node --check js/ui.js && node --check tools/personas.js && node --check tools/balance-lab.js && node --check test/browser-smoke.cjs && node --check tools/build-standalone.js",
+    "check": "node --check server.js && node --check js/text.js && node --check js/levels.js && node --check js/routes.js && node --check js/engine.js && node --check js/report.js && node --check js/mapstyle.js && node --check js/ui.js && node --check tools/personas.js && node --check tools/balance-lab.js && node --check test/browser-smoke.cjs && node --check tools/build-standalone.js",
     "balance:american": "node tools/balance-lab.js --mode american",
     "balance:skanska": "node tools/balance-lab.js --mode skanska",
+    "balance:random": "node tools/balance-lab.js --deep --routes random",
     "build:standalone": "node tools/build-standalone.js"
   }
 }

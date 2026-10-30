@@ -5,8 +5,10 @@
   const { TEXT, fill } = window.StortorgetText;
   const DANISH = window.StortorgetDanish;
   const MODE_STORAGE_KEY = "stortorget-mode";
+  const PATH_STORAGE_KEY = "stortorget-path-mode";
   let mode = loadMode();
-  let game = new Game({ mode });
+  let pathMode = loadPathMode();
+  let game = new Game({ mode, routeMode: pathMode });
   let levels = game.levels;
   let text = TEXT[mode];
   const t = (key, params) => fill(text[key], params);
@@ -43,6 +45,7 @@
     endShown: false,
     helpOpen: false,
     pendingMode: mode,
+    pendingPath: pathMode,
     lastRetortAt: -100,
     lastSlowQuipAt: -100,
     fireworksSpoken: 0,
@@ -86,6 +89,18 @@
 
   function saveMode(value) {
     try { localStorage.setItem(MODE_STORAGE_KEY, value); } catch (_) {}
+  }
+
+  function loadPathMode() {
+    try {
+      const saved = localStorage.getItem(PATH_STORAGE_KEY);
+      if (saved === "fixed" || saved === "random") return saved;
+    } catch (_) {}
+    return "fixed";
+  }
+
+  function savePathMode(value) {
+    try { localStorage.setItem(PATH_STORAGE_KEY, value); } catch (_) {}
   }
 
   function readBest(modeId) {
@@ -393,7 +408,29 @@
     context.restore();
   }
 
+  function drawStreetGraph() {
+    context.save();
+    context.strokeStyle = "rgba(46, 78, 67, 0.42)";
+    context.lineWidth = 1.4 / camera.scale;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.setLineDash([3 / camera.scale, 5 / camera.scale]);
+    for (const edge of window.StortorgetRoutes.getGraphEdges()) {
+      context.beginPath();
+      edge.points.forEach((point, index) => {
+        if (index === 0) context.moveTo(point.x, point.y);
+        else context.lineTo(point.x, point.y);
+      });
+      context.stroke();
+    }
+    context.restore();
+  }
+
   function drawRoutes(time) {
+    if (game.routeMode === "random") {
+      drawStreetGraph();
+      return;
+    }
     const active = game.getActiveRoutes();
     for (const routeId of active) {
       const route = game.getRoute(routeId);
@@ -875,6 +912,16 @@
     }
     context.scale(zoom, zoom);
 
+    if (type === "banner" && !departure) {
+      context.globalAlpha = 0.16 + Math.sin(game.elapsed * 5) * 0.035;
+      context.strokeStyle = "#ffb3a6";
+      context.lineWidth = 1.5;
+      context.beginPath();
+      context.arc(0, 0, definition.auraRadius * camera.scale / zoom, 0, Math.PI * 2);
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+
     context.fillStyle = chilled ? "rgba(150, 225, 255, .45)" : "rgba(20, 16, 12, .3)";
     context.beginPath();
     context.ellipse(1, size + 4, size * (chilled ? 1.25 : 0.95), size * 0.36, 0, 0, Math.PI * 2);
@@ -924,7 +971,7 @@
     context.arc(size + 1.5, type === "basic" ? -size * 0.75 : size * 0.25 - armSwing, Math.max(1.3, size * 0.16), 0, Math.PI * 2);
     context.fill();
 
-    if (type === "basic") {
+    if (type === "basic" || type === "banner") {
       const wave = reducedMotion ? 0 : Math.sin(game.elapsed * 9 + enemy.id) * 1.2;
       const poleX = size + 1;
       const poleTop = -size * 0.75 - size * 1.1;
@@ -970,6 +1017,29 @@
     context.beginPath();
     context.ellipse(0, 0, size * 0.86, size * 0.92, 0, 0, Math.PI * 2);
     context.stroke();
+
+    if (type === "armored") {
+      const shieldX = -facing * size * 0.72;
+      context.fillStyle = paint("#91a6b5");
+      context.strokeStyle = "#dce8ed";
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.moveTo(shieldX - 5, -7);
+      context.lineTo(shieldX + 5, -7);
+      context.lineTo(shieldX + 4, 3);
+      context.quadraticCurveTo(shieldX, 9, shieldX - 4, 3);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      context.strokeStyle = paint(DANE.cross);
+      context.lineWidth = 1.2;
+      context.beginPath();
+      context.moveTo(shieldX - 4, -2);
+      context.lineTo(shieldX + 4, -2);
+      context.moveTo(shieldX - 1, -5);
+      context.lineTo(shieldX - 1, 5);
+      context.stroke();
+    }
 
     const headR = size * (type === "boss" ? 0.5 : 0.52);
     const headX = facing * size * 0.12;
@@ -1086,7 +1156,7 @@
       context.fillText(label, 0, size + 17);
     }
 
-    if (!departure && (enemy.hp < enemy.maxHp || type === "tank" || type === "boss")) {
+    if (!departure && (enemy.hp < enemy.maxHp || type === "tank" || type === "armored" || type === "boss")) {
       const width = Math.max(16, size * 2.3);
       const y = headY - headR * (type === "tank" ? 1.8 : 1) - (type === "boss" ? 16 : 6);
       const ratio = clamp(enemy.hp / enemy.maxHp, 0, 1);
@@ -1620,6 +1690,10 @@
       } else {
         tone(470 + Math.random() * 90, 0.055, 0, 0.013, "triangle", 230);
       }
+    } else if (name === "shatter") {
+      if (!allowSound("shatter", 0.09)) return;
+      tone(1100, 0.12, 0, 0.025, "triangle", 420);
+      noise(0.16, 0, 0.025, 2400, "highpass");
     } else if (name === "explosion") {
       if (!allowSound("explosion", 0.08)) return;
       tone(92, 0.34, 0, 0.085, "sine", 34);
@@ -1737,6 +1811,9 @@
     setText("report-mvp", report.mostDamage ? t("reportMostDamage", { name: report.mostDamage.name, damage: Math.round(report.mostDamage.damage) }) : t("reportNoTowers"));
     setText("report-value", report.bestValue ? t("reportBestValue", { name: report.bestValue.name, efficiency: report.bestValue.efficiency.toFixed(1) }) : "");
     setText("report-streak", t("reportStreak", { n: report.bestStreak }));
+    const combo = element("report-combo");
+    combo.hidden = game.stats.shatterDamage <= 0;
+    setText("report-combo", t("reportShatter", { damage: Math.round(game.stats.shatterDamage) }));
     setText("report-hardest", report.hardestWave && report.hardestWave.leakDamage > 0
       ? t("reportHardest", { wave: report.hardestWave.wave, damage: report.hardestWave.leakDamage })
       : "");
@@ -1987,6 +2064,11 @@
         burst(event.x, event.y, "#5c615b", 7, { speed: 22, life: 1.1, grow: 5, size: 3, lift: 14 });
         addShake(3.4);
         playSound("explosion");
+      } else if (event.type === "shatter") {
+        ui.rings.push({ x: event.x, y: event.y, radius: 28, color: "#bfe9ff", life: 0.4, maxLife: 0.4, width: 3 });
+        burst(event.x, event.y, "#d8f5ff", 7, { speed: 45, life: 0.45, lift: 0 });
+        addFloater({ x: event.x, y: event.y, text: `SHATTER +${Math.round(event.bonus)}`, color: "#c8f3ff", size: 12 });
+        playSound("shatter");
       } else if (event.type === "slow") {
         if (event.enemy.id % 4 === 0 && game.elapsed - ui.lastSlowQuipAt > 4) {
           ui.lastSlowQuipAt = game.elapsed;
@@ -2090,6 +2172,9 @@
     setText("money-value", formatMoney(game.money));
     setText("wave-value", game.currentWave || "–");
     setText("wave-total", game.endless ? " / ∞" : ` / ${game.totalWaves}`);
+    setText("path-mode-chip", game.routeMode === "random" ? t("pathRandomShort") : t("pathFixedShort"));
+    element("path-mode-chip").classList.toggle("random", game.routeMode === "random");
+    element("path-mode-chip").title = game.routeMode === "random" ? `${t("pathRandom")} · seed ${game.seed}` : t("pathFixed");
     element("health-stat").classList.toggle("hurt", game.health <= 5);
     const comboChip = element("combo-chip");
     const streakLive = game.streak.count >= 3 && game.elapsed - game.streak.lastKillAt <= game.config.streakWindow;
@@ -2130,7 +2215,7 @@
     }
 
     const nextButton = element("next-wave");
-    nextButton.disabled = game.phase !== "ready" && game.phase !== "intermission";
+    nextButton.disabled = !game.canStartWave();
     if (game.phase === "intermission") {
       setText("next-wave-label", t("startEarly", { n: game.currentWave + 1, bonus: formatMoney(Math.ceil(game.intermission)) }));
       setText("next-wave-detail", t("startEarlyDetail", { s: Math.ceil(game.intermission) }));
@@ -2138,8 +2223,13 @@
       setText("next-wave-label", t("startFirst"));
       setText("next-wave-detail", t("startFirstDetail"));
     } else if (game.phase === "wave") {
-      setText("next-wave-label", t("inWave", { left: remaining }));
-      setText("next-wave-detail", t("inWaveDetail"));
+      if (game.canStartWave()) {
+        setText("next-wave-label", t("startOverlap", { n: game.currentWave + 1, bonus: formatMoney(game.getEarlyCallBonus()) }));
+        setText("next-wave-detail", t("startOverlapDetail", { left: game.enemies.length }));
+      } else {
+        setText("next-wave-label", t("inWave", { left: remaining }));
+        setText("next-wave-detail", t("inWaveDetail"));
+      }
     } else {
       setText("next-wave-label", game.phase === "won" ? t("wonButton") : t("lostButton"));
       setText("next-wave-detail", "");
@@ -2554,12 +2644,13 @@
     }
     element("mode-button").setAttribute("aria-label", text.modeButton);
     element("close-selection").setAttribute("aria-label", text.closeSelection);
+    updatePathButtons();
   }
 
   function switchMode(modeId) {
     mode = modeId;
     saveMode(modeId);
-    game = new Game({ mode });
+    game = new Game({ mode, routeMode: pathMode });
     levels = game.levels;
     paintShopIcons();
     applyTexts(modeId);
@@ -2567,10 +2658,33 @@
     toast(t("toastMode"));
   }
 
+  function switchPathMode(value) {
+    pathMode = value === "random" ? "random" : "fixed";
+    ui.pendingPath = pathMode;
+    savePathMode(pathMode);
+    game = new Game({ mode, routeMode: pathMode });
+    levels = game.levels;
+    paintShopIcons();
+    applyTexts(mode);
+    resetGame();
+    updatePathButtons();
+  }
+
+  function updatePathButtons() {
+    document.querySelectorAll("[data-path]").forEach((button) => {
+      const selected = button.dataset.path === ui.pendingPath;
+      button.setAttribute("aria-checked", String(selected));
+      button.textContent = button.dataset.path === "random" ? t("pathRandom") : t("pathFixed");
+    });
+    setText("path-note", ui.pendingPath === "random" ? t("pathRandomNote") : t("pathFixedNote"));
+  }
+
   function openHelp() {
     ui.helpOpen = true;
     ui.pendingMode = mode;
+    ui.pendingPath = pathMode;
     applyTexts(mode);
+    updatePathButtons();
     element("intro-modal").hidden = false;
     element("start-game").focus();
   }
@@ -2581,6 +2695,10 @@
     if (ui.pendingMode !== mode) {
       ui.pendingMode = mode;
       applyTexts(mode);
+    }
+    if (ui.pendingPath !== pathMode) {
+      ui.pendingPath = pathMode;
+      updatePathButtons();
     }
   }
 
@@ -2599,14 +2717,28 @@
     });
   });
 
+  document.querySelectorAll("[data-path]").forEach((button) => {
+    button.addEventListener("click", () => {
+      ui.pendingPath = button.dataset.path;
+      updatePathButtons();
+      if (!runInProgress() && ui.pendingPath !== pathMode) {
+        const wasHelp = ui.helpOpen;
+        switchPathMode(ui.pendingPath);
+        ui.helpOpen = wasHelp;
+        ui.started = wasHelp;
+        applyTexts(mode);
+      }
+    });
+  });
+
   element("help-button").addEventListener("click", openHelp);
   element("mode-button").addEventListener("click", openHelp);
   element("start-game").addEventListener("click", () => {
     initAudio();
-    const switching = ui.pendingMode !== mode;
     element("intro-modal").hidden = true;
     ui.helpOpen = false;
-    if (switching) switchMode(ui.pendingMode);
+    if (ui.pendingMode !== mode) switchMode(ui.pendingMode);
+    if (ui.pendingPath !== pathMode) switchPathMode(ui.pendingPath);
     ui.started = true;
     ui.paused = false;
     accumulator = 0;
@@ -2731,7 +2863,10 @@
     get game() { return game; },
     get levels() { return levels; },
     get mode() { return mode; },
+    get routeMode() { return game.routeMode; },
+    get pathSeed() { return game.seed; },
     setMode: switchMode,
+    setPathMode: switchPathMode,
     get camera() { return { ...camera }; },
     get ready() { return mapReady; },
     get effects() {
