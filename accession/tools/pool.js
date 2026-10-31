@@ -251,19 +251,31 @@ const leftOut = f => f.fast ? FAST_LEAVES_OUT.filter(s => !f.with.includes(s)) :
 // The browser checks: every tools/browser/check-*.mjs, so a new one joins with no edit here.
 const browserChecks = dir => fs.readdirSync(path.join(dir, 'tools/browser')).filter(n => /^check-.+\.mjs$/.test(n)).sort().map(n => n.slice(0, -4));
 
-// The groups of check-all's pool. copy is the reverted copy's folder.
-function checkAll(f, copy) {
-  const T = Runner.timings(path.join(root, 'test')), node = process.execPath;
+// Whether dir has a 3D view to revert (§6.3): a file under js/ that tools/3d-allowlist.txt
+// names is there. The 3D guard (test/guard-3d.test.js) keeps that list whole while the view is
+// there, and a real revert removes both. Whether tools/revert-test.sh is there does not decide
+// it, so a tree that has lost the script but kept the view fails, as before the pool. (Named
+// so, not by the view's file, which only the allowlisted files may name.)
+function has3d(dir) {
+  const list = path.join(dir, 'tools/3d-allowlist.txt');
+  if (!fs.existsSync(list)) return false;
+  return fs.readFileSync(list, 'utf8').split('\n').map(l => l.trim()).filter(l => l.startsWith('js/')).some(f => fs.existsSync(path.join(dir, f)));
+}
+
+// The groups of check-all's pool. copy is the reverted copy's folder; dir is the tree checked
+// (this one unless a test names another). The revert test is in it while dir has a 3D view.
+function checkAll(f, copy, dir) {
+  dir = dir || root;
+  const T = Runner.timings(path.join(dir, 'test')), node = process.execPath;
   const est = (name, guess) => T.jobs[name] > 0 ? T.jobs[name] : guess;
   const one = (name, cmd, cwd, guess) => ({ name, jobs: [{ name, cmd, cwd, est: est(name, guess) }] });
-  const groups = [one('short-sims', [node, 'test/run.js', '--file=m3-battery.test.js'], root, GUESS.job)];
-  for (const c of browserChecks(root)) {
-    const g = one(c, [node, `tools/browser/${c}.mjs`], root, GUESS.browser);
+  const groups = [one('short-sims', [node, 'test/run.js', '--file=m3-battery.test.js'], dir, GUESS.job)];
+  for (const c of browserChecks(dir)) {
+    const g = one(c, [node, `tools/browser/${c}.mjs`], dir, GUESS.browser);
     g.browser = true;
     groups.push(g);
   }
-  // The revert test (§6.3) runs while there is a view to revert; after a real revert there is not.
-  if (fs.existsSync(path.join(root, 'tools/revert-test.sh'))) groups.push(revertGroup(copy, T));
+  if (has3d(dir)) groups.push(revertGroup(copy, T, dir));
   const out = groups.filter(g => !leftOut(f).includes(g.name));
   for (const g of out) if (g.browser && f.noBrowser) g.skip = '--no-browser';
   return out;
@@ -271,11 +283,11 @@ function checkAll(f, copy) {
 
 // The revert test as jobs: the copy made and built, then each Node test file (all of them but
 // the steps run alone, as `node test/run.js` runs them) and the smoke and screen checks in it.
-function revertGroup(copy, T) {
+function revertGroup(copy, T, dir) {
   const node = process.execPath, prep = 'revert-3d: copy and build';
-  const tests = Runner.files(path.join(root, 'test'), '').filter(f => !Runner.ALONE.includes(f));
-  const est = Runner.estimates(path.join(root, 'test'), tests, T);
-  const jobs = [{ name: prep, cmd: ['bash', path.join(root, 'tools/revert-test.sh'), '--prepare', copy], cwd: root, est: T.jobs[prep] || GUESS.prepare }];
+  const tests = Runner.files(path.join(dir, 'test'), '').filter(f => !Runner.ALONE.includes(f));
+  const est = Runner.estimates(path.join(dir, 'test'), tests, T);
+  const jobs = [{ name: prep, cmd: ['bash', path.join(dir, 'tools/revert-test.sh'), '--prepare', copy], cwd: dir, est: T.jobs[prep] || GUESS.prepare }];
   for (const f of tests) jobs.push({ name: `revert-3d: ${f}`, cmd: [node, 'test/run.js', `--file=${f}`], cwd: copy, after: [prep], est: est[f], file: f });
   for (const c of ['check-smoke', 'check-screens']) jobs.push({ name: `revert-3d: ${c}`, cmd: [node, `tools/browser/${c}.mjs`], cwd: copy, after: [prep], est: T.jobs[`revert-3d: ${c}`] || GUESS.browser });
   const say = rs => {
@@ -375,7 +387,7 @@ async function main(argv) {
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (run.stopAll) run.stopAll(); clean(); process.exit(sig === 'SIGINT' ? 130 : 143); });
   try {
     const groups = checkAll(f, copy);
-    if (!fs.existsSync(path.join(root, 'tools/revert-test.sh'))) console.log('ok    revert-3d: no 3D view in this tree, nothing to revert');
+    if (!has3d(root)) console.log('ok    revert-3d: no 3D view in this tree, nothing to revert');
     for (const g of groups.filter(x => x.skip)) { console.log(`SKIP  ${g.name}: ${g.skip}`); append(results, `group ${g.name} skip 0 0`); }
     const t0 = Date.now();
     const done = await runGroups(groups.filter(x => !x.skip), { slots });
@@ -398,13 +410,15 @@ function recordTimings(done) {
   }
   const merged = Object.assign({}, t.jobs, jobs), sorted = {};
   for (const k of Object.keys(merged).sort()) sorted[k] = merged[k];
-  const old = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  // What the runner wrote this run (or before it); a file that cannot be read is written anew.
+  let old = {};
+  try { old = JSON.parse(fs.readFileSync(file, 'utf8')) || {}; } catch (e) { old = {}; }
   old.jobs = sorted;
   if (!old.files) old.files = t.files;
   fs.writeFileSync(file, JSON.stringify(old, null, 1) + '\n');
 }
 
-module.exports = { run, runGroups, report, status, checkAll, parseFlags, browserChecks, priorities, leftOut, FAST_LEAVES_OUT, BUDGETS, LINTS };
+module.exports = { run, runGroups, report, status, checkAll, parseFlags, browserChecks, has3d, priorities, leftOut, FAST_LEAVES_OUT, BUDGETS, LINTS };
 if (require.main === module) {
   main(process.argv.slice(2)).then(code => { process.exitCode = code; }, e => { console.log(`pool: ${e && e.stack || e}`); process.exitCode = 1; });
 }

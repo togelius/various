@@ -47,10 +47,17 @@ function files(dir, filter) {
 }
 
 // dir's timings.json: {files: {path: CPU-ms}, jobs: {name: ms}}, or empty sections if there is none.
+// The times only order the work, so one that cannot be read (a merge left in it) is said on
+// stderr and ignored, never a reason for the run to stop: `./check-all.sh --timings` rewrites it.
 function timings(dir) {
   const f = path.join(dir, TIMINGS);
-  const t = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {};
-  return { files: t.files || {}, jobs: t.jobs || {} };
+  let t = {};
+  if (fs.existsSync(f)) {
+    try { t = JSON.parse(fs.readFileSync(f, 'utf8')) || {}; }
+    catch (e) { process.stderr.write(`run.js: ${f} cannot be read (${e.message}), so the times are ignored; ./check-all.sh --timings rewrites it\n`); t = {}; }
+  }
+  const obj = x => x && typeof x === 'object' && !Array.isArray(x) ? x : {};
+  return { files: obj(t.files), jobs: obj(t.jobs) };
 }
 
 // Each file's expected CPU-ms: what timings.json records for it, or, for a file it does not
@@ -140,11 +147,21 @@ function main() {
   for (const f of named) if (!all.includes(f)) { console.log(`run.js: there is no test file ${f} in ${dir}`); process.exit(1); }
   const list = named.length ? named.slice().sort() : files(dir, filter).filter(f => filter || !ALONE.includes(f));
   const t0 = process.hrtime.bigint();
+  let finished = false;
   const done = (total, failed, cpu, workers) => {
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
     console.log(`tests: ${total - failed}/${total} passed in ${ms.toFixed(0)} ms (${(cpu / 1000).toFixed(1)} CPU-s, ${workers} ${workers === 1 ? 'process' : 'workers'})` + (failed ? ` — ${failed} FAILED` : ''));
+    finished = true;
     process.exit(failed ? 1 : 0);
   };
+  // A run that ends before its last line (a test that ends the process, as process.exit(0)
+  // does) fails, whatever the code: a worker's is caught by the run that started it, and a
+  // run in one process (one file, as each of check-all's revert jobs is) here.
+  if (!shard) process.on('exit', code => {
+    if (finished) return;
+    console.log(`FAIL the test run stopped before its end (exit code ${code}), so not every test ran`);
+    process.exitCode = 1;
+  });
   // A worker: run its share and hand back what each file printed, each file's CPU time and its own.
   if (shard) {
     const mine = JSON.parse(Buffer.from(shard.slice(8), 'base64').toString('utf8'));

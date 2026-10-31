@@ -5,17 +5,25 @@
 //     that cannot run (77) is SKIPPED; a job's CPU time counts a process under it that it never
 //     waited for (as a browser's are); a cycle or an unknown job to wait for is refused.
 //   - `--fast` leaves out exactly the revert test and the 3D, keys and touch checks, `--with`
-//     puts back exactly those it names, and nothing else changes: the same steps, the same
-//     jobs. Every tools/browser/check-*.mjs is in the pool with no edit (a planted folder's
-//     too), and the revert test's jobs are the reverted copy's build, every Node test file a
-//     plain `node test/run.js` runs, and its smoke and screen checks. Bad flags are refused.
+//     puts back exactly those it names, and nothing else changes: the same steps, running the
+//     same commands, the same jobs. Every tools/browser/check-*.mjs is in the pool with no edit
+//     (a planted folder's too), and the revert test's jobs are the reverted copy's build, every
+//     Node test file a plain `node test/run.js` runs, and its smoke and screen checks. Bad flags
+//     are refused.
+//   - Each job runs what it names where it names: the battery and the browser checks in this
+//     tree, the revert test's files and checks in the reverted copy, only once it is made. The
+//     revert test is there whenever the 3D view is, whether or not its script is.
+//   - A step is recorded as it went (a failure failed, with its output; 77 skipped; a command
+//     that cannot start failed), and a group of many jobs fails if any of them fails.
 //   - check-all's last line counts every step and job, and fails on a failure, on a skip unless
 //     --allow-skip is given, and when the pool did not finish; the step budgets are flagged.
 //   - The short battery's gate is CPU time: under busy loops in other processes on its CPU,
 //     its wall time is over a gate that its CPU time keeps within.
 //   - The test runner shares files out the longest first by test/timings.json, reckons a file
 //     it has no time for from its size, runs one file by `--file=`, and records each file's
-//     CPU time with `--write-timings`, keeping the pool's.
+//     CPU time with `--write-timings`, keeping the pool's. A failure fails the run, in one
+//     process or in workers, and so does a test that ends the process early. A stale or
+//     unreadable timings.json orders nothing and stops nothing.
 //   - The budgets check-all prints are BUILD.md §10.2's.
 'use strict';
 module.exports = ({ test, assert, root, fs, path }) => {
@@ -25,6 +33,11 @@ module.exports = ({ test, assert, root, fs, path }) => {
   const Battery = require(path.join(root, 'tools/battery.js'));
   const json = x => JSON.stringify(x);
   const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), `accession-${name}-`));
+  // Whether this tree has the 3D view, found as the pool finds it, by the files under js/ that
+  // tools/3d-allowlist.txt names (only the allowlisted files may name the view's own file).
+  const allow = path.join(root, 'tools/3d-allowlist.txt');
+  const viewFiles = fs.existsSync(allow) ? fs.readFileSync(allow, 'utf8').split('\n').map(l => l.trim()).filter(l => l.startsWith('js/')) : [];
+  const has3d = viewFiles.some(f => fs.existsSync(path.join(root, f)));
 
   test('the pool runs every job once, on its slots, the longest first; a failure is printed in its place and fails the run; a job after it is not run; 77 is a skip; CPU under a job is counted', () => {
     const dir = temp('pool');
@@ -103,19 +116,23 @@ module.exports = ({ test, assert, root, fs, path }) => {
     const list = (...a) => spawnSync('bash', [path.join(root, 'check-all.sh'), '--list', ...a], { encoding: 'utf8' });
     const parse = r => {
       assert.equal(r.status, 0, r.stdout + r.stderr);
-      const steps = [], groups = new Map();
+      const steps = [], groups = new Map(), cmds = {};
       for (const l of r.stdout.split('\n')) {
-        let m = /^step  ([\w-]+): /.exec(l);
-        if (m) { steps.push(m[1]); continue; }
+        let m = /^step  ([\w-]+): (.+)$/.exec(l);
+        if (m) { steps.push(m[1]); cmds[m[1]] = m[2]; continue; }
         m = /^job   ([\w-]+): (.+)$/.exec(l);
         if (m) { if (!groups.has(m[1])) groups.set(m[1], []); groups.get(m[1]).push(m[2]); }
       }
-      return { steps, groups };
+      return { steps, groups, cmds };
     };
     const full = parse(list()), fast = parse(list('--fast')), some = parse(list('--fast', '--with', 'check-keys,check-touch'));
     assert.equal(json(full.steps), json(['lint-core', 'lint-tools', 'lint-numbers', 'lint-registry', 'art-up-to-date', 'linked-builds', 'tests', 'build']));
     assert.equal(json(fast.steps), json(full.steps));
     assert.equal(json(some.steps), json(full.steps));
+    // The Node tests step runs every test file a plain run runs, the build step the build, in
+    // the full run and the fast one alike; --timings also records the files' times.
+    for (const x of [full, fast, some]) assert.equal(json([x.cmds.tests, x.cmds.build]), json(['node test/run.js', 'python3 tools/build-single.py']));
+    assert.equal(parse(list('--timings')).cmds.tests, 'node test/run.js --write-timings');
     const out = (a, b) => [...a.groups.keys()].filter(g => !b.groups.has(g));
     const present = names => names.filter(g => full.groups.has(g));
     assert.equal(json(out(full, fast)), json(present(['check-3d', 'check-keys', 'check-touch', 'revert-3d'])));
@@ -126,7 +143,10 @@ module.exports = ({ test, assert, root, fs, path }) => {
     // The full pool: the short sims, every check on disk (so a new one joins with no edit), and
     // the revert test while there is one.
     const checks = fs.readdirSync(path.join(root, 'tools/browser')).filter(n => /^check-.+\.mjs$/.test(n)).map(n => n.slice(0, -4)).sort();
-    const revert = fs.existsSync(path.join(root, 'tools/revert-test.sh'));
+    // The revert test is there while the 3D view is (BUILD.md §6.3), and so is its script.
+    const revert = has3d;
+    assert.equal(Pool.has3d(root), has3d);
+    if (revert) assert.ok(fs.existsSync(path.join(root, 'tools/revert-test.sh')), 'the 3D view is here, but not tools/revert-test.sh, its revert test');
     assert.equal(json([...full.groups.keys()]), json(['short-sims', ...checks].concat(revert ? ['revert-3d'] : [])));
     assert.ok(checks.includes('check-smoke') && checks.includes('check-screens'), json(checks));
     if (revert) {
@@ -149,6 +169,80 @@ module.exports = ({ test, assert, root, fs, path }) => {
       assert.match(r.stdout, /^check-all: .+\nusage: \.\/check-all\.sh /, bad.join(' '));
     }
     assert.equal(json(Pool.FAST_LEAVES_OUT), json(['revert-3d', 'check-3d', 'check-keys', 'check-touch']));
+  });
+
+  test('each job runs what it names where it names: the battery and every browser check here, the revert test\'s files and checks in the reverted copy once it is made, and the revert test whenever the 3D view is here', () => {
+    const node = process.execPath, copy = '/the/reverted/copy';
+    const what = j => json([j.cmd, j.cwd, j.after || []]);
+    const by = new Map(Pool.checkAll(Pool.parseFlags([]), copy).map(g => [g.name, g]));
+    const only = g => { assert.equal(g.jobs.length, 1, g.name); return g.jobs[0]; };
+    // The short sims are the battery's file, run alone: the one file a plain run leaves out.
+    assert.equal(json(Runner.ALONE), json(['m3-battery.test.js']));
+    assert.equal(what(only(by.get('short-sims'))), json([[node, 'test/run.js', '--file=m3-battery.test.js'], root, []]));
+    for (const c of Pool.browserChecks(root)) assert.equal(what(only(by.get(c))), json([[node, `tools/browser/${c}.mjs`], root, []]), c);
+    assert.equal(by.has('revert-3d'), has3d);
+    if (has3d) {
+      const [prep, ...rest] = by.get('revert-3d').jobs;
+      assert.equal(what(prep), json([['bash', path.join(root, 'tools/revert-test.sh'), '--prepare', copy], root, []]));
+      const files = Runner.files(path.join(root, 'test'), '').filter(f => !Runner.ALONE.includes(f));
+      const want = files.map(f => [[node, 'test/run.js', `--file=${f}`], copy, [prep.name]]).concat(['check-smoke', 'check-screens'].map(c => [[node, `tools/browser/${c}.mjs`], copy, [prep.name]]));
+      assert.equal(json(rest.map(j => [j.cmd, j.cwd, j.after])), json(want));
+    }
+    // A planted tree: with the 3D view and no revert script, the revert test is still there
+    // (its first job then fails, with nothing to run); without the view, it is not.
+    const dir = temp('tree');
+    try {
+      for (const f of ['js/view/deep.js', 'tools/browser/check-smoke.mjs', 'tools/browser/lib.mjs', 'test/a.test.js', 'test/m3-battery.test.js']) {
+        fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+        fs.writeFileSync(path.join(dir, f), '');
+      }
+      fs.writeFileSync(path.join(dir, 'tools/3d-allowlist.txt'), '# the view\nindex.html\njs/view/deep.js\ntools/remove-3d.sh\n');
+      let g = Pool.checkAll(Pool.parseFlags([]), copy, dir);
+      assert.equal(json(g.map(x => x.name)), json(['short-sims', 'check-smoke', 'revert-3d']));
+      assert.equal(json(g.map(x => x.jobs[0].cwd)), json([dir, dir, dir]));
+      assert.equal(json(g[2].jobs.map(j => j.name)), json(['revert-3d: copy and build', 'revert-3d: a.test.js', 'revert-3d: check-smoke', 'revert-3d: check-screens']));
+      assert.equal(g[2].jobs[0].cmd[1], path.join(dir, 'tools/revert-test.sh'));
+      fs.unlinkSync(path.join(dir, 'js/view/deep.js'));
+      g = Pool.checkAll(Pool.parseFlags([]), copy, dir);
+      assert.equal(json(g.map(x => x.name)), json(['short-sims', 'check-smoke']));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('a step is recorded as it went: a failure failed, its output printed whole; 77 skipped; a command that cannot start failed; and a group of many jobs fails if any job in it fails', () => {
+    const dir = temp('steps');
+    try {
+      const file = path.join(dir, 'results');
+      fs.writeFileSync(file, `start ${Date.now()}\n`);
+      const step = (name, ...cmd) => spawnSync(process.execPath, [path.join(root, 'tools/pool.js'), '--step', name, '--results', file, '--', ...cmd], { encoding: 'utf8', cwd: dir });
+      let r = step('fine', 'bash', '-c', 'echo first; echo all well');
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.match(r.stdout, /^ok    fine \[\d+\.\d s, \d+\.\d CPU-s\]: all well\n$/);
+      r = step('broken', 'bash', '-c', 'echo one; echo two >&2; exit 3');
+      assert.equal(r.status, 0, 'the step timer itself went well: ' + r.stdout + r.stderr);
+      assert.match(r.stdout, /^FAIL  broken \[[^\]]+\]\n      one\n      two\n$/);
+      r = step('cannot', 'bash', '-c', 'echo no browser here; exit 77');
+      assert.match(r.stdout, /^SKIP  cannot \[[^\]]+\]: no browser here\n$/);
+      r = step('missing', path.join(dir, 'no-such-command'));
+      assert.match(r.stdout, /^FAIL  missing /);
+      const lines = fs.readFileSync(file, 'utf8').trim().split('\n').slice(1).map(l => l.split(' ').slice(0, 3).join(' '));
+      assert.equal(json(lines), json(['step fine pass', 'step broken fail', 'step cannot skip', 'step missing fail']));
+      fs.appendFileSync(file, 'pool 0 0 1\n');
+      r = spawnSync(process.execPath, [path.join(root, 'tools/pool.js'), '--summary', '--results', file], { encoding: 'utf8' });
+      assert.equal(json([r.status, r.stdout.trimEnd().split('\n').pop()]), json([1, 'check-all: 1 passed, 1 skipped (cannot), 2 failed (broken missing)']), r.stdout);
+      // Groups of many jobs, as the revert test is: one failure in it, after its first job,
+      // fails the group and is printed with its job's name; a skip in it skips the group.
+      const script = `const P = require(${json(path.join(root, 'tools/pool.js'))}), lines = [];
+        const many = [{ name: 'first', cmd: ['true'] }, { name: 'second', cmd: ['bash', '-c', 'echo bad news; exit 4'], after: ['first'] }, { name: 'third', cmd: ['true'], after: ['first'] }];
+        const some = [{ name: 'some-a', cmd: ['bash', '-c', 'echo no browser; exit 77'] }, { name: 'some-b', cmd: ['true'] }];
+        P.runGroups([{ name: 'many', jobs: many }, { name: 'some', jobs: some }], { slots: 2, sampleMs: 0, print: s => lines.push(s) })
+          .then(d => console.log(JSON.stringify({ lines, status: d.map(x => x.status) })));`;
+      r = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      const got = JSON.parse(r.stdout.trim().split('\n').pop());
+      assert.equal(json(got.status), json(['fail', 'skip']), r.stdout);
+      assert.match(got.lines[0], /^FAIL  many \[[^\]]+, 3 jobs\]\n      second: exit 4\n        bad news$/);
+      assert.match(got.lines[1], /^SKIP  some \[[^\]]+, 2 jobs\]: no browser$/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   test('check-all\'s last line counts every step and job; a failure, a skip without --allow-skip, or a pool that did not finish fails it', () => {
@@ -254,10 +348,33 @@ module.exports = ({ test, assert, root, fs, path }) => {
       assert.ok(Object.values(t.files).every(ms => Number.isInteger(ms) && ms >= 10 && ms % 10 === 0), json(t.files));
       assert.equal(json(t.jobs), json({ 'check-x': 1234 }), 'the pool\'s times are kept');
       assert.match(t.about, /Generated/);
+      // The times only order the work: one that cannot be read (a merge left in it) is said and
+      // ignored, and a full --write-timings writes the file anew. (A stale entry, for a file
+      // renamed away, is harmless and dropped by the next full write, above.)
+      fs.appendFileSync(path.join(dir, Runner.TIMINGS), '<<<<<<< HEAD\n');
+      r = run();
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.match(r.stderr, /timings\.json cannot be read .+ the times are ignored/);
+      assert.equal(run('--write-timings').status, 0);
+      assert.equal(json(Object.keys(JSON.parse(fs.readFileSync(path.join(dir, Runner.TIMINGS), 'utf8')).files)), json(['a.test.js', 'b.test.js', 'c.test.js', 'd.test.js']));
+      // A failure fails the run, in one process (one file, as each of check-all's revert jobs
+      // is) and in workers; so does a worker that stops without reporting, and a test that ends
+      // the process before the run's end, whatever its code.
+      fs.writeFileSync(path.join(dir, 'e.test.js'), "module.exports = ({ test, assert }) => { test('e fails', () => { assert.equal(1, 2); }); };\n");
+      for (const a of [['--file=e.test.js'], []]) {
+        r = run(...a);
+        assert.equal(r.status, 1, a.join(' ') + ': ' + r.stdout + r.stderr);
+        assert.match(r.stdout, /^FAIL e\.test\.js :: e fails$/m);
+        assert.match(r.stdout, /— 1 FAILED$/m);
+      }
+      fs.writeFileSync(path.join(dir, 'e.test.js'), "module.exports = ({ test }) => { test('e ends it', () => { process.exit(0); }); test('e after', () => { throw new Error('never run'); }); };\n");
+      r = run();
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.match(r.stdout, /^FAIL a test worker \(files [^)]*e\.test\.js[^)]*\) stopped with code 0$/m);
+      r = run('--file=e.test.js');
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.match(r.stdout, /^FAIL the test run stopped before its end \(exit code 0\)/m);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-    // This tree's timings.json is the runner's and the pool's, and names only files and jobs it has.
-    const t = Runner.timings(path.join(root, 'test')), all = Runner.files(path.join(root, 'test'), '');
-    for (const f of Object.keys(t.files)) assert.ok(all.includes(f), `timings.json times ${f}, which is not a test file`);
   });
 
   test('the budgets check-all prints are BUILD.md §10.2\'s', () => {
