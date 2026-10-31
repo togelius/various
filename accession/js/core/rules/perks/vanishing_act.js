@@ -5,5 +5,5 @@
 // status staggered (js/core/reg/perk-status.js). Owned by PG-PERKS-A.
 'use strict';
 (() => {
-  // PG-PERKS-A fills: Perks.add('vanishing_act', { loseTrack }).
+  // PG-PERKS-A fills: Perks.add('vanishing_act', { loseTrack, onLoseTrack }).
 })();

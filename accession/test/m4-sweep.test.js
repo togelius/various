@@ -97,15 +97,17 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(sweep(C, [], FULL).built, 0);
     // Check files are found by name, in name order, and must export a function of the core.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-sweep-'));
-    fs.writeFileSync(path.join(tmp, 'b.check.js'), "module.exports = C => ({ each: d => (d.depth === 2 ? 'b: ' + C.Packs.get(d.acc).title : null) });\n");
-    fs.writeFileSync(path.join(tmp, 'a.check.js'), 'module.exports = () => ({ each: () => null });\n');
-    fs.writeFileSync(path.join(tmp, 'notes.txt'), 'not a check\n');
-    fs.writeFileSync(path.join(tmp, 'c.check.js'), 'module.exports = { each: () => null };\n');
-    assert.equal(JSON.stringify(names(tmp)), JSON.stringify(['a.check.js', 'b.check.js', 'c.check.js']));
-    assert.throws(() => load(tmp, 'c.check.js'), /exports no function/);
-    const r2 = sweep(C, ['a.check.js', 'b.check.js'].map(n => [n, load(tmp, n)]), small);
-    assert.equal(JSON.stringify(r2.problems.map(p => p.check)), JSON.stringify(['b.check.js', 'b.check.js']));
-    assert.match(r2.problems[0].text, /^b: /);
-    assert.equal(JSON.stringify(names(path.join(tmp, 'none'))), '[]');
+    try {
+      fs.writeFileSync(path.join(tmp, 'b.check.js'), "module.exports = C => ({ each: d => (d.depth === 2 ? 'b: ' + C.Packs.get(d.acc).title : null) });\n");
+      fs.writeFileSync(path.join(tmp, 'a.check.js'), 'module.exports = () => ({ each: () => null });\n');
+      fs.writeFileSync(path.join(tmp, 'notes.txt'), 'not a check\n');
+      fs.writeFileSync(path.join(tmp, 'c.check.js'), 'module.exports = { each: () => null };\n');
+      assert.equal(JSON.stringify(names(tmp)), JSON.stringify(['a.check.js', 'b.check.js', 'c.check.js']));
+      assert.throws(() => load(tmp, 'c.check.js'), /exports no function/);
+      const r2 = sweep(C, ['a.check.js', 'b.check.js'].map(n => [n, load(tmp, n)]), small);
+      assert.equal(JSON.stringify(r2.problems.map(p => p.check)), JSON.stringify(['b.check.js', 'b.check.js']));
+      assert.match(r2.problems[0].text, /^b: /);
+      assert.equal(JSON.stringify(names(path.join(tmp, 'none'))), '[]');
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
 };

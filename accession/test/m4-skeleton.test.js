@@ -20,6 +20,18 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const json = x => JSON.stringify(x);
   const src = f => fs.readFileSync(path.join(root, f), 'utf8');
   const PACK = { acc: 'T0', species: [], modules: [] };
+  // The core with one file's source changed (edit(text) → text), for a number loadCore's
+  // opts.numbers cannot set (a table); unhardened, as only this file's tests use it.
+  function coreWith(file, edit) {
+    const vm = require('node:vm'), { coreFiles } = require(path.join(root, 'tools/core-context.js'));
+    const ctx = vm.createContext({}), names = [];
+    for (const f of coreFiles()) {
+      const text = f === file ? edit(src(f)) : src(f);
+      for (const m of text.matchAll(/^const ([A-Z][A-Za-z0-9]*) =/gm)) names.push(m[1]);
+      vm.runInContext(text, ctx, { filename: f });
+    }
+    return vm.runInContext('({' + names.join(',') + '})', ctx);
+  }
 
   // [export, arity, file, stub line (null: keep) and its filler, call(X, state, ev), neutral]
   const R = 'js/core/rules/', L = 'js/core/layout/';
@@ -34,6 +46,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['Perks.charges', 1, R + 'perks.js', null, (X, s) => X.Perks.charges(s), []],
     ['Perks.ringDelta', 1, R + 'perks.js', null, (X, s) => X.Perks.ringDelta(s), 0],
     ['Perks.loseTrack', 2, R + 'perks.js', null, (X, s) => X.Perks.loseTrack(s, s.actors[1]), C.N.LOSE_TRACK_TURNS],
+    ['Perks.onLoseTrack', 3, R + 'perks.js', null, (X, s, ev) => X.Perks.onLoseTrack(s, s.actors[1], ev), undefined],
     ['Perks.openCost', 2, R + 'perks.js', null, (X, s) => X.Perks.openCost(s, C.N.COST_OPEN_CASE), C.N.COST_OPEN_CASE],
     ['Perks.openQuiet', 1, R + 'perks.js', null, (X, s) => X.Perks.openQuiet(s), false],
     ['Perks.lockBonus', 1, R + 'perks.js', null, (X, s) => X.Perks.lockBonus(s), 0],
@@ -187,6 +200,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     P.add('planted_b', {
       ringDelta: (s, r) => -10 * r, loseTrack: (s, a, r) => null, openCost: (s, base, r) => base * 2, padding: (s, r) => 1,
       afterStep: (s, a, from, ev, r) => calls.push(['b', a.uid, from, r]), onLow: (s, who, before, ev, r) => calls.push(['b low', who.uid, before, r]),
+      onLoseTrack: (s, a, ev, r) => { calls.push(['b search', a.uid, r]); ev.push({ k: 'planted', who: a.uid }); },
       onResolve: (s, a, tel, struck, ev, r) => calls.push(['b resolve', a.uid, tel.id, struck, r]), surprise: (s, att, def, r) => def.uid === 'x',
       adjust: (s, action, t, ev, r) => (t > 0 ? { r: t - 50, why: 'planted_b' } : null),
     });
@@ -202,8 +216,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(P.loseTrack(s, a), 3, 'the fewest turns any hook gives');
     assert.equal(P.openCost(s, 200), (200 - 100) * 2, 'chained in the order added');
     assert.equal(P.openQuiet(s), true); assert.equal(P.lockBonus(s), 2); assert.equal(P.padding(s), 5);
-    P.afterStep(s, a, [1, 1], []); P.onLow(s, s.actors[0], 9, []); P.onResolve(s, a, { id: 'ring' }, true, []);
-    assert.equal(json(calls), json([['a', a.uid, [1, 1], 2], ['b', a.uid, [1, 1], 1], ['b low', 'you', 9, 1], ['b resolve', a.uid, 'ring', true, 1]]));
+    const lostEv = [];
+    P.afterStep(s, a, [1, 1], []); P.onLow(s, s.actors[0], 9, []); P.onResolve(s, a, { id: 'ring' }, true, []); P.onLoseTrack(s, a, lostEv);
+    assert.equal(json(calls), json([['a', a.uid, [1, 1], 2], ['b', a.uid, [1, 1], 1], ['b low', 'you', 9, 1], ['b resolve', a.uid, 'ring', true, 1], ['b search', a.uid, 1]]));
+    assert.equal(json(lostEv), json([{ k: 'planted', who: a.uid }]), 'a hook acting as a hunter starts to search is given the event list');
     assert.equal(P.surprise(s, s.actors[0], { uid: 'x' }), true); assert.equal(P.surprise(s, s.actors[0], a), false);
     assert.equal(json(P.adjust(s, { a: 'move', dir: 2 }, 100, [])), json({ r: 0, why: 'planted_a' }), 'b sees 0 ticks and leaves them');
     assert.equal(json(P.adjust(s, { a: 'wait' }, 100, [])), json({ r: 50, why: 'planted_b' }));
@@ -216,7 +232,23 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     P.add('planted_d', { adjust: () => ({ r: -1, why: 'planted_d' }), loseTrack: () => 1.5 });
     off.run.perks = [{ id: 'planted_d', rank: 1 }];
     assert.throws(() => P.adjust(off, { a: 'wait' }, 100, []), /a hook gave/); assert.throws(() => P.loseTrack(off, a), /a hook gave/);
-    assert.equal(json(P.HOOKS), json(['ringDelta', 'loseTrack', 'openCost', 'openQuiet', 'lockBonus', 'padding', 'afterStep', 'onLow', 'onResolve', 'surprise', 'adjust', 'charge']));
+    assert.equal(json(P.HOOKS), json(['ringDelta', 'loseTrack', 'onLoseTrack', 'openCost', 'openQuiet', 'lockBonus', 'padding', 'afterStep', 'onLow', 'onResolve', 'surprise', 'adjust', 'charge']));
+  });
+
+  test('an exhibit\'s wake region is the default\'s with every hook\'s added, each tile once, in row-major order', () => {
+    const X = loadCore(), R0 = X.Registry;
+    R0.define('ARCHETYPES', 'planted_station', {}); R0.define('MODIFIERS', 'planted_round', {}); R0.define('MODIFIERS', 'planted_quiet', {});
+    X.Archetypes.add('planted_station', { wakeRegion: (s, a, turns) => [[5, 2], [3, 2], [4, 2]].slice(0, turns) });
+    X.Archetypes.addModifier('planted_round', { wakeRegion: (s, a, turns) => [[4, 2], [1, 7], [2, 1]] });
+    X.Archetypes.addModifier('planted_quiet', { wakeRegion: () => null });
+    const s = X.TestRoom.create(1), a = s.actors[1];
+    a.arch = 'planted_station'; a.mods = ['planted_quiet', 'planted_round'];
+    assert.equal(json(X.Archetypes.wakeRegion(s, a, 3)), json([[2, 1], [3, 2], [4, 2], [5, 2], [1, 7]]), 'a modifier adds to the archetype\'s, never replaces it');
+    assert.equal(json(X.Archetypes.wakeRegion(s, a, 1)), json([[2, 1], [4, 2], [5, 2], [1, 7]]));
+    s.options.rulesOff = ['planted_round'];
+    assert.equal(json(X.Archetypes.wakeRegion(s, a, 3)), json([[3, 2], [4, 2], [5, 2]]), 'a modifier switched off adds nothing');
+    // While the default is the skeleton's [] (W0d1 fills it with the ring), a hookless exhibit has none.
+    if (src(R + 'archetypes.js').includes('function defaultWakeRegion(state, a, turns) { return []; }')) assert.equal(json(X.Archetypes.wakeRegion(s, s.actors[2], 3)), '[]');
   });
 
   test('the hall\'s checks register once each, in order; a Centrepiece\'s pieces come from dept.cp through Hall.cp', () => {
@@ -244,6 +276,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const s0 = bare(); C.Kit.start(s0);
     assert.equal(tiers(s0), json([['you.w', 'balanced', 1, { at: 'kit', slot: 'weapon' }], ['you.g', 'standard', 1, { at: 'kit', slot: 'garment' }]]));
     for (const t of [0, 5, 1.5, '2']) assert.throws(() => C.Kit.start(bare(), 'balanced', t), /no tier/, String(t));
+    // The highest tier is the table's (TIER_LOW_BY_DEPTH's last), not a number of its own.
+    const T = coreWith('js/core/numbers.js', t => t.replace(/^(\s*TIER_LOW_BY_DEPTH: )\[[^\]]*\]/m, '$1[1, 1, 2, 2, 3, 3, 5]')), t5 = T.TestRoom.create(1);
+    assert.equal(json(T.N.TIER_LOW_BY_DEPTH), json([1, 1, 2, 2, 3, 3, 5]));
+    t5.items = t5.items.filter(i => i.uid !== 'you.w' && i.uid !== 'you.g'); t5.you.kit.weapon = t5.you.kit.garment = null;
+    T.Kit.start(t5, 'balanced', 5);
+    assert.equal(tiers(t5), json([['you.w', 'balanced', 5, { at: 'kit', slot: 'weapon' }], ['you.g', 'standard', 5, { at: 'kit', slot: 'garment' }]]));
     assert.throws(() => C.Kit.start(s0, 'balanced', 1), /already/);
     // A room, and a department at depth 1, start as before: tier 1.
     for (const s of [C.TestRoom.create(2), C.Dept.create(2, 'S9', 1)]) assert.equal(tiers(s), json([['you.w', 'balanced', 1, { at: 'kit', slot: 'weapon' }], ['you.g', 'standard', 1, { at: 'kit', slot: 'garment' }]]));
@@ -299,6 +337,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     before(`${R}modules.js`, under(`${R}modules/`), 'Modules.define');
     before(`${R}archetypes.js`, under(`${R}arch/`).concat([`${R}mods/clockwork.js`]), 'Archetypes.add');
     before(`${R}hall.js`, [`${R}treasure.js`, `${R}arch/completing_guardian.js`, `${R}arch/mp_ensemble.js`, `${R}arch/mp_tableau.js`], 'Hall.addCheck');
+    // M4's rule files load after every M3 system, so each may register with any of them as it
+    // loads (Specials.addShape for the cp_ shapes, Actions.addRefuser, Fixtures.addReader).
+    const m3Systems = ['actors', 'noise', 'surfaces', 'wake', 'combat', 'ranged', 'specials', 'health', 'cases', 'kit', 'consumables', 'doors', 'ai'].map(f => `${R}${f}.js`);
+    for (const f of [`${R}hall.js`, `${R}centrepiece.js`, `${R}progress.js`, `${R}viewing.js`, `${R}treasure.js`].concat(under(`${R}arch/`), under(`${R}modules/`), under(`${R}perks/`), [`${R}mods/clockwork.js`])) {
+      for (const sys of m3Systems) before(sys, [f], 'an M3 system before the M4 rule that may register with it');
+    }
     before(`${R}status.js`, ['js/core/reg/perk-status.js'], 'Status.define');
     before('js/core/populate.js', [`${L}lv6.js`, `${L}treasure.js`, `${L}runner.js`, `${L}lv-m4.js`], 'Populate.addValidator');
     // The validators register in the order A10 runs them: LV6, the treasure case, LV11, then LV7 and LV13.
@@ -328,6 +372,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const row = rows.find(l => l.startsWith(`| ${k} |`));
       assert.ok(row && row.split('|')[3].trim().length > 0, `${k} has a meaning in BUILD.md §8.10`);
     }
+    // Readings checked against the design in review: a summon makes 1–2 bodies (design/samples.md,
+    // the Great Board and the Ordinance; design/vocabulary.md's summon), so CP_SUMMON's two values
+    // are the fewest and the most, not two phases; Light Fingers' rank 2 opens case locks, never
+    // a staff door (plan PR7).
+    const meaningOf = k => rows.find(l => l.startsWith(`| ${k} |`)).split('|')[3].trim();
+    assert.match(meaningOf('CP_SUMMON'), /fewest and most/); assert.doesNotMatch(meaningOf('CP_SUMMON'), /phase/);
+    assert.match(meaningOf('PERK_LIGHT_FINGERS_ABOVE'), /case locks/);
     const r = spawnSync(process.execPath, [path.join(root, 'tools/lint-numbers.js')], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout);
   });

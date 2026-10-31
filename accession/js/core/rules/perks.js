@@ -13,6 +13,10 @@
 //                                       it searches: the fewest any hook gives (a hook
 //                                       returns turns, or null to say nothing); else
 //                                       LOSE_TRACK_TURNS
+//   onLoseTrack(state, a, ev)           after hunter a, out of sight of you, began to search:
+//                                       each hook (Vanishing Act's lost action at rank 2). A
+//                                       hunter that searches sooner than LOSE_TRACK_TURNS
+//                                       because a hook said so is `lost` with cause `vanished`
 //   openCost(state, base) → int         ticks to open a case: each hook in turn gets the cost
 //                                       so far as base and returns the new cost; base
 //   openQuiet(state) → bool             opening a case makes no noise: true if any hook says so
@@ -32,7 +36,7 @@
 // a perk first writes them (§4.1), so a perk's hook reads its own part as absent at first.
 'use strict';
 const Perks = (() => {
-  const HOOKS = ['ringDelta', 'loseTrack', 'openCost', 'openQuiet', 'lockBonus', 'padding', 'afterStep', 'onLow', 'onResolve', 'surprise', 'adjust', 'charge'];
+  const HOOKS = ['ringDelta', 'loseTrack', 'onLoseTrack', 'openCost', 'openQuiet', 'lockBonus', 'padding', 'afterStep', 'onLow', 'onResolve', 'surprise', 'adjust', 'charge'];
   const MAX_RANK = 2;
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const ids = [], table = {};
@@ -99,6 +103,7 @@ const Perks = (() => {
     for (const [f, r] of hooks(state, 'openCost')) cost = f(state, cost, r);
     return cost;
   }
+  function onLoseTrack(state, a, ev) { for (const [f, r] of hooks(state, 'onLoseTrack')) f(state, a, ev, r); }
   function afterStep(state, a, from, ev) { for (const [f, r] of hooks(state, 'afterStep')) f(state, a, from, ev, r); }
   function onLow(state, who, before, ev) { for (const [f, r] of hooks(state, 'onLow')) f(state, who, before, ev, r); }
   function onResolve(state, a, tel, struckYou, ev) { for (const [f, r] of hooks(state, 'onResolve')) f(state, a, tel, struckYou, ev, r); }
@@ -125,6 +130,6 @@ const Perks = (() => {
     });
   }
 
-  return { HOOKS: HOOKS.slice(), MAX_RANK, add, added, rank, charges, ringDelta, loseTrack, openCost, openQuiet, lockBonus, padding,
+  return { HOOKS: HOOKS.slice(), MAX_RANK, add, added, rank, charges, ringDelta, loseTrack, onLoseTrack, openCost, openQuiet, lockBonus, padding,
     afterStep, onLow, onResolve, surprise, adjust };
 })();

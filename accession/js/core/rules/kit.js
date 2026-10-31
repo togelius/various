@@ -61,13 +61,14 @@ const Kit = (() => {
   }
 
   // The starting kit (§8.1): a weapon of the given form (Balanced if none) and a Standard
-  // garment, both of the given tier (1 if none, as at a run's start), equipped, with the uids
-  // you.w and you.g (§3.2).
+  // garment, both of the given tier (1 if none, as at a run's start; at most the highest tier
+  // on offer, TIER_LOW_BY_DEPTH's last), equipped, with the uids you.w and you.g (§3.2).
   function start(state, form, tier) {
     form = form || 'balanced';
     tier = tier === undefined || tier === null ? 1 : tier;
     if (!WEAPON_FORMS.includes(form)) throw new Error('Kit.start: no weapon form ' + form);
-    if (!isInt(tier) || tier < 1 || tier > 4) throw new Error('Kit.start: no tier ' + tier);
+    const highest = N.TIER_LOW_BY_DEPTH[N.TIER_LOW_BY_DEPTH.length - 1];
+    if (!isInt(tier) || tier < 1 || tier > highest) throw new Error('Kit.start: no tier ' + tier);
     if (byUid(state, 'you.w') || byUid(state, 'you.g')) throw new Error('Kit.start: you already have a starting kit');
     if (!state.you) state.you = { kit: { weapon: null, garment: null, curio: [null, null], instrument: null }, tote: [] };
     state.items.push(item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier }));
