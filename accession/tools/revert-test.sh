@@ -19,6 +19,9 @@ else
 fi
 tar -C "$here" --exclude=./prototypes --exclude=./research --exclude=./review --exclude=./design \
   --exclude=./dist --exclude=./test/shots -cf - . | tar -C "$tmp" -xf -
+# The release builds stay (BUILD.md §3.6): a retired golden run is played in its build's core
+# (§3.5), and the copy's own build writes only dist/'s two pages beside them.
+if [ -d "$here/dist/builds" ]; then mkdir -p "$tmp/dist" && cp -R "$here/dist/builds" "$tmp/dist/builds"; fi
 cd "$tmp"
 fail() { echo "revert-3d: $*"; exit 1; }
 bash tools/remove-3d.sh >/dev/null || fail "remove-3d.sh failed"

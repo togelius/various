@@ -303,7 +303,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(Golden.repin(C, file).some(l => l.startsWith('golden: mk ') && l.endsWith('no step differs from the old pin')));
     // Pending keeps the pins and is not held to them; add puts in a new run, pinned or not.
     const before = Golden.read(file);
-    Golden.markPending(file, 'testing');
+    Golden.markPending(file, 'testing', ['mk', 'rp']);
     g = Golden.read(file);
     for (const n of ['mk', 'rp']) { assert.equal(g[n].pending, 'testing'); assert.equal(g[n].hash, before[n].hash); assert.equal(g[n].steps, before[n].steps); }
     // An action that changes where the replay goes, as at step 121 above: a wait where it did
@@ -357,7 +357,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // A file that a re-pin would change: one run, pinned, then marked pending.
     const file = path.join(tmp, 'asked.js');
     Golden.write(file, { mk: monkey(5, 60) });
-    Golden.repin(C, file); Golden.markPending(file, 'testing');
+    Golden.repin(C, file); Golden.markPending(file, 'testing', ['mk']);
     const kept = fs.readFileSync(file, 'utf8');
     const tool = (...args) => cp.spawnSync('node', [path.join(root, 'tools/golden.js'), '--golden', file].concat(args), { encoding: 'utf8' });
     for (const k of ['--pending "reason"', '--check', '--add <name> <file.json>', '--against <commit>', '--help']) assert.ok(Golden.USAGE.includes('node tools/golden.js ' + k), k);
@@ -379,7 +379,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // The documented forms still read as they did.
     assert.equal(json(Golden.parseArgs(['--golden', file, '--against', 'HEAD', 'a', 'b'])), json({ mode: 'against', root: path.resolve(root), file, commit: 'HEAD', names: ['a', 'b'] }));
     assert.equal(json(Golden.parseArgs(['--golden', file, '--add', 'n', 'f.json', '--pending', 'new'])), json({ mode: 'add', root: path.resolve(root), file, reason: 'new', name: 'n', def: 'f.json' }));
-    assert.equal(Golden.parseArgs(['--golden', file, '--pending', 'why']).mode, 'pending');
+    assert.equal(Golden.parseArgs(['--golden', file, '--pending', 'why', 'mk']).mode, 'pending');
     assert.equal(Golden.parseArgs(['--golden', file, '--check']).mode, 'check');
     // And the bare command re-pins, which ends the pending stretch.
     const r = tool();
