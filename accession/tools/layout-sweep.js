@@ -2,24 +2,27 @@
 // ACCESSION — M1's acceptance sweep: every slice programme over N seeds at Cabinet size.
 // Reports fallback rate, validator failures, L_tour and generation time, and prints any
 // plan that needed the fallback as a text map with its reasons (BUILD.md §11, M1).
+// Generation time is CPU time (process.cpuUsage around each Layout.generate), so the p95 limit
+// of 25 ms holds or fails the same on a loaded machine (BUILD.md §10.2).
 // Usage: node tools/layout-sweep.js [seeds=1000] [--json out.json]
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const root = path.join(__dirname, '..');
 const { Layout } = require('./core-context.js').loadCore();
 const seeds = +(process.argv[2] || 1000);
+const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(p * (b.length - 1)))]; };
 const out = {};
 let bad = 0;
-console.log(`programme | seeds | fallback | reseeded | repaired | L_tour p5/p50/p95 | rooms p50 | size p50 | ms p50/p95/max`);
+console.log(`programme | seeds | fallback | reseeded | repaired | L_tour p5/p50/p95 | rooms p50 | size p50 | CPU-ms p50/p95/max`);
 for (const prog of ['enfilade', 'case_labyrinth', 'sculpture_court']) {
   const times = [], tours = [], rooms = [], ws = [], hs = [];
   let fallback = 0, reseeded = 0, repaired = 0;
   const reasons = {};
   for (let s = 1; s <= seeds; s++) {
-    const t0 = process.hrtime.bigint();
+    const t0 = cpuMs();
     const r = Layout.generate(prog, 0, s, { acc: prog, depth: 1 });
-    times.push(Number(process.hrtime.bigint() - t0) / 1e6);
+    times.push(cpuMs() - t0);
     if (r.fallback) fallback++;
     r.tries.forEach((t, k) => {
       for (const f of t) {
@@ -59,5 +62,5 @@ for (const prog of ['enfilade', 'case_labyrinth', 'sculpture_court']) {
 }
 if (process.argv.includes('--json')) fs.writeFileSync(process.argv[process.argv.indexOf('--json') + 1], JSON.stringify(out, null, 1));
 const worst = Math.max(...Object.values(out).map(o => o.fallback / o.seeds)), slow = Math.max(...Object.values(out).map(o => o.ms[1]));
-console.log(`fallback worst ${(100 * worst).toFixed(1)}% (limit 1%), p95 worst ${slow.toFixed(1)} ms (limit 25 ms)`);
+console.log(`fallback worst ${(100 * worst).toFixed(1)}% (limit 1%), p95 worst ${slow.toFixed(1)} CPU-ms (limit 25 CPU-ms)`);
 process.exit(bad || worst > 0.01 || slow > 25 ? 1 : 0);

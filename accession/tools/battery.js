@@ -42,14 +42,17 @@
 //   Battery.checks(C, {invs}) → {check(pre, action, events, post) → [violation], reset, tally}
 //   Recap.fromLog(initialState, events) → {killer, wakeTurn, wakeTrigger, huntTurn} | null
 //   node tools/battery.js short|long [--part monkey,arena,wander,soak] [--slice <a-b>]
-//                                    [--gate <seconds>] [--json <file>] [--verbose]
+//                                    [--gate <CPU-seconds>] [--json <file>] [--verbose]
 // A run is {kind: 'monkey', room: 'T0' (or dept, depth), seed, actions} (visits restart on the
 // next seed when one ends, as Monkey.run's do), {kind: 'soak', dept, depth, seed, turns} (the
 // monkey, never leaving, with your HP kept at 1 or more), {kind: 'arena', arena, policy,
 // seed} (tools/sim.js on the stamp, the arena's own depth and species for the seed), or
 // {kind: 'wander', dept, depth, seed} (tools/sim.js, the wander policy, a 1,000-turn cap).
-// The battery's time is measured and reported; check-all holds the short one to 60 s
-// (test/m3-battery.test.js), and the long one's is reported, not held to anything.
+// The battery's wall time and CPU time (process.cpuUsage: this process's, every thread) are
+// measured and reported; check-all holds the short one to 60 CPU-seconds
+// (test/m3-battery.test.js), which other processes' load does not move, as a wall-clock limit
+// would (BUILD.md §10.2), and the long one's is reported, not held to anything.
+//   Battery.overGate(report, seconds) → null | why      the gate, in CPU-seconds
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const { root } = require('./core-context.js');
@@ -60,7 +63,7 @@ const ARENA_DIR = path.join(root, 'test', 'arena');
 const POLICY_DIR = path.join(root, 'tools', 'policies');
 const MONKEY = path.join(root, 'tools', 'monkey.js');
 const GOLDEN_SEED = require('./golden.js').DEFAULTS.m0Monkey.seed;
-const GATE_MS = 60000;      // the short battery's limit in check-all (D6.3)
+const GATE_CPU_MS = 60000;  // the short battery's limit in check-all, in CPU-ms (D6.3, BUILD.md §10.2)
 const RNG_KEYS = 150;       // the most streams state.rng may hold (§3.2's soak bound)
 const KEEP = 25;            // violations a run keeps in full; every one is counted
 const PARTS = ['monkey', 'arena', 'wander', 'soak'];
@@ -274,7 +277,7 @@ function checks(C, o) {
 // One run's result, which its runner fills: {name, kind, steps, ms, visits, stopped, tally,
 // violations (the count), problems (the first KEEP, each with the replay that reaches it)}.
 function result(def) {
-  return { name: def.name || nameOf(def), kind: def.kind, steps: 0, ms: 0, visits: 1, stopped: null, kinds: {}, legal: {}, tally: null, violations: 0, problems: [] };
+  return { name: def.name || nameOf(def), kind: def.kind, steps: 0, ms: 0, cpuMs: 0, visits: 1, stopped: null, kinds: {}, legal: {}, tally: null, violations: 0, problems: [] };
 }
 const keep = (res, v, replay) => {
   res.violations++;
@@ -340,26 +343,28 @@ function simRun(C, def, res, invs, coreHash) {
 // Battery.run(level | [run], {C, parts, slice, onRun}) → report. parts keeps only runs of those
 // kinds, and slice [a, b] only the a-th to the b-th of the level's runs (counted from 1), so a
 // long battery can be run in pieces; onRun(result, i, n) is called after each run. The report
-// holds every run's result and the totals, the arenas run and skipped, the time, and pass (no
-// violation).
+// holds every run's result and the totals, the arenas run and skipped, the time (ms, wall) and
+// the CPU time (cpuMs), and pass (no violation).
+const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 function run(level, opts) {
   opts = opts || {};
-  const C = opts.C || context(), t0 = process.hrtime.bigint();
+  const C = opts.C || context(), t0 = process.hrtime.bigint(), c0 = cpuMs();
   const all = Array.isArray(level) ? level : runs(level, { C, arenaDir: opts.arenaDir });
   const list = all.filter((r, i) => (!opts.parts || opts.parts.includes(r.kind)) && (!opts.slice || (i + 1 >= opts.slice[0] && i + 1 <= opts.slice[1])));
   const found = arenas(C, opts.arenaDir), invs = Inv.load(C), hashes = Sim.hashes(C);
   const results = [];
   for (let i = 0; i < list.length; i++) {
-    const def = list[i], res = result(def), t = process.hrtime.bigint();
+    const def = list[i], res = result(def), t = process.hrtime.bigint(), c = cpuMs();
     Object.assign(res, { seed: def.seed, arena: def.arena || null, policy: def.policy || null, dept: def.dept || null, depth: def.depth || null });
     if (def.kind === 'arena' || def.kind === 'wander') simRun(C, def, res, invs, hashes.coreHash);
     else if (def.kind === 'monkey' || def.kind === 'soak') monkeyRun(C, def, res, invs, hashes.coreHash);
     else throw new Error(`battery: a run is a monkey, a soak, an arena or wander, not ${def.kind}`);
     res.ms = Number(process.hrtime.bigint() - t) / 1e6;
+    res.cpuMs = cpuMs() - c;
     results.push(res);
     if (opts.onRun) opts.onRun(res, i, list.length);
   }
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6, sum = k => results.reduce((s, r) => s + (r.tally ? r.tally[k] : 0), 0);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6, cpu = cpuMs() - c0, sum = k => results.reduce((s, r) => s + (r.tally ? r.tally[k] : 0), 0);
   const merge = k => { const o = {}; for (const r of results) if (r.tally) for (const [x, n] of Object.entries(r.tally[k])) bump(o, x, n); return o; };
   const kinds = {}, legal = {};
   for (const r of results) { for (const [x, n] of Object.entries(r.kinds)) bump(kinds, x, n); for (const [x, n] of Object.entries(r.legal)) bump(legal, x, n); }
@@ -367,7 +372,7 @@ function run(level, opts) {
   const ran = [...new Set(list.filter(r => r.kind === 'arena').map(r => r.arena))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const report = {
     tool: 'battery', level: Array.isArray(level) ? 'custom' : level, coreHash: hashes.coreHash, vmHash: hashes.vmHash,
-    runs: results.length, arenas: ran, skipped: found.skipped, steps, ms, msPerStep: steps ? ms / steps : 0,
+    runs: results.length, arenas: ran, skipped: found.skipped, steps, ms, cpuMs: cpu, msPerStep: steps ? ms / steps : 0, cpuMsPerStep: steps ? cpu / steps : 0,
     events: sum('events'), deaths: sum('deaths'), recaps: sum('recaps'), specials: sum('specials'),
     killers: merge('killers'), stages: merge('stages'), completeness: merge('completeness'), kinds, legal,
     violations, problems: [].concat(...results.map(r => r.problems)).slice(0, 2 * KEEP), results, pass: violations === 0,
@@ -380,7 +385,7 @@ function run(level, opts) {
 function sentence(r) {
   const n = x => String(x).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const list = xs => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
-  const parts = [`${r.level} battery: ${n(r.runs)} ${r.runs === 1 ? 'run' : 'runs'}, ${n(r.steps)} steps in ${(r.ms / 1000).toFixed(1)} s (${r.msPerStep.toFixed(2)} ms a step)`];
+  const parts = [`${r.level} battery: ${n(r.runs)} ${r.runs === 1 ? 'run' : 'runs'}, ${n(r.steps)} steps in ${(r.ms / 1000).toFixed(1)} s, ${(r.cpuMs / 1000).toFixed(1)} CPU-s (${r.cpuMsPerStep.toFixed(2)} CPU-ms a step)`];
   parts.push(r.arenas.length ? `arenas ${list(r.arenas)}` : 'no arenas');
   if (r.skipped.length) parts.push(`skipped ${list(r.skipped.map(s => `${s.id} (${s.why})`))}`);
   parts.push(!r.deaths ? 'no deaths' : `${n(r.deaths)} ${r.deaths === 1 ? 'death' : 'deaths'}, ${r.recaps === r.deaths ? (r.deaths === 1 ? 'its recap' : 'every recap') : `${n(r.recaps)} of the recaps`} equal to the one rebuilt from the log`);
@@ -393,14 +398,20 @@ function sentence(r) {
   return parts.join('; ') + '.';
 }
 
-const USAGE = `node tools/battery.js short|long [--part monkey,arena,wander,soak] [--slice <a-b>] [--gate <seconds>] [--json <file>] [--verbose]
+// The gate: null if the battery's CPU time is within seconds, else why not. CPU time, not wall
+// time, so a loaded machine cannot fail it (BUILD.md §10.2).
+function overGate(report, seconds) {
+  return report.cpuMs <= seconds * 1000 ? null : `battery: ${(report.cpuMs / 1000).toFixed(1)} CPU-s is over the gate of ${seconds} CPU-s`;
+}
+
+const USAGE = `node tools/battery.js short|long [--part monkey,arena,wander,soak] [--slice <a-b>] [--gate <CPU-seconds>] [--json <file>] [--verbose]
   short    check-all's battery: the golden monkey's first 2,000 actions, a monkey per department,
            seed 1 of each arena with both policies, a 1,000-turn soak (D6.3)
   long     the milestone's: monkeys at depths 1, 4 and 7, seeds 1-20; every arena x both policies
            x seeds 1-200; wander at depths 1-7, seeds 1-50; 10,000-turn soaks; its time is reported
   --part   only the runs of these kinds
   --slice  only the a-th to the b-th run of the level's list (from 1), to run it in pieces
-  --gate   fail if it takes longer than this many seconds (check-all's short battery: 60)
+  --gate   fail if it takes more than this many CPU-seconds (check-all's short battery: 60)
   --json   write the whole report there
   --verbose  a line for every run (otherwise one for each run with a violation, and progress)
 It prints the report in words and exits 1 on any violation, or past the gate.`;
@@ -412,7 +423,7 @@ function main(argv) {
   const parts = at('--part') ? at('--part').split(',') : null;
   if (parts) for (const p of parts) if (!PARTS.includes(p)) throw new Error(`battery: --part takes ${PARTS.join(', ')}, not ${p}`);
   const gate = at('--gate') !== undefined ? Number(at('--gate')) : null;
-  if (gate !== null && !(gate > 0)) throw new Error('battery: --gate takes a number of seconds');
+  if (gate !== null && !(gate > 0)) throw new Error('battery: --gate takes a number of CPU-seconds');
   const verbose = argv.includes('--verbose');
   let slice = null;
   if (at('--slice') !== undefined) {
@@ -423,16 +434,17 @@ function main(argv) {
   let done = 0, bad = 0;
   const report = run(level, { parts, slice, onRun(res, i, n) {
     done++; bad += res.violations;
-    if (verbose || res.violations) console.error(`${i + 1}/${n} ${res.name}: ${res.steps} steps, ${res.ms.toFixed(0)} ms, ${res.stopped}${res.violations ? `; ${res.violations} violations, the first: ${res.problems[0].text}` : ''}`);
+    if (verbose || res.violations) console.error(`${i + 1}/${n} ${res.name}: ${res.steps} steps, ${res.ms.toFixed(0)} ms, ${res.cpuMs.toFixed(0)} CPU-ms, ${res.stopped}${res.violations ? `; ${res.violations} violations, the first: ${res.problems[0].text}` : ''}`);
     else if (done % 100 === 0) console.error(`${done}/${n} runs, ${bad} violations so far`);
   } });
   if (at('--json')) fs.writeFileSync(at('--json'), JSON.stringify(report, null, 1) + '\n');
   console.log(report.sentence);
-  if (gate !== null && report.ms > gate * 1000) { console.log(`battery: ${(report.ms / 1000).toFixed(1)} s is over the gate of ${gate} s`); return 1; }
+  const over = gate === null ? null : overGate(report, gate);
+  if (over) { console.log(over); return 1; }
   return report.pass ? 0 : 1;
 }
 
-module.exports = { runs, run, arenas, checks, causer, Recap, context, load, sentence, nameOf, GATE_MS, RNG_KEYS, GOLDEN_SEED, PARTS, USAGE };
+module.exports = { runs, run, arenas, checks, causer, Recap, context, load, sentence, nameOf, overGate, GATE_CPU_MS, RNG_KEYS, GOLDEN_SEED, PARTS, USAGE };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (e) { console.error(msg(e)); process.exitCode = 1; }

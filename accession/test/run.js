@@ -4,15 +4,20 @@
 // The test files are test/*.test.js and every *.test.js under test/behaviour/ and
 // test/arena/, at any depth. The filter matches a file's path relative to test/, written
 // with '/', so `node test/run.js behaviour` runs that folder and `node test/run.js m0` the
-// files whose path contains "m0".
+// files whose path contains "m0"; `--file=<path>` runs exactly that file (check-all's pool
+// runs each test file of the reverted copy so, as a job of its own).
 // A file in ALONE is a check-all step of its own (test/m3-battery.test.js is the short sims,
-// BUILD.md §10.2 step 4), run alone so that the time it measures is its own: a run with no
-// filter leaves it out, and a filter that matches it runs it (`node test/run.js m3-battery`).
-// Usage: node test/run.js [filter]
+// BUILD.md §10.2): a run with no filter leaves it out, and a filter that matches it runs it
+// (`node test/run.js m3-battery`).
+// Usage: node test/run.js [filter] [--file=<path>]... [--write-timings]
 // (ACCESSION_TEST_DIR names another folder to run in place of test/; test/m3-infra uses it.)
 // The files are shared out among worker processes, one per CPU up to 4 (ACCESSION_TEST_JOBS
-// sets the number; 1 runs everything in this process). A file always runs whole in one
-// worker, and the output is printed file by file in path order, as a single run prints it.
+// sets the number; 1 runs everything in this process), the longest first, each to the worker
+// with the least work so far, by the CPU time test/timings.json records for each file (a file
+// it does not list yet is reckoned from its size). A file always runs whole in one worker, and
+// the output is printed file by file in path order, as a single run prints it. The last line
+// gives the wall time and the CPU time of every process the run used. `--write-timings`
+// records each file's CPU time in test/timings.json (BUILD.md §10.2; the file is generated).
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
@@ -21,6 +26,8 @@ const root = path.join(__dirname, '..');
 const FOLDERS = ['behaviour', 'arena'];
 // The files a run with no filter leaves out (above).
 const ALONE = ['m3-battery.test.js'];
+// The generated record of how long each file and each check-all job takes (BUILD.md §10.2).
+const TIMINGS = 'timings.json';
 
 // The test files under dir whose relative path contains filter, sorted by that path.
 function files(dir, filter) {
@@ -39,22 +46,54 @@ function files(dir, filter) {
   return out.filter(f => f.includes(filter || '')).sort();
 }
 
-// The files of one worker: the biggest first, each to the worker with the least so far.
-function share(dir, list, n) {
-  const load = new Array(n).fill(0), out = list.map(() => []);
-  const sized = list.map(f => ({ f, size: fs.statSync(path.join(dir, f)).size })).sort((a, b) => b.size - a.size || (a.f < b.f ? -1 : 1));
-  for (const { f, size } of sized) {
+// dir's timings.json: {files: {path: CPU-ms}, jobs: {name: ms}}, or empty sections if there is none.
+function timings(dir) {
+  const f = path.join(dir, TIMINGS);
+  const t = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : {};
+  return { files: t.files || {}, jobs: t.jobs || {} };
+}
+
+// Each file's expected CPU-ms: what timings.json records for it, or, for a file it does not
+// list yet, its size times the median CPU-ms a byte of the files it does list (its size alone
+// when it lists none).
+function estimates(dir, list, t) {
+  const known = (t || timings(dir)).files, size = f => fs.statSync(path.join(dir, f)).size;
+  const rates = list.filter(f => known[f] > 0).map(f => known[f] / size(f)).sort((a, b) => a - b);
+  const rate = rates.length ? rates[rates.length >> 1] : 1;
+  const out = {};
+  for (const f of list) out[f] = known[f] > 0 ? known[f] : Math.max(1, Math.round(size(f) * rate));
+  return out;
+}
+
+// The files of each of n workers: the longest first (ties by path), each to the worker with the
+// least expected work so far (ties to the first such worker).
+function share(dir, list, n, est) {
+  est = est || estimates(dir, list);
+  const load = new Array(n).fill(0), out = load.map(() => []);
+  const sorted = list.slice().sort((a, b) => est[b] - est[a] || (a < b ? -1 : 1));
+  for (const f of sorted) {
     let k = 0;
     for (let i = 1; i < n; i++) if (load[i] < load[k]) k = i;
-    load[k] += size; out[k].push(f);
+    load[k] += est[f]; out[k].push(f);
   }
   return out;
 }
 
-// Runs the given files' tests here. With capture, what each file prints is kept per file.
+// The CPU time so far, in ms, of this process (every thread of it: process.cpuUsage) and of the
+// processes it has started and waited for (a test that runs a tool: on Linux, /proc/self/stat's
+// cutime and cstime, in clock ticks of 10 ms; elsewhere they are not counted).
+const childCpu = () => {
+  try { const s = fs.readFileSync('/proc/self/stat', 'utf8'), f = s.slice(s.lastIndexOf(')') + 2).split(' '); return (Number(f[13]) + Number(f[14])) * 10; }
+  catch (e) { return 0; }
+};
+const ownCpu = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
+const cpuNow = () => ownCpu() + childCpu();
+
+// Runs the given files' tests here. With capture, what each file prints is kept per file. Each
+// file's CPU-ms (loading it and running its tests) is kept in cpu.
 function runFiles(dir, list, capture) {
   const { loadCore } = require('../tools/core-context.js');
-  const tests = [], printed = {};
+  const tests = [], printed = {}, cpu = {};
   const test = (name, fn) => tests.push({ name, fn });
   let current = null;
   if (capture) {
@@ -63,45 +102,69 @@ function runFiles(dir, list, capture) {
     process.stdout.write = chunk => { keep(String(chunk)); return true; };
   }
   for (const f of list) {
-    const before = tests.length;
+    const before = tests.length, c = cpuNow();
     current = f;
     require(path.join(dir, f))({ test, assert, loadCore, root, fs, path });
     for (let i = before; i < tests.length; i++) tests[i].file = f;
+    cpu[f] = cpuNow() - c;
   }
   let failed = 0;
   for (const t of tests) {
     current = t.file;
+    const c = cpuNow();
     try { t.fn(); }
     catch (e) { failed++; console.log(`FAIL ${t.file} :: ${t.name}\n  ${(e && e.message || String(e)).split('\n').join('\n  ')}`); }
+    cpu[t.file] += cpuNow() - c;
   }
-  return { total: tests.length, failed, printed };
+  return { total: tests.length, failed, printed, cpu };
+}
+
+// Writes the files' CPU-ms into dir's timings.json, rounded to 10 ms, keeping the other files'
+// and the jobs' (a run of every file drops the files that are no longer there).
+function writeTimings(dir, cpu, all) {
+  const t = timings(dir), present = new Set(files(dir, ''));
+  const merged = Object.assign({}, t.files);
+  for (const f of Object.keys(cpu)) merged[f] = Math.max(10, Math.round(cpu[f] / 10) * 10);
+  const sorted = o => { const out = {}; for (const k of Object.keys(o).sort()) out[k] = o[k]; return out; };
+  const kept = {};
+  for (const f of Object.keys(merged)) if (!all || present.has(f)) kept[f] = merged[f];
+  const out = { about: 'Generated: the CPU-ms of each Node test file (node test/run.js --write-timings) and the ms of each job of check-all\'s pool (./check-all.sh --timings), measured alone, so that the longest start first (BUILD.md §10.2). Do not edit by hand.', files: sorted(kept), jobs: sorted(t.jobs) };
+  fs.writeFileSync(path.join(dir, TIMINGS), JSON.stringify(out, null, 1) + '\n');
 }
 
 function main() {
   const dir = process.env.ACCESSION_TEST_DIR ? path.resolve(process.env.ACCESSION_TEST_DIR) : __dirname;
   const args = process.argv.slice(2), shard = args.find(a => a.startsWith('--shard=')), filter = args.find(a => !a.startsWith('--')) || '';
-  const list = files(dir, filter).filter(f => filter || !ALONE.includes(f));
+  const named = args.filter(a => a.startsWith('--file=')).map(a => a.slice(7)), record = args.includes('--write-timings');
+  const all = files(dir, '');
+  for (const f of named) if (!all.includes(f)) { console.log(`run.js: there is no test file ${f} in ${dir}`); process.exit(1); }
+  const list = named.length ? named.slice().sort() : files(dir, filter).filter(f => filter || !ALONE.includes(f));
   const t0 = process.hrtime.bigint();
-  const done = (total, failed) => {
+  const done = (total, failed, cpu, workers) => {
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-    console.log(`tests: ${total - failed}/${total} passed in ${ms.toFixed(0)} ms` + (failed ? ` — ${failed} FAILED` : ''));
+    console.log(`tests: ${total - failed}/${total} passed in ${ms.toFixed(0)} ms (${(cpu / 1000).toFixed(1)} CPU-s, ${workers} ${workers === 1 ? 'process' : 'workers'})` + (failed ? ` — ${failed} FAILED` : ''));
     process.exit(failed ? 1 : 0);
   };
-  // A worker: run its share and hand back what each file printed.
+  // A worker: run its share and hand back what each file printed, each file's CPU time and its own.
   if (shard) {
     const mine = JSON.parse(Buffer.from(shard.slice(8), 'base64').toString('utf8'));
     const write = process.stdout.write.bind(process.stdout);
     const r = runFiles(dir, mine, true);
+    r.proc = cpuNow();
     write('@@SHARD ' + JSON.stringify(r) + '\n');
     process.exit(0);
   }
   const want = parseInt(process.env.ACCESSION_TEST_JOBS || '', 10);
   const jobs = Math.max(1, Math.min(list.length, want > 0 ? want : Math.min(4, require('node:os').cpus().length)));
-  if (jobs === 1) { const r = runFiles(dir, list, false); return done(r.total, r.failed); }
+  if (jobs === 1) {
+    const r = runFiles(dir, list, false);
+    if (record && !r.failed) writeTimings(dir, r.cpu, !filter && !named.length);
+    return done(r.total, r.failed, cpuNow(), 1);
+  }
   const { spawn } = require('node:child_process');
   const parts = share(dir, list, jobs).filter(p => p.length);
-  let left = parts.length, total = 0, failed = 0;
-  const printed = {};
+  let left = parts.length, total = 0, failed = 0, cpu = 0;
+  const printed = {}, each = {};
   parts.forEach(part => {
     const arg = '--shard=' + Buffer.from(JSON.stringify(part)).toString('base64');
     const child = spawn(process.execPath, [__filename, arg], { env: process.env });
@@ -115,17 +178,19 @@ function main() {
         console.log(`FAIL a test worker (files ${part.join(', ')}) stopped with code ${code}\n  ${(out + err).split('\n').join('\n  ')}`);
       } else {
         const r = JSON.parse(line.slice(8));
-        total += r.total; failed += r.failed; Object.assign(printed, r.printed);
+        total += r.total; failed += r.failed; cpu += r.proc; Object.assign(printed, r.printed); Object.assign(each, r.cpu);
         if (err) process.stderr.write(err);
       }
       if (--left === 0) {
         for (const f of list) if (printed[f]) process.stdout.write(printed[f]);
-        done(total, failed);
+        if (record && !failed) writeTimings(dir, each, !filter && !named.length);
+        // The workers' own and their children's, and this process's own (its children are the workers).
+        done(total, failed, cpu + ownCpu(), parts.length);
       }
     });
   });
 }
 
 // Exported before main runs, since a test file run by main may require this file.
-module.exports = { files, share, FOLDERS, ALONE };
+module.exports = { files, share, estimates, timings, FOLDERS, ALONE, TIMINGS };
 if (require.main === module) main();

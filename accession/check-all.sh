@@ -1,20 +1,31 @@
 #!/usr/bin/env bash
-# ACCESSION — every lint and test, then both builds and the browser checks (BUILD.md §10.2).
-# Usage: ./check-all.sh                            every step; all must pass
+# ACCESSION — every lint and test, both builds and the browser checks (BUILD.md §10.2).
+# Usage: ./check-all.sh                  every step, all must pass: the full check, which every
+#                                        landing on main passes
+#        ./check-all.sh --fast [--with revert-3d,check-3d,check-keys,check-touch]
+#                                        a builder's check: leaves out the revert test and the three
+#                                        longest browser checks, except those --with names
 #        ./check-all.sh --no-browser --allow-skip    without the browser checks (not for acceptance)
+#        ./check-all.sh --list [--fast …]  the steps and the pool's jobs, without running them
+#        ./check-all.sh --timings          the full check, also recording test/timings.json
+# It runs the lints, then the Node tests (ACCESSION_TEST_JOBS workers, default 4, the longest
+# file first), then the build, then one pool of ACCESSION_CHECK_JOBS slots (default 4;
+# tools/pool.js) holding, longest first, the short sims, every browser check, and the revert
+# test's jobs (the reverted copy made and built, each of its Node test files, its smoke and
+# screen checks). Each step prints its wall and CPU time, and the end a table of them.
 set -u
 cd "$(dirname "$0")"
 # A step that exits 77 could not run (Playwright missing): SKIPPED, which fails the run
 # unless --allow-skip is given. Milestone acceptance never uses --allow-skip.
-pass=(); fail=(); skip=()
-allow_skip=0; for a in "$@"; do [ "$a" = "--allow-skip" ] && allow_skip=1; done
+res="$(mktemp)"; trap 'rm -f "$res"' EXIT; trap 'exit 130' INT TERM
+node tools/pool.js --begin --results "$res" "$@" || exit 2
+# Each step is run and timed by the pool's step timer, which records how it went in $res; if the
+# timer itself stops, the step is recorded as failed.
 run() {
-  local name="$1"; shift; local out code
-  out="$("$@" 2>&1)"; code=$?
-  if [ $code -eq 0 ]; then pass+=("$name"); echo "ok    $name: $(echo "$out" | tail -n 1)"
-  elif [ $code -eq 77 ]; then skip+=("$name"); echo "SKIP  $name: $(echo "$out" | tail -n 1)"
-  else fail+=("$name"); echo "FAIL  $name"; echo "$out" | sed 's/^/      /'; fi
+  local name="$1"; shift
+  node tools/pool.js --step "$name" --results "$res" ${flags[@]+"${flags[@]}"} -- "$@" || echo "step $name fail 0 0" >> "$res"
 }
+flags=("$@"); timings=(); for a in "$@"; do [ "$a" = "--timings" ] && timings=(--write-timings); done
 
 run lint-core      node tools/lint-core.js
 run lint-tools     node tools/lint-core.js tools/arena.js tools/monkey.js tools/replay.js tools/policies/*.js
@@ -23,24 +34,11 @@ run lint-registry  node tools/lint-registry.js
 run art-up-to-date node tools/build-art.js --check
 # BUILD.md §12: every build the log links, dist/builds/<coreHash>.html, is kept.
 run linked-builds  node tools/report.js --check-builds DEVELOPMENT.md
-run tests          node test/run.js
-# The short sims (§10.2 step 4): the short battery (tools/battery.js), alone, held to 60 s.
-run short-sims     node test/run.js m3-battery
+run tests          node test/run.js ${timings[@]+"${timings[@]}"}
 run build          python3 tools/build-single.py
-# The revert test runs while there is a 3D view to remove; after a real revert there is not.
-if [ -f js/view/board3d.js ]; then run revert-3d bash tools/revert-test.sh
-else echo "ok    revert-3d: no 3D view in this tree, nothing to revert"; fi
-# --no-browser does not run the browser checks: each prints SKIPPED, so the run fails
-# unless --allow-skip is also given (BUILD.md §10.2).
-no_browser=0; for a in "$@"; do [ "$a" = "--no-browser" ] && no_browser=1; done
-for s in tools/browser/check-*.mjs; do
-  [ -f "$s" ] || continue
-  if [ $no_browser -eq 1 ]; then skip+=("$(basename "$s" .mjs)"); echo "SKIP  $(basename "$s" .mjs): --no-browser"
-  else run "$(basename "$s" .mjs)" node "$s"; fi
-done
-
-echo
-failed_names=""; [ ${#fail[@]} -gt 0 ] && failed_names=" (${fail[*]})"
-skipped_names=""; [ ${#skip[@]} -gt 0 ] && skipped_names=" (${skip[*]})"
-echo "check-all: ${#pass[@]} passed, ${#skip[@]} skipped${skipped_names}, ${#fail[@]} failed${failed_names}"
-[ ${#fail[@]} -eq 0 ] && { [ ${#skip[@]} -eq 0 ] || [ $allow_skip -eq 1 ]; }
+# The pool: the short sims (§10.2: tools/battery.js, held to 60 CPU-s), every
+# tools/browser/check-*.mjs, and the revert test (§6.3) while there is a 3D view to remove.
+# --no-browser does not run the browser checks: each prints SKIPPED, so the run fails unless
+# --allow-skip is also given.
+node tools/pool.js --check-all --results "$res" "$@" || echo "group pool fail 0 0" >> "$res"
+node tools/pool.js --summary --results "$res" "$@"

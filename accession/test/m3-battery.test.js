@@ -1,13 +1,13 @@
 // The M3 sim battery (BUILD.md §10.3, §11's M3 row: criteria 3, 5 and 6; tools/battery.js),
-// check-all's short sims (§10.2 step 4). test/run.js runs this file alone, as that step of its
-// own, so the time it measures is the battery's: a run of the whole suite with no filter leaves
-// it out, and `node test/run.js m3-battery` runs it.
+// check-all's short sims (§10.2). It is a step of its own, a job of check-all's pool: a run of
+// the whole suite with no filter leaves it out, and `node test/run.js m3-battery` runs it. Its
+// gate is in CPU time (this process's), so the other jobs running beside it do not move it.
 //   - The short battery passes: every step of every run plain data, every event's cause
 //     schema and sentence, every invariant, every special's damage to you equal to its mark in
 //     the view model before the step, completeness, at most 150 rng streams and 64 cause
 //     records, and at every death the recap equal to the one rebuilt from the log; it runs the
 //     arenas it finds (a stamp and its policy file with naive and counter), prints them and the
-//     ms a step, and takes at most 60 s.
+//     CPU-ms a step, and takes at most 60 CPU-seconds.
 //   - Its definitions are D6.3's, and an arena with no policy file, or one without both
 //     policies, is skipped and named.
 //   - Planted faults are caught: a plodder that steps twice, a darter that never steps back,
@@ -27,14 +27,14 @@ module.exports = ({ test, assert, root, fs, path }) => {
   const named = d => Object.assign({ name: Battery.nameOf(d) }, d);
   const arena = (id, policy, seed) => named({ kind: 'arena', arena: id, policy, seed: seed || 1 });
 
-  test('the short battery passes every check after every step, finds and prints the arenas it ran, and takes at most 60 s', () => {
+  test('the short battery passes every check after every step, finds and prints the arenas it ran, and takes at most 60 CPU-seconds', () => {
     const r = Battery.run('short');
     console.log(r.sentence);
     const kinds = Object.keys(r.kinds).sort();
     console.log(`  the monkeys drew ${kinds.map(k => `${k} ${r.kinds[k]}`).join(', ')}; your killers were awake by ${Object.keys(r.killers).map(k => `${k} ${r.killers[k]}`).join(', ')}`);
     assert.ok(r.pass, `${r.violations} violations:\n${r.problems.slice(0, 8).map(p => `${p.run}: ${p.id}: ${p.text}`).join('\n')}`);
     assert.match(r.sentence, /; an empty completeness tally; 0 violations\.$/);
-    assert.ok(r.ms <= Battery.GATE_MS, `the short battery took ${(r.ms / 1000).toFixed(1)} s, over the ${Battery.GATE_MS / 1000} s of check-all's gate (D6.3)`);
+    assert.equal(Battery.overGate(r, Battery.GATE_CPU_MS / 1000), null, `the short battery is over check-all's gate (D6.3, BUILD.md §10.2): ${(r.cpuMs / 1000).toFixed(1)} CPU-s`);
     // It ran each arena found, with both policies, on seed 1: here, a stamp in test/arena/ and
     // a policy file in tools/policies/ for each, which these lists find independently.
     const stamps = fs.readdirSync(path.join(root, 'test/arena')).filter(f => f.endsWith('.txt')).map(f => f.slice(0, -4)).sort();
@@ -55,7 +55,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
     const often = Object.keys(r.legal).filter(k => r.legal[k] >= 1000);
     assert.ok(often.length >= 5, json(r.legal));
     for (const k of often) assert.ok(r.kinds[k] > 0, `the monkeys never drew ${k}, legal at ${r.legal[k]} steps`);
-    console.log(`  ${r.steps} steps in ${(r.ms / 1000).toFixed(1)} s: ${r.msPerStep.toFixed(2)} ms a step`);
+    console.log(`  ${r.steps} steps in ${(r.ms / 1000).toFixed(1)} s, ${(r.cpuMs / 1000).toFixed(1)} CPU-s: ${r.cpuMsPerStep.toFixed(2)} CPU-ms a step`);
   });
 
   test('the battery\'s runs are D6.3\'s, and only the arenas with a policy file registering naive and counter are run; the others are named', () => {

@@ -14,7 +14,12 @@
 //   On top: every actor and mark shows at least 90% of its own pixels over the scene.
 //   Consistency: every actor and mark in the view model is in inspect(), on the board.
 //   Context loss: WEBGL_lose_context loses and restores the context; the board keeps
-//     drawing (the flat board stands in) and the 3D board returns.
+//     drawing (the flat board stands in) and the 3D board returns. Each is checked once the
+//     page has heard of it (the webglcontextlost and webglcontextrestored events, waited for
+//     up to 10 s), never after a fixed wait, so a loaded machine cannot fail it. Once, a
+//     planted slow restore: the restore event reaches the page 2 s late, as on a loaded
+//     machine; a fixed wait of 120 ms would have found the stand-in still up, and the check
+//     must pass all the same (BUILD.md §10.2).
 //   Cost: frame and load times are recorded, not gated (no GPU here).
 // The tap-tolerance and screen checks for both views are in check-screens.mjs.
 import { open } from './lib.mjs';
@@ -208,6 +213,58 @@ const stageCrowd = page => page.evaluate(() => {
   return { error: 'no two free tiles in a column beside you' };
 });
 
+// Context loss and restore, each checked once its event has reached the board's listeners (ours
+// is added after them, so it hears it last), up to 10 s. With slowMs, the planted slow restore:
+// a listener on the window, which hears the event first, holds it back and sends it on slowMs
+// later; meanwhile the 120 ms a fixed wait would have given passes, and what it would have seen
+// is noted.
+const contextLoss = (page, slowMs) => page.evaluate(async slowMs => {
+  const A = window.ACCESSION, c = document.querySelector('#board canvas'), gl = c.getContext('webgl2');
+  const ext = gl && gl.getExtension('WEBGL_lose_context');
+  if (!ext) return { error: 'WEBGL_lose_context is unavailable' };
+  // Resolves once the event has reached our listener and its dispatch has ended (a task later:
+  // the browser allows a restore only once the lost event's dispatch is over).
+  const heard = name => new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error(`no ${name} event reached the board within 10 s`)), 10000);
+    c.addEventListener(name, () => { clearTimeout(t); setTimeout(res, 0); }, { once: true });
+  });
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  let held = null, plant = null;
+  if (slowMs) {
+    plant = e => {
+      if (e.target !== c || e.type !== 'webglcontextrestored' || e.sentOn) return;
+      e.stopImmediatePropagation();
+      held = { contextBack: !gl.isContextLost(), standIn: A.renderer.standIn() };
+      setTimeout(() => { const again = new Event('webglcontextrestored'); again.sentOn = true; c.dispatchEvent(again); }, slowMs);
+    };
+    window.addEventListener('webglcontextrestored', plant, true);
+  }
+  try {
+    const lost = heard('webglcontextlost');
+    ext.loseContext(); await lost;
+    const during = { standIn: A.renderer.standIn(), tiles: A.renderer.inspect().filter(d => d.kind === 'tile').length };
+    A.act({ a: 'wait' });
+    during.tilesAfterAct = A.renderer.inspect().filter(d => d.kind === 'tile').length;
+    const restored = heard('webglcontextrestored');
+    ext.restoreContext();
+    let fixed = null;
+    if (slowMs) { await wait(120); fixed = { standIn: A.renderer.standIn() }; }
+    await restored;
+    A.act({ a: 'wait' });
+    const after = { standIn: A.renderer.standIn(), tiles: A.renderer.inspect().filter(d => d.kind === 'tile').length, ids: !!A.renderer.idBuffer() };
+    return { during, after, active: A.views.active().id, held, fixed };
+  } catch (e) { return { error: e.message }; }
+  finally { if (plant) window.removeEventListener('webglcontextrestored', plant, true); }
+}, slowMs || 0);
+
+// Fails the frame unless the board stood in while the context was lost and came back after.
+function judge(tag, loss) {
+  if (loss.error) return bad(`${tag}: ${loss.error}`);
+  lines.push(`${tag}: flat stand-in ${loss.during.standIn}, ${loss.during.tilesAfterAct} tiles drawn while lost; restored: stand-in ${loss.after.standIn}, ${loss.after.tiles} tiles, id buffer ${loss.after.ids}`);
+  if (!loss.during.standIn || !loss.during.tiles || !loss.during.tilesAfterAct) bad(`${tag}: while the context was lost the board stopped drawing`);
+  if (loss.after.standIn || !loss.after.tiles || !loss.after.ids || loss.active !== 'board3d') bad(`${tag}: after restore the 3D board did not come back`);
+}
+
 for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   const t0 = Date.now();
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: sc.dpr, query: `?orient=0&dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
@@ -283,25 +340,16 @@ for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
     for (const id of ['encased:' + crowd.far, 'telegraphing:' + crowd.nearer, 'state:' + crowd.far, 'state:' + crowd.nearer]) if (!m.ids.includes(id)) bad(`${tag} crowd zoom ${z}: ${id} is not drawn`);
   }
   await page.evaluate(() => window.ACCESSION.setZoom(0));
-  // Context loss and restore.
-  const loss = await page.evaluate(async () => {
-    const A = window.ACCESSION, c = document.querySelector('#board canvas'), gl = c.getContext('webgl2'), ext = gl && gl.getExtension('WEBGL_lose_context');
-    if (!ext) return { error: 'WEBGL_lose_context is unavailable' };
-    const tick = () => new Promise(r => setTimeout(r, 120));
-    ext.loseContext(); await tick();
-    const during = { standIn: A.renderer.standIn(), tiles: A.renderer.inspect().filter(d => d.kind === 'tile').length };
-    A.act({ a: 'wait' });
-    during.tilesAfterAct = A.renderer.inspect().filter(d => d.kind === 'tile').length;
-    ext.restoreContext(); await tick();
-    A.act({ a: 'wait' });
-    const after = { standIn: A.renderer.standIn(), tiles: A.renderer.inspect().filter(d => d.kind === 'tile').length, ids: !!A.renderer.idBuffer() };
-    return { during, after, active: A.views.active().id };
-  });
-  if (loss.error) bad(`${tag}: ${loss.error}`);
-  else {
-    lines.push(`${tag} context loss: flat stand-in ${loss.during.standIn}, ${loss.during.tilesAfterAct} tiles drawn while lost; restored: stand-in ${loss.after.standIn}, ${loss.after.tiles} tiles, id buffer ${loss.after.ids}`);
-    if (!loss.during.standIn || !loss.during.tiles || !loss.during.tilesAfterAct) bad(`${tag}: while the context was lost the board stopped drawing`);
-    if (loss.after.standIn || !loss.after.tiles || !loss.after.ids || loss.active !== 'board3d') bad(`${tag}: after restore the 3D board did not come back`);
+  // Context loss and restore; on the first frame also with the planted slow restore, which must
+  // pass too, and which must have been slow enough that a fixed 120 ms wait would have failed.
+  judge(`${tag} context loss`, await contextLoss(page));
+  if (W === 390 && sc === SCENES[0]) {
+    const slow = await contextLoss(page, 2000);
+    judge(`${tag} context loss, the restore planted 2 s late`, slow);
+    if (!slow.error) {
+      lines.push(`${tag} the planted slow restore: when it was held back the context was back (${slow.held && slow.held.contextBack}) and the board still stood in (${slow.held && slow.held.standIn}); after a fixed 120 ms it still stood in (${slow.fixed.standIn})`);
+      if (!slow.held || !slow.held.contextBack || !slow.held.standIn || !slow.fixed.standIn) bad(`${tag}: the planted slow restore was not slow (a fixed wait would have passed), so it shows nothing`);
+    }
   }
   lines.push(`${tag}: three.js ready in ${load.toFixed(0)} ms, page ${Date.now() - t0} ms in all`);
   if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
