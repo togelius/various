@@ -38,7 +38,7 @@ module.exports = ({ test, assert, root, path }) => {
   test('criterion 6: at every death in the arenas\' naive runs and in wander\'s department runs, Text.recap equals Recap.fromLog: killers set out awake, Night Watchmen, split halves and department wakings', () => {
     const runs = [];
     for (const id of Battery.arenas(C).ran) for (const seed of [1, 2, 3, 4]) runs.push(named({ kind: 'arena', arena: id, policy: 'naive', seed }));
-    for (const p of C.Packs.list()) for (const depth of [2, 6]) for (const seed of [1, 2]) runs.push(named({ kind: 'wander', dept: p.acc, depth, seed }));
+    for (const p of C.Packs.list()) for (const depth of [2, 6]) for (const seed of [2, 3]) runs.push(named({ kind: 'wander', dept: p.acc, depth, seed }));
     const r = Battery.run(runs);
     assert.ok(r.pass, `${r.violations} violations: ${r.problems.slice(0, 5).map(p => p.text).join('\n')}`);
     assert.equal(r.recaps, r.deaths);

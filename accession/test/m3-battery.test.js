@@ -271,7 +271,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
 
   test('the battery\'s monkey plays as Monkey.run does: the same actions, visits and final state', () => {
     const C = Battery.context();
-    for (const d of [named({ kind: 'monkey', room: 'T0', seed: 20261023, actions: 400 }), named({ kind: 'monkey', dept: 'A4', depth: 3, seed: 2, actions: 300 })]) {
+    for (const d of [named({ kind: 'monkey', room: 'T0', seed: 20261023, actions: 400 }), named({ kind: 'monkey', dept: 'A4', depth: 3, seed: 3, actions: 300 })]) {
       const r = Battery.run([d]).results[0];
       let last = null, ends = 0;
       C.Monkey.run(d.seed, d.actions, { make: d.room === 'T0' ? undefined : s => C.Dept.create(s, d.dept, d.depth),

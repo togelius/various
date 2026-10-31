@@ -9,8 +9,8 @@ module.exports = ({ test, assert, root, path, fs }) => {
   const plainVm = vm => J(Object.assign({}, vm, { vis: Array.from(vm.vis), ring: Array.from(vm.ring) }));
   const stamp = (head, map) => C.Arena.parse(head.join('\n') + '\n\n' + map.join('\n') + '\n');
   // You at (2,2); a sleeping fodder beside you; another 3 tiles off; a third behind a wall.
-  const ROOM = stamp(['arena: look', 'goal: kill', 'species: plodder', 'depths: 2', 'legend: N exhibit sp; F exhibit sp; Z exhibit role=fodder'],
-    ['##########', '#........#', '#.@N..F.##', '#.......#Z', '##########']);
+  const ROOM = stamp(['arena: look', 'goal: kill', 'species: plodder', 'depths: 2', 'legend: N exhibit sp; F exhibit sp; G exhibit role=fodder'],
+    ['##########', '#........#', '#.@N..F.##', '#.......#G', '##########']);
   const os = require('node:os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-policies-'));
   const planted = (name, src) => { const f = path.join(tmp, name); fs.writeFileSync(f, "'use strict';\n" + src + '\n'); return f; };
 

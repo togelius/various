@@ -126,7 +126,8 @@ module.exports = ({ test, assert, root, fs, path }) => {
       return { steps, groups, cmds };
     };
     const full = parse(list()), fast = parse(list('--fast')), some = parse(list('--fast', '--with', 'check-keys,check-touch'));
-    assert.equal(json(full.steps), json(['lint-core', 'lint-tools', 'lint-numbers', 'lint-registry', 'art-up-to-date', 'linked-builds', 'tests', 'build']));
+    assert.equal(json(full.steps), json(['lint-core', 'lint-tools', 'lint-numbers', 'lint-registry', 'art-up-to-date', 'linked-builds', 'dept-p95', 'tests', 'build']));
+    assert.equal(full.cmds['dept-p95'], 'node tools/dept-p95.js');
     assert.equal(json(fast.steps), json(full.steps));
     assert.equal(json(some.steps), json(full.steps));
     // The Node tests step runs every test file a plain run runs, the build step the build, in

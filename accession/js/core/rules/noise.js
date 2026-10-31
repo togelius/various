@@ -5,9 +5,10 @@ const Noise = (() => {
   const RANGE = { soft: 'NOISE_SOFT', loud: 'NOISE_LOUD', crash: 'NOISE_CRASH' };
 
   // The walking distance a noise from (x, y) covers within `range` (§8.2): the step rule,
-  // staff doors included, with NOISE_DOOR extra for entering a closed door. An Int32Array,
-  // -1 beyond its reach. The view model's noise rings read it too.
-  const reach = (m, x, y, range) => Grid.distances(m, [[x, y]], range, (nx, ny) => Grid.closedDoor(m, nx, ny) ? N.NOISE_DOOR : 0);
+  // staff doors and a hall's shutters included (Grid.walkable's 'noise'), with NOISE_DOOR
+  // extra for entering a closed door or a shutter. An Int32Array, -1 beyond its reach. The
+  // view model's noise rings read it too.
+  const reach = (m, x, y, range) => Grid.distances(m, [[x, y]], range, (nx, ny) => Grid.closedDoor(m, nx, ny) ? N.NOISE_DOOR : 0, 'noise');
 
   // Noises held back (Noise.hold): a stack of lists, one per hold still open. It lives only
   // while a hold's function runs, inside one call, so it is never part of the state.

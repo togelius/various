@@ -75,13 +75,14 @@ const Labels = (() => {
   const offer = (state, id, text, act) => allowed(state, act) ? [{ id, text, act }] : [];
 
   // The pictograms of the statuses on an actor, each keyed by its registry icon (§8.8), with
-  // the turns it still covers (Status.left).
+  // the turns it still covers (Status.left), or "until you leave" for one that lasts the
+  // visit (Status.perm).
   function statusPictos(state, a) {
     const out = [];
     for (const s of a.statuses || []) {
       const S = own(Registry.STATUSES, s.id) ? Registry.STATUSES[s.id] : null;
       if (!S) continue;
-      out.push({ icon: S.icon, text: `${S.words}, ${turns(Status.left(state, a, s.id))}` });
+      out.push({ icon: S.icon, text: `${S.words}, ${Status.perm(a, s.id) ? 'until you leave' : turns(Status.left(state, a, s.id))}` });
     }
     return out;
   }
@@ -477,7 +478,7 @@ const Labels = (() => {
       `Your blows deal ${you.dmin}–${you.dmax} damage with Acc ${num(you.acc)}, ${Actors.attackCost(state, you)} ticks each` + (you.reach ? `, and reach ${N.REACH_RANGE} tiles away in a straight line.` : '.'),
       `You have Padding ${num(you.pad)} and Eva ${num(you.eva)}.`,
       `Your ring reaches ${count(r, 'tile', 'tiles')} now.`];
-    for (const s of you.statuses || []) if (own(Registry.STATUSES, s.id)) lines.push(`You are ${Registry.STATUSES[s.id].words}: ${turns(Status.left(state, you, s.id))} left.`);
+    for (const s of you.statuses || []) if (own(Registry.STATUSES, s.id)) lines.push(`You are ${Registry.STATUSES[s.id].words}` + (Status.perm(you, s.id) ? ' until you leave.' : `: ${turns(Status.left(state, you, s.id))} left.`));
     const actions = offer(state, 'wait', 'Wait', { a: 'wait' }).concat(offer(state, 'rest', 'Rest', { a: 'rest' }), offer(state, 'sit', 'Sit on the bench', { a: 'sit' }));
     const exits = (state.dept && state.dept.exits) || [];
     for (let i = 0; i < exits.length; i++) actions.push(...offer(state, 'leave', 'Leave by this door', { a: 'leave', i }));

@@ -34,6 +34,8 @@ run lint-registry  node tools/lint-registry.js
 run art-up-to-date node tools/build-art.js --check
 # BUILD.md §12: every build the log links, dist/builds/<coreHash>.html, is kept.
 run linked-builds  node tools/report.js --check-builds DEVELOPMENT.md
+# M4 plan A17: Dept.create's p95 in CPU-ms over 420 departments, OVER past its budget (40).
+run dept-p95       node tools/dept-p95.js
 run tests          node test/run.js ${timings[@]+"${timings[@]}"}
 run build          python3 tools/build-single.py
 # The pool: the short sims (§10.2: tools/battery.js, held to 60 CPU-s), every

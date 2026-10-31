@@ -368,7 +368,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   test('an item\'s label: a consumable\'s local name, seal and line, before and after it is identified; a weapon\'s numbers at your grade; what you can do with it', () => {
-    const s = Dept.create(2, 'A4', 3), you = s.actors[0];
+    const s = Dept.create(2, 'A4', 3, { carry: 'start' }), you = s.actors[0];
     const c = s.items.find(i => i.kind === 'consumable' && i.where.at === 'floor');
     [you.x, you.y] = [c.where.x, c.where.y];
     let l = Labels.ofItem(s, c.uid);

@@ -115,7 +115,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // a comment naming the package that fills it.
   function check(X, read) {
     const out = [];
-    let held = 0, stubs = 0;
+    let held = 0, stubs = 0, filled = 0;
     for (const [name, n, file, stub, call, want] of ROWS) {
       const [ns, fn] = name.split('.');
       if (!X[ns] || typeof X[ns][fn] !== 'function') { out.push(`${name} is missing`); continue; }
@@ -124,7 +124,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (!call) continue;
       if (stub) {
         const lines = read(file).split('\n'), i = lines.findIndex(l => l.trim() === stub[1]);
-        if (i < 0) continue;
+        if (i < 0) { filled++; continue; }
         const above = lines[i - 1].trim();
         if (!above.startsWith('//') || !above.includes(stub[0])) out.push(`${name}: the stub "${stub[1]}" has no comment naming ${stub[0]} above it`);
         stubs++;
@@ -137,13 +137,14 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (ev.length) out.push(`${name} emitted ${json(ev)}`);
       held++;
     }
-    return { out, held, stubs };
+    return { out, held, stubs, filled };
   }
 
   test('every export of the skeleton has its arity, and its neutral result on a fresh test room', () => {
     const r = check(C, src);
     assert.equal(r.out.join('\n'), '');
-    assert.ok(r.held >= 60 && r.stubs >= 20, `${r.held} neutral results held, ${r.stubs} of them stubs`);
+    // A stub its package has filled keeps only its arity here, so the floors count it too.
+    assert.ok(r.held + r.filled >= 60 && r.stubs + r.filled >= 20, `${r.held} neutral results held, ${r.stubs} of them stubs; ${r.filled} stubs filled`);
   });
 
   test('a planted change to an export\'s neutral result, its arity, its purity or its stub\'s comment is caught', () => {
