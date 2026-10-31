@@ -2,8 +2,8 @@
 // kiter looks like a kiter in any department. A sprite's outline is its alpha mask, every
 // cell that is not '.'; every species and Centrepiece of one archetype, across all packs,
 // uses a sprite with the same mask, and two archetypes never share one. Every species (the
-// shared ones, such as the Night Watchman, included) names a sprite that exists, 16×16 for
-// each tile of its footprint.
+// shared ones, such as the Night Watchman, included), Centrepiece, and Centrepiece piece or
+// attachment names a sprite that exists, 16×16 for each tile of its footprint.
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const { Packs } = loadCore();
   const dir = path.join(root, 'art/sprites');
@@ -26,11 +26,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     if (c === 'g' || deptKeys.has(c)) return '#';
     throw new Error(`${name}: '${c}' at ${x},${y} is not in every department palette`);
   }).join('')).join('\n');
-  const uses = [];
-  for (const sp of [...Packs.list().flatMap(p => [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])]), ...Packs.sharedList()])
-    uses.push({ id: sp.id, sprite: sp.sprite, archetype: sp.archetype, size: sp.size || 1 });
+  // Every record drawn with a sprite (Packs.sprites, M4 plan A9): each pack's species, its
+  // Centrepiece with its pieces and attachments, and the shared species.
+  const uses = Packs.sprites();
 
-  test('every species and Centrepiece has its sprite, 16×16 a tile', () => {
+  test('every species, Centrepiece and Centrepiece piece or attachment has its sprite, 16×16 a tile', () => {
     assert.ok(uses.length > 0, 'no packs loaded');
     for (const u of uses) {
       const s = read(u.sprite);

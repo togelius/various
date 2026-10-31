@@ -14,6 +14,16 @@
 // after the wake checks of step 4 (Status.effects), so that a cough's noise comes after your
 // ring, as an action's noise comes after its other wake effects (§8.2).
 //
+// A status lasting for the rest of the visit (M4 plan A3, D1.4) is applied with turns 'perm':
+// its record carries perm: true and never an until, so no boundary ends it, and it ends only
+// when the visit does, on leaving. Its event says turns null. A record carries perm only then.
+//
+// Each status's rule is given once with Status.define(id, {effect, blocks, skipsAction}) by
+// the file that owns it (M4 plan A16.3), M3's below: effect(state, a, status, ev), its
+// per-turn effect (Status.EFFECTS); blocks(state, a, action) → a refusal code or null, what it
+// forbids you (Status.blocks); skipsAction, true when its bearer only waits (Status.skips).
+// A status Archetypes.immune says an actor is immune to is not put on it (Status.apply).
+//
 // What each status does (Registry.STATUSES gives its clause):
 //   fixed      cannot move or act: you may only wait or rest (Status.blocks); an exhibit only
 //              waits (AI.act); blows against it have +HIT_FIXED_TARGET (Combat.hitChance);
@@ -41,45 +51,64 @@ const Status = (() => {
     return Int.idiv(total * (i + 1), T) - Int.idiv(total * i, T);
   }
 
-  // Per-turn effects by status id, run at boundary step 4 after the wake checks, for every
-  // status held whose first turn has come: EFFECTS[id](state, a, status, ev).
-  const EFFECTS = {
-    // A soft noise at the bearer's tile, made by the bearer (so a cough of yours is your noise).
-    coughing(state, a, s, ev) {
-      Noise.emit(state, a.x, a.y, 'soft', { k: 'cough', by: a.uid }, ev);
-    },
-    // This turn's share of healing, never past the bearer's maximum health; nothing to heal,
-    // nothing happens.
-    restoring(state, a, s, ev) {
-      const k = s.from === null || s.from === undefined ? 0 : state.turn - s.from;
-      const n = Math.min(restoreShare(a.maxHp, k), a.maxHp - a.hp);
-      if (n > 0) Health.heal(state, a, n, { k: 'status', id: 'restoring' }, ev);
-    },
-  };
+  // The rules Status.define gives, by status id, in the order defined: per-turn effects,
+  // run at boundary step 4 after the wake checks for every status held whose first turn has
+  // come (EFFECTS[id](state, a, status, ev)); what a status forbids you (BLOCKS[id](state, a,
+  // action) → code | null), asked in the order defined; and the statuses whose bearer only
+  // waits (SKIPS).
+  const EFFECTS = {}, BLOCKS = {}, SKIPS = [], DEFINED = [];
+  const RULE = ['effect', 'blocks', 'skipsAction'];
 
-  // Put status id on a for `turns` turns (a whole number, at least 1), with its cause; emits
-  // status {who, id, on: true, turns}. A pending special of an exhibit made fixed is called
-  // off at once (§8.1), inside the action that fixed it, so the mark is neither shown nor
-  // held against other marks once it cannot resolve.
+  // Status.define(id, {effect, blocks, skipsAction}): status id's rule, given once, by the file
+  // that owns it, after its registry entry. Each part may be left out.
+  function define(id, rule) {
+    if (!own(Registry.STATUSES, id)) throw new Error(`Status.define: ${id} is not in Registry.STATUSES`);
+    if (DEFINED.includes(id)) throw new Error(`Status.define: ${id} is defined twice`);
+    if (rule === null || typeof rule !== 'object') throw new Error(`Status.define: ${id}'s rule is not a record`);
+    for (const k of Object.keys(rule)) if (!RULE.includes(k)) throw new Error(`Status.define: ${id}'s rule has the unknown part ${k} (${RULE.join(', ')})`);
+    for (const k of ['effect', 'blocks']) if (rule[k] !== undefined && typeof rule[k] !== 'function') throw new Error(`Status.define: ${id}'s ${k} is not a function`);
+    if (rule.skipsAction !== undefined && typeof rule.skipsAction !== 'boolean') throw new Error(`Status.define: ${id}'s skipsAction is not true or false`);
+    DEFINED.push(id);
+    if (rule.effect) EFFECTS[id] = rule.effect;
+    if (rule.blocks) BLOCKS[id] = rule.blocks;
+    if (rule.skipsAction) SKIPS.push(id);
+  }
+  const defined = () => DEFINED.slice();
+
+  // Put status id on a for `turns` turns (a whole number, at least 1), or for the rest of the
+  // visit ('perm'), with its cause; emits status {who, id, on: true, turns} (turns null for
+  // 'perm'). An actor its archetype or a modifier makes immune to it (Archetypes.immune) is
+  // left as it is, with no event, and false is returned; otherwise true. A status already
+  // held lasts to the later end, and for good once either is 'perm'. A pending special of an
+  // exhibit made fixed is called off at once (§8.1), inside the action that fixed it, so the
+  // mark is neither shown nor held against other marks once it cannot resolve.
   function apply(state, a, id, turns, cause, ev) {
     if (!own(Registry.STATUSES, id)) throw new Error(`Status.apply: there is no status ${id}`);
-    if (!Number.isInteger(turns) || turns < 1) throw new Error(`Status.apply: ${id} for ${turns} turns`);
+    const forGood = turns === 'perm';
+    if (!forGood && (!Number.isInteger(turns) || turns < 1)) throw new Error(`Status.apply: ${id} for ${turns} turns`);
+    if (Archetypes.immune(state, a, id)) return false;
     if (!a.statuses) a.statuses = [];
     const s = find(a, id);
-    if (s) s.turns = s.turns === null || s.turns === undefined ? turns : Math.max(s.turns, turns);
+    if (forGood) {
+      if (s) { s.perm = true; s.until = null; s.turns = null; } else a.statuses.push({ id, until: null, turns: null, from: null, perm: true });
+    } else if (s) { if (!s.perm) s.turns = s.turns === null || s.turns === undefined ? turns : Math.max(s.turns, turns); }
     else a.statuses.push({ id, until: null, turns, from: null });
-    Causes.emit(state, ev, 'status', { who: a.uid, id, on: true, turns }, cause);
+    Causes.emit(state, ev, 'status', { who: a.uid, id, on: true, turns: forGood ? null : turns }, cause);
     if (id === 'fixed' && a.telegraph) Specials.cancel(state, a, 'fixed', ev);
+    return true;
   }
 
-  // Give every newly applied status its end turn (see the timing rule above). step() calls
-  // it after each of your actions, and after each exhibit's.
+  // Give every newly applied status its end turn (see the timing rule above), and a status
+  // for the rest of the visit its first turn only. step() calls it after each of your
+  // actions, and after each exhibit's.
   function settle(state) {
     for (const a of state.actors) {
       if (!a.statuses || !a.statuses.length) continue;
       for (const s of a.statuses) {
-        if (s.turns === null || s.turns === undefined) continue;
+        const fresh = s.perm ? s.from === null || s.from === undefined : s.turns !== null && s.turns !== undefined;
+        if (!fresh) continue;
         const start = Actors.scheduled(a) ? Int.idiv(a.next, N.TICKS_PER_TURN) : state.turn + 1;
+        if (s.perm) { s.from = start; continue; }
         const until = start + s.turns;
         if (s.until === null) { s.until = until; s.from = start; } else s.until = Math.max(s.until, until);
         s.turns = null;
@@ -115,38 +144,71 @@ const Status = (() => {
 
   // How many turns a status still covers, this one included: until − the current turn once it
   // has begun, its whole length before (a sleeping exhibit's starts at the next turn), its N
-  // while it is still being applied; 0 if a does not hold it. For labels and the view model.
+  // while it is still being applied; 0 if a does not hold it; null for one that lasts for the
+  // rest of the visit (Status.perm), which a label shows as "until you leave". For labels
+  // and the view model.
   function left(state, a, id) {
     const s = find(a, id);
     if (!s) return 0;
+    if (s.perm) return null;
     if (s.until === null || s.until === undefined) return s.turns || 0;
     const from = s.from === null || s.from === undefined ? state.turn : Math.max(s.from, state.turn);
     return Math.max(0, s.until - from);
   }
 
-  // What a status forbids you to do (§4.2), as a refusal code, before anything is spent:
-  // fixed allows only wait and rest (and the answer to a choice already waiting, which is
-  // part of the action that asked it); rooted refuses a move that would change your tile,
-  // and allows a bump into a door, an actor or an intact case, which leaves you where you
-  // are. So a bump into a case is refused as glass whether you are rooted or not, exactly
-  // as a bump into a mimic in its disguise is (§8.3).
-  const WHILE_FIXED = ['wait', 'rest', 'choose'];
+  // Does a status last for the rest of the visit?
+  const perm = (a, id) => { const s = find(a, id); return !!(s && s.perm); };
+
+  // What a status forbids you to do (§4.2), as a refusal code, before anything is spent: each
+  // status you hold that has a blocks rule is asked, in the order the rules were defined (so
+  // fixed before rooted), and the first code is the answer.
   function blocks(state, a, action) {
-    if (!action || typeof action.a !== 'string') return null;
-    if (has(a, 'fixed') && !WHILE_FIXED.includes(action.a)) return 'fixed';
-    if (has(a, 'rooted') && action.a === 'move' && Number.isInteger(action.dir) && action.dir >= 0 && action.dir < 8) {
+    if (!action || typeof action.a !== 'string' || !a.statuses || !a.statuses.length) return null;
+    for (const id of DEFINED) {
+      if (!own(BLOCKS, id) || !has(a, id)) continue;
+      const code = BLOCKS[id](state, a, action);
+      if (code) return code;
+    }
+    return null;
+  }
+
+  // Does a hold a status whose bearer only waits (skipsAction: fixed)?
+  const skips = (state, a) => !!(a.statuses && a.statuses.length && SKIPS.some(id => has(a, id)));
+
+  // M3's statuses (BUILD.md §8.1, §8.6), defined here, where their rules have always lived.
+  // fixed allows you only wait and rest (and the answer to a choice already waiting, which is
+  // part of the action that asked it), and an exhibit only waits (AI.act).
+  const WHILE_FIXED = ['wait', 'rest', 'choose'];
+  define('fixed', { blocks: (state, a, action) => WHILE_FIXED.includes(action.a) ? null : 'fixed', skipsAction: true });
+  // rooted refuses a move that would change your tile, and allows a bump into a door, an
+  // actor or an intact case, which leaves you where you are. So a bump into a case is refused
+  // as glass whether you are rooted or not, exactly as a bump into a mimic in its disguise is
+  // (§8.3).
+  define('rooted', {
+    blocks(state, a, action) {
+      if (action.a !== 'move' || !Number.isInteger(action.dir) || action.dir < 0 || action.dir >= 8) return null;
       const m = state.dept, size = a.size || 1, nx = a.x + Grid.DX[action.dir], ny = a.y + Grid.DY[action.dir];
       for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) {
         const x = nx + dx, y = ny + dy;
         if (Actors.at(state, x, y, a) || Grid.closedDoor(m, x, y) || Grid.ch(m, x, y) === 'v') return null;
       }
       return 'rooted';
-    }
-    return null;
-  }
+    },
+  });
+  // A soft noise at the bearer's tile, made by the bearer (so a cough of yours is your noise).
+  define('coughing', { effect: (state, a, s, ev) => Noise.emit(state, a.x, a.y, 'soft', { k: 'cough', by: a.uid }, ev) });
+  // This turn's share of healing, never past the bearer's maximum health; nothing to heal,
+  // nothing happens.
+  define('restoring', {
+    effect(state, a, s, ev) {
+      const k = s.from === null || s.from === undefined ? 0 : state.turn - s.from;
+      const n = Math.min(restoreShare(a.maxHp, k), a.maxHp - a.hp);
+      if (n > 0) Health.heal(state, a, n, { k: 'status', id: 'restoring' }, ev);
+    },
+  });
+  // slowed (Actors.cost) and dazed (Combat.hitChance) change a number where it is worked out.
+  define('slowed', {});
+  define('dazed', {});
 
-  // W0c fills (M4's skeleton made it): a status's rule, {effect, blocks, skipsAction}, M3's moved onto it.
-  function define(id, rule) {}
-
-  return { has, harmful, EFFECTS, restoreShare, apply, settle, tick, effects, left, blocks, define };
+  return { has, harmful, EFFECTS, restoreShare, apply, settle, tick, effects, left, perm, blocks, skips, define, defined };
 })();

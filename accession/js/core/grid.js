@@ -30,17 +30,23 @@ const Grid = (() => {
     '|': { name: 'partition' },
     '~': { name: 'balustrade', see: 1 },
     '=': { name: 'rope line', walk: 1, see: 1 },
+    // A hall's shutter (M4 plan A13), closed over an opening while the hall is sealed: no one
+    // steps onto it and sight does not pass it, but noise does, as through a closed door.
+    'Z': { name: 'shutter', door: 1, shutter: 1 },
   };
   const WALK = new Uint8Array(128), SEE = new Uint8Array(128), STAFF = new Uint8Array(128), HOLD = new Uint8Array(128), BOLT = new Uint8Array(128);
+  // Where a noise travels (Noise.reach): every walkable tile, and a shutter.
+  const SOUND = new Uint8Array(128);
   for (const ch of Object.keys(TILES)) {
     const c = ch.charCodeAt(0), t = TILES[ch];
     WALK[c] = t.walk ? 1 : 0;
+    SOUND[c] = t.walk || t.shutter ? 1 : 0;
     SEE[c] = t.see ? 1 : 0;
     STAFF[c] = t.staff ? 1 : 0;
     HOLD[c] = t.walk || t.hold ? 1 : 0;
     BOLT[c] = t.see && !t.glass ? 1 : 0;
   }
-  const V = 'v'.charCodeAt(0), PLUS = '+'.charCodeAt(0), S = 'S'.charCodeAt(0);
+  const V = 'v'.charCodeAt(0), PLUS = '+'.charCodeAt(0), S = 'S'.charCodeAt(0), Z = 'Z'.charCodeAt(0);
 
   // Directions in a fixed order: N, NE, E, SE, S, SW, W, NW.
   const DX = [0, 1, 1, 1, 0, -1, -1, -1], DY = [-1, -1, 0, 1, 1, 1, 0, -1];
@@ -49,16 +55,18 @@ const Grid = (() => {
   const code = (m, x, y) => inside(m, x, y) ? m.tiles[y].charCodeAt(x) : 35; // '#'
   const ch = (m, x, y) => String.fromCharCode(code(m, x, y));
   // Can `who` stand on (x, y) by walking? For an exhibit ('exhibit') a staff door, closed or
-  // open, is a wall (§8.2); for you (the default) it is a door.
-  const walkable = (m, x, y, who) => { const c = code(m, x, y); return WALK[c] === 1 && !(who === 'exhibit' && STAFF[c] === 1); };
+  // open, is a wall (§8.2); for you (the default) it is a door. A noise ('noise') also
+  // passes a shutter, as it passes a closed door.
+  const walkable = (m, x, y, who) => { const c = code(m, x, y); return who === 'noise' ? SOUND[c] === 1 : WALK[c] === 1 && !(who === 'exhibit' && STAFF[c] === 1); };
   const seeThrough = (m, x, y) => SEE[code(m, x, y)] === 1;
   // A tile an exhibit can stand on: walkable, or a vitrine or a plinth (BUILD.md §8.2).
   const hold = (m, x, y) => HOLD[code(m, x, y)] === 1;
   // A bolt (a kiter's shot, the Pin-Driver's) passes a tile it can see through that is not
   // glass; only beams pass glass (§8.3).
   const bolt = (m, x, y) => BOLT[code(m, x, y)] === 1;
-  // A closed door, ordinary or staff: noise reaching through one counts NOISE_DOOR extra (§8.2).
-  const closedDoor = (m, x, y) => { const c = code(m, x, y); return c === PLUS || c === S; };
+  // A closed door, ordinary or staff, or a shutter: noise reaching through one counts
+  // NOISE_DOOR extra (§8.2).
+  const closedDoor = (m, x, y) => { const c = code(m, x, y); return c === PLUS || c === S || c === Z; };
   function set(m, x, y, c) { const row = m.tiles[y]; m.tiles[y] = row.slice(0, x) + c + row.slice(x + 1); }
 
   // A step from (x, y) in direction d: the target must be walkable, and a diagonal step may

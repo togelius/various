@@ -138,19 +138,33 @@ const Layout = (() => {
     return attempt(programme, size, FALLBACK[programme], `layout/fallback/${programme}@${PIN}/a0`, opts && { plant: opts.plantFallback });
   }
 
-  // Generate one department's plan. opts: { acc, depth } name the streams.
+  // Generate one department's plan. opts: { acc, depth } name the streams. opts.accept(result)
+  // (M4 plan A10), given, is asked of each plan that passes every check above, with the
+  // result finish() makes: null accepts it; a rejection, {id, reason, tiles}, makes the
+  // attempt fail as a check does (its failure, {id, why, tiles}, is in tries) and reseed. The
+  // certified fallback is asked too, so the caller sees it, but it is taken whatever the
+  // answer, which is kept as the result's `rejected` (null when it was accepted).
   function generate(programme, size, seed, opts) {
     opts = opts || {};
     const key = `layout/${opts.acc || programme}@${PIN}/d${opts.depth || 1}`;
-    const tries = [];
+    const tries = [], accept = typeof opts.accept === 'function' ? opts.accept : null;
+    const asked = out => { const no = accept(out); return no ? [{ id: no.id, why: no.reason, tiles: no.tiles || [] }] : []; };
     for (let k = 0; k <= RESEEDS; k++) {
       const r = attempt(programme, size, seed, key + '/a' + k, opts);
-      tries.push(r.failed);
-      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key, base: key + '/a' + k });
+      if (r.failed.length || !accept) {
+        tries.push(r.failed);
+        if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key, base: key + '/a' + k });
+        continue;
+      }
+      const out = finish(r, { attempt: k, fallback: false, tries, key, base: key + '/a' + k }), no = asked(out);
+      tries.push(no);
+      if (!no.length) return out;
     }
     const r = fallback(programme, size, opts);
     if (r.failed.length) throw new Error(`Layout: the certified fallback for ${programme} failed: ${r.failed.map(f => f.id + ' ' + f.why).join('; ')}`);
-    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key, base: key + '/a' + (RESEEDS + 1) });
+    const out = finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key, base: key + '/a' + (RESEEDS + 1) });
+    if (accept) { const no = asked(out); out.rejected = no.length ? no[0] : null; }
+    return out;
   }
 
   // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks, and

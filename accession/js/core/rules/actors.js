@@ -70,7 +70,8 @@ const Actors = (() => {
   }
   const copy = v => v === null ? null : JSON.parse(JSON.stringify(v));
   const orNull = v => v === undefined ? null : v;
-  const statusOf = s => ({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) });
+  // A status record; perm (for the rest of the visit) only when it is set (M4 plan A3).
+  const statusOf = s => Object.assign({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) }, s.perm ? { perm: true } : {});
   // Create an actor and append it: actors are only ever appended during a visit (§3.3).
   function spawn(state, rec) {
     const a = make(state, rec);

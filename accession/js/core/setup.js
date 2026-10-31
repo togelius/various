@@ -79,7 +79,7 @@ const Setup = (() => {
   //     archetype, role, modifiers, modParams, trigger and group unless it gives its own,
   //     and is made awake, unless it gives a mode, when its trigger stands for the wake
   //     clause (`awake`), as a department's is. Its statuses are records {id, until?,
-  //     turns?, from?}, settled as the room is made. Each gets the uid
+  //     turns?, from?, perm?}, settled as the room is made. Each gets the uid
   //     <acc>.<depth>.<room>.<n>, room 'room' if absent and n counted per room, unless it
   //     gives one;
   //   fixtures (full records, such as Cases.make's); items (records for Kit.item): an item
@@ -117,22 +117,27 @@ const Setup = (() => {
     const T = sp.trigger ? Registry.TRIGGERS[sp.trigger] : null;
     if (e.mode === undefined && T && T.replacesWake) rec.mode = 'awake';
   }
-  // The items you are given carry or wear (spec.items), checked as they go in.
-  function carry(state, list, k) {
-    const you = state.you, start = { weapon: 'you.w', garment: 'you.g' }, taken = {};
+  // The items you are given carry or wear (Kit.item records: a room's spec.items, or what a
+  // department visit's carry gives, M4 plan A2), checked as they go in: one given at
+  // {at: 'tote'} is carried, and one given at {at: 'kit', slot} is worn there (Kit.SLOTS), a
+  // weapon or garment taking the place of the one you start with, which goes {at: 'gone'}.
+  // k (a room's spec.kit) marks a starting weapon or garment already given its own form.
+  function carry(state, list, k, who) {
+    const you = state.you, start = { weapon: 'you.w', garment: 'you.g' }, taken = {}, by = who || 'Setup.carry';
+    k = k || {};
     for (const rec of list || []) {
       const it = Kit.item(rec);
-      if (state.items.some(i => i.uid === it.uid)) throw new Error(`Setup.room: the item ${it.uid} is given twice`);
+      if (state.items.some(i => i.uid === it.uid)) throw new Error(`${by}: the item ${it.uid} is given twice`);
       state.items.push(it);
       if (it.where.at === 'tote') {
-        if (you.tote.length >= N.TOTE_SLOTS) throw new Error(`Setup.room: the tote holds ${N.TOTE_SLOTS} items`);
+        if (you.tote.length >= N.TOTE_SLOTS) throw new Error(`${by}: the tote holds ${N.TOTE_SLOTS} items`);
         you.tote.push(it.uid);
       } else if (it.where.at === 'kit') {
         const slot = it.where.slot, kind = slot === 'curio0' || slot === 'curio1' ? 'curio' : slot;
-        if (!Kit.SLOTS.includes(slot)) throw new Error(`Setup.room: there is no slot ${slot} (Kit.SLOTS)`);
-        if (taken[slot] || (start[slot] && k[slot])) throw new Error(`Setup.room: the kit slot ${slot} is given twice`);
+        if (!Kit.SLOTS.includes(slot)) throw new Error(`${by}: there is no slot ${slot} (Kit.SLOTS)`);
+        if (taken[slot] || (start[slot] && k[slot])) throw new Error(`${by}: the kit slot ${slot} is given twice`);
         const an = w => /^[aeiou]/.test(w) ? 'an ' + w : 'a ' + w;
-        if (it.kind !== kind) throw new Error(`Setup.room: the ${slot} slot holds ${an(kind)}, and ${it.uid} is ${an(it.kind)}`);
+        if (it.kind !== kind) throw new Error(`${by}: the ${slot} slot holds ${an(kind)}, and ${it.uid} is ${an(it.kind)}`);
         taken[slot] = 1;
         if (start[slot]) { state.items.find(i => i.uid === start[slot]).where = { at: 'gone' }; you.kit[slot] = it.uid; }
         else if (kind === 'curio') you.kit.curio[slot === 'curio0' ? 0 : 1] = it.uid;
@@ -169,7 +174,7 @@ const Setup = (() => {
       Actors.spawn(state, rec);
     }
     const orNull = v => v === undefined ? null : v;
-    for (const s of statuses(spec.youStatuses, 'youStatuses') || []) state.actors[0].statuses.push({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) });
+    for (const s of statuses(spec.youStatuses, 'youStatuses') || []) state.actors[0].statuses.push(Object.assign({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) }, s.perm ? { perm: true } : {}));
     settleActors(state, 1);
     const k = spec.kit || {};
     Kit.start(state, k.weapon && k.weapon.form);
@@ -178,11 +183,11 @@ const Setup = (() => {
       const it = state.items.find(i => i.uid === uid);
       for (const f of ['form', 'tier', 'level']) if (part[f] !== undefined) it[f] = part[f];
     }
-    carry(state, spec.items, k);
+    carry(state, spec.items, k, 'Setup.room');
     Status.settle(state);
     Kit.settle(state);
     return state;
   }
 
-  return { SAVE_VERSION, you, run, kit, deptParts, base, settleActors, room };
+  return { SAVE_VERSION, you, run, kit, deptParts, base, settleActors, carry, room };
 })();

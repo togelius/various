@@ -17,7 +17,8 @@ module.exports = ({ test, assert, loadCore }) => {
     const TOP = ['v', 'coreHash', 'runId', 'seed', 'rng', 'tick', 'turn', 'options', 'run', 'dept', 'actors', 'items', 'you', 'causes', 'over', 'ui'];
     const RUN = ['grade', 'seals', 'knownSeals', 'deck', 'items', 'floor', 'slot', 'depth', 'sequence', 'offered', 'certificates', 'perks', 'collectionPicks'];
     const PARTS = ['clock', 'fixtures', 'surfaces', 'highlights', 'planRead', 'entryGrade', 'modules'];
-    const DEPT = ['acc', 'pin', 'depth', 'programme', 'w', 'h', 'tiles', 'rooms', 'roomOf', 'entrance', 'exits', 'lectern', 'viewTile', 'ltour', 'seen'].concat(PARTS);
+    // A department visit also keeps the rooms you have walked (M4 plan A3), which a room has not.
+    const DEPT = ['acc', 'pin', 'depth', 'programme', 'w', 'h', 'tiles', 'rooms', 'roomOf', 'entrance', 'exits', 'lectern', 'viewTile', 'ltour', 'seen', 'walked'].concat(PARTS);
     const ITEM = ['uid', 'kind', 'ref', 'where', 'form', 'tier', 'level', 'prims', 'charges', 'max', 'rechargeAt', 'ck', 'seal', 'n', 'from'];
     const sorted = a => json(a.slice().sort());
     const room = Setup.room(1, { acc: 'T0', depth: 2, map: OPEN, you: [2, 2], exhibits: [] });
@@ -25,11 +26,14 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(sorted(Object.keys(s)), sorted(TOP), where);
       assert.equal(sorted(Object.keys(s.run)), sorted(RUN), where);
       for (const k of where === 'room' ? PARTS : DEPT) assert.ok(k in s.dept, `${where}: dept.${k}`);
-      // The run: grade I, nothing known; the seals not yet shuffled (null) or shuffled as
+      if (where === 'room') assert.ok(!('walked' in s.dept), 'a room has no walked rooms');
+      // The run: grade I in a room, and in a department the median visitor's, its depth (§5.5:
+      // M4 plan A2), nothing known; the seals not yet shuffled (null) or shuffled as
       // {sol: [4], eph: [4]} (W1-CONSUMABLES); the deck's 8 counts, at most DECK's.
       const seals = s.run.seals, four = v => Array.isArray(v) && v.length === 4 && v.every(Number.isInteger);
       assert.ok(seals === null || (four(seals.sol) && four(seals.eph) && Object.keys(seals).length === 2), `${where}: run.seals ${json(seals)}`);
-      assert.equal(json([s.run.grade, s.run.knownSeals, s.run.items, s.run.depth]), json([1, [], 0, s.dept.depth]), where);
+      const grade = where === 'room' ? 1 : s.dept.depth;
+      assert.equal(json([s.run.grade, s.run.knownSeals, s.run.items, s.run.depth]), json([grade, [], 0, s.dept.depth]), where);
       assert.ok(s.run.deck.length === 8 && s.run.deck.every((n, i) => Number.isInteger(n) && n >= 0 && n <= [20, 8, 10, 8, 14, 8, 8, 5][i]), `${where}: run.deck ${json(s.run.deck)}`);
       // The department's parts: empty in a room for tests; in a department, lists (cases,
       // staff doors and plaques, and the Highlights, come with W1-CASES, W1-KIT and W1-CONSUMABLES).
@@ -38,7 +42,7 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.equal(json([s.dept.fixtures, s.dept.surfaces, s.dept.highlights, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], [], [], null, 1, []]), where);
       } else {
         assert.ok(Array.isArray(s.dept.fixtures) && Array.isArray(s.dept.highlights), where);
-        assert.equal(json([s.dept.surfaces, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], null, 1, []]), where);
+        assert.equal(json([s.dept.surfaces, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], null, grade, []]), where);
       }
       assert.equal(json(s.you), json({ kit: { weapon: 'you.w', garment: 'you.g', curio: [null, null], instrument: null }, tote: [] }), where);
       for (const it of s.items) assert.equal(sorted(Object.keys(it)), sorted(ITEM), `${where}: ${it.uid}`);
@@ -54,12 +58,17 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('your starting kit gives today\'s numbers, and Kit.derive follows §8.1 for every form, tier, grade and level', () => {
-    // At the start: a T1 Balanced weapon and a T1 Standard garment, Acc 3, Eva 2, Padding 1, damage 2–6.
-    for (const s of [Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 2], exhibits: [] }), ...ACCS.map(acc => Dept.create(2, acc, 3))]) {
-      const y = s.actors[0];
-      assert.equal(json([y.acc, y.eva, y.pad, y.dmin, y.dmax, y.weaponForm, y.reach, y.quiet, y.breaker]), json([3, 2, 1, 2, 6, 'balanced', false, 0, 0]));
+    // At the start: a T1 Balanced weapon and a T1 Standard garment, Acc 3, Eva 2, Padding 1,
+    // damage 2–6; in a department at depth 1, or deeper with M3's visitor (carry 'start').
+    const start = [Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 2], exhibits: [] }), ...ACCS.map(acc => Dept.create(2, acc, 1)), ...ACCS.map(acc => Dept.create(2, acc, 3, { carry: 'start' }))];
+    // The median visitor at depth 3 (M4 plan A2): grade III in T2 (TIER_LOW_BY_DEPTH), which
+    // needs grade 3, so nothing is short: damage [t + 1, 3t + 3] = 3–9, Acc 3, Padding t = 2.
+    const median = ACCS.map(acc => Dept.create(2, acc, 3));
+    for (const s of start.concat(median)) {
+      const y = s.actors[0], t = median.includes(s) ? 2 : 1;
+      assert.equal(json([y.acc, y.eva, y.pad, y.dmin, y.dmax, y.weaponForm, y.reach, y.quiet, y.breaker]), json(t === 1 ? [3, 2, 1, 2, 6, 'balanced', false, 0, 0] : [3, 2, 2, 3, 9, 'balanced', false, 0, 0]));
       assert.equal(json(s.items.filter(i => i.uid.startsWith('you.')).map(i => [i.uid, i.kind, i.form, i.tier, i.level, i.where])),
-        json([['you.w', 'weapon', 'balanced', 1, 0, { at: 'kit', slot: 'weapon' }], ['you.g', 'garment', 'standard', 1, 0, { at: 'kit', slot: 'garment' }]]));
+        json([['you.w', 'weapon', 'balanced', t, 0, { at: 'kit', slot: 'weapon' }], ['you.g', 'garment', 'standard', t, 0, { at: 'kit', slot: 'garment' }]]));
     }
     // Each T1 form at grade I, as a room's kit and as Setup.you makes you: a Heavy weapon
     // needs grade II, so it is one grade short (−2 Acc).

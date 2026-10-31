@@ -1,88 +1,125 @@
-// ACCESSION — a department visit's starting state (BUILD.md §4.1, §5.5): the generated plan
-// from a pack's programme, you at the entrance, the pack's exhibits placed asleep, then the
-// cases, your kit and the department's items and consumables. The exhibits' placement is a
-// stand-in for M4's population pass: one of each species whose archetype M3 builds (a swarm
-// as SWARM_BODIES[0] bodies), in the sections, outside the safe zone, never on a gate cell.
-// M4's species and the Centrepiece are left out, since their Behaviour lines would not yet
-// be true (§5.5).
+// ACCESSION — a department visit's starting state (BUILD.md §4.1, §5.5; M4 plan A2, A3, A10):
+// the generated plan from a pack's programme, populated and checked as one layout attempt;
+// you at the entrance as the visitor the carry gives; then the cases, the exhibits, your kit
+// and the department's items and consumables. The exhibits' placement is Populate.exhibits.
 'use strict';
 const Dept = (() => {
-  const SAFE = 8;
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const ITEM_SLOTS = () => Kit.SLOTS.concat(['tote']);
 
-  const built = sp => { const A = Registry.ARCHETYPES[sp.archetype || 'plodder']; return !!A && A.built === 'M3'; };
+  // The visitor of a single visit (A2), from options.carry:
+  //   absent or 'median'  Progress.median(depth): grade d (at most GRADE_MAX), the lower tier
+  //                       on offer at d, no perks, no items;
+  //   'start'             the visitor at a run's start, as in M3: grade GRADE_START, tier 1;
+  //   {grade, perks, tier, items}, any of them left out taken from the median:
+  //                       perks [{id, rank}], rank 1 or 2, an id once; items [{ref, slot}],
+  //                       ref an item of this department's pack, slot a kit slot (Kit.SLOTS)
+  //                       or 'tote', a slot once.
+  // Anything else is refused with an error, so a carry is never half read.
+  const CARRY = ['grade', 'perks', 'tier', 'items'];
+  function visitor(carry, depth, pack) {
+    const median = Progress.median(depth);
+    if (carry === undefined || carry === null || carry === 'median') return median;
+    if (carry === 'start') return { grade: N.GRADE_START, perks: [], tier: 1, items: [] };
+    if (typeof carry !== 'object' || Array.isArray(carry)) throw new Error(`Dept.create: the carry ${JSON.stringify(carry)} is not 'median', 'start' or {grade, perks, tier, items}`);
+    for (const k of Object.keys(carry)) if (!CARRY.includes(k)) throw new Error(`Dept.create: the carry has the unknown field ${k}`);
+    const v = Object.assign(median, carry.grade !== undefined ? { grade: carry.grade } : {}, carry.tier !== undefined ? { tier: carry.tier } : {});
+    const highest = N.TIER_LOW_BY_DEPTH[N.TIER_LOW_BY_DEPTH.length - 1];
+    if (!Number.isInteger(v.grade) || v.grade < N.GRADE_START || v.grade > N.GRADE_MAX) throw new Error(`Dept.create: the carry's grade ${v.grade} is not ${N.GRADE_START}–${N.GRADE_MAX}`);
+    if (!Number.isInteger(v.tier) || v.tier < 1 || v.tier > highest) throw new Error(`Dept.create: the carry's tier ${v.tier} is not 1–${highest}`);
+    v.perks = (carry.perks || []).map(p => {
+      if (!p || typeof p.id !== 'string' || (p.rank !== 1 && p.rank !== 2)) throw new Error(`Dept.create: the carry's perk ${JSON.stringify(p)} is not {id, rank 1 or 2}`);
+      if (Registry.PERKS && !own(Registry.PERKS, p.id)) throw new Error(`Dept.create: the carry's perk ${p.id} is not in Registry.PERKS`);
+      return { id: p.id, rank: p.rank };
+    });
+    for (let i = 0; i < v.perks.length; i++) if (v.perks.slice(0, i).some(q => q.id === v.perks[i].id)) throw new Error(`Dept.create: the carry gives the perk ${v.perks[i].id} twice`);
+    v.items = (carry.items || []).map(it => {
+      const rec = it && typeof it.ref === 'string' ? (pack.items || []).find(i => i.id === it.ref) : null;
+      if (!rec) throw new Error(`Dept.create: the carry's item ${JSON.stringify(it)} is no item of ${pack.acc}`);
+      if (!ITEM_SLOTS().includes(it.slot)) throw new Error(`Dept.create: the carry puts ${it.ref} in ${JSON.stringify(it.slot)}, not a slot (${ITEM_SLOTS().join(', ')})`);
+      return { ref: it.ref, slot: it.slot };
+    });
+    return v;
+  }
 
-  // In this order: the state, with the plan; the cases (Cases.place); the exhibits, on the
-  // place/<acc>/d<depth> stream; options.without marks its actors gone; each archetype's init;
-  // your starting kit; the stand-in equipment and kits (Kit.standIn); the run's seals
-  // (Consumables.startRun); the stand-in consumables (Consumables.standIn); your stats. The
-  // three placement calls share one local holder, pop, so a room's
-  // `${base}/room/<key>/populate` stream runs on from cases to items to consumables instead
-  // of starting again for each (§3.2).
+  // The items the carry puts on you or in your tote, as records Setup.carry takes: uids you.c1,
+  // you.c2 … in the carry's order (§3.2), a weapon's, garment's or instrument's tier the
+  // carry's (an item's tier is never the pack's, §8.1), level 0.
+  function carried(pack, v) {
+    return v.items.map((c, i) => {
+      const rec = pack.items.find(it => it.id === c.ref), tiered = rec.kind === 'weapon' || rec.kind === 'garment' || rec.kind === 'instrument';
+      return { uid: `you.c${i + 1}`, kind: rec.kind, ref: rec.id, where: c.slot === 'tote' ? { at: 'tote' } : { at: 'kit', slot: c.slot },
+        form: rec.kind === 'instrument' ? rec.instrument || null : rec.form || null, tier: tiered ? v.tier : null, level: 0,
+        prims: (rec.prims || []).map(p => ({ id: p.id, cls: p.cls })) };
+    });
+  }
+
+  // A department visit (A10): the plan is made by Layout.generate, and each plan that passes
+  // layout's checks is populated (build) and then checked by every registered validator
+  // (Populate.validate); a rejection is a failed layout attempt, which reseeds up to 4 times
+  // and then falls back to the certified plan, populated the same way. options: Options.make's
+  // (rulesOff, without, invulnerable), and carry (above), which is not kept in the state.
   function create(seed, acc, depth, options) {
     const pack = Packs.get(acc);
-    const r = Layout.generate(pack.programme, 0, seed, { acc, depth });
-    const plan = r.plan, nums = Layout.number(plan, depth), grade = N.GRADE_START;
+    if (!pack) throw new Error(`Dept.create: there is no department ${acc}`);
+    const v = visitor(options ? options.carry : undefined, depth, pack);
+    let state = null;
+    const accept = r => { state = build(seed, pack, depth, options, v, r); return Populate.validate(state, r.plan); };
+    Layout.generate(pack.programme, 0, seed, { acc, depth, accept });
+    return state;
+  }
+
+  // One layout attempt's department, in A10's order: the state, with the plan and the rooms
+  // you have walked (your first, dept.walked: a department visit's only); the cases
+  // (Cases.place); the exhibits (Populate.exhibits); options.without marks its actors gone,
+  // then each archetype's init (Setup.settleActors); the Centrepiece (Centrepiece.place); your
+  // starting kit of the carry's tier (Kit.start) and the items the carry gives (Setup.carry);
+  // the stand-in equipment and kits (Kit.standIn); the run's seals (Consumables.startRun);
+  // the stand-in consumables (Consumables.standIn); the panels (Panels.place); the modules
+  // (Modules.init); your stats (Kit.settle), so that the validators see them. Your grade, its
+  // health and the grade you came in with are the carry's, and so are the run's perks. The
+  // three placement calls share one local holder, pop, so a room's `${base}/room/<key>/populate`
+  // stream runs on from cases to items to consumables instead of starting again for each (§3.2).
+  function build(seed, pack, depth, options, v, r) {
+    const plan = r.plan, nums = Layout.number(plan, depth), x = plan.entrance[0] + 1, y = plan.entrance[1];
     const tiles = plan.tiles.map(row => row.replace(/C/g, '.'));
-    const dept = Object.assign({ acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
+    const first = plan.rooms.find(q => q.id === plan.roomOf[y][x]);
+    const dept = Object.assign({ acc: pack.acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
       rooms: plan.rooms.map(rm => ({ id: rm.id, key: rm.key, role: rm.role, number: nums[rm.id] || 0, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1 })),
-      roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, viewTile: plan.viewTile, seen: '' }, Setup.deptParts(grade));
+      roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, viewTile: plan.viewTile, seen: '' }, Setup.deptParts(v.grade),
+      { walked: first ? [first.id] : [] });
     dept.clock = Clock.init(plan.ltour);
-    const state = Setup.base(seed, dept, plan.entrance[0] + 1, plan.entrance[1], options, grade);
+    const state = Setup.base(seed, dept, x, y, options, v.grade);
+    state.run.perks = v.perks.map(p => ({ id: p.id, rank: p.rank }));
     const pop = { seed, rng: {} };
     Cases.place(state, plan, r.base, pop);
-    place(state, pack, plan);
+    Populate.exhibits(state, plan, pack, r.base);
     Setup.settleActors(state, 1);
-    Kit.start(state, 'balanced');
+    Centrepiece.place(state, plan, pack);
+    Kit.start(state, 'balanced', v.tier);
+    Setup.carry(state, carried(pack, v));
     Kit.standIn(state, r.base, pop);
     Consumables.startRun(state);
     Consumables.standIn(state, r.base, pop);
+    Panels.place(state, plan, pack);
+    Modules.init(state, pack);
     Kit.settle(state);
     return state;
   }
 
-  // The stand-in placement of exhibits (M2's, unchanged in its draws): the free floor tiles
-  // of the sections and studies beyond the safe zone, shuffled once on the place/<acc>/d<depth>
-  // stream; each species in pack order takes the first that is 3 or more tiles from every
-  // actor placed. A swarm's further bodies take the nearest free floor tiles of the same room
-  // to its first, with no draw (nearest by Chebyshev distance, then row-major).
-  function place(state, pack, plan) {
-    const m = state.dept, d = Grid.distances(m, [plan.entrance], 999), free = [];
-    const roomAt = (x, y) => plan.rooms.find(q => q.id === plan.roomOf[y][x]);
-    const ok = (x, y) => { const rm = roomAt(x, y); return m.tiles[y][x] === '.' && d[y * m.w + x] > SAFE && !!rm && (rm.role === 'section' || rm.role === 'study'); };
-    for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) if (ok(x, y)) free.push([x, y]);
-    const holder = { seed: state.seed, rng: {} }, pick = Rng.stream(holder, `place/${pack.acc}/d${m.depth}`);
-    pick.shuffle(free);
-    const counts = {};
-    for (const sp of pack.species) {
-      if (!built(sp)) continue;
-      const at = free.find(([x, y]) => !state.actors.some(a => Math.abs(a.x - x) < 3 && Math.abs(a.y - y) < 3));
-      if (!at) break;
-      const bodies = [at];
-      if ((sp.archetype || 'plodder') === 'mote_swarm') {
-        const rid = plan.roomOf[at[1]][at[0]], near = [];
-        for (const [x, y] of free) if (plan.roomOf[y][x] === rid && !(x === at[0] && y === at[1]) && !state.actors.some(a => Actors.covers(a, x, y))) near.push([x, y]);
-        near.sort((p, q) => (Grid.chebyshev(p[0], p[1], at[0], at[1]) - Grid.chebyshev(q[0], q[1], at[0], at[1])) || (p[1] - q[1]) || (p[0] - q[0]));
-        for (const t of near.slice(0, N.SWARM_BODIES[0] - 1)) bodies.push(t);
-      }
-      for (const b of bodies) add(state, sp, b, counts);
-    }
+  // The rooms you have stood in this visit, by id, in the order first entered (A3: absent
+  // outside a department visit, so a room for tests has none): [] there.
+  const walked = state => state && state.dept && Array.isArray(state.dept.walked) ? state.dept.walked : [];
+  // Record the room you stand in as walked, once: true if it is new. Only a department visit
+  // keeps the list (dept.walked); anywhere else nothing changes.
+  function walk(state) {
+    const m = state.dept;
+    if (!m || !Array.isArray(m.walked) || !m.roomOf || !m.rooms) return false;
+    const you = state.actors[0], row = m.roomOf[you.y], id = row ? row[you.x] : undefined;
+    if (!m.rooms.some(q => q.id === id) || m.walked.includes(id)) return false;
+    m.walked.push(id);
+    return true;
   }
 
-  // Every field from the species is copied onto the actor (§4.1), so rules never read the
-  // pack. Its uid is <acc>.<depth>.<roleKey>.<n>, n counted per room in placement order
-  // (§3.2). A species that never sleeps (a trigger that stands for the wake clause, `awake`)
-  // is placed awake.
-  function add(state, sp, at, counts) {
-    const m = state.dept, rid = m.roomOf[at[1]][at[0]], rm = m.rooms.find(q => q.id === rid), key = rm ? rm.key : 'room';
-    counts[key] = (counts[key] || 0) + 1;
-    const stats = Roles.stats(sp.role, m.depth), T = sp.trigger ? Registry.TRIGGERS[sp.trigger] : null;
-    Actors.spawn(state, Object.assign({}, stats, {
-      uid: `${m.acc}.${m.depth}.${key}.${counts[key]}`, sp: sp.id, size: sp.size || 1, x: at[0], y: at[1],
-      mode: T && T.replacesWake ? 'awake' : 'dormant',
-      maxHp: stats.hp, arch: sp.archetype || 'plodder', mods: sp.modifiers || [], modParams: sp.modParams || {}, trigger: sp.trigger || null,
-      group: sp.group || null,
-    }));
-  }
-
-  return { create };
+  return { create, visitor, walked, walk };
 })();
