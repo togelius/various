@@ -7,12 +7,13 @@
 
   // The stages (§8.4), each saying what changes. A night-watch bell wakes only the sleepers it
   // can reach (ClockRules.nearestSleepers, §8.4): a walk from you reaches them, they are not in
-  // an intact case, and they can hear (not pipless, §8.2). The announcement says what "it can
+  // an intact case, they can hear (not pipless, §8.2), and they are not a Centrepiece's pieces,
+  // which only pips and damage wake (M4, §8.2). The announcement says what "it can
   // reach" means, without naming a mimic; each bell then says only "that it can reach", and
   // never that no sleeper is left, since those it cannot reach may still sleep.
   function stage(e) {
     if (e.stage === 'bell') return 'The bell rings: sleeping exhibits no longer lose their pips, and you recover health half as fast.';
-    if (e.stage === 'night_watch') return `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, or one that cannot hear).`;
+    if (e.stage === 'night_watch') return `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, one that cannot hear, or a Centrepiece).`;
     if (e.stage === 'night_bell') {
       const n = Array.isArray(e.woke) ? e.woke.length : 0;
       if (n === 1) return 'A night-watch bell rings: the sleeping exhibit nearest you that it can reach wakes and hunts you.';

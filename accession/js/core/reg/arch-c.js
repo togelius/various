@@ -39,12 +39,13 @@
 
   // Specials (§8.1). Each actor on a marked tile is hit once, through its own Padding. A call
   // wakes only the sleepers that can hear: a pipless one (a sleeping mimic) hears nothing
-  // (§8.2), so the call's clause says "that can hear", and gives no mimic away.
+  // (§8.2), so the call's clause says "that can hear", and gives no mimic away; nor does it
+  // wake a Centrepiece, which only pips and damage wake (M4, §8.2), and the clause says so.
   R.define('SPECIALS', 'ring', Object.assign({ icon: 'special', shape: 'ring', effect: 'damage', curve: 'ROLE_WARDEN_SPECIAL', range: null, every: 'ROLE_WARDEN_SPECIAL_EVERY',
     clause: 'marks the tiles round it for a turn, then strikes everything on them for {gross} before Padding',
     params: { gross: 'curve:ROLE_WARDEN_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'] }, proved(WARDEN)));
   R.define('SPECIALS', 'call', Object.assign({ icon: 'special', shape: 'call', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null,
-    clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it that can hear, which come to look where you stood as the call went off',
+    clause: 'calls for a turn, shown, then wakes every sleeping exhibit within {HERALD_RANGE} tiles of it that can hear (never a Centrepiece), which come to look where you stood as the call went off',
     params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'] }, proved(HERALD)));
 
   // A pipless species' wake clause, in place of the generic one (§5.3): only these wake it.

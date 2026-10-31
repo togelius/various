@@ -199,7 +199,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const e of ev) assert.equal(Causes.check(e), null, json(e));
     const names = Labels.nameOf(s);
     assert.equal(json(Text.log(ev, names).slice(-3)), json([
-      `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, or one that cannot hear).`,
+      `The night watch begins: you no longer recover health, and every ${N.NIGHT_WAKE_EVERY} turns a bell will wake the ${N.NIGHT_WAKE_COUNT} sleeping exhibits nearest you that it can reach (by a walk from you; never one in a case, one that cannot hear, or a Centrepiece).`,
       'The Night Watchman comes in at the entrance.', 'The Night Watchman began its rounds, hunting you from the start.']));
     ev = Step.step(s, { a: 'wait' });
     assert.ok(!ev.some(e => e.who === w.uid || e.by === w.uid), 'nothing yet: your decision at 1000 comes first');

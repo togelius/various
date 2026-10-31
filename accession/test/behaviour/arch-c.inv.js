@@ -3,8 +3,8 @@
 // run (tools/invariants.js). Each states one sentence of a Behaviour line, written out again
 // here from the clause, not from the rule code:
 //   herald: "Each time it wakes, the first time it sees you it calls for a turn, shown, then
-//     wakes every sleeping exhibit within 6 tiles of it that can hear, which come to look
-//     where you stood";
+//     wakes every sleeping exhibit within 6 tiles of it that can hear (never a Centrepiece),
+//     which come to look where you stood";
 //   tethered_warden: "Stays within 2 tiles of what it guards; if it hunts you and you are
 //     not, it goes back instead of starting a fight, waits there while it sees you, then heals
 //     fully and settles … beside you, at most one action in 3 since it woke, it marks the tiles
@@ -90,7 +90,8 @@ module.exports = (C) => {
       if (!!(a.ax && a.ax.called) !== called) return `ax.called is ${json(a.ax && a.ax.called)}, but its calls since it last woke say ${called ? 1 : 0}`;
       // Only after its shown turn, only within the shown tiles, only sleepers, awake; and,
       // when it goes off, every sleeper then on the shown tiles that can hear (one that is not
-      // pipless, the clause's "that can hear") wakes.
+      // pipless, the clause's "that can hear") wakes, but never a Centrepiece's piece, which
+      // only pips and damage wake (M4: the clause's "never a Centrepiece").
       const tel = before && before.telegraph && before.telegraph.sp === 'call' ? before.telegraph : null;
       const u = track(pre, post);
       for (const e of events) {
@@ -98,7 +99,7 @@ module.exports = (C) => {
           if (!tel) return 'its call went off without having been shown before your decision';
           for (const b of pre.actors.concat(post.actors.filter(q => !find(pre, q.uid)))) {
             const s = u.at(b.uid);
-            if (b.uid === 'you' || b.uid === uid || s.gone || s.mode !== 'dormant' || !onTiles(s, tel.tiles) || piplessNow(post, s)) continue;
+            if (b.uid === 'you' || b.uid === uid || s.gone || s.mode !== 'dormant' || !onTiles(s, tel.tiles) || piplessNow(post, s) || b.role === 'centrepiece') continue;
             return `${b.uid} at ${s.x},${s.y} slept through the call`;
           }
         }
@@ -106,6 +107,7 @@ module.exports = (C) => {
           if (!tel) return `it woke ${e.who} with no call shown before your decision`;
           const s = u.at(e.who);
           if (!s || s.mode !== 'dormant') return `it woke ${e.who}, which was not asleep`;
+          if ((find(post, e.who) || {}).role === 'centrepiece') return `it woke ${e.who}, a Centrepiece's piece`;
           if (!onTiles(s, tel.tiles)) return `it woke ${e.who} at ${s.x},${s.y}, outside the tiles its call showed`;
           if (e.mode !== 'awake') return `${e.who} woke ${e.mode}, not awake`;
         }

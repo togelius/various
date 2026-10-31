@@ -64,12 +64,12 @@ const Labels = (() => {
     return kp.length === kq.length && kp.every(k => own(q, k) && p[k] === q[k]);
   }
   // Would step() take act now? Exactly when Step.legal would list it: the visit is not over,
-  // no choice waits (unless act answers it), its handler's legal list has it, and no status
-  // of yours forbids it (Status.blocks).
+  // no choice waits (unless act answers it), its handler's legal list has it, no status of
+  // yours forbids it (Status.blocks) and no rule's refuser refuses it (Actions.refusal, M4).
   function allowed(state, act) {
     if (state.over || (state.ui && state.ui.pendingChoice && act.a !== 'choose')) return false;
     const h = Actions.get(act.a);
-    if (!h || Status.blocks(state, state.actors[0], act)) return false;
+    if (!h || Status.blocks(state, state.actors[0], act) || Actions.refusal(state, act)) return false;
     return h.legal(state).some(l => same(l, act));
   }
   const offer = (state, id, text, act) => allowed(state, act) ? [{ id, text, act }] : [];
@@ -403,7 +403,10 @@ const Labels = (() => {
     if (held) pictos.push({ icon: itemIcon(state, held), text: held.kind });
     const lines = [];
     if (shut) {
-      lines.push(d.canOpen ? `Your grade (${grade(yourGrade(state))}) opens its lock (${grade(d.lock)}).` : `Its lock needs ${grade(d.lock)}; you are ${grade(yourGrade(state))}.`);
+      // A lock above your grade opens only with the grades your perks add (Cases.lockGrade).
+      const g = yourGrade(state);
+      lines.push(!d.canOpen ? `Its lock needs ${grade(d.lock)}; you are ${grade(g)}.` : d.lock > g ? `Your perks open its lock (${grade(d.lock)}), above your grade (${grade(g)}).`
+        : `Your grade (${grade(g)}) opens its lock (${grade(d.lock)}).`);
       lines.push(!d.canBreak ? `A Light weapon cannot break ${d.glassName} glass.` : d.blows === 1 ? `Your weapon breaks its ${d.glassName} glass in 1 blow, with a crash.`
         : `Your weapon breaks its ${d.glassName} glass in ${d.blows} blows: each before the last is loud, and the last makes a crash.`);
     } else if (held) lines.push('It is no longer shut: what it holds can be taken.');
