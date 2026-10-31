@@ -15,7 +15,9 @@
 // test still plays it. A replay with a recipe, test/golden/recipes/<name>.js, is recorded from
 // it (--record), and the recipe's story is checked at every commit, pending or not.
 // Usage: USAGE below, which `node tools/golden.js --help` prints. Only the bare command
-// re-pins; --help, an option or word it does not know, and two modes at once write nothing.
+// re-pins every run (--record pins only the run it records, after its story holds, and
+// --retire only the run it retires, in its build); --help, an option or word it does not
+// know, and two modes at once write nothing.
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), cp = require('node:child_process'), vm = require('node:vm');
 const ROOT = path.join(__dirname, '..');
@@ -466,11 +468,15 @@ function retire(file, retiredFile, name, buildRel, opts) {
 }
 
 // Every retired run played in its build and held to its pin, writing nothing. Returns
-// {bad, lines}; opts.root, and opts.names to check only those.
+// {bad, lines}; opts.root, and opts.names to check only those: a name that is no retired
+// run is bad, so a check asked of a run never passes by checking nothing.
 function checkRetired(retiredFile, opts) {
   opts = opts || {};
   const root = opts.root || ROOT, retired = readRetired(retiredFile), lines = [];
   let bad = 0;
+  for (const name of opts.names || []) {
+    if (!Object.prototype.hasOwnProperty.call(retired, name)) { bad++; lines.push(`golden: there is no retired run ${name} in ${shown(root, retiredFile)}`); }
+  }
   for (const name of Object.keys(retired)) {
     if (opts.names && !opts.names.includes(name)) continue;
     const g = retired[name];

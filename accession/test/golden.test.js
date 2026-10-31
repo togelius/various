@@ -13,6 +13,8 @@
 // the story of every run made from a recipe in test/golden/recipes/ (tools/golden.js's story),
 // whose run must be in the file. And every retired run (test/golden/retired.js) is played in
 // the release build it was retired with, from that build's own core, and held to its pin.
+// M3's five runs are kept, each in the golden file or retired, and the test room's monkey
+// is never pending in M4.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore(['tools/monkey.js', 'tools/replay.js', 'test/golden/golden.js']);
   const { Replay, GOLDEN } = C;
@@ -70,7 +72,21 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     test(`${name} (retired): plays in its build ${g.build.file} (coreHash ${g.build.coreHash}) to its pin`, () => {
       const r = Golden.checkRetired(path.join(root, 'test/golden/retired.js'), { root, names: [name] });
       assert.equal(r.bad, 0, r.lines.join('\n'));
+      assert.deepEqual(r.lines, [`golden: the retired ${name} plays in ${g.build.file} to its pin ${g.hash}`], 'it was played, and only it');
       if (name === 'm3Replay') m3Story(Golden.buildCore(root, g.build), g);
     });
   }
+
+  // M3's golden runs are kept, so none stops being checked unseen: each is in the golden file
+  // or retired with its build (never both); and the test room's monkey is held to its pin
+  // throughout M4, never pending (§3.5; M4 plan, "Golden hash and determinism"), so a change
+  // that moves it cannot pass as a stretch of work.
+  test('M3\'s golden runs are kept (each in the golden file or retired), and the test room\'s monkey is never pending', () => {
+    for (const name of ['m0Monkey', 'm3Replay', 'm3MonkeyS9', 'm3MonkeyA4', 'm3MonkeyM11']) {
+      const here = Object.prototype.hasOwnProperty.call(GOLDEN, name), gone = Object.prototype.hasOwnProperty.call(RETIRED, name);
+      assert.ok(here !== gone, `${name} is ${here ? 'both in test/golden/golden.js and retired' : 'neither in test/golden/golden.js nor in test/golden/retired.js'}`);
+    }
+    assert.ok(GOLDEN.m0Monkey, 'the test room\'s monkey is not retired');
+    assert.equal(GOLDEN.m0Monkey.pending, undefined, `m0Monkey is pending (${GOLDEN.m0Monkey.pending}): in M4 it is held to its pin, re-pinned with its reason if a rule it meets changes on purpose`);
+  });
 };

@@ -116,10 +116,12 @@ function scenario(def) {
 // whose bare id is ambiguous (fumigant is a surface and a consumable; tether is a trigger
 // and a wake cause). A qualified id names its table: it matches only a line part that
 // comes from that table (PART_KINDS: the kinds of part Clauses.of gives for its entries),
-// so 'WAKE_CAUSES.tether' is never the trigger's part.
+// so 'WAKE_CAUSES.tether' is never the trigger's part. A module's part (M4 plan A11, a
+// species flagged with it) is of kind 'module', so a module's scenario, 'MODULES.<id>' as
+// switchable takes it, sweeps the species whose lines carry it.
 const qualified = id => { const m = /^([A-Z][A-Z_]*)\.(.+)$/.exec(id || ''); return m ? { table: m[1], id: m[2] } : null; };
 const bare = id => { const q = qualified(id); return q ? q.id : id; };
-const PART_KINDS = { ARCHETYPES: ['archetype'], SPECIALS: ['special'], STATUSES: ['status'], MODIFIERS: ['modifier'], TRIGGERS: ['trigger'], CLAUSES: ['wake', 'role'] };
+const PART_KINDS = { ARCHETYPES: ['archetype'], SPECIALS: ['special'], STATUSES: ['status'], MODIFIERS: ['modifier'], MODULES: ['module'], TRIGGERS: ['trigger'], CLAUSES: ['wake', 'role'] };
 // Whether a part of Clauses.of is the clause id names: the same id, and, for a qualified id,
 // a part of its table's kind (none, for a table no line part comes from).
 function isPart(id) {

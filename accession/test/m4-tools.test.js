@@ -34,6 +34,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const begun = C.Replay.begin({ seed: 7, dept: 'S9', depth: 4, carry }, {}), made = C.Dept.create(7, 'S9', 4, { carry });
       assert.equal(C.State.hash(begun), C.State.hash(made), json(carry));
     }
+    // The three carries make three visitors, so the equalities above are not vacuous.
+    assert.equal(new Set(['start', 'median', items].map(carry => C.State.hash(C.Dept.create(7, 'S9', 4, { carry })))).size, 3);
     // make keeps the carry in the start, so the replay rebuilds its visit alone.
     const r = C.Replay.make({ seed: 7, dept: 'S9', depth: 4, carry: items }, {}, [{ a: 'wait' }, { a: 'wait' }], 'test');
     assert.equal(C.State.canon(r.start), C.State.canon({ seed: 7, dept: 'S9', depth: 4, carry: items }));
@@ -62,15 +64,17 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     assert.deepEqual(Sim.parseArgs(['--dept', 'S9', '--policy', 'wander', '--carry', 'grade=2']).carry, { grade: 2 });
     assert.throws(() => Sim.parseArgs(['--carry', 'start', '--carry', 'median']), /--carry is given twice/);
-    const S = Sim.context();
+    const S = Sim.context(), starts = [];
     for (const carry of [undefined, 'start', { grade: 5, items: [{ ref: 'S9.10', slot: 'curio0' }] }]) {
       const r = Sim.runArena({ dept: 'S9' }, 'wander', 3, { C: S, depth: 2, cap: 12, carry });
+      starts.push(r.startHash);
       assert.equal(json(r.replay.start), json(Object.assign({ dept: 'S9', seed: 3, depth: 2 }, carry === undefined ? {} : { carry })));
       // The start alone rebuilds the visit, and the replay plays to the run's end.
       assert.equal(S.State.hash(Sim.rebuild(r.replay.start, r.replay.options, S)), r.startHash, json(carry));
       assert.equal(r.startHash, S.State.hash(S.Dept.create(3, 'S9', 2, carry === undefined ? {} : { carry })), json(carry));
       assert.equal(S.Replay.play(r.replay).hash, r.endHash, json(carry));
     }
+    assert.equal(new Set(starts).size, 3, 'the three carries make three visitors, so the rebuilds above are not vacuous');
     assert.throws(() => Sim.runArena('dummy', 'basic.idle', 1, { C: S, carry: 'start' }), /a carry gives the visitor of a department visit; the arena dummy gives its own kit/);
   });
 
@@ -169,6 +173,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     Y.Archetypes.add(m4, {});
     const ids = Y.Packs.list().flatMap(p => p.species).filter(sp => sp.archetype === m4).map(sp => sp.id);
     assert.equal(json(H.species(Y, m4).map(x => `${x.sp.id}@${x.depth}`)), json(ids.flatMap(id => H.DEPTHS.map(d => `${id}@${d}`))));
+    // A module's scenario, by its qualified id, sweeps the species whose lines carry the
+    // module's part (kind 'module', M4 plan A11), and no other table's id names that part.
+    const Z = loadCore(), of = Z.Clauses.of, flagged = 'S9.3';
+    Z.Clauses.of = (sp, ctx) => of(sp, ctx).concat(sp.id === flagged ? [{ id: 'alarm_network', kind: 'module', text: 'Planted.', params: {}, covers: ['module'], within: null }] : []);
+    assert.equal(json(H.species(Z, 'MODULES.alarm_network').map(x => `${x.sp.id}@${x.depth}`)), json(H.DEPTHS.map(d => `${flagged}@${d}`)));
+    assert.equal(json(H.species(Z, 'alarm_network').map(x => x.sp.id)), json(H.DEPTHS.map(() => flagged)));
+    for (const t of ['MODIFIERS', 'ARCHETYPES', 'PERKS']) assert.equal(H.species(Z, `${t}.alarm_network`).length, 0, t);
   });
 
   test('the harness\'s room: rooms as a department has them, and a Centrepiece\'s hall (dept.cp) with its openings, which Hall.cp and Centrepiece.pieces read; what it does not know is refused', () => {
@@ -364,6 +375,19 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     Golden.write(file, left);
     // The retired run plays against its build, and is held to its pin there.
     assert.deepEqual(Golden.checkRetired(rfile, { root: repo }), { bad: 0, lines: [`golden: the retired rp plays in ${b.rel} to its pin ${pinned.rp.hash}`] });
+    // Asked of named runs (as the golden test asks, one at a time), it plays those and no
+    // other; a name that is no retired run fails, so it never passes by checking nothing.
+    const two = path.join(repo, 'retired-two.js'), both = Golden.readRetired(rfile);
+    both.rq = Object.assign({}, both.rp, { hash: both.rp.hash + 1 });
+    Golden.writeRetired(two, both);
+    assert.deepEqual(Golden.checkRetired(two, { root: repo, names: ['rp'] }), { bad: 0, lines: [`golden: the retired rp plays in ${b.rel} to its pin ${pinned.rp.hash}`] });
+    const q = Golden.checkRetired(two, { root: repo, names: ['rq'] });
+    assert.equal(q.bad, 1); assert.equal(q.lines.length, 1); assert.match(q.lines[0], /^golden: the retired rq differs in its build/);
+    assert.deepEqual(Golden.checkRetired(two, { root: repo, names: ['zz'] }), { bad: 1, lines: ['golden: there is no retired run zz in retired-two.js'] });
+    // A retired file that does not read is an error, never an empty list.
+    fs.writeFileSync(path.join(repo, 'broken.js'), "'use strict';\nconst RETIRED = {\n \"rp\": {\n");
+    assert.throws(() => Golden.readRetired(path.join(repo, 'broken.js')));
+    assert.throws(() => Golden.checkRetired(path.join(repo, 'broken.js'), { root: repo }));
     const g = Golden.readRetired(rfile); g.rp.hash += 1; Golden.writeRetired(rfile, g);
     const bad = Golden.checkRetired(rfile, { root: repo });
     assert.equal(bad.bad, 1); assert.match(bad.lines[0], /^golden: the retired rp differs in its build/);
@@ -456,6 +480,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     fs.rmSync(path.join(dir, 'unrecorded.js'));
     // From the command line.
     Golden.write(file, g);
+    // A story that throws does not hold either, pending or not.
+    const tdir = path.join(tmp, 'throwing-recipes');
+    writeRecipe(tdir, 'uses', USES.replace(/ {2}story\(C, run\) \{[^\n]*\n/, "  story(C, run) { throw new Error('a planted story that throws'); },\n"));
+    assert.equal(Golden.story(C, 'uses', g.uses, Golden.loadRecipe(tdir, 'uses')), 'its story threw a planted story that throws');
+    const thrown = Golden.check(C, file, { recipes: tdir });
+    assert.equal(thrown.bad, 1);
+    assert.ok(thrown.lines.includes("golden: uses's story does not hold (it is pending, and its story is still held): its story threw a planted story that throws"), thrown.lines.join('\n'));
     const r = tool('--golden', file, '--recipes', dir, '--record', 'uses');
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /^golden: uses recorded from its recipe: \d+ actions, hash \d+, as it was; pending: another stretch; its story holds\n$/);

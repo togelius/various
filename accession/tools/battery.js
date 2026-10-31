@@ -162,9 +162,10 @@ const RECAP_FIELDS = ['killer', 'wakeTurn', 'wakeTrigger', 'huntTurn'];
 // actor only suffers (damaged, a status, a pip) is not caused by it. M4's kinds: a Wader raises
 // an alarm (`by`); you view (`who`); a Centrepiece enters a phase by its own rule (`who`); and
 // a module event's `who` is the exhibit the department's rule moved, marked or changed, which
-// is held to its line like any other doer, so no module acts on an exhibit whose Behaviour
-// line does not say so (§5.3; a line's module part covers `module`). Certificates, grades and
-// perks are yours.
+// is held to its line like any other doer, whether the rule moved it or acted on it, so no
+// module event names an exhibit whose Behaviour line has no part covering `module` (§5.3; a
+// module's part on a flagged species' line, A11). A module's other effects (a sleeper the
+// alarm wakes) are their own kinds. Certificates, grades and perks are yours.
 const DOER = { moved: 'who', opened: 'who', closed: 'who', attacked: 'by', missed: 'by', telegraphed: 'who', special: 'who', waited: 'who',
   regenerated: 'who', case_opened: 'by', glass_cracked: 'by', glass_broke: 'by', took: 'who', dropped: 'who', equipped: 'who', used: 'who',
   entered: 'who', left: 'who', returned: 'who', alarm: 'by', viewed: 'who', phase: 'who', module: 'who' };
