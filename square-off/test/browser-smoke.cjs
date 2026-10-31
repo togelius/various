@@ -18,7 +18,7 @@ const shots = path.join(root, ".shots");
 fs.mkdirSync(shots, { recursive: true });
 
 async function launch() {
-  const args = ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
+  const args = ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--mute-audio"];
   try { return await chromium.launch({ headless: true, args }); }
   catch (err) {
     // fall back to any cached headless shell, then to system Chrome

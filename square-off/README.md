@@ -33,6 +33,7 @@ Optional URL flags:
 | `?q=low\|med\|high` | Force a graphics tier (normally picked automatically and lowered if frames are slow) |
 | `?nointro` | Skip the opening camera flight |
 | `?start=night` | Start the match at Golden Hour or Night |
+| `?mute` | No sound at all. Automated browsers (Playwright, WebDriver) are always silent, so playtests never make noise |
 
 ## How to play
 

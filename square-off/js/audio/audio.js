@@ -11,7 +11,12 @@
   'use strict';
 
   var W = (typeof window !== 'undefined') ? window : null;
-  var AC = W && (W.AudioContext || W.webkitAudioContext);
+  // Playtests must be silent: with ?mute (or ?mute=1), or in any automated browser (Playwright and
+  // WebDriver set navigator.webdriver), no AudioContext is ever created, so nothing can make a sound.
+  // Keep this. To check that game events trigger sounds in a test, spy on SQ.audio.play instead.
+  var SILENT = !!W && (/[?&]mute(=1)?(&|$)/.test((W.location && W.location.search) || '') ||
+    !!(W.navigator && W.navigator.webdriver));
+  var AC = !SILENT && W && (W.AudioContext || W.webkitAudioContext);
 
   var CREWS = ['hustle', 'noise', 'violets', 'pack'];
   var MAX_VOICES = 16;          // §9 mixing cap (SFX)
@@ -1494,6 +1499,7 @@
   }
 
   var A = SQ.audio = {
+    silent: SILENT,   // true for playtests (see top): nothing will ever play
     init: init,
     unlock: unlock,
     setListener: setListener,
