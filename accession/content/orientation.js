@@ -4,8 +4,9 @@
 // line) sleeps in the room; one case your grade opens holds the Linesman's Smoked Apron
 // (M.11's garment, which needs no identifying); the exit door is on the east wall. There is
 // no clock, so no bell and no night watch can come, and pips always fade (§8.2). Fixed seed,
-// depth 1, grade I, the starting kit. Not a department: js/ui/teacher.js reads `facts` to
-// know where everything is, and never the state.
+// depth 1, grade I, the starting kit. Not a department, and its spec says so (place: what
+// its sentences call it, Setup.room's dept.place): js/ui/teacher.js reads `facts` to know
+// where everything is, and never the state.
 'use strict';
 const Orientation = (() => {
   const SEED = 1;
@@ -29,7 +30,7 @@ const Orientation = (() => {
   function spec() {
     const f = facts(), rec = Packs.get('M11').items.find(i => i.id === APRON);
     return {
-      acc: 'O', depth: 1, map: MAP.slice(), you: f.start, entrance: f.entrance, exits: [f.exit],
+      acc: 'O', depth: 1, place: 'practice room', map: MAP.slice(), you: f.start, entrance: f.entrance, exits: [f.exit],
       exhibits: [{ sp: f.species, at: f.at, mode: 'dormant', stats: Roles.stats('fodder', 1), uid: SLEEPER }],
       fixtures: [Cases.make({ x: f.case[0], y: f.case[1], room: 'room', num: 'O.101.1', glass: 1, lock: 1, holds: ITEM })],
       items: [{ uid: ITEM, kind: rec.kind, ref: rec.id, where: { at: 'case', x: f.case[0], y: f.case[1] }, form: rec.form, tier: 1, prims: rec.prims }],

@@ -299,8 +299,11 @@ function keyDriver(page, tag) {
 // button Tab reached to the board; the laptop's log, longer than its
 // box, is reached by Tab and scrolled by the keys, which do not step; no button's key runs
 // into its words, or cuts them, at any text size; the aim strip says what the keys do, not
-// taps; Caps Lock changes no key; and, once, every key of BUILD.md §7.1's table is in "How
-// the museum works", and every key that lists is in the table.
+// taps; Caps Lock changes no key; Enter on a far selected thing does what a second tap on it
+// does (a far exhibit or case, its label closed, is selected again with its label shown and no
+// time passing, as a second tap does not walk to it; a far item on the floor is walked to);
+// a Restoration kit's list says Enter for both presses; and, once, every key of BUILD.md
+// §7.1's table is in "How the museum works", and every key that lists is in the table.
 async function alone(page, d, tag, W, did, once) {
   const ok = (c, yes, no) => { if (c) did.push(yes); else bad(`${tag}: ${no}`); return c; };
   const at = () => page.evaluate(() => { const A = window.ACCESSION, me = A.state.actors[0]; return { x: me.x, y: me.y, tick: A.state.tick, asking: !!A.asking, sel: A.vm().selection, top: UI.topLayer(), yes: !!document.activeElement && document.activeElement.matches('#confirm .yes') }; });
@@ -392,6 +395,70 @@ async function alone(page, d, tag, W, did, once) {
   await d.escape(); await d.press('x'); const first = await d.chosen(); await d.escape();
   await caps('I', false); const bag = await page.evaluate(() => Bag.shown()); await caps('I', false); const shut = await page.evaluate(() => Bag.shown());
   ok(got === want && back === first && bag === 'bag' && !shut, 'Caps Lock changed no key', `with Caps Lock, x x chose ${got} (not ${want}), Shift+X ${back} (not ${first}), i ${bag} then ${shut}`);
+  // Enter on a far selected thing: what a second tap on it does (§7.1). A far exhibit and a
+  // far case, each selected by x with its label then closed (its Close, by Tab and Enter):
+  // a second tap selects it again and shows its label, and walks nowhere, so Enter must too.
+  const closeLabel = async () => { if (!await focusOnSheetClose()) bad(`${tag}: Tab never reached the label's Close`); else await d.press('Enter'); };
+  const focusOnSheetClose = () => d.focusOn('#sheet [data-close]', 'Tab');
+  for (const kind of ['exhibit', 'case']) {
+    const far = await page.evaluate(kind => {
+      const A = window.ACCESSION, s = A.state, T = window.__s, me = s.actors[0];
+      T.calm();
+      if (kind === 'exhibit') {
+        const a = T.plodder(), l = T.lane(3);
+        if (!a || !l) return null;
+        const [x, y] = l.tiles[3]; Object.assign(a, { x, y }); A.redraw();
+        return { id: a.uid };
+      }
+      // A case in sight, 3 or 4 tiles from a free tile you are put on, that cannot be opened
+      // or broken from there.
+      for (const f of s.dept.fixtures) {
+        if (f.k !== 'case' || f.mimic || f.st !== 'shut') continue;
+        for (let y = f.y - 4; y <= f.y + 4; y++) for (let x = f.x - 4; x <= f.x + 4; x++) {
+          if (Math.max(Math.abs(x - f.x), Math.abs(y - f.y)) < 3 || !T.free(x, y)) continue;
+          T.put(x, y); A.redraw();
+          const id = `case:${f.x},${f.y}`, l = Labels.of(s, id), vm = A.vm();
+          if (l && !l.actions.some(q => q.act) && vm.cases.some(c => c.x === f.x && c.y === f.y) && vm.actors.length === 1) return { id };
+        }
+      }
+      return null;
+    }, kind);
+    if (!far) { bad(`${tag}: no far ${kind} to select`); continue; }
+    await d.escape();
+    if (!await d.select(far.id)) continue;
+    await closeLabel();
+    const a0 = await at(), shut = await page.evaluate(() => UI.labelShown());
+    await d.press('Enter');
+    const a1 = await at(), shown = await page.evaluate(() => UI.labelShown());
+    ok(shut === null && shown === far.id && a1.sel === far.id && a1.tick === a0.tick && a1.x === a0.x && a1.y === a0.y,
+      `Enter on a far ${kind} selected it again, its label shown, as a second tap does`,
+      `Enter on a far ${kind} (${far.id}, label ${shut === null ? 'closed' : 'still open'}) left the label ${shown}, the selection ${a1.sel}, and you at ${a1.x},${a1.y} (tick ${a0.tick} → ${a1.tick})`);
+    await d.escape();
+  }
+  // A far item on the floor, where you can stand: a second tap walks onto it, and Enter too.
+  const item = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, T = window.__s; T.calm();
+    const l = T.lane(4); if (!l) return null;
+    const [x, y] = l.tiles[3], it = Consumables.make(s, 'consolidant', { at: 'floor', x, y }); A.redraw();
+    return { id: 'item:' + it.uid, x, y };
+  });
+  if (!item) bad(`${tag}: no lane for a far item`);
+  else {
+    await d.escape();
+    if (await d.select(item.id)) {
+      await d.press('Enter');
+      const a1 = await at();
+      ok(a1.x === item.x && a1.y === item.y, 'Enter on a far item walked onto it, as a second tap does', `Enter on a far item at ${item.x},${item.y} left you at ${a1.x},${a1.y}`);
+    }
+    await page.evaluate(() => { window.__s.calm(); window.ACCESSION.redraw(); });
+    await d.escape();
+  }
+  // A Restoration kit's list, with the keys: Enter for both presses, named as Enter.
+  const kit = await page.evaluate(() => { const s = window.ACCESSION.state, it = Kit.make(s, { kind: 'kit' }, { at: 'tote' }); window.ACCESSION.redraw(); return it.uid; });
+  await d.bag(); await d.bagItem(kit); await d.bagAct('restore');
+  const kitSay = await page.evaluate(() => (document.querySelector('#bag.open .bag-where') || {}).textContent || '');
+  ok((kitSay.match(/\bEnter\b/g) || []).length === 2 && !/\btap\b|\bpress it\b/i.test(kitSay), 'a kit\'s list said Enter for both presses', `a kit's list, with the keys, says "${kitSay}"`);
+  await d.closeBag();
   if (!once) return;
   // "How the museum works" lists the keys of BUILD.md §7.1's table, and only those.
   const build = readFileSync(`${root}/BUILD.md`, 'utf8'), lines = build.slice(build.indexOf('| Keys | What they do |')).split('\n').slice(2);

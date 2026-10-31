@@ -2,7 +2,9 @@
 // rules and passes every check the battery makes after every step; its teacher
 // (js/ui/teacher.js) is pure, only reads, and is followed to the end by a sensible player, in
 // order and out of it; every sentence has its three forms, in each input's own words, and
-// every rule it states with a number is the rule as the numbers of record and play give it.
+// every rule it states with a number is the rule as the numbers of record and play give it;
+// at every look of every play, what the sentence shown takes for so is so (the sleeper
+// sleeps, the case to open is shut); and the room, which is no department, is not called one.
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore(['js/ui/teacher.js']);
   const { Orientation, Teacher, Step, ViewModel, Path, Actors, Vision, Clock, State, Setup, Packs, Labels, N } = C;
@@ -52,12 +54,26 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     return toward(s, F.exit[0], F.exit[1]);
   }
 
+  // What the sentence shown takes for so, in every form: "the sleeper" sleeps; Open (o to open)
+  // is named only while the case is shut. Returns the problems, for a look at state s.
+  const FORMS_ALL = Teacher.FORMS.concat(['either']);
+  function claims(s, mem) {
+    const out = [], i = Teacher.step(mem), a = sleeperOf(s), k = s.dept.fixtures.find(f => f.k === 'case' && f.x === F.case[0] && f.y === F.case[1]);
+    for (const f of FORMS_ALL) {
+      const t = Teacher.sentence(i, f, mem);
+      if (/\bsleep(er|ing)\b/.test(t.replace('wakes a sleeper', '')) && !(a && !a.gone && a.mode === 'dormant')) out.push(`turn ${s.turn}, step ${i + 1} (${f}): "${t}" while the exhibit is ${a ? (a.gone ? 'gone' : a.mode) : 'none'}`);
+      if (/\bOpen\b|\bto open\b/.test(t) && k.st !== 'shut') out.push(`turn ${s.turn}, step ${i + 1} (${f}): "${t}" while the case is ${k.st}`);
+    }
+    return out;
+  }
+
   // Plays the room with policy(s, mem, ui) → an action, or null having changed only ui (the
   // selection, as a tap or x does). After every step the battery's checks run (plain data,
   // causes, sentences, the Behaviour-line invariants, the recap of a death) and the teacher
   // looks at the view model main.js would draw (opts.unchecked: the teacher only, where other
-  // tests have run the checks on the same play). Returns the state, the teacher's memory, the
-  // steps it showed in order, every problem the checks found, and the actions taken.
+  // tests have run the checks on the same play), and what its sentence takes for so is held
+  // to the state (claims). Returns the state, the teacher's memory, the steps it showed in
+  // order, every problem the checks found, and the actions taken.
   function play(policy, opts) {
     opts = opts || {};
     const s = opts.state || Orientation.create(), checks = Battery.checks(C), problems = [], shown = [], actions = [];
@@ -70,6 +86,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const k of Object.keys(mem.seen)) if (mem.seen[k] && !(k in when)) when[k] = actions.length;
       const i = Teacher.step(mem);
       if (shown[shown.length - 1] !== i) shown.push(i);
+      for (const p of claims(s, mem)) problems.push(p);
     };
     look();
     for (let n = 0; n < (opts.max || 400) && !s.over; n++) {
@@ -125,12 +142,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('the room passes every check after every step: a monkey plays it 1,500 steps, the room made anew when a visit ends', () => {
     const X = loadCore(['tools/monkey.js']), checks = Battery.checks(X), stream = X.Monkey.stream(7);
-    let s = X.Orientation.create(), visits = 1;
+    let s = X.Orientation.create(), visits = 1, mem = Teacher.start(F);
     const problems = [];
     for (let i = 0; i < 1500; i++) {
       const a = X.Monkey.choose(s, stream), pre = X.State.clone(s), ev = X.Step.step(s, a);
       for (const p of checks.check(pre, a, ev, s)) problems.push(`step ${i}: ${p.id}: ${p.text}`);
-      if (X.Monkey.ended(s)) { s = X.Orientation.create(); checks.reset(); visits++; }
+      // The teacher looks too (the monkey's selection is none), and its sentence holds.
+      mem = Teacher.observe(mem, X.ViewModel.derive(s, { coach: Teacher.target(mem) }), ev);
+      for (const p of claims(s, mem)) problems.push(`step ${i}: ${p}`);
+      if (X.Monkey.ended(s)) { s = X.Orientation.create(); checks.reset(); visits++; mem = Teacher.start(F); }
     }
     assert.deepEqual(problems.slice(0, 5), []);
     assert.ok(visits >= 2, `${visits} visits`);
@@ -186,6 +206,25 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(b.when.took < b.when.beaten, `took at ${b.when.took}, the trolley fell at ${b.when.beaten}`);
     // When the coach reaches the case, its goal is met: it passes at once (no step shows 5).
     assert.ok(!b.shown.includes(5), json(b.shown));
+    // The case opened first but not emptied, then the trolley woken by your ring before its
+    // label is read: the label's step calls it the exhibit (not a sleeper, which it no longer
+    // is), and the case's step names Take alone (claims, in play).
+    const awake = [];
+    const half = (s, mem, ui) => {
+      const [cx, cy] = F.case, k = s.dept.fixtures.find(f => f.k === 'case' && f.x === cx && f.y === cy), t = sleeperOf(s);
+      if (k.st === 'shut') return doCase(s);
+      if (!mem.seen.woke) return toward(s, t.x, t.y);
+      if (!mem.seen.examined) { awake.push(Teacher.step(mem) === 1 && t.mode); ui.selection = F.sleeper; return null; }
+      return fight(s) || doCase(s) || doLeave(s);
+    };
+    const c = play(half);
+    assert.deepEqual(c.problems, []);
+    assert.equal(c.s.over && c.s.over.k, 'left');
+    assert.ok(awake.length && awake.every(m => m && m !== 'dormant'), `the label's step showed with the trolley awake: ${json(awake)}`);
+    assert.ok(c.when.woke <= c.when.examined && c.when.examined < c.when.took, json(c.when));
+    assert.ok(c.shown.includes(5), 'the case\'s step showed, the case open');
+    const opened = Teacher.sentence(5, 'keys', { now: { shut: false } });
+    assert.ok(!/Open|o to open/.test(opened) && /t to take/.test(opened), opened);
   });
 
   test('the teacher only reads: the view model, the events and its memory are as they were, the state too, and a game played with it equals one played without', () => {
@@ -211,9 +250,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   test('every step has one sentence in each form, each in its own input\'s words, and the keys named are §7.1\'s', () => {
     assert.equal(Teacher.STEPS.length, 7);
     assert.equal(json(Teacher.STEPS.map(s => s.id)), json(['move', 'examine', 'ring', 'pips', 'bump', 'case', 'leave']));
-    for (const [i, st] of Teacher.STEPS.entries()) {
+    // Each step as the room is made, and the case's step once the case is open.
+    const variants = Teacher.STEPS.map((st, i) => [i, st, null]).concat([[5, Teacher.STEPS[5], { now: { shut: false } }]]);
+    for (const [i, st, mem] of variants) {
       for (const f of Teacher.FORMS) {
-        const t = Teacher.sentence(i, f);
+        const t = Teacher.sentence(i, f, mem);
         assert.ok(typeof t === 'string' && t.length > 10, `${st.id} ${f}`);
         assert.ok(/^[A-Z].*\.$/.test(t) && !/[.!?] [A-Z]/.test(t.slice(0, -1)), `${st.id} ${f} is one sentence: ${t}`);
         const tap = /\btaps?\b/i.test(t), click = /\bclicks?\b/i.test(t), key = /\bpress|\bkeys?\b|arrows?\b/i.test(t);
@@ -221,8 +262,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         if (f === 'mouse') assert.ok(click && !tap && !key, `${st.id} mouse: ${t}`);
         if (f === 'keys') assert.ok(!tap && !click, `${st.id} keys: ${t}`);
       }
-      assert.equal(new Set(Teacher.FORMS.map(f => Teacher.sentence(i, f))).size, 3, `${st.id}: three different forms`);
+      assert.equal(new Set(Teacher.FORMS.map(f => Teacher.sentence(i, f, mem))).size, 3, `${st.id}: three different forms`);
     }
+    assert.notEqual(Teacher.sentence(5, 'touch', { now: { shut: false } }), Teacher.sentence(5, 'touch', { now: { shut: true } }));
+    // Before any input on a laptop (either): the first step, the only one that can show before
+    // an input, says a click's words and the keys' in one sentence; any other step a click's.
+    const e = Teacher.sentence(0, 'either');
+    assert.ok(/^[A-Z].*\.$/.test(e) && !/[.!?] [A-Z]/.test(e.slice(0, -1)) && /\bclick/i.test(e) && /\barrow key/.test(e) && !/\btap/i.test(e), e);
+    assert.equal(Teacher.step(Teacher.observe(Teacher.start(F), ViewModel.derive(Orientation.create(), {}), [])), 0, 'with nothing done, the first step');
+    for (let i = 1; i < 7; i++) assert.equal(Teacher.sentence(i, 'either'), Teacher.sentence(i, 'mouse'));
     // The keys the keys' forms name are §7.1's, as the code binds them: each phrase is in its
     // step's sentence, and the key it names does that there (input.js, main.js, ui.js).
     const input = fs.readFileSync(path.join(root, 'js/input.js'), 'utf8'), main = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8'), ui = fs.readFileSync(path.join(root, 'js/ui/ui.js'), 'utf8');
@@ -233,10 +281,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const k of 'hjklyubn') assert.ok(new RegExp(`\\b${k}: \\d`).test(input), `${k} steps (input.js)`);
     said('examine', 'Press x until'); said('case', 'press x until'); said('leave', 'Press x until');
     assert.ok(/if \(k === 'x' \|\| k === 'X'\)/.test(main) && /cycle\(k === 'x' \? 1 : -1\)/.test(main), 'x selects the next thing in sight (main.js)');
-    said('ring', 'with the arrows'); said('bump', 'Walk into it with a step key');
+    said('ring', 'step nearer the sleeper'); said('pips', 'Step nearer'); said('bump', 'Walk into it with a step key');
     said('case', `${verb('open')} to open it`); said('case', `${verb('take')} to take what it holds`); said('case', `your Bag (i)`);
     assert.equal(verb('open'), 'o'); assert.equal(verb('take'), 't'); assert.ok(/if \(k === 'i'\) \{ stop\(\); Bag\.open\(\)/.test(main), 'i opens the Bag (main.js)');
-    said('leave', 'and Enter to walk there'); said('leave', `then ${verb('leave')} and Enter to leave`);
+    said('leave', ', Enter to walk there'); said('leave', `then ${verb('leave')} and Enter to leave`);
     assert.equal(verb('leave'), '>'); assert.ok(/if \(preview\) \{ tap\(preview\); return; \}/.test(main) && /if \(asking\) \{ answer\(true\); return; \}/.test(main), 'Enter walks a previewed walk and answers yes (main.js)');
   });
 
@@ -313,6 +361,31 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(ViewModel.derive(s, { coach: { x: F.case[0], y: F.case[1] } }).marks.filter(m => m.kind === 'coach').map(m => [m.x, m.y])), json([F.case]));
     assert.equal(ViewModel.derive(s, { coach: { x: 0, y: 0 } }).marks.filter(m => m.kind === 'coach').length, 0, 'a wall you cannot see is not marked');
     assert.equal(ViewModel.derive(s, { coach: { uid: 'nobody' } }).marks.filter(m => m.kind === 'coach').length, 0);
+  });
+
+  test('the room is no department, and nothing says it is: its leave prompt, its case\'s label; every department\'s words as they were', () => {
+    const s = Orientation.create(), nameOf = Labels.nameOf(s);
+    assert.equal(s.dept.place, 'practice room');
+    // Leaving it starts a visit; leaving a department ends one.
+    const here = C.Text.confirm('leave', { place: s.dept.place }, nameOf);
+    assert.equal(json(here), json({ title: 'Leave the practice room?', yes: 'Leave', line: 'A visit starts when you go through this door.' }));
+    assert.equal(json(C.Text.confirm('leave', { place: null }, nameOf)), json({ title: 'Leave the department?', yes: 'Leave', line: 'Your visit ends when you go through this door.' }));
+    // main.js asks for the leave confirmation with the room's place.
+    const main = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
+    assert.ok(/ask\('leave', \{ place: m\.place \|\| null \}\)/.test(main), 'askFor passes the place');
+    // Practice room from a visit asks first, in Text.confirm's words.
+    const p = C.Text.confirm('practice', {}, nameOf);
+    assert.equal(json(p), json({ title: 'Go to the practice room?', yes: 'Practice room', line: 'This visit ends here; a new one starts after the practice room.' }));
+    // Its case's label: a department's locks at this depth, never "this department".
+    const line = Labels.of(s, `case:${F.case[0]},${F.case[1]}`).behaviour;
+    assert.ok(!/department’s|this department/.test(line) && /in a department at this depth its lock is Grade I to Grade II\./.test(line), line);
+    for (const t of [here.title, here.line, p.line]) assert.ok(!/undefined|NaN|\[object/.test(t), t);
+    // A department's case says "in this department", as before (M.11, depth 1).
+    const d = C.Dept.create(3, 'M11', 1), k = d.dept.fixtures.find(f => f.k === 'case' && f.num);
+    assert.ok(!d.dept.place && /in this department its lock is/.test(Labels.of(d, `case:${k.x},${k.y}`).behaviour));
+    // A place is a name in lower case, or the spec is refused.
+    assert.throws(() => Setup.room(1, Object.assign(Orientation.spec(), { place: 'Practice Room' })), /place/);
+    assert.throws(() => Setup.room(1, Object.assign(Orientation.spec(), { place: 7 })), /place/);
   });
 
   test('lint-core passes on the room and on the teacher', () => {

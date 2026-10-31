@@ -11,12 +11,16 @@
 // board; the frame round what the step needs is drawn where the board shows it, uncovered;
 // the board's own checks hold (measure.mjs); and the coach only reads (the state's hash is
 // the same after it looks, and after every action the game equals the same actions replayed
-// on a fresh room with no coach). Leaving starts the first visit (M.11, seed 3, as main.js
-// picks).
-// Once per input: a first load with no flag starts the Orientation; Skip starts the visit
-// and sets the flag; a second load starts the visit; ?orient=0 never shows it; Practice room
-// plays it again; a death there shows the recap with Practice again and Start the visit.
-import { playwright, fileUrl } from './lib.mjs';
+// on a fresh room with no coach). Leaving asks in the practice room's words, and starts the
+// visit waiting (M.11, seed 3 as main.js picks it; the next seed after Practice room from a
+// visit). Nothing the page shows calls the room a department: the case's label, the floor
+// plan, the leave prompt.
+// Once per input: a first load with no flag starts the Orientation, in a tap's words on a
+// touch screen and in both a click's and the keys' on any other until the first input; Skip
+// starts the visit and sets the flag; a second load starts the visit; ?orient=0 never shows
+// it; Practice room, from a visit, asks first (cancelled, the visit goes on), then plays it
+// again; a death there shows the recap with Practice again and Start the visit.
+import { playwright, fileUrl, muted } from './lib.mjs';
 import { layout, targets, board } from './measure.mjs';
 import { seenAt, spotOf, pointerDriver } from './scenes.mjs';
 
@@ -62,10 +66,17 @@ function keyDriver(page, tag) {
     wait: () => press('.'),
     // Skip: Shift+Tab from the board reaches the coach's line, at the end of the top bar.
     async skip() { if (!await focusOn('[data-coach-skip]', 'Shift+Tab')) bad(`${tag}: Shift+Tab never reached Skip`); else await press('Enter'); },
-    async practice() {
+    // Practice room; from a visit it asks first: answer 'yes' (Enter, on the sheet's yes) or
+    // 'no' (Escape), or null when it should not ask.
+    async practice(answer = null) {
       await press('?');
-      if (!await focusOn('#how [data-practice]', 'Shift+Tab')) bad(`${tag}: Shift+Tab never reached Practice room`); else await press('Enter');
+      if (!await focusOn('#how [data-practice]', 'Shift+Tab')) { bad(`${tag}: Shift+Tab never reached Practice room`); return; }
+      await press('Enter');
+      if (answer) await answerPractice(page, tag, answer === 'yes' ? () => press('Enter') : () => press('Escape'));
     },
+    async map() { await press('m'); },
+    async closeMap() { await press('Escape'); },
+    async closeHow() { await press('Escape'); },
     // On the recap: the arrows move through its buttons, Enter presses the one with the focus.
     async endButton(sel) { if (!await focusOn(`#end.open ${sel}`, 'ArrowRight')) bad(`${tag}: the arrows never reached ${sel}`); else await press('Enter'); },
   };
@@ -85,23 +96,49 @@ function pointer(page, tag, hit, W) {
     if (!p) { bad(`${tag}: ${what} at ${q.x},${q.y} has no point on the board to tap`); return; }
     await hit(p.x, p.y); await frames(); await settle();
   };
+  // A thing to select, as a player does it: where the open label's sheet hides it (a phone's,
+  // the case's label left open), the label's Close first.
+  const select = async id => {
+    const q = await page.evaluate(id => { const f = /^(case|exit):(-?\d+),(-?\d+)$/.exec(id); return f ? { x: Number(f[2]), y: Number(f[3]) } : { uid: id }; }, id);
+    if (!await page.evaluate(spotOf, q) && await page.evaluate(() => !!UI.labelShown() && UI.labelShown() !== null)) await tapSel('#sheet [data-close]', 'the label\'s Close');
+    return base.select(id);
+  };
   return Object.assign({}, base, {
+    select,
     harmless: () => tapSel('#coach .coach-say', 'the coach\'s sentence'),
     step: dir => page.evaluate(() => { const a = window.ACCESSION.state.actors[0]; return { x: a.x, y: a.y }; })
       .then(me => tapTile({ x: me.x + [0, 1, 1, 1, 0, -1, -1, -1][dir], y: me.y + [-1, -1, 0, 1, 1, 1, 0, -1][dir] }, 'the tile beside you')),
-    async strike(id) { if (await base.select(id)) await base.first(); },
+    async strike(id) { if (await select(id)) await base.first(); },
     walk: t => tapTile(t, 'the tile to walk to'),
     walkExit: t => tapTile(t, 'the exit'),
     skip: () => tapSel('#coach [data-coach-skip]', 'Skip'),
-    async practice() { await tapSel('#howbtn', '"How the museum works"'); await tapSel('#how.open [data-practice]', 'Practice room'); },
+    async practice(answer = null) {
+      await tapSel('#howbtn', '"How the museum works"'); await tapSel('#how.open [data-practice]', 'Practice room');
+      if (answer) await answerPractice(page, tag, answer === 'yes' ? () => tapSel('#confirm.open .yes', 'the sheet\'s yes') : () => tapSel('#confirm.open [data-confirm="no"]', 'Cancel'));
+    },
+    closeMap: () => base.closeBag(),
+    closeHow: () => tapSel('#how.open [data-close]', '"How the museum works"\' Close'),
     endButton: sel => tapSel(`#end.open ${sel}`, sel),
   });
 }
 
+// Practice room from a visit asks first, in Text.confirm's words; answer() answers it by the
+// input. After a cancel the visit goes on, with "How the museum works" still open.
+async function answerPractice(page, tag, answer) {
+  const q = await page.evaluate(() => ({ open: UI.confirmOpen(), title: document.querySelector('#confirm h2').textContent, line: document.querySelector('#confirm .why').textContent, yes: document.querySelector('#confirm .yes').textContent, want: Text.confirm('practice') }));
+  if (!q.open || q.title !== q.want.title || q.line !== q.want.line || q.yes !== q.want.yes) { bad(`${tag}: Practice room from a visit did not ask first in Text.confirm's words (${JSON.stringify(q)})`); return; }
+  await answer();
+  if (await page.evaluate(() => UI.confirmOpen())) bad(`${tag}: the Practice room sheet stayed open after its answer`);
+}
+
 // What the player does now, from the coach's step and the room: the check reads the state to
-// choose, as a player reads the board; the action itself is always the input's.
-function plan(id) {
+// choose, as a player reads the board; the action itself is always the input's. openFirst:
+// out of order, the case is opened (and not emptied) before the exhibit's steps, so the
+// case's step shows with the case open.
+function plan([id, openFirst]) {
   const A = window.ACCESSION, s = A.state, me = s.actors[0], F = Orientation.facts(), a = Actors.byUid(s, F.sleeper);
+  const shut = s.dept.fixtures.some(q => q.k === 'case' && q.x === F.case[0] && q.y === F.case[1] && q.st === 'shut');
+  if (openFirst && shut && ['examine', 'ring', 'pips', 'bump'].includes(id)) id = 'case';
   const path = (x, y) => Path.to(s, x, y);
   const first = p => p.length ? Path.dirTo([me.x, me.y], p[0]) : -1;
   // The farthest tile of a path a pointer can tap, no actor on it; else its first.
@@ -132,7 +169,7 @@ function plan(id) {
 async function stepChecks(c, st) {
   const { page, tag, form, W, H } = c;
   const r = await page.evaluate(form => {
-    const s = Coach.status(), want = Teacher.sentence(s.step, form), b = document.getElementById('board').getBoundingClientRect(), k = document.getElementById('coach').getBoundingClientRect();
+    const s = Coach.status(), want = Teacher.sentence(s.step, form, { now: s.now }), b = document.getElementById('board').getBoundingClientRect(), k = document.getElementById('coach').getBoundingClientRect();
     return { s, want, n: document.querySelector('#coach .coach-n').textContent, said: (document.querySelector('#sheet .coach-said') || {}).textContent || '',
       live: [...document.querySelectorAll('[aria-live]')].map(e => e.id || e.className), off: k.bottom <= b.top + 0.5 || k.top >= b.bottom - 0.5, steps: Teacher.STEPS.length };
   }, form);
@@ -144,6 +181,9 @@ async function stepChecks(c, st) {
   if (!r.said.includes(r.s.text)) bad(`${at}: the live region says "${r.said}", not the sentence`);
   if (r.live.join() !== 'sheet,aim-text') bad(`${at}: the live regions are ${r.live.join(', ')}, not the label panel's and the aim's`);
   if (!r.off) bad(`${at}: the coach lies over the board`);
+  // The room is no department: nothing on the page says it is (the label, the log, the coach).
+  const dept = await page.evaluate(() => (document.body.innerText.match(/[^\n]*\b(this|the) department\b[^\n]*/g) || []).slice(0, 2));
+  if (dept.length) bad(`${at}: the page calls the practice room a department: ${dept.join(' | ')}`);
   // The fit, at each text size on a phone.
   for (const t of W < 900 ? ['1', '1.15', '1.3'] : ['1']) {
     await page.evaluate(t => window.ACCESSION.setting('text', t), t);
@@ -189,7 +229,7 @@ const record = page => page.evaluate(() => {
 });
 
 // Plays the Orientation from wherever it is to its end: the first visit. True if it got there.
-async function playThrough(c) {
+async function playThrough(c, seed = 3) {
   const { page, drv, tag } = c;
   const start = await page.evaluate(() => ({ on: Coach.status().on, acc: window.ACCESSION.state.dept.acc, step: Coach.status().step }));
   if (!start.on || start.acc !== 'O') { bad(`${tag}: the Orientation is not running (${JSON.stringify(start)})`); return false; }
@@ -200,16 +240,36 @@ async function playThrough(c) {
     if (st.step !== shown) {
       if (st.step < shown) bad(`${tag}: the coach went back from step ${shown + 1} to ${st.step + 1}`);
       await stepChecks(c, st); shown = st.step;
+      // The case opened first: its step names Take alone.
+      if (c.openFirst && st.id === 'case') {
+        const t = await page.evaluate(() => Coach.status());
+        if (t.now.shut || /\bOpen\b|\bto open\b/.test(t.text)) bad(`${tag}: with the case open, its step says "${t.text}"`);
+        else c.did.add('case (opened first)');
+      }
     }
-    const p = await page.evaluate(plan, st.id);
+    const p = await page.evaluate(plan, [st.id, !!c.openFirst]);
     if (p.k === 'step') await drv.step(p.dir);
     else if (p.k === 'select') await drv.select(p.id);
     else if (p.k === 'strike') await drv.strike(p.id, p.dir);
     else if (p.k === 'wait') await drv.wait();
-    else if (p.k === 'case') { if (await drv.select(p.id)) await drv.label(p.act); }
+    else if (p.k === 'case') {
+      if (await drv.select(p.id)) {
+        const line = await page.evaluate(() => document.getElementById('sheet').innerText);
+        if (/\b(this|the) department\b/.test(line) || !/in a department at this depth its lock is/.test(line)) bad(`${tag}: the practice room's case label says "${line.replace(/\s+/g, ' ').slice(0, 400)}"`);
+        await drv.label(p.act);
+      }
+    }
     else if (p.k === 'walk') await drv.walk(p.to);
     else if (p.k === 'exit') { if (c.form === 'keys') { if (p.seen) await drv.walkExit(p); else await drv.walk(p.to); } else await drv.walk(p.to); }
-    else if (p.k === 'leave') { await drv.leave(); if (await page.evaluate(() => UI.confirmOpen())) await drv.yes(); else bad(`${tag}: Leave did not ask first`); }
+    else if (p.k === 'leave') {
+      await drv.leave();
+      const q = await page.evaluate(() => UI.confirmOpen() && { title: document.querySelector('#confirm h2').textContent, line: document.querySelector('#confirm .why').textContent, want: Text.confirm('leave', { place: 'practice room' }) });
+      if (!q) bad(`${tag}: Leave did not ask first`);
+      else {
+        if (q.title !== q.want.title || q.line !== q.want.line || /department/.test(q.title + q.line)) bad(`${tag}: leaving the practice room asks "${q.title} ${q.line}"`);
+        await drv.yes();
+      }
+    }
     const over = await page.evaluate(() => window.ACCESSION.state.over);
     if (over && over.k === 'died') { bad(`${tag}: you died in the Orientation playing it as asked`); return false; }
     if (!over && await page.evaluate(() => Coach.status().on)) {
@@ -218,7 +278,7 @@ async function playThrough(c) {
     }
   }
   const v = await page.evaluate(() => ({ s: Coach.status(), acc: window.ACCESSION.state.dept.acc, seed: window.ACCESSION.seed, turn: window.ACCESSION.state.turn, end: UI.endOpen(), hidden: document.getElementById('coach').hidden, said: !!document.querySelector('#sheet .coach-said') }));
-  if (v.s.on || !v.s.seen || v.acc !== 'M11' || v.seed !== 3 || v.turn !== 0 || v.end || !v.hidden || v.said) { bad(`${tag}: leaving did not start the first visit (${JSON.stringify(v)})`); return false; }
+  if (v.s.on || !v.s.seen || v.acc !== 'M11' || v.seed !== seed || v.turn !== 0 || v.end || !v.hidden || v.said) { bad(`${tag}: leaving did not start the visit waiting, seed ${seed} (${JSON.stringify(v)})`); return false; }
   return true;
 }
 
@@ -281,7 +341,8 @@ async function runInput(browser, input) {
     for (const v of views) {
       const tag = `${W}×${H} ${v.label} ${input.form}`, t0 = Date.now(), did = new Set();
       const drv = input.form === 'keys' ? keyDriver(page, tag) : pointer(page, tag, hit, W);
-      const c = { page, drv, tag, form: input.form, W, H, did };
+      // The second view's play opens the case first (out of order).
+      const c = { page, drv, tag, form: input.form, W, H, did, openFirst: v !== views[0] };
       const first = W === input.sizes[0][0] && H === input.sizes[0][1] && v === views[0];
       const notes = [];
       if (first) {
@@ -291,6 +352,11 @@ async function runInput(browser, input) {
         await load(`?dept=M11&seed=3&board=${v.id}`);
         const a = await status(page);
         if (!a.on || a.acc !== 'O' || a.seen) bad(`${tag}: a first load did not start the Orientation (${JSON.stringify(a)})`);
+        // Before any input: a tap's words on a touch screen; a click's and the keys' on any other.
+        const w = await page.evaluate(() => Object.assign(Coach.status(), { either: Teacher.sentence(0, 'either') }));
+        const before = input.form === 'touch' ? w.form === 'touch' && /\bTap\b/.test(w.text) && !/click|press/i.test(w.text)
+          : w.form === 'either' && w.text === w.either && /\bclick/i.test(w.text) && /\barrow key\b/.test(w.text) && !/\btap/i.test(w.text);
+        if (!before) bad(`${tag}: before any input the coach said "${w.text}" (${w.form})`);
         await drv.harmless();
         await drv.skip();
         const b = await status(page);
@@ -303,26 +369,37 @@ async function runInput(browser, input) {
         await load(`?orient=0&dept=M11&seed=3&board=${v.id}`);
         const o = await status(page);
         if (o.on || o.acc !== 'M11') bad(`${tag}: ?orient=0 showed the Orientation (${JSON.stringify(o)})`);
-        // Practice room, from "How the museum works", plays it again; this play goes on from it.
-        await drv.practice();
+        // Practice room, from "How the museum works" during a visit, asks first: cancelled, the
+        // visit goes on (How still open); answered yes, the Orientation plays again, with the
+        // next visit waiting. This play goes on from it.
+        await drv.practice('no');
+        const n = await page.evaluate(() => ({ acc: window.ACCESSION.state.dept.acc, seed: window.ACCESSION.seed, on: Coach.status().on, top: UI.topLayer() }));
+        if (n.acc !== 'M11' || n.seed !== 3 || n.on || n.top !== 'how') bad(`${tag}: Practice room cancelled did not leave the visit as it was (${JSON.stringify(n)})`);
+        await drv.closeHow();
+        await drv.practice('yes');
         const p = await status(page);
-        if (!p.on || p.step !== 0 || p.acc !== 'O' || p.over) bad(`${tag}: Practice room did not start the Orientation (${JSON.stringify(p)})`);
-        notes.push('a first load started it, Skip set the flag, a second load and ?orient=0 started the visit, Practice room replayed it');
+        if (!p.on || p.step !== 0 || p.acc !== 'O' || p.over || p.seed !== 4) bad(`${tag}: Practice room did not start the Orientation with the next visit waiting (${JSON.stringify(p)})`);
+        notes.push('a first load started it, Skip set the flag, a second load and ?orient=0 started the visit, Practice room from the visit asked (cancelled, then yes) and replayed it');
       } else {
         await load(`?orient=1&dept=M11&seed=3&board=${v.id}`);
         await drv.harmless();
       }
       const active = await page.evaluate(() => window.ACCESSION.views.active().id);
       if (active !== v.id) { bad(`${tag}: the ${v.label} board is not the one shown`); continue; }
-      if (await playThrough(c)) notes.push(`seven steps (${[...did].join(', ')}), then the first visit`);
+      if (await playThrough(c, first ? 4 : 3)) notes.push(`seven steps (${[...did].join(', ')}), then the visit waiting`);
       if (first) {
         // A death there: the recap, with Practice again (keys and touch) or Start the visit.
-        await drv.practice();
+        await drv.practice('yes');
+        // Its floor plan names it as the practice room.
+        await drv.map();
+        const plan = await page.evaluate(() => (document.querySelector('#bag.open .map-say') || {}).textContent || '');
+        if (plan !== 'This is what you have seen of the practice room.') bad(`${tag}: the practice room's floor plan says "${plan}"`);
+        await drv.closeMap();
         if (await dieThere(c)) {
           if (input.form === 'mouse') {
             await drv.endButton('[data-another]');
             const e = await status(page);
-            if (e.on || e.acc !== 'M11' || e.seed !== 3 || e.turn !== 0 || e.end || !e.seen) bad(`${tag}: Start the visit after a death did not start the visit (${JSON.stringify(e)})`);
+            if (e.on || e.acc !== 'M11' || e.seed !== 5 || e.turn !== 0 || e.end || !e.seen) bad(`${tag}: Start the visit after a death did not start the visit waiting (${JSON.stringify(e)})`);
             else notes.push('a death showed the recap, and Start the visit started the visit');
           } else {
             await drv.endButton('[data-end-more="practice"]');
@@ -348,10 +425,10 @@ const pw = playwright();
 if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
 const t0 = Date.now();
 // No sound while it plays: Chromium is muted (--mute-audio).
-const browser = await pw.chromium.launch({ args: ['--mute-audio'] });
+const browser = await pw.chromium.launch({ args: muted() });
 await Promise.all(INPUTS.map(i => runInput(browser, i).catch(e => bad(`${i.form}: the check stopped: ${String(e.message || e).split('\n')[0]}`))));
 await browser.close();
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `orient: ${problems.length} problem(s)` : `orient: the Orientation played whole with the keys alone, left clicks alone and a finger alone, phone and laptop (and a tablet for the finger), every view (${Math.round((Date.now() - t0) / 1000)} s): each step's sentence the teacher's in that input's words, in the live region, the board's height, fit and 44-px targets with the coach showing at every text size, its frame drawn and uncovered, the coach only reading; leaving started the first visit; a first load started it, Skip set the flag, a second load started the visit, Practice room replayed it, a death offered it again; no problems`);
+console.log(problems.length ? `orient: ${problems.length} problem(s)` : `orient: the Orientation played whole with the keys alone, left clicks alone and a finger alone, phone and laptop (and a tablet for the finger), every view (${Math.round((Date.now() - t0) / 1000)} s): each step's sentence the teacher's in that input's words (before any input, taps' or both a click's and the keys'), in the live region, the board's height, fit and 44-px targets with the coach showing at every text size, its frame drawn and uncovered, the coach only reading, the room never called a department; the case opened first, its step said Take alone; leaving asked in the practice room's words and started the visit waiting; a first load started it, Skip set the flag, a second load started the visit, Practice room from a visit asked first and replayed it, a death offered it again; no problems`);
 process.exit(problems.length ? 1 : 0);

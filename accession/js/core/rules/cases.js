@@ -417,11 +417,18 @@ const Cases = (() => {
 
   // The rules of a case, or of a staff door, as sentences: the registry's clauses for the
   // fixture (FIXTURES) and, for a case, its glass (GLASS), filled from the numbers of record.
+  // A glass's clause names the locks a case of it can have in the department at its depth; in
+  // a room that is no department (dept.place, the Orientation's practice room) it says so of
+  // a department at that depth (OF_PLACE), the rule being the same.
+  const IN_DEPT = 'in this department', OF_PLACE = 'in a department at this depth';
   function rules(state, f) {
-    const R = Registry, depth = (state.dept && state.dept.depth) || 1;
+    const R = Registry, depth = (state.dept && state.dept.depth) || 1, place = !!(state.dept && state.dept.place);
     const fill = e => Clauses.fill(e.clause, Clauses.params(e.params, null, { depth }));
     const out = [fill(R.FIXTURES[f.k])];
-    if (f.k === 'case') { const g = R.order('GLASS').find(id => R.GLASS[id].n === f.glass); if (g) out.push(fill(R.GLASS[g])); }
+    if (f.k === 'case') {
+      const g = R.order('GLASS').find(id => R.GLASS[id].n === f.glass);
+      if (g) { const t = fill(R.GLASS[g]); out.push(place ? t.replace(IN_DEPT, OF_PLACE) : t); }
+    }
     return out;
   }
 

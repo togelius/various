@@ -25,8 +25,9 @@ const Main = (() => {
   const blank = () => ({ path: null, selection: null, selectedTile: null, events: null, aim: null });
   let seed = Number(params.get('seed')) || 1;
   let state, renderer, ui = blank(), runner = null, stopWhy = null, fresh = false, shown = null, last = [];
-  // preview: the tile a "tap twice" walk previews. asking: the action a confirmation waits on.
-  // ended: what the end-of-visit overlay says.
+  // preview: the tile a "tap twice" walk previews. asking: what a confirmation waits on, an
+  // action ({action}) or, for one that is no action (going to the practice room), what yes
+  // does ({then}). ended: what the end-of-visit overlay says.
   let preview = null, asking = null, ended = null;
   // known: each exhibit the board has shown you this visit, as you last saw it (its mode, pips
   // and tile), so a walk stops for one new or changed, not for one you have seen come back
@@ -154,7 +155,9 @@ const Main = (() => {
   function answer(yes) {
     const a = asking;
     asking = null; UI.closeConfirm();
-    if (a && yes) act_(a.action); else draw();
+    if (a && yes && a.then) a.then();
+    else if (a && yes) act_(a.action);
+    else draw();
   }
 
   // A label's button: a step() action through request() (Rest repeats, below); an action that
@@ -188,7 +191,7 @@ const Main = (() => {
       const d = Cases.describe(state, Cases.at(state, action.x, action.y));
       if (d && d.canBreak) ask('bash', { glassName: d.glassName, blows: d.blows });
     }
-    if (action.a === 'leave') ask('leave');
+    if (action.a === 'leave') ask('leave', { place: m.place || null });
     const t = Specials.threat(state, action);
     if (t) {
       const owner = Actors.byUid(state, t.by), sp = owner && owner.telegraph ? owner.telegraph.sp : null;
@@ -411,6 +414,16 @@ const Main = (() => {
   // replaces this with the next department); after the Orientation, the first visit, on the
   // seed it was waiting with.
   function anotherVisit() { begin(Coach.active() ? seed : seed + 1, false); }
+  // Practice room ("How the museum works"): the Orientation again. From a visit, the visit
+  // waiting after it is a new one, the next seed, as "Another visit" would start; a visit not
+  // yet over ends, so the sheet asks first (Text.confirm's words, §7.1). From the Orientation
+  // itself it starts again, the same visit waiting.
+  function practiceRoom() {
+    if (Coach.active()) { begin(seed, true); return; }
+    if (state.over) { begin(seed + 1, true); return; }
+    const c = Text.confirm('practice');
+    stop(); asking = { then: () => begin(seed + 1, true) }; UI.confirm({ title: c.title, lines: [c.line], yes: c.yes }); draw();
+  }
   // A visit on seed s, or (practice) the Orientation, the visit then waiting on s. Ending the
   // Orientation for a visit (it was finished or skipped) means it is not offered again.
   function begin(s, practice) {
@@ -595,7 +608,7 @@ const Main = (() => {
   }
 
   // The Orientation's coach (js/ui/coach.js): on the first visit only, unless ?orient says.
-  Coach.attach(document.getElementById('top'), document.getElementById('how'), { skip: () => begin(seed, false), practice: () => begin(seed, true) });
+  Coach.attach(document.getElementById('top'), document.getElementById('how'), { skip: () => begin(seed, false), practice: practiceRoom });
   if (Coach.first(params)) Coach.begin();
   state = newVisit();
   makeView();
@@ -621,8 +634,10 @@ const Main = (() => {
     // else, while the Bag aims, a second tap on the tile it previews (with none yet, the first
     // tile it can be used at is previewed); else go on a previewed walk; else the selected
     // thing's first action, as a second tap on it would do, or, with none, what a second tap
-    // does on its tile (walk onto it, or the next thing there): so only for something a tap
-    // can reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
+    // does on its tile (an exhibit's own tile: walk onto it where you can stand, or the next
+    // thing there, or else select it again, its label shown; so a far case or exhibit, which
+    // a second tap does not walk to, is selected again): so only for something a tap can
+    // reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
     confirm() {
       if (asking) { answer(true); return; }
       if (state.over) { if (!UI.overlayOpen() && ended) { UI.end(ended); draw(); } return; }
@@ -638,7 +653,8 @@ const Main = (() => {
       if (id && (id === 'you' || Actors.byUid(state, id) || tileOf(id))) {
         const l = labelOf(id), first = l && l.actions.find(a => a.act);
         if (first) { perform(first, id); return; }
-        const me = state.actors[0], t = id === 'you' ? { x: me.x, y: me.y } : tileOf(id);
+        const me = state.actors[0], a = id === 'you' ? null : Actors.byUid(state, id);
+        const t = id === 'you' ? { x: me.x, y: me.y } : a ? { x: a.x, y: a.y } : tileOf(id);
         if (t) tap(t);
       }
     },
@@ -664,7 +680,7 @@ const Main = (() => {
   draw();
   window.ACCESSION = {
     get state() { return state; }, act: act_, request, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
-    get events() { return last.slice(); }, stops: [...STOPS], get stopWhy() { return stopWhy; }, get asking() { return asking ? asking.action : null; },
+    get events() { return last.slice(); }, stops: [...STOPS], get stopWhy() { return stopWhy; }, get asking() { return asking ? asking.action || { practice: true } : null; },
     get seed() { return seed; }, redraw: () => draw(), bag: bagWiring,
     views: Views, setZoom, busy: () => !!runner, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },

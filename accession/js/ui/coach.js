@@ -2,7 +2,10 @@
 // the top bar, so it never lies over the board, holding the step count ("2 of 7"), the step's
 // one sentence and Skip. The sentence stays there until its step is done, in the words of
 // the input you used last: a touch or a pen's taps, a mouse's clicks (pointerType), or the
-// keys (any key). The view model frames what the step points at (ui.coach, from point()). A
+// keys (any key but a modifier). Before any input, a screen whose main pointer is coarse (a
+// phone, a tablet) gets taps, and any other (a laptop, whose player may click or press keys)
+// gets the first step's sentence for both, the teacher's `either`; until then it follows the
+// screen if that changes. The view model frames what the step points at (ui.coach, from point()). A
 // screen reader hears each new sentence through the label panel's live region (#sheet), the
 // page's one, where it is put out of sight. "How the museum works" gains Practice room,
 // which plays the Orientation again.
@@ -20,7 +23,7 @@ const Coach = (() => {
     get() { try { return localStorage.getItem(KEY) === 'seen'; } catch (e) { return false; } },
     set() { try { localStorage.setItem(KEY, 'seen'); } catch (e) { /* nothing to remember it in */ } },
   };
-  let el = null, hooks = {}, on = false, mem = null, form = null, shown = null, flashed = null;
+  let el = null, hooks = {}, on = false, mem = null, form = null, used = false, shown = null, flashed = null;
 
   // Does the Orientation start when the page loads? params: the page's URLSearchParams.
   function first(params) {
@@ -43,12 +46,22 @@ const Coach = (() => {
       btns.insertAdjacentHTML('afterbegin', '<button class="btn" data-practice>Practice room</button>');
       btns.querySelector('[data-practice]').addEventListener('click', () => hooks.practice());
     }
-    // The input used last chooses the sentence's words.
-    form = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches ? 'touch' : 'mouse';
-    window.addEventListener('pointerdown', e => use(e.pointerType === 'mouse' ? 'mouse' : 'touch'), true);
-    window.addEventListener('keydown', e => { if (!e.metaKey && !e.ctrlKey && !e.altKey) use('keys'); }, true);
+    // The input used last chooses the sentence's words; before any, the screen's pointer.
+    const coarse = typeof matchMedia === 'function' ? matchMedia('(pointer: coarse)') : null;
+    const guess = () => (coarse && coarse.matches ? 'touch' : 'either');
+    form = guess();
+    if (coarse && typeof coarse.addEventListener === 'function') coarse.addEventListener('change', () => { if (!used) use(guess()); });
+    window.addEventListener('pointerdown', e => { used = true; use(e.pointerType === 'mouse' ? 'mouse' : 'touch'); }, true);
+    window.addEventListener('keydown', e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || MODIFIERS.includes(e.key)) return;
+      used = true; use('keys');
+    }, true);
   }
-  function use(f) { if (f !== form) { form = f; render(); } }
+  const MODIFIERS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
+  // A new input's words are the sentence shown now, so the live region says them too, once
+  // the event that brought them has been handled (main.js may draw the label panel for it,
+  // and with it the live region, first).
+  function use(f) { if (f !== form) { form = f; render(); setTimeout(() => render(true), 0); } }
 
   // The Orientation starts (from its first step) or ends; ended after it was finished or
   // skipped (seen), it is not offered again when the page loads.
@@ -81,7 +94,7 @@ const Coach = (() => {
       if (said) said.remove();
       return;
     }
-    const i = Teacher.step(mem), n = Teacher.STEPS.length, text = Teacher.sentence(i, form), line = el.querySelector('.coach-say');
+    const i = Teacher.step(mem), n = Teacher.STEPS.length, text = Teacher.sentence(i, form, mem), line = el.querySelector('.coach-say');
     el.querySelector('.coach-n').textContent = `${Math.min(i + 1, n)} of ${n}`;
     if (line.textContent !== text) line.textContent = text;
     if (i !== flashed) { flashed = i; el.classList.remove('new'); void el.offsetWidth; el.classList.add('new'); }
@@ -97,10 +110,12 @@ const Coach = (() => {
   }
 
   // For the checks: whether it runs, the step (0–6, 7 once all are done), its id, the input
-  // whose words are shown, and the sentence shown.
+  // whose words are shown ('either' before any input on a laptop), the sentence shown, and
+  // what the teacher holds to be so now (whether the case is shut).
   function status() {
     const i = on ? Teacher.step(mem) : null;
-    return { on, step: i, id: on && Teacher.STEPS[i] ? Teacher.STEPS[i].id : null, form, text: el ? el.querySelector('.coach-say').textContent : '', seen: flag.get() };
+    return { on, step: i, id: on && Teacher.STEPS[i] ? Teacher.STEPS[i].id : null, form, text: el ? el.querySelector('.coach-say').textContent : '', seen: flag.get(),
+      now: on ? Object.assign({}, mem.now) : null };
   }
 
   return { first, attach, begin, end, active, point, see, status };

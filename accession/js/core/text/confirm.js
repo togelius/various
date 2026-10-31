@@ -6,10 +6,14 @@
 //   'shards'  stepping onto shards from a tile without them;
 //   'bash'    a blow at a case's glass: data {glassName, blows}, Cases.describe's (the blows
 //             left to break it, this one included);
-//   'leave'   leaving by an exit (a minimal confirmation, D4.9);
+//   'leave'   leaving by an exit (a minimal confirmation, D4.9): data {place}, the room's
+//             dept.place where it is no department (the Orientation's practice room, whose
+//             door starts a visit rather than ending one);
 //   'threat'  an action that would leave you on a tile marked for damage by a special that
 //             goes off before your next decision: data {by, shape, dmg, stay}, Specials.threat's
-//             owner and number, the special's shape, and whether you stay where you are.
+//             owner and number, the special's shape, and whether you stay where you are;
+//   'practice' going to the practice room (the Orientation) from "How the museum works"
+//             while a visit is under way, which ends it (js/main.js).
 'use strict';
 (() => {
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
@@ -22,7 +26,9 @@
       line: `Broken glass is loud underfoot: while you stand on it, your ring reaches ${N.RING_LOUD_FLOOR} tiles farther.` }),
     bash: d => ({ title: 'Break the glass?', yes: 'Strike the glass',
       line: d.blows === 1 ? `This blow breaks its ${d.glassName} glass, with a crash.` : `This blow is loud and cracks its ${d.glassName} glass; ${more(d.blows - 1)}, the last with a crash.` }),
-    leave: () => ({ title: 'Leave the department?', yes: 'Leave', line: 'Your visit ends when you go through this door.' }),
+    leave: d => (d.place ? { title: `Leave the ${d.place}?`, yes: 'Leave', line: 'A visit starts when you go through this door.' }
+      : { title: 'Leave the department?', yes: 'Leave', line: 'Your visit ends when you go through this door.' }),
+    practice: () => ({ title: 'Go to the practice room?', yes: 'Practice room', line: 'This visit ends here; a new one starts after the practice room.' }),
     threat: (d, nameOf) => {
       const who = (typeof nameOf === 'function' && nameOf(d.by)) || 'an exhibit', what = own(SPECIAL, d.shape) ? SPECIAL[d.shape] : 'special';
       return { title: d.stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', yes: d.stay ? 'Stay' : 'Step onto it',

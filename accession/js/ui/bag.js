@@ -437,7 +437,7 @@ const Bag = (() => {
       return `<li><button class="btn bag-row${sel ? ' chosen' : ''}" data-on="${esc(a.on)}" aria-pressed="${sel}">${P(t.pictos[0] ? t.pictos[0].icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(t.title)}</span><span class="bag-note">${esc(where)}</span>${gain ? `<span class="bag-gain">${esc(gain)}</span>` : ''}</span></button></li>`;
     }).join('');
     const say = !acts.length ? 'There is nothing you wear or carry that it can be used on now.' : Input.using() === 'keys'
-      ? 'Press Enter on an item to see what it would gain, then press it again to use the kit on it.' : 'Tap an item to see what it would gain, then tap it again to use the kit on it.';
+      ? 'Press Enter on an item to see what it would gain, then Enter again to use the kit on it.' : 'Tap an item to see what it would gain, then tap it again to use the kit on it.';
     return `<button class="btn bag-back" data-back${UI.keyAttrs('Backspace')}>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
   }
   // What one level gives the item: Kit.restore on a copy of the state, read back through
@@ -462,14 +462,17 @@ const Bag = (() => {
 
   // The floor plan: the department as you know it (vm.tiles: what you see and remember;
   // all of it once a Floor Plan is read here), you, the exits, and the rooms that still hold
-  // a Highlight (vm.plan), each drawn with its own shape, so colour is never the only sign.
+  // a Highlight (vm.plan), each drawn with its own shape, so colour is never the only sign. A
+  // room that is no department (dept.place: the Orientation's practice room) is named as
+  // itself, and has no Floor Plan or Highlight to speak of.
   function mapView(s, vm) {
     const room = s.dept.roomOf && s.dept.roomOf[vm.you.y] ? (s.dept.rooms || []).find(r => r.id === s.dept.roomOf[vm.you.y][vm.you.x]) : null;
     const here = room && room.number ? ` You are in Room ${room.number}.` : '';
     let say;
     const rooms = (vm.plan || []).map(r => 'Room ' + (r.number === null ? r.key : r.number));
     const and = rooms.length > 1 ? rooms.slice(0, -1).join(', ') + ' and ' + rooms[rooms.length - 1] : rooms.join('');
-    if (vm.plan === null) say = `This is what you have seen of the department.${here} A Floor Plan, read here, shows all of it and the rooms whose Highlights have not been taken.`;
+    if (s.dept.place) say = `This is what you have seen of the ${s.dept.place}.`;
+    else if (vm.plan === null) say = `This is what you have seen of the department.${here} A Floor Plan, read here, shows all of it and the rooms whose Highlights have not been taken.`;
     else if (!rooms.length) say = `You have read a Floor Plan here, so all of the department is drawn; every Highlight has been taken.${here}`;
     else say = `You have read a Floor Plan here, so all of the department is drawn. The ${rooms.length === 1 ? 'room whose Highlight has' : 'rooms whose Highlights have'} not been taken ${rooms.length === 1 ? 'is' : 'are'} outlined: ${and}.${here}`;
     return `<p class="bag-where map-say">${esc(say)}</p><div class="map-box"><canvas class="bag-map" role="img" aria-label="${esc(say)}"></canvas></div>

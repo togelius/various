@@ -88,12 +88,14 @@ const Setup = (() => {
   //   which goes {at: 'gone'}; kit ({weapon: {form, tier, level}, garment: {form, tier,
   //   level}}: your starting kit, else the usual one); youStatuses (your statuses, as an
   //   exhibit's); clock ({ltour} or {B, G, count}: Clock.init's; none if absent); entrance
-  //   [x, y], exits [[x, y]…], grade (your grade, I if absent, and your health with it).
+  //   [x, y], exits [[x, y]…], grade (your grade, I if absent, and your health with it);
+  //   place (what the room is called where it is no department, as a sentence names it: the
+  //   Orientation's 'practice room'; kept as dept.place, which no department has).
   // A field it does not know, a slot given twice, an item of the wrong kind for its slot, a
   // tote past TOTE_SLOTS, an item uid given twice or a status not in the registry is refused
   // with an error, so nothing a test gives is silently left out.
   // options: Options.make's (rulesOff, without, invulnerable).
-  const SPEC = ['acc', 'depth', 'map', 'you', 'exhibits', 'fixtures', 'items', 'kit', 'clock', 'entrance', 'exits', 'grade', 'youStatuses'];
+  const SPEC = ['acc', 'depth', 'map', 'you', 'exhibits', 'fixtures', 'items', 'kit', 'clock', 'entrance', 'exits', 'grade', 'youStatuses', 'place'];
   const EXHIBIT = ['sp', 'at', 'mode', 'stats', 'size', 'arch', 'role', 'mods', 'modParams', 'trigger', 'group', 'home', 'guards', 'ax', 'speed',
     'statuses', 'target', 'lastKnown', 'sawYou', 'pips', 'stim', 'next', 'gen', 'hp', 'maxHp', 'acc', 'eva', 'pad', 'dmin', 'dmax', 'room', 'uid'];
   const unknown = (rec, known, where) => { for (const k of Object.keys(rec)) if (!known.includes(k)) throw new Error(`Setup.room: ${where} has the unknown field ${k}`); };
@@ -145,6 +147,10 @@ const Setup = (() => {
     const dept = Object.assign({ acc: spec.acc, depth, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice(),
       entrance: spec.entrance ? spec.entrance.slice() : null, exits: (spec.exits || []).map(e => e.slice()), seen: '' }, deptParts(grade));
     if (spec.clock) dept.clock = Clock.init(spec.clock.ltour || 0, spec.clock);
+    if (spec.place !== undefined) {
+      if (typeof spec.place !== 'string' || !/^[a-z][a-z ]*$/.test(spec.place)) throw new Error(`Setup.room: the place ${JSON.stringify(spec.place)} is not a name in lower case`);
+      dept.place = spec.place;
+    }
     for (const f of spec.fixtures || []) dept.fixtures.push(JSON.parse(JSON.stringify(f)));
     const state = base(seed, dept, spec.you[0], spec.you[1], options, grade);
     const counts = {};
