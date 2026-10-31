@@ -1,7 +1,15 @@
 // ACCESSION — registry fragment: the module copies_weaken: the weakened spares (BUILD.md §5.1,
-// §5.4), owned by MOD-COPIES. M4's skeleton made it; its owner fills it, after W0a has moved here
-// whatever of reg/system.js's M4 placeholders is its.
+// §5.4), owned by MOD-COPIES. M4's skeleton made it; M4's Wave 0 (W0a) moved here, verbatim
+// from reg/system.js, the module's panel sentence, and gave it its keywords and its event's
+// cause. MOD-COPIES fills the rest.
 'use strict';
 (() => {
-  // MOD-COPIES fills: its entries, clause templates and event schemas.
+  const R = Registry;
+
+  // The module (§5.4), its panel sentence and the words that name its rule (the Intro lint).
+  R.define('MODULES', 'copies_weaken', { built: 'M4', sentence: 'When an original is broken, its spares lose heart.', keywords: ['spare', 'lose heart'] });
+
+  // Its module event (reg/system.js): rule `weaken`, a spare whose original was destroyed
+  // losing heart (who).
+  R.defineCause('module', 'copies_weaken', { fields: {}, built: 'M4' });
 })();

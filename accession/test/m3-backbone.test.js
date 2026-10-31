@@ -353,9 +353,6 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     add('behind_glass', room(C, caseMap, [3, 1]), { a: 'move', dir: 4 });
     const f = room(C, OPEN, [2, 2]); held(f.actors[0], 'fixed', 5); add('fixed', f, { a: 'move', dir: 2 });
     const r = room(C, OPEN, [2, 2]); held(r.actors[0], 'rooted', 5); add('rooted', r, { a: 'move', dir: 2 });
-    // not_built, from a handler planted to refuse with it (no handler keeps it once Wave 1 is done).
-    const P = loadCore(); P.Actions.get('wait').apply = () => 'not_built';
-    add('not_built', P.TestRoom.create(1), { a: 'wait' }, P);
     add('no_use', TestRoom.create(1), { a: 'use', uid: 'nothing' });
     const seen = new Set();
     for (const c of cases) {
@@ -369,19 +366,21 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(X.Text.refusalDefined(c.code) && line && line !== c.code && /[.:]/.test(line), `${c.code}: ${line}`);
       seen.add(c.code);
     }
-    for (const code of C.Registry.order('REFUSALS')) if (['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'behind_glass', 'fixed', 'rooted', 'not_built', 'no_use'].includes(code)) assert.ok(seen.has(code), code);
+    for (const code of C.Registry.order('REFUSALS')) if (['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'behind_glass', 'fixed', 'rooted', 'no_use'].includes(code)) assert.ok(seen.has(code), code);
+    // not_built, the code of an action whose rules a later part built, was M4's to remove (no
+    // action gave it: push has no handler and view refuses no_centrepiece), and M4 removed it.
+    assert.ok(!Object.prototype.hasOwnProperty.call(C.Registry.REFUSALS, 'not_built') && !C.Text.refusalDefined('not_built'));
   });
 
   // The backbone's refusal codes are proved here (§5.1): each entry names this file, and has
   // its invariant (test/behaviour/system.inv.js), which catches a refusal that comes with
   // other events, draws, or changes the state; each the real game can give is at true, made
-  // to happen joined up in behaviour/refusals.test.js (W2a-BEHAVIOUR), and not_built, which
-  // no M3 action gives, is built: 'M4', at 'unit'.
+  // to happen joined up in behaviour/refusals.test.js (W2a-BEHAVIOUR).
   test('the backbone refusal codes are proved here and joined up, with the system invariant, which catches a refusal that changes anything', () => {
-    const BACKBONE = ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'not_built', 'no_use'];
+    const BACKBONE = ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'no_use'];
     for (const code of BACKBONE) {
       const e = C.Registry.REFUSALS[code];
-      const want = code === 'not_built' ? ['M4', 'unit', ['m3-backbone.test.js'], 'system'] : ['M3', true, ['m3-backbone.test.js', 'behaviour/refusals.test.js'], 'system'];
+      const want = ['M3', true, ['m3-backbone.test.js', 'behaviour/refusals.test.js'], 'system'];
       assert.equal(json([e.built, e.ready, e.tests, e.inv]), json(want), code);
     }
     const Inv = require(path.join(root, 'tools/invariants.js'));
@@ -396,10 +395,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(check(pre, { a: 'dance' }, more, s).some(v => /other event/.test(v.text)), 'a refusal with other events');
   });
 
-  test('Combat.canStrike throws on a kind of blow nothing makes, so not_built comes only from a handler that returns it', () => {
+  test('Combat.canStrike throws on a kind of blow nothing makes, and answers every other with a refusal code or null', () => {
     const s = room(C, OPEN, [2, 2], [ex([3, 2])]);
     assert.throws(() => C.Combat.canStrike(s, s.actors[0], s.actors[1], { kind: 'kick' }), /no blow of kind kick/);
-    for (const kind of ['melee', 'reach', 'shot']) assert.notEqual(C.Combat.canStrike(s, s.actors[0], s.actors[1], { kind }), 'not_built', kind);
+    for (const kind of ['melee', 'reach', 'shot']) {
+      const r = C.Combat.canStrike(s, s.actors[0], s.actors[1], { kind });
+      assert.ok(r === null || (Object.prototype.hasOwnProperty.call(C.Registry.REFUSALS, r) && C.Text.refusalDefined(r)), `${kind}: ${r}`);
+    }
   });
 
   test('exhibits\' steps: never out of an intact case, never into a staff door, open or closed; yours go through staff doors', () => {

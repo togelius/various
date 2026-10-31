@@ -1,5 +1,6 @@
 // ACCESSION — sentences: the system (BUILD.md §3.4), frozen after M3's Wave 0. Refusals, and
-// plain sentences for the event kinds and wake causes M4 builds.
+// the default sentence of a module's event. M4's Wave 0 (W0a) moved the sentences of the M4
+// kinds and wake causes into the fragments of the packages that build them.
 'use strict';
 (() => {
   // A refused action says why, in the sentence its code names (§4.2).
@@ -13,21 +14,18 @@
     blocked: 'Something is in the way.',
     no_target: 'There is nothing there to attack.',
     out_of_reach: 'It is out of reach.',
-    not_built: 'You cannot do that yet.',
     no_use: 'You have nothing like that to use.',
   };
   for (const code of Registry.order('REFUSALS')) if (REFUSALS[code]) Text.defineRefusal(code, () => REFUSALS[code]);
 
-  // M4's kinds.
-  Text.define('alarm', (e, w) => `${w.Name(e.by)} raised the alarm.`);
-  Text.define('certificate', () => 'You earned this department’s Certificate.');
-  Text.define('grade', e => `Your grade is now ${e.grade}.`);
-  Text.define('perk', e => `You took the perk ${e.id}, rank ${e.rank}.`);
-  Text.define('viewed', (e, w) => `${w.Name(e.who)} viewed the Centrepiece for ${e.turns} turns.`);
-  Text.define('module', e => `The department’s rule ${e.id} acted.`);
-  const why = { period: 'the chime sounded', alarm: 'the alarm was raised', patrol: 'it walks its round' };
-  for (const k of ['period', 'alarm', 'patrol']) {
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} is awake: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}.`);
-    Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
-  }
+  // A module's event is told by its module's own sentence (each module's text fragment, keyed
+  // by its id as the cause); this is the sentence for one with no other, which names the
+  // module by the sentence its panel teaches (while that is plain words, not a template over
+  // its parameters), never by its id. It is logged only when the actor it is about is you or
+  // in view (an event about no actor is always told), so a rule that acts unseen is never
+  // given away by the log.
+  const lower = s => s.charAt(0).toLowerCase() + s.slice(1);
+  const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+  const taught = id => own(Registry.MODULES, id) && typeof Registry.MODULES[id].sentence === 'string' && !/[{}]/.test(Registry.MODULES[id].sentence) ? Registry.MODULES[id].sentence : null;
+  Text.define('module', e => taught(e.id) ? `One of this department’s rules acted: ${lower(taught(e.id))}` : 'One of this department’s rules acted.', { log: 'seen' });
 })();

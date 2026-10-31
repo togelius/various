@@ -1,7 +1,7 @@
 // ACCESSION — sentences: the perks Soft Soles, Vanishing Act and Light Fingers (BUILD.md §3.4,
-// §8.7), owned by PG-PERKS-A. M4's skeleton made it; its owner fills it, after W0a has moved here
-// whatever of text/system.js's M4 sentences is its.
+// §8.7), owned by PG-PERKS-A. M4's skeleton made it; M4's Wave 0 (W0a) gave Vanishing Act's lost
+// cause its sentence. PG-PERKS-A fills the rest.
 'use strict';
 (() => {
-  // PG-PERKS-A fills: a sentence for each event kind, cause and refusal its registry fragment adds.
+  Text.defineCause('lost', 'vanished', (e, w) => `${w.Name(e.who)} lost sight of you and searches at once where it last knew you were: Vanishing Act.`);
 })();

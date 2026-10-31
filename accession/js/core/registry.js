@@ -21,9 +21,10 @@ const Registry = (() => {
   // The tables. Each is a plain object keyed by id, and Registry.order(name) gives its ids in
   // definition order, so the core never iterates an object's keys (§3.1). CLAUSES holds the
   // clauses that belong to no other id: the generic wake clause and its pipless form. KITS
-  // holds the Restoration kit.
+  // holds the Restoration kit. PERKS (M4) holds the 8 perks of §8.7, each with its name and
+  // its challenge family; Perks.add (rules/perks.js) takes only an id defined here.
   const NAMES = ['TRIGGERS', 'ARCHETYPES', 'MODIFIERS', 'SPECIALS', 'STATUSES', 'SURFACES', 'ITEM_PRIMS', 'INSTRUMENTS', 'KITS',
-    'CONSUMABLES', 'SEALS', 'FIXTURES', 'GLASS', 'WAKE_CAUSES', 'REFUSALS', 'MODULES', 'CLAUSES'];
+    'CONSUMABLES', 'SEALS', 'FIXTURES', 'GLASS', 'WAKE_CAUSES', 'REFUSALS', 'MODULES', 'PERKS', 'CLAUSES'];
   const tables = {}, orders = {};
   for (const t of NAMES) { tables[t] = {}; orders[t] = []; }
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -38,7 +39,10 @@ const Registry = (() => {
   //   built 'M3' | 'M4'; ready; tests (scenario files that prove the clause); inv (the
   //   invariant file's id, test/behaviour/<inv>.inv.js, or null).
   // A clause-bearing entry also has clause (a template, §5.3), params ({name: reference},
-  // read by Clauses), covers (the event kinds its clause accounts for) and icon.
+  // read by Clauses), covers (the event kinds its clause accounts for) and icon; where its
+  // clause says a number in words ("two tiles a turn"), phrases ({phrase: 'N:ROW'}) ties each
+  // such phrase to the row it states, for lint-registry's word rules. A module (MODULES) has
+  // its panel sentence and keywords, the words that name its rule (lint-registry's Intro rule).
   function define(table, id, entry) {
     if (!own(tables, table)) throw new Error(`Registry: no table ${table}`);
     if (typeof id !== 'string' || !id) throw new Error(`Registry: ${table} needs a string id`);

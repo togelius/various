@@ -6,8 +6,8 @@
 //   special trigger; a department owns more than two modules;
 //   the registry's event kinds differ from BUILD.md §4.3's list;
 //   an event kind or a (kind, cause) pair has no schema or no sentence, or a sentence has
-//   no schema; a wake cause lacks its woke and hunting causes; a trigger that wakes an
-//   exhibit into a mode (a wake cause waking it hunting or awake, not a creation cause)
+//   no schema, or a log group (Text.defineGroup) no cause schema; a wake cause lacks its
+//   woke and hunting causes; a trigger that wakes an exhibit into a mode (a wake cause waking it hunting or awake, not a creation cause)
 //   lacks its pip cause, which Wake.addPips emits before it wakes; a damaged cause does not accept saved and side (Combat.hurt
 //   marks saved on any cause, old_repair side on a blow, shot or beam); a refusal code has
 //   no sentence, or a sentence no code;
@@ -17,34 +17,80 @@
 //   an entry at ready 'unit' or above names no tests, a test file that does not exist, or
 //   no invariant file that exists (test/behaviour/<inv>.inv.js); an entry at ready true
 //   names no scenario file under test/behaviour/ (true means its joined-up scenarios pass);
-//   a built: 'M3' id is referenced by no pack, scenario test or arena fixture (§5.1; refs,
-//   below): a pack uses it (a species' archetype, trigger or modifiers, its archetype's
-//   special, inflicted statuses and wake clause, its role's clause if it has one; an item's primitives, instrument and
-//   weapon or garment clause, and an instrument's charges; a consumable kind the pack
-//   labels), or one of the scenario files its entry names in `tests` names it in quotes,
-//   or an arena stamp (test/arena/*.txt) names it as a word;
+//   a built: 'M3' id, or a built: 'M4' id past ready false, is referenced by no pack,
+//   scenario test or arena fixture (§5.1; refs, below): a pack uses it (a species'
+//   archetype, trigger or modifiers, its archetype's special, inflicted statuses and wake
+//   clause, its role's clause if it has one, and the modules it is flagged with; a module the
+//   pack holds; an item's primitives, instrument and weapon or garment clause, and an
+//   instrument's charges; a consumable kind the pack labels), or one of the scenario files
+//   its entry names in `tests` names it in quotes, or an arena stamp (test/arena/*.txt)
+//   names it as a word;
+//   a refusal code at ready true (joined up, §5.1) is made to happen in no refusals file
+//   (under --strict, every refusal code of the milestones it checks): none of the
+//   test/behaviour/refusals*.test.js files its entry names in `tests` names it in quotes
+//   (M4 plan A4: each owner's refusals-<owner>.test.js makes its codes happen by a real
+//   action at depths 1–7, as behaviour/refusals.test.js does M3's);
+//   the word rules (M4 plan W0a; §5.3's "no vague words"), over the clause, and a module's
+//   panel sentence, of every entry past ready false (a placeholder at ready false is not yet
+//   a rule anyone reads; it waits for its owner):
+//     - a built: 'M4' template has a digit outside {} (a number is a parameter, so it is
+//       filled from its row and cannot drift from it);
+//     - a template uses a phrase of PHRASES, which states a number in words ("two tiles a
+//       turn", "half speed", "two halves", "double damage"), without tying it to the row it
+//       states (the entry's own `phrases: {phrase: 'N:ROW'}`, or for an M3 entry, whose
+//       fragment is frozen, M3_PHRASES below), or the row no longer holds what the phrase
+//       says, or a tie names a phrase the template does not use or PHRASES lacks;
+//   a species' flag (sp.flags, the modules it is flagged with) names a module its own
+//   department does not hold, or any module for a shared species, which has no department;
+//   a module's keywords (the words that name its rule) are not a list of words;
+//   a pack's Intro teaches anything but its signature module (§5.1; WO6 of the M4 maps): its
+//   signature is the module with role 'signature', else its first; its intro panel
+//   (panels.intro) says another module's panel sentence or one of its keywords; its stamp
+//   (intro: {map, legend}) puts there an exhibit flagged with another module, a weather case
+//   (a legend case with `weather`) unless weather_cases is the signature, more than
+//   INTRO_HOSTILES exhibits, or an exhibit neither of an orientation role (fodder,
+//   skirmisher) nor flagged with the signature (its teaching instance), or names a species
+//   its pack does not hold;
 //   a file in art/, vendor/ or tools/vendor/ has no ledger entry, or an entry has no file;
 //   anything under art/reference/ is referenced by the game.
-// It reports how many entries are at ready false, 'unit' and true. With --strict (the M3
-// acceptance, §11) it also fails on any built: 'M3' entry that is not at ready true with
-// its tests and its invariant. With --strict --follow-ups (W2a-BEHAVIOUR's done condition)
-// an entry below true passes while it has an open follow-up in test/behaviour/follow-ups.json
-// ({"TABLE.id": "the follow-up and why"}; no file is no follow-ups), and a follow-up for an
-// id that is at true, or is not an M3 entry, fails, so the list never goes stale.
+// It reports how many M3 and how many M4 entries are at ready false, 'unit' and true. With
+// --strict (the M3 and M4 acceptance, §11) it also fails on any built: 'M3' or 'M4' entry
+// that is not at ready true with its tests and its invariant, and applies the word rules and
+// the refusal rule to every entry of those milestones; --strict=M3 (M3's acceptance, as it
+// was before M4) or --strict=M4 checks only the entries that milestone builds. With
+// --strict --follow-ups (the joined-up scenarios' done condition) an entry below true passes
+// while it has an open follow-up in test/behaviour/follow-ups.json ({"TABLE.id": "the
+// follow-up and why"}; no file is no follow-ups), and a follow-up for an id that is at true,
+// or is not an entry of a milestone --strict checks, fails, so the list never goes stale.
+// With --report ACC it prints the department's report (§5.2: "a pack may override a number
+// only through a named field the lint lists in the department's report"): every number the
+// pack holds, its parts merged, and every value it gives a module or a modifier (a module's
+// params, a species' modParams), each with where it is, as "REPORT ACC: where = value".
 // Options for the lint tests: --ledger FILE lints another copy of the ledger; --build FILE
 // another copy of BUILD.md; --load FILE loads one more core file after the core (a planted
-// fault).
+// fault); --follow-file FILE reads another copy of the follow-ups.
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const { loadCore } = require('./core-context.js');
 const root = path.join(__dirname, '..');
 const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : null; };
-const strict = process.argv.includes('--strict'), followUps = process.argv.includes('--follow-ups');
+const followUps = process.argv.includes('--follow-ups');
 const C = loadCore(arg('--load') ? [path.resolve(arg('--load'))] : []);
-const { Registry: R, Packs, Text, Clauses } = C;
+const { Registry: R, Packs, Text, Clauses, N } = C;
 const problems = [];
 const bad = s => problems.push(s);
 const keys = o => Object.keys(o || {});
+const own = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+// --strict checks every milestone's entries; --strict=M3 or --strict=M4 one milestone's.
+const MILESTONES = ['M3', 'M4'];
+const strictArg = process.argv.find(a => a === '--strict' || a.startsWith('--strict='));
+const strictOf = strictArg === undefined ? [] : strictArg === '--strict' ? MILESTONES.slice() : strictArg.slice('--strict='.length).split(',');
+for (const m of strictOf) if (!MILESTONES.includes(m)) bad(`--strict=${m}: no such milestone (${MILESTONES.join(', ')})`);
+const strict = strictOf.length > 0;
+const strictFor = e => strictOf.includes(e.built);
+// The word and refusal rules apply to an entry past ready false, and under --strict to every
+// entry of the milestones it checks.
+const linted = e => e.ready !== false || strictFor(e);
 
 if (R.SYSTEMS.length > R.MAX_SYSTEMS) bad(`${R.SYSTEMS.length} universal systems; the cap is ${R.MAX_SYSTEMS}`);
 
@@ -95,6 +141,7 @@ for (const k of keys(R.CAUSES)) {
 const said = Text.list();
 for (const k of said.kinds) if (!R.EVENTS[k]) bad(`there is a sentence for ${k}, which is not an event kind`);
 for (const [k, c] of said.causes) if (!R.CAUSES[k] || !R.CAUSES[k][c]) bad(`there is a sentence for ${k}.${c}, which has no cause schema`);
+for (const [k, c] of said.groups) if (!R.CAUSES[k] || !R.CAUSES[k][c]) bad(`there is a log group for ${k}.${c} (Text.defineGroup), which has no cause schema`);
 for (const k of R.order('WAKE_CAUSES')) {
   const w = R.WAKE_CAUSES[k];
   if (!['hunting', 'awake', 'parent', 'perform'].includes(w.mode)) bad(`the wake cause ${k} has the mode ${JSON.stringify(w.mode)}`);
@@ -114,10 +161,10 @@ for (const name of ['clock', 'stage', 'recap', 'confirm', 'rest']) if (!Text.pro
 // Open follow-ups (--follow-ups): an entry below true that one names passes --strict.
 const FOLLOW = arg('--follow-file') || path.join(root, 'test/behaviour/follow-ups.json');
 const follow = followUps && fs.existsSync(FOLLOW) ? JSON.parse(fs.readFileSync(FOLLOW, 'utf8')) : {};
-const held = [];
+const held = [], followOf = strict ? strictOf : MILESTONES;
 if (followUps) for (const [where, why] of Object.entries(follow)) {
   const [t, ...rest] = where.split('.'), id = rest.join('.'), e = R.TABLES.includes(t) && Object.prototype.hasOwnProperty.call(R[t], id) ? R[t][id] : null;
-  if (!e || e.built !== 'M3') bad(`follow-ups: ${where} is not an M3 entry`);
+  if (!e || !followOf.includes(e.built)) bad(`follow-ups: ${where} is not an ${followOf.join(' or ')} entry`);
   else if (e.ready === true) bad(`follow-ups: ${where} is at ready true; its follow-up is closed, so take it off the list`);
   if (typeof why !== 'string' || !why.trim()) bad(`follow-ups: ${where} gives no follow-up`);
 }
@@ -134,7 +181,7 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
     if (!e.inv || !fs.existsSync(path.join(root, 'test/behaviour', e.inv + '.inv.js'))) bad(`${where} is at ready ${JSON.stringify(e.ready)} but its invariant test/behaviour/${e.inv}.inv.js does not exist`);
   }
   if (e.ready === true && !e.tests.some(f => /^behaviour\/[^/]+\.test\.js$/.test(f))) bad(`${where} is at ready true but names no joined-up scenario file (test/behaviour/*.test.js)`);
-  if (strict && e.built === 'M3' && (e.ready !== true || !e.tests.length || !e.inv)) {
+  if (strictFor(e) && (e.ready !== true || !e.tests.length || !e.inv)) {
     const open = followUps && Object.prototype.hasOwnProperty.call(follow, where) ? follow[where] : null;
     if (open === null) bad(`--strict: ${where} is at ready ${JSON.stringify(e.ready)}, with ${e.tests.length} test(s) and invariant ${e.inv}`);
     else held.push(`${where} (${e.ready}): ${open}`);
@@ -161,8 +208,104 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   if (full === false && (/\.$/.test(e.clause) || /^[A-Z]/.test(e.clause))) bad(`${where}: its clause should continue another: "${e.clause}"`);
 }
 
-// Every M3 id is referenced by a pack, a scenario test or an arena fixture (§5.1). What a
-// pack's data names, table by table:
+// The word rules (M4 plan W0a), over a template: an entry's clause, and a module's panel
+// sentence (§5.4: "the panel sentence, a template over params"). PHRASES states a number in
+// words; each is tied, entry by entry, to the row whose value it states: a row whose name
+// ends in _PCT must hold pct (a cost of 50% is two tiles a turn), any other n.
+const PHRASES = {
+  'two tiles a turn': { pct: 50, n: 2 },
+  'half speed': { pct: 200 },
+  'two halves': { pct: 50 },
+  'double damage': { pct: 200, n: 2 },
+};
+// The M3 entries' ties, kept here since their fragments are frozen; an M4 entry gives its
+// own, as `phrases`, beside its clause.
+const M3_PHRASES = {
+  'ARCHETYPES.darter': { 'two tiles a turn': 'N:SPEED_FAST_PCT' },
+  'ARCHETYPES.mote_swarm': { 'two tiles a turn': 'N:SPEED_FAST_PCT' },
+  'ARCHETYPES.splitter': { 'two halves': 'N:SPLIT_HP_PCT' },
+  'ARCHETYPES.mimic_vitrine': { 'half speed': 'N:SPEED_SLOW_PCT' },
+  'MODIFIERS.marble': { 'half speed': 'N:SPEED_SLOW_PCT' },
+  'MODIFIERS.old_repair': { 'double damage': 'N:OLD_REPAIR_PCT' },
+};
+const ROW = /^N:([A-Z][A-Z0-9_]*)(\[(\d+)\])?$/;
+const said_ = (template, phrase) => template.toLowerCase().includes(phrase);
+for (const t of R.TABLES) for (const id of R.order(t)) {
+  const e = R[t][id], where = `${t}.${id}`;
+  if (t === 'MODULES' && e.keywords !== undefined && !(Array.isArray(e.keywords) && e.keywords.every(k => typeof k === 'string' && /^[a-z][a-z ’'-]*[a-z]$/.test(k))))
+    bad(`${where}: its keywords ${JSON.stringify(e.keywords)} are not a list of lower-case words`);
+  const templates = [e.clause, t === 'MODULES' ? e.sentence : undefined].filter(x => typeof x === 'string');
+  if (!templates.length || !linted(e)) continue;
+  const text = templates.join(' '), bare = text.replace(/\{[^}]*\}/g, '');
+  if (e.built === 'M4' && /[0-9]/.test(bare)) bad(`${where}: a digit outside {} in "${text}" (a number is a parameter, filled from its row)`);
+  const ties = Object.assign({}, own(M3_PHRASES, where) ? M3_PHRASES[where] : {}, e.phrases && typeof e.phrases === 'object' ? e.phrases : {});
+  for (const phrase of keys(PHRASES)) if (said_(text, phrase) && !own(ties, phrase)) bad(`${where}: "${phrase}" states a number in words, but is tied to no row (\`phrases: {'${phrase}': 'N:ROW'}\`)`);
+  for (const [phrase, ref] of Object.entries(ties)) {
+    if (!own(PHRASES, phrase)) { bad(`${where}: its phrase "${phrase}" is not one of PHRASES`); continue; }
+    if (!said_(text, phrase)) { bad(`${where}: its phrase "${phrase}" is tied to ${ref}, but its template no longer says it`); continue; }
+    const m = typeof ref === 'string' ? ROW.exec(ref) : null;
+    const v = m && own(N, m[1]) ? (m[3] !== undefined ? (Array.isArray(N[m[1]]) ? N[m[1]][Number(m[3])] : undefined) : N[m[1]]) : undefined;
+    if (!Number.isInteger(v)) { bad(`${where}: its phrase "${phrase}" is tied to ${JSON.stringify(ref)}, which is no whole number of record`); continue; }
+    const want = m[1].endsWith('_PCT') ? PHRASES[phrase].pct : PHRASES[phrase].n;
+    if (want === undefined) bad(`${where}: "${phrase}" cannot state ${m[1]}, ${m[1].endsWith('_PCT') ? 'a share' : 'a count'}`);
+    else if (v !== want) bad(`${where}: "${phrase}" says ${want}${m[1].endsWith('_PCT') ? '%' : ''}, but ${ref} is ${v}`);
+  }
+}
+
+// Every refusal at ready true, joined up, is made to happen in a refusals file it names (M4
+// plan A4); one at 'unit' is proved by its unit tests alone, as §5.1 has it.
+for (const code of R.order('REFUSALS')) {
+  const e = R.REFUSALS[code];
+  if (e.ready !== true && !strictFor(e)) continue;
+  const files = (e.tests || []).filter(f => /^behaviour\/refusals[^/]*\.test\.js$/.test(f)).map(f => path.join(root, 'test', f));
+  const q = new RegExp(`['"\`]${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
+  if (!files.some(f => fs.existsSync(f) && q.test(fs.readFileSync(f, 'utf8')))) bad(`REFUSALS.${code} is at ready ${JSON.stringify(e.ready)}, but no test/behaviour/refusals*.test.js file it names makes it happen (names it in quotes)`);
+}
+
+// Flags: a species is flagged only with modules its own department holds.
+for (const p of packs) for (const sp of [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])]) {
+  if (sp.flags === undefined) continue;
+  if (!Array.isArray(sp.flags)) { bad(`${sp.id}: its flags are not a list of modules`); continue; }
+  for (const f of sp.flags) if (!(p.modules || []).some(m => m.id === f)) bad(`${sp.id} is flagged with ${JSON.stringify(f)}, a module its department ${p.acc} does not hold`);
+}
+for (const sp of shared) if (sp.flags !== undefined && !(Array.isArray(sp.flags) && sp.flags.length === 0)) bad(`${sp.id} is a shared species, with no department, but is flagged with ${JSON.stringify(sp.flags)}`);
+
+// The Intro teaches only its department's signature module (§5.1; WO6).
+const INTRO_HOSTILES = 3, INTRO_ROLES = ['fodder', 'skirmisher'];
+// Every string inside x (a panel may be a string, a list, or an object of them).
+const strings = x => typeof x === 'string' ? [x] : Array.isArray(x) ? x.flatMap(strings) : x && typeof x === 'object' ? keys(x).flatMap(k => strings(x[k])) : [];
+const wordRe = w => new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?($|[^a-z])`, 'i');
+for (const p of packs) {
+  const intro = p.intro, panel = p.panels && p.panels.intro;
+  if (intro === undefined && panel === undefined) continue;
+  const mods = p.modules || [], sig = (mods.find(m => m.role === 'signature') || mods[0] || {}).id || null;
+  const others = R.order('MODULES').filter(m => m !== sig);
+  for (const s of strings(panel)) for (const m of others) {
+    const M = R.MODULES[m];
+    if (typeof M.sentence === 'string' && s.includes(M.sentence)) bad(`${p.acc}'s intro panel says ${m}'s sentence, but its Intro teaches only ${sig || 'no module'}`);
+    for (const k of Array.isArray(M.keywords) ? M.keywords : []) if (wordRe(k).test(s)) bad(`${p.acc}'s intro panel says "${k}", a word of ${m}'s rule, but its Intro teaches only ${sig || 'no module'}`);
+  }
+  if (intro === undefined || intro === null) continue;
+  const rows = Array.isArray(intro.map) ? intro.map : typeof intro.map === 'string' ? intro.map.split('\n') : [];
+  const legend = intro.legend && typeof intro.legend === 'object' ? intro.legend : {};
+  let hostiles = 0;
+  for (const ch of keys(legend)) {
+    const L = legend[ch], n = rows.reduce((k, r) => k + r.split(ch).length - 1, 0);
+    if (!n || !L || typeof L !== 'object') continue;
+    if ((L.k === 'case' || L.case !== undefined) && L.weather && sig !== 'weather_cases') bad(`${p.acc}'s Intro holds a weather case ('${ch}'), but teaches only ${sig || 'no module'}`);
+    if (typeof L.sp !== 'string') continue;
+    const sp = p.species.find(x => x.id === L.sp);
+    if (!sp) { bad(`${p.acc}'s Intro places ${L.sp} ('${ch}'), which is no species of its pack`); continue; }
+    hostiles += n * (Number.isInteger(L.count) && L.count > 0 ? L.count : 1);
+    const flags = Array.isArray(sp.flags) ? sp.flags : [];
+    for (const f of flags) if (f !== sig) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), flagged with ${f}, but teaches only ${sig || 'no module'}`);
+    if (!INTRO_ROLES.includes(sp.role) && !(sig && flags.includes(sig))) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), a ${sp.role}: only ${INTRO_ROLES.join(' and ')} or the signature's teaching instance (flagged with ${sig || 'it'}) belong there`);
+  }
+  if (hostiles > INTRO_HOSTILES) bad(`${p.acc}'s Intro places ${hostiles} exhibits; it holds at most ${INTRO_HOSTILES}`);
+}
+
+// Every M3 id, and every M4 id past ready false, is referenced by a pack, a scenario test or
+// an arena fixture (§5.1). What a pack's data names, table by table:
 const used = new Set(), use = (t, id) => { if (typeof id === 'string' && id) used.add(t + '.' + id); };
 for (const [, sp] of allSpecies) {
   use('ARCHETYPES', sp.archetype); use('TRIGGERS', sp.trigger);
@@ -173,8 +316,10 @@ for (const [, sp] of allSpecies) {
   for (const st of a.inflicts || []) use('STATUSES', st);
   if (!(tr && tr.replacesWake)) use('CLAUSES', a.wake || 'wake');
   if (typeof sp.role === 'string' && R.CLAUSES['role_' + sp.role]) use('CLAUSES', 'role_' + sp.role);
+  for (const f of Array.isArray(sp.flags) ? sp.flags : []) use('MODULES', f);
 }
 for (const p of packs) {
+  for (const m of p.modules || []) use('MODULES', m.id);
   for (const it of p.items || []) {
     for (const pr of it.prims || []) use('ITEM_PRIMS', pr.id);
     if (it.kind === 'instrument') { use('INSTRUMENTS', it.instrument); use('ITEM_PRIMS', 'charges'); }
@@ -190,7 +335,7 @@ const stamps = fs.existsSync(arenaDir) ? fs.readdirSync(arenaDir).filter(f => f.
 let refs = 0;
 for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
-  if (e.built !== 'M3') continue;
+  if (e.built !== 'M3' && !(e.built === 'M4' && linted(e))) continue;
   refs++;
   if (used.has(where)) continue;
   const q = new RegExp(`['"\`](${esc(t)}\\.)?${esc(id)}['"\`]`), w = new RegExp(`(^|[^A-Za-z0-9_.])${esc(id)}($|[^A-Za-z0-9_])`, 'm');
@@ -218,12 +363,44 @@ for (const f of [...walk('art'), ...walk('vendor'), ...walk('tools/vendor')]) if
 const game = fs.readFileSync(path.join(root, 'index.html'), 'utf8') + walk('js').concat(walk('css')).map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 if (/art\/reference\//.test(game)) bad('the game references art/reference/');
 
+// The department's report (--report ACC, §5.2): every number the pack holds, and every value
+// it gives a module or a modifier, with where it is: a species, item, module or Centrepiece
+// by its id, anything else by its path.
+const reportOf = arg('--report');
+const report = [];
+if (reportOf !== null) {
+  const p = packs.find(q => q.acc === reportOf);
+  if (!p) bad(`--report ${reportOf}: no department pack has that accession`);
+  else {
+    const at = (where, k) => /^[A-Za-z_$][\w$]*$/.test(k) ? `${where}.${k}` : `${where}[${JSON.stringify(k)}]`;
+    const modules = p.modules || [];
+    // given: inside a module's params or a species' modParams, where every value is one the
+    // pack gives a rule, numbers or not.
+    const walk = (x, where, given) => {
+      if (x === null || x === undefined) return;
+      if (typeof x !== 'object') { if (typeof x === 'number' || given) report.push(`${where} = ${JSON.stringify(x)}`); return; }
+      if (Array.isArray(x)) { x.forEach((y, i) => walk(y, `${where}[${i}]`, given)); return; }
+      for (const k of keys(x)) walk(x[k], at(where, k), given || k === 'modParams' || (k === 'params' && modules.includes(x)));
+    };
+    // A species, item, module or the Centrepiece is named by its id, not its place in a list.
+    const LISTS = { species: 'species', items: 'item', modules: 'module' };
+    for (const k of keys(p)) {
+      if (own(LISTS, k) && Array.isArray(p[k])) for (const y of p[k]) walk(y, `${LISTS[k]} ${y && y.id}`, false);
+      else if (k === 'centrepiece' && p[k] && typeof p[k] === 'object') walk(p[k], `centrepiece ${p[k].id}`, false);
+      else walk(p[k], k, false);
+    }
+  }
+}
+
 // How far the entries have come (§5.1): ready false, 'unit' and true, over every table.
-const count = { false: 0, unit: 0, true: 0 }, m4 = [];
-for (const t of R.TABLES) for (const id of R.order(t)) { const e = R[t][id]; if (e.built === 'M4') m4.push(id); else count[String(e.ready)]++; }
+const count = { M3: { false: 0, unit: 0, true: 0 }, M4: { false: 0, unit: 0, true: 0 } };
+for (const t of R.TABLES) for (const id of R.order(t)) { const e = R[t][id]; count[e.built][String(e.ready)]++; }
+const tally = m => `${m} entries at ready false ${count[m].false}, 'unit' ${count[m].unit}, true ${count[m].true}`;
 const pairs = keys(R.CAUSES).reduce((n, k) => n + keys(R.CAUSES[k]).length, 0);
+for (const r of report) console.log(`REPORT ${reportOf}: ${r}`);
+if (reportOf !== null && !problems.length) console.log(`REPORT ${reportOf}: ${report.length} value(s) the pack gives`);
 for (const p of problems) console.log('PROBLEM ' + p);
 for (const h of held) console.log('OPEN FOLLOW-UP ' + h);
 console.log(problems.length ? `lint-registry: ${problems.length} problem(s)` :
-  `lint-registry: ${packs.length} packs, ${ids.size} species, ${R.EVENT_KINDS.length} event kinds, ${pairs} cause pairs, ${ledger.entries.length} ledger entries clean; M3 entries at ready false ${count.false}, 'unit' ${count.unit}, true ${count.true}; ${refs} M3 ids referenced; ${m4.length} M4 entries${strict ? '; strict' : ''}${followUps ? `, ${held.length} open follow-up(s)` : ''}`);
+  `lint-registry: ${packs.length} packs, ${ids.size} species, ${R.EVENT_KINDS.length} event kinds, ${pairs} cause pairs, ${ledger.entries.length} ledger entries clean; ${tally('M3')}; ${tally('M4')}; ${refs} ids referenced${strict ? `; strict (${strictOf.join(', ')})` : ''}${followUps ? `, ${held.length} open follow-up(s)` : ''}`);
 process.exit(problems.length ? 1 : 0);
