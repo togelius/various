@@ -451,9 +451,11 @@ const Populate = (() => {
 
     // The Intro stamp (plan.intro): each mark whose letter the legend names an exhibit puts
     // that exhibit on its tile, in the marks' order, with no draw; a swarm's further bodies
-    // take the nearest tiles of the Intro the rules keep. The Intro gallery's own contents are
-    // then not placed again: the stamp is the Intro's (§5.2).
-    const legend = pack.intro && pack.intro.legend;
+    // take the nearest tiles of the Intro the rules keep. Where the stamp is the pack's own, the
+    // Intro gallery's contents are then not placed again: the stamp is the Intro's (§5.2). The
+    // fixture stamp, which every plan of a pack that gives none takes (layout version 3), names
+    // no exhibit, so there the Intro gallery is placed as any other.
+    const legend = pack.intro && pack.intro.legend, ownStamp = !!intro && !!pack.intro;
     if (intro) for (const mk of intro.marks) {
       const e = legend && own(legend, mk.ch) ? legend[mk.ch] : null, sp = e && e.sp !== undefined ? (pack.species || []).find(s => s.id === e.sp) : null;
       if (!sp) continue;
@@ -490,7 +492,7 @@ const Populate = (() => {
       rm.galleries.push(i);
       if (g.where && map[i].how !== 'where') say(rm, `${g.name} (${g.key}) names ${g.where}, which no section left has in this plan, and ${map[i].how === 'merged' ? 'joins' : 'takes'} room ${rm.key}`);
       else if (map[i].how === 'merged') say(rm, `${g.name} (${g.key}) joins room ${rm.key}`);
-      if (g.key === 'intro' && intro) { if (exhibitsIn) say(rm, `${g.name} (intro): the stamp places the Intro's exhibits, not its gallery`); continue; }
+      if (g.key === 'intro' && ownStamp) { if (exhibitsIn) say(rm, `${g.name} (intro): the stamp places the Intro's exhibits, not its gallery`); continue; }
       for (const e of g.contents) {
         if (e.item !== undefined) continue;
         const sp = (pack.species || []).find(s => s.id === e.sp), n = e.count === undefined ? 1 : e.count;

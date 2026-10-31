@@ -7,10 +7,11 @@
 // readiness; plain data, clones, `without` and independence of rulesOff; and Dept.generate,
 // which says how a department was made.
 //
-// The real packs have no gallery list until D-PACKS, and the plans no stamp until
-// D-INTRO-GEN, so these tests give fixture galleries to the real packs (in a core of their
-// own) and fixture plans that carry plan.intro. The expected figures are worked out here from
-// the plan's and BUILD's text, never from the rule code.
+// The real packs have no gallery list until D-PACKS, and no Intro stamp of their own until
+// D-STAMPS (their plans take the generator's fixture stamp, which names no exhibit), so these
+// tests give fixture galleries to the real packs (in a core of their own), and M11 a stamp of
+// its own where a test needs one. The expected figures are worked out here from the plan's and
+// BUILD's text, never from the rule code.
 'use strict';
 module.exports = ({ test, assert, loadCore }) => {
   const json = x => JSON.stringify(x);
@@ -83,16 +84,23 @@ module.exports = ({ test, assert, loadCore }) => {
     // A where-gallery claims before a plain one, even later in the list: tour order is the fallback.
     assert.equal(json(X.Populate.mapping(plan, { galleries: [g('s1'), g('s2', 'row')] }).map(m => m.room)), json([2, 4]));
     // Over real plans the court and the labyrinth hold their gallery whichever tour key they get
-    // (map-DEPTS P3: tour order alone would send it to the band room in a third of S.9's seeds).
-    const keys = { S9: new Set(), A4: new Set() };
+    // (map-DEPTS P3: tour order alone sent it to the band room in a third of S.9's seeds at layout
+    // version 2; at version 3, whose wider Intro puts a band room first in the tour, it does so in
+    // every seed). The same list with its where taken away, mapped by tour order alone, sends the
+    // court's gallery elsewhere in those seeds, so the where is what holds it there.
+    const keys = { S9: new Set(), A4: new Set() }, astray = { S9: 0, A4: 0 };
+    const plain = acc => ({ galleries: GALLERIES[acc].map(g => { const c = Object.assign({}, g); delete c.where; return c; }) });
     for (const acc of ['S9', 'A4']) for (let seed = 1; seed <= 60; seed++) {
       const p = X.Layout.generate(X.Packs.get(acc).programme, 0, seed, { acc, depth: depthOf(seed) }).plan, m = X.Populate.mapping(p, { galleries: GALLERIES[acc] });
       const central = p.rooms.find(r => r.tags.includes('central')), band = p.rooms.find(r => r.role === 'section' && r.tags.includes('band'));
       assert.equal(m[1].room, central.id, `${acc} seed ${seed}`);
       assert.equal(m[2].room, band.id, `${acc} seed ${seed}`);
       keys[acc].add(central.key);
+      const t = X.Populate.mapping(p, plain(acc));
+      assert.equal(t[1].room === central.id, central.key === 's1', `${acc} seed ${seed}: tour order alone takes the central room exactly when it is s1`);
+      if (t[1].room !== central.id) astray[acc]++;
     }
-    for (const acc of ['S9', 'A4']) assert.equal(json([...keys[acc]].sort()), json(['s1', 's2']), `${acc}: the central room is s1 in some seeds and s2 in others`);
+    for (const acc of ['S9', 'A4']) assert.ok(astray[acc] > 0 && keys[acc].has('s2'), `${acc}: tour order alone sends the court's gallery astray in ${astray[acc]} of 60 seeds (the central room's tour keys: ${[...keys[acc]].sort().join(', ')})`);
   });
 
   // ---- The sweep: 100 seeds of each department, depths 1–7 ----
@@ -434,29 +442,23 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
 
-  // ---- Fixture plans that carry plan.intro (the stamped Intro, D-INTRO-GEN's) ----
+  // ---- The stamped Intro: a pack's own stamp, written by the generator (layout version 3) ----
 
-  // A core whose plans carry a fixture plan.intro, as layout version 3 will give it: the
-  // Intro's rectangle, its cut the first tile inside the entrance, and marks (the letters given)
-  // on the Intro's floor tiles farthest from the entrance, in row-major order; or, with at, a
-  // mark of its own on a tile at(plan) gives.
-  function stamped(letters, legend, at) {
+  // A core whose M11 pack gives its own Intro stamp (§5.2): the fixture stamp's rows (its
+  // partition, the door on the entrance row its cut, its two plinths), each row r replaced by
+  // rows[r] where given, with the legend given; the generator writes it, and plan.intro carries
+  // its marks.
+  function stamped(legend, rows) {
     const { X, plans } = core(true);
-    X.Packs.part('M11', 'intro', { legend });
-    const gen = X.Layout.generate;
-    X.Layout.generate = (programme, size, seed, opts) => gen(programme, size, seed, Object.assign({}, opts, { accept: r => {
-      const rm = r.plan.rooms.find(q => q.role === 'intro'), m = { w: r.plan.w, h: r.plan.h, tiles: r.plan.tiles }, d = X.Grid.distances(m, [r.plan.entrance], 999), far = [];
-      for (let y = rm.y0; y <= rm.y1; y++) for (let x = rm.x0; x <= rm.x1; x++) if (r.plan.roomOf[y][x] === rm.id && r.plan.tiles[y][x] === '.') far.push([x, y, d[y * r.plan.w + x]]);
-      far.sort((p, q) => (q[2] - p[2]) || (p[1] - q[1]) || (p[0] - q[0]));
-      const marks = at ? [Object.assign({ ch: letters[0] }, at(r.plan))] : far.slice(0, letters.length).map(([x, y], i) => ({ ch: letters[i], x, y })).sort((p, q) => (p.y - q.y) || (p.x - q.x));
-      r.plan.intro = { x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1, cut: [[rm.x0, r.plan.entrance[1]]], marks, openings: [] };
-      return opts.accept(r);
-    } }));
+    const F = X.LStamp.FIXTURE, map = F.map.map((row, r) => (rows && rows[r]) || row);
+    X.Packs.part('M11', 'intro', { map, legend, stretch: F.stretch.slice(), cut: F.cut, invariants: [] });
     return { X, plans };
   }
 
   test('a stamped Intro: each mark the legend names an exhibit puts it on its tile, with no draw; other letters place nothing; the Intro gallery adds nothing', () => {
-    const { X, plans } = stamped('ghp', { g: { sp: 'M11.5' }, h: { sp: 'M11.2', dir: 'W' }, p: { tile: 'p' } }), paths = watched(X);
+    // g and h on rows that do not stretch, east of the cut and beyond the safe zone; p, the
+    // fixture's plinths, a letter that names no exhibit.
+    const { X, plans } = stamped({ g: { sp: 'M11.5' }, h: { sp: 'M11.2', dir: 'W' }, p: { tile: 'p' } }, { 2: '#......|.....g.', 4: '#......|....h..' }), paths = watched(X);
     let placed = 0;
     for (let seed = 1; seed <= 30; seed++) {
       plans.length = 0; paths.length = 0;
@@ -465,6 +467,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(X.LStamp.shape(plan.intro), null);
       const intro = s.dept.rooms.find(r => r.role === 'intro'), inIntro = exhibitsOf(s).filter(a => roomAt(s, a.x, a.y) === intro);
       const want = plan.intro.marks.filter(k => k.ch !== 'p').map(k => [k.ch === 'g' ? 'M11.5' : 'M11.2', k.x, k.y]);
+      assert.equal(json(plan.intro.marks.map(k => [k.ch, k.x])), json([['p', 11], ['g', 13], ['h', 12], ['p', 11]]), `seed ${seed}: the stamp's marks`);
       assert.equal(json(inIntro.map(a => [a.sp, a.x, a.y])), json(want), `seed ${seed}: the marks, in their order, and not the Intro gallery's M11.5`);
       for (const a of inIntro) if (a.sp === 'M11.2') assert.equal(json(a.route), json({ dir: 'W' }), 'the legend gives the station its direction');
       assert.equal(json(inIntro.map(a => a.uid)), json(inIntro.map((a, i) => `M11.${depthOf(seed)}.intro.${i + 1}`)));
@@ -476,7 +479,7 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('a stamp that puts an exhibit in the safe zone fails every attempt as `population`, with its tile; a plan.intro of the wrong shape is an error', () => {
-    const { X } = stamped('g', { g: { sp: 'M11.5' } }, plan => ({ x: plan.entrance[0] + 2, y: plan.entrance[1] }));
+    const { X } = stamped({ g: { sp: 'M11.5' } }, { 3: 'E.g....+.......' });
     const out = X.Dept.generate(4, 'M11', 2);
     assert.equal(json([out.fallback, out.tries.length]), json([true, 5]));
     const why = `the stamp puts M11.5 2 walking tiles from the entrance, inside the safe zone (${X.N.SAFE_ZONE})`;
@@ -691,7 +694,9 @@ module.exports = ({ test, assert, loadCore }) => {
       { key: 's2', where: 'band', name: 'Bay', contents: [{ sp: 'S9.2' }, { sp: 'S9.3' }] },
       { key: 'centre', name: 'Hall', contents: [{ sp: 'S9.1', count: 2 }] },
     ] }));
-    for (const seed of [3, 8]) {
+    // Seeds whose five attempts each pass every layout check (at layout version 3; seeds 3 and 8
+    // each have an attempt that fails LV8), so every try fails as population.
+    for (const seed of [4, 10]) {
       const out = X.Dept.generate(seed, 'S9', 3), ex = exhibitsOf(out.state);
       assert.equal(json([out.fallback, out.tries.length]), json([true, 5]), `seed ${seed}`);
       for (const t of out.tries) assert.equal(json(t.map(f => f.id)), json(['population']));

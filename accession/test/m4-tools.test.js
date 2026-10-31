@@ -441,7 +441,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   start: { seed: 116, dept: 'M11', depth: 3, carry: 'start' },
   cap: 60,
   next(C, state, ctx) {
-    if (ctx.i >= 40) return null;
+    if (ctx.i >= 50) return null;
     const use = !ctx.memory.used && C.Step.legal(state).find(a => a.a === 'use');
     if (use) { ctx.memory.used = true; return use; }
     return ctx.i < 10 ? { a: 'wait' } : ctx.policy('wander');
@@ -460,7 +460,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // The file's replay is the recipe's, as the recipe makes it on this tree, and pinned on it.
     const again = Golden.recordOnce(Sim.context(), Golden.loadRecipe(dir, 'uses'), 'uses');
     assert.deepEqual(Golden.definition('uses', g.uses), again.def);
-    assert.ok(g.uses.actions.length > 10 && g.uses.actions.length <= 40);
+    // 50 actions: at layout version 3 the wider Intro brings the first Restoration kit within
+    // reach later (it is used at action 44 of seed 116, not inside 40).
+    assert.ok(g.uses.actions.length > 10 && g.uses.actions.length <= 50);
     assert.ok(g.uses.actions.some(a => a.a === 'use'));
     assert.equal(g.uses.hash, C.Replay.play(again.def).hash);
     assert.deepEqual(g.uses.start, { seed: 116, dept: 'M11', depth: 3, carry: 'start' });
@@ -505,11 +507,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const kept = fs.readFileSync(file, 'utf8'), S = Sim.context();
     writeRecipe(dir, 'nouse', USES.replace("const use = !ctx.memory.used && C.Step.legal(state).find(a => a.a === 'use');", 'const use = null;'));
     assert.throws(() => Golden.recordInto(file, dir, 'nouse', null, { C: S }), /nouse's recipe records \d+ actions, but its story does not hold: you never use an item; nothing was written/);
-    writeRecipe(dir, 'fickle', 'let n = 0;\n' + USES.replace("if (ctx.i >= 40) return null;", 'if (ctx.i >= 40) return null;\n    if (ctx.i === 5) { n++; if (n > 1) return { a: \'move\', dir: 2 }; }'));
+    writeRecipe(dir, 'fickle', 'let n = 0;\n' + USES.replace("if (ctx.i >= 50) return null;", 'if (ctx.i >= 50) return null;\n    if (ctx.i === 5) { n++; if (n > 1) return { a: \'move\', dir: 2 }; }'));
     assert.throws(() => Golden.recordInto(file, dir, 'fickle', null, { C: S }), /the recipe fickle recorded two different replays \(first at action 6\)/);
     writeRecipe(dir, 'tellsnothing', USES.replace(/story\(C, run\)[^\n]*\n/, ''));
     assert.throws(() => Golden.recordInto(file, dir, 'tellsnothing', null, { C: S }), /the recipe tellsnothing: it has no story/);
-    writeRecipe(dir, 'endless', USES.replace('if (ctx.i >= 40) return null;', '').replace('cap: 60', 'cap: 15'));
+    writeRecipe(dir, 'endless', USES.replace('if (ctx.i >= 50) return null;', '').replace('cap: 60', 'cap: 15'));
     assert.throws(() => Golden.recordInto(file, dir, 'endless', null, { C: S }), /the recipe endless still had an action after its cap of 15/);
     assert.throws(() => Golden.recordInto(file, dir, 'absent', null, { C: S }), /there is no recipe absent/);
     assert.equal(fs.readFileSync(file, 'utf8'), kept);
