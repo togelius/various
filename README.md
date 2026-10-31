@@ -82,6 +82,12 @@ subdirectory with its own README:
   Design phase only: `accession/DESIGN.md` holds the design sketch and the
   decisions to make before building, backed by research briefs, section drafts,
   an adversarial review and a few measured prototypes.
+- **[square-off/](square-off/)** — SQUARE OFF, a real-time strategy game in
+  the real Washington Square Park, built in 3D from OpenStreetMap data: chess
+  hustlers, buskers, NYU students and dog people fight over the Fountain, the
+  Arch and the dog runs from afternoon until the park closes. Mouse or touch.
+  Open `square-off/index.html`, or build the single-file copy with
+  `npm run build:standalone` in `square-off/`.
 
 ## Repository policy
 
@@ -89,9 +95,3 @@ subdirectory with its own README:
 branches, no long-lived side branches — every commit lands on `main`. The
 former per-project branches were merged here and deleted. New projects get a
 new subdirectory on `main`.
-- **[square-off/](square-off/)** — SQUARE OFF, a real-time strategy game in
-  the real Washington Square Park, built in 3D from OpenStreetMap data: chess
-  hustlers, buskers, NYU students and dog people fight over the Fountain, the
-  Arch and the dog runs from afternoon until the park closes. Mouse or touch.
-  Open `square-off/index.html`, or build the single-file copy with
-  `npm run build:standalone` in `square-off/`.
