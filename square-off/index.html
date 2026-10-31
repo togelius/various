@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1d2a24">
+  <meta name="description" content="SQUARE OFF: a real-time strategy game in the real Washington Square Park. Five minutes, five dollars, the whole park.">
+  <title>SQUARE OFF — Washington Square Park RTS</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/hud.css">
+
+  <!-- Engine + real park geometry -->
+  <script defer src="js/vendor/three.min.js"></script>
+  <script defer src="js/geo.js"></script>
+  <!-- Core -->
+  <script defer src="js/core/ns.js"></script>
+  <script defer src="js/core/contracts.js"></script>
+  <!-- Data (all tunables) -->
+  <script defer src="js/data/units.js"></script>
+  <script defer src="js/data/factions.js"></script>
+  <script defer src="js/data/landmarks.js"></script>
+  <script defer src="js/data/maps.js"></script>
+  <script defer src="js/data/missions.js"></script>
+  <script defer src="js/data/events.js"></script>
+  <script defer src="js/data/text.js"></script>
+  <script defer src="js/data/navOverrides.js"></script>
+  <!-- Simulation (headless) -->
+  <script defer src="js/sim/nav.js"></script>
+  <script defer src="js/sim/world.js"></script>
+  <script defer src="js/sim/movement.js"></script>
+  <script defer src="js/sim/combat.js"></script>
+  <script defer src="js/sim/capture.js"></script>
+  <script defer src="js/sim/economy.js"></script>
+  <script defer src="js/sim/abilities.js"></script>
+  <script defer src="js/sim/match.js"></script>
+  <script defer src="js/sim/ai.js"></script>
+  <script defer src="js/sim/director.js"></script>
+  <script defer src="js/sim/campaign.js"></script>
+  <!-- Render -->
+  <script defer src="js/render/textures.js"></script>
+  <script defer src="js/render/ground.js"></script>
+  <script defer src="js/render/buildings.js"></script>
+  <script defer src="js/render/landmarks.js"></script>
+  <script defer src="js/render/props.js"></script>
+  <script defer src="js/render/sky.js"></script>
+  <script defer src="js/render/scene.js"></script>
+  <script defer src="js/render/units.js"></script>
+  <script defer src="js/render/fx.js"></script>
+  <!-- UI -->
+  <script defer src="js/ui/camera.js"></script>
+  <script defer src="js/ui/input.js"></script>
+  <script defer src="js/ui/hud.js"></script>
+  <script defer src="js/ui/menus.js"></script>
+  <script defer src="js/ui/tutorial.js"></script>
+  <!-- Audio -->
+  <script defer src="js/audio/audio.js"></script>
+  <script defer src="js/audio/music.js"></script>
+  <!-- Boot -->
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="view" aria-label="Washington Square Park"></div>
+    <div id="hud" aria-live="polite"></div>
+    <div id="menu"></div>
+    <div id="loading" role="status">
+      <div class="loading-card">
+        <div class="loading-logo">SQUARE <span>OFF</span></div>
+        <div class="loading-tag">Five minutes, five dollars, the whole park.</div>
+        <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+        <div class="loading-step" id="loading-step">Unfolding the park…</div>
+        <div class="loading-fact" id="loading-fact">Every bench in this game is a real bench.</div>
+      </div>
+    </div>
+  </div>
+  <noscript>SQUARE OFF needs JavaScript enabled.</noscript>
+</body>
+</html>

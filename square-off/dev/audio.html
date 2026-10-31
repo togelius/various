@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Square Off — Audio Bench</title>
+<style>
+  :root { --bg:#f4f1ea; --ink:#1d1d1f; --mute:#6b675f; --card:#fffdf8; --line:#ddd6c8; --accent:#3D7BE0; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181b; --ink:#ece8e1; --mute:#9a958c; --card:#202327; --line:#33373d; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { padding:14px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0 12px 0 0; }
+  main { padding:12px 16px 40px; display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); margin:0 0 8px; }
+  button { font:inherit; padding:5px 9px; margin:2px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  #unlock { font-weight:600; background:var(--accent); color:#fff; border-color:var(--accent); }
+  label { display:flex; gap:8px; align-items:center; margin:3px 0; }
+  label span { width:86px; color:var(--mute); }
+  input[type=range] { flex:1; }
+  select { font:inherit; padding:3px; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:6px; }
+  pre { margin:0; font:12px/1.35 ui-monospace, Menlo, monospace; white-space:pre-wrap; }
+  canvas { width:100%; max-width:420px; aspect-ratio:1.6; border:1px solid var(--line); border-radius:8px; background:#7d9a62; touch-action:none; cursor:crosshair; }
+  .wide { grid-column:1 / -1; }
+  .f-hustle { border-left:4px solid #3D7BE0; } .f-noise { border-left:4px solid #FF8A1F; } .f-violets { border-left:4px solid #9B5CFF; } .f-pack { border-left:4px solid #E0453A; }
+  small { color:var(--mute); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Square Off · Audio Bench</h1>
+  <button id="unlock">▶ Start audio</button>
+  <button id="muteBtn">Mute</button>
+  <label style="margin:0"><span style="width:auto">Faction</span>
+    <select id="fac"><option>hustle</option><option selected>noise</option><option>violets</option><option>pack</option></select></label>
+  <small>Click the map to move the listener; shift-click to play the last sound at that spot.</small>
+</header>
+<main>
+  <section>
+    <h2>Mix</h2>
+    <label><span>Master</span><input type="range" id="v-master" min="0" max="1" step="0.01" value="0.8"></label>
+    <label><span>SFX</span><input type="range" id="v-sfx" min="0" max="1" step="0.01" value="0.9"></label>
+    <label><span>Music</span><input type="range" id="v-music" min="0" max="1" step="0.01" value="0.5"></label>
+    <label><span>Ambience</span><input type="range" id="v-ambience" min="0" max="1" step="0.01" value="0.6"></label>
+    <label><span>Level</span><meter id="meter" min="0" max="0.3" value="0" style="flex:1"></meter></label>
+  </section>
+
+  <section>
+    <h2>Music</h2>
+    <div id="musicBtns"></div>
+    <label><span>Held lm</span><input type="range" id="held" min="0" max="11" step="1" value="4"><b id="heldV">4</b></label>
+    <label><span>Combat</span><input type="range" id="combat" min="0" max="6" step="0.1" value="0"></label>
+    <div><button data-tog="behind">Behind (minor)</button><button data-tog="nearWin">Near win (+8 BPM)</button></div>
+  </section>
+
+  <section>
+    <h2>Ambience</h2>
+    <div id="phaseBtns"></div>
+    <label><span>Crowd</span><input type="range" id="ambI" min="0" max="1" step="0.01" value="0.5"></label>
+    <label><span>Cam height</span><input type="range" id="height" min="15" max="260" step="1" value="70"></label>
+    <label><span>Heading</span><input type="range" id="heading" min="-3.14" max="3.14" step="0.01" value="0"></label>
+  </section>
+
+  <section>
+    <h2>Listener map</h2>
+    <canvas id="map" width="420" height="262"></canvas>
+  </section>
+
+  <section class="wide">
+    <h2>Bus events (as the sim emits them)</h2>
+    <div id="busBtns"></div>
+    <div><button id="storm">⚔ Battle storm (300 hits/s for 6 s)</button><button id="match">▶ Simulated 60 s match</button></div>
+  </section>
+
+  <section class="wide">
+    <h2>Every sound · SQ.audio.play(name, {faction, x, z})</h2>
+    <div id="sfxBtns"></div>
+  </section>
+
+  <section class="wide">
+    <h2>Status</h2>
+    <pre id="status">not started</pre>
+  </section>
+</main>
+
+<script src="../js/core/ns.js"></script>
+<script src="../js/audio/audio.js"></script>
+<script src="../js/audio/music.js"></script>
+<script>
+(function () {
+  'use strict';
+  var SQ = window.SQ, A = SQ.audio;
+  var bus = SQ.bus && SQ.bus.on ? SQ.bus : (function () {
+    var h = {};
+    return { on: function (n, f) { (h[n] = h[n] || []).push(f); }, off: function (n, f) { h[n] = (h[n] || []).filter(function (x) { return x !== f; }); },
+      emit: function (n, p) { (h[n] || []).forEach(function (f) { f(p); }); } };
+  })();
+  var $ = function (id) { return document.getElementById(id); };
+  var fac = function () { return $('fac').value; };
+  var LM = [
+    { id: 'fountain', name: 'Fountain', x: 0, z: 0 }, { id: 'arch', name: 'Arch Plaza', x: 0, z: -42 },
+    { id: 'chess', name: 'Chess Plaza', x: -134, z: 49 }, { id: 'grove', name: "Hangman's Grove", x: -136, z: -48 },
+    { id: 'holley', name: 'Holley', x: -76, z: -3 }, { id: 'garibaldi', name: 'Garibaldi', x: 58, z: -6 },
+    { id: 'bigRun', name: 'Big Dog Run', x: -60, z: 58 }, { id: 'playground', name: 'Main Playground', x: 55, z: -32 },
+    { id: 'smallRun', name: 'Small Run', x: 28, z: 56 }, { id: 'bobst', name: 'Bobst Gate', x: 104, z: 60 },
+    { id: 'judson', name: 'Judson Steps', x: -32, z: 86 }
+  ];
+  // Fake match state so the audio module can resolve units, landmarks and the player.
+  var crews = ['hustle', 'noise', 'violets', 'pack'];
+  var state = {
+    t: 0, phase: 'afternoon', player: 0, turfTarget: 1500,
+    factions: crews.map(function (c, i) { return { id: i, crew: c, turf: 0 }; }),
+    landmarks: LM.map(function (l) { return { id: l.id, x: l.x, z: l.z, owner: null }; }),
+    units: { n: 64, x: new Float32Array(64), z: new Float32Array(64), faction: new Int8Array(64), cls: new Int8Array(64) }
+  };
+  function refreshPlayer() { state.player = crews.indexOf(fac()); state.factions[state.player].crew = fac(); }
+  for (var u = 0; u < 64; u++) { state.units.x[u] = (Math.random() - 0.5) * 300; state.units.z[u] = (Math.random() - 0.5) * 160; state.units.faction[u] = u % 4; state.units.cls[u] = (u >> 2) % 3; }
+
+  A.init();
+  A.attach(bus, { getState: function () { return state; }, player: 0 });
+  A.setMusic('menu', 'hustle');
+
+  $('unlock').onclick = function () { A.unlock(); A.setListener(0, 0, 0, +$('height').value); };
+  $('muteBtn').onclick = function () { var m = A.mute(); this.textContent = m ? 'Unmute' : 'Mute'; };
+  $('fac').onchange = function () { var n = +$('held').value; setHeld(0); refreshPlayer(); A.setPlayer(state.player); setHeld(n); setTurf(); };
+  ['master', 'sfx', 'music', 'ambience'].forEach(function (k) {
+    $('v-' + k).oninput = function () { var o = {}; o[k] = +this.value; A.setVolumes(o); };
+  });
+
+  function btn(parent, label, fn, cls) { var b = document.createElement('button'); b.textContent = label; b.onclick = fn; if (cls) b.className = cls; parent.appendChild(b); return b; }
+  function group(parent, list, fn) {
+    var bs = list.map(function (n) { return btn(parent, n, function () { bs.forEach(function (x) { x.classList.remove('on'); }); this.classList.add('on'); fn(n); }); });
+  }
+  group($('musicBtns'), ['off', 'menu', 'calm', 'tense', 'victory', 'defeat'], function (s) { A.setMusic(s === 'off' ? null : s, fac()); });
+  group($('phaseBtns'), ['afternoon', 'golden', 'night'], function (p) { state.phase = p; A.setAmbience(p, +$('ambI').value); });
+  $('ambI').oninput = function () { A.setAmbience(null, +this.value); };
+  // These drive the real path: the audio module polls the (fake) match state once a second.
+  function setHeld(n) { state.landmarks.forEach(function (l, i) { l.owner = i < n ? state.player : (l.owner === state.player ? null : l.owner); }); draw(); }
+  function setTurf() {
+    state.factions.forEach(function (f, i) {
+      var mine = i === state.player;
+      f.turf = togs.nearWin ? (mine ? 1350 : 1200) : 400;
+      if (togs.behind) f.turf = mine ? f.turf - 300 : f.turf;
+    });
+  }
+  $('held').oninput = function () { $('heldV').textContent = this.value; setHeld(+this.value); };
+  $('combat').oninput = function () { A.setCombat(+this.value); };
+  var togs = {};
+  document.querySelectorAll('[data-tog]').forEach(function (b) {
+    b.onclick = function () { var k = b.dataset.tog; togs[k] = !togs[k]; b.classList.toggle('on', togs[k]); setTurf(); };
+  });
+  function listener() { A.setListener(L.x, L.z, +$('heading').value, +$('height').value); draw(); }
+  $('height').oninput = listener; $('heading').oninput = listener;
+
+  // ----- map
+  var L = { x: 0, z: 0 }, lastSound = 'bark', cv = $('map'), g = cv.getContext('2d');
+  var SX = cv.width / 360, SZ = cv.height / 225;
+  function toPx(x, z) { return [(x + 180) * SX, (z + 112) * SZ]; }
+  function draw() {
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = '#7d9a62'; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = '#c9c2b2'; var a = toPx(-165, -95), b = toPx(150, 92); g.strokeStyle = '#555'; g.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+    LM.forEach(function (l) {
+      var p = toPx(l.x, l.z), st = state.landmarks.filter(function (s) { return s.id === l.id; })[0];
+      g.fillStyle = st && st.owner != null ? ['#3D7BE0', '#FF8A1F', '#9B5CFF', '#E0453A'][st.owner] : '#eee';
+      g.beginPath(); g.arc(p[0], p[1], 6, 0, 7); g.fill();
+      g.fillStyle = '#122'; g.font = '10px system-ui'; g.fillText(l.name, p[0] + 8, p[1] + 3);
+    });
+    var q = toPx(L.x, L.z), h = +$('heading').value;
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(q[0], q[1], 7, 0, 7); g.fill();
+    g.strokeStyle = '#000'; g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[0] + Math.sin(h) * 18, q[1] - Math.cos(h) * 18); g.stroke();
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    var r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * cv.width / SX - 180, z = (e.clientY - r.top) / r.height * cv.height / SZ - 112;
+    if (e.shiftKey) A.play(lastSound, { x: x, z: z, faction: fac() });
+    else { L.x = x; L.z = z; listener(); }
+  });
+  draw();
+  setHeld(4);
+
+  // ----- every SFX
+  A.names().forEach(function (n) {
+    btn($('sfxBtns'), n, function () { lastSound = n; A.play(n, { faction: fac(), cls: ['crowd', 'talker', 'heavy'][(Math.random() * 3) | 0], phase: state.phase, counter: Math.random() < 0.3 }); });
+  });
+
+  // ----- bus events
+  var me = function () { return state.player; };
+  var enemy = function () { return (state.player + 1 + ((Math.random() * 3) | 0)) % 4; };
+  var randLm = function () { return LM[(Math.random() * LM.length) | 0].id; };
+  var EV = {
+    'capture (you take it)': function () { var lm = randLm(); setOwner(lm, me()); bus.emit('capture', { lm: lm, from: null, to: me() }); },
+    'capture (enemy takes yours)': function () { var lm = randLm(); setOwner(lm, enemy()); bus.emit('capture', { lm: lm, from: me(), to: enemy() }); },
+    'capture (AI vs AI)': function () { bus.emit('capture', { lm: randLm(), from: 1, to: 2 }); },
+    'contested (your lm)': function () { var lm = randLm(); setOwner(lm, me()); bus.emit('contested', { lm: lm, faction: enemy() }); },
+    'contested (other)': function () { bus.emit('contested', { lm: randLm(), faction: enemy() }); },
+    'overIt': function () { bus.emit('overIt', { unit: (Math.random() * 64) | 0, faction: enemy(), line: "I'm going to Think Coffee" }); },
+    'hit': function () { bus.emit('hit', { from: (Math.random() * 64) | 0, to: (Math.random() * 64) | 0, counter: false }); },
+    'hit (counter)': function () { bus.emit('hit', { from: (Math.random() * 64) | 0, to: (Math.random() * 64) | 0, counter: true }); },
+    'crewCall (yours)': function () { bus.emit('crewCall', { faction: me(), kind: fac(), x: L.x + 10, z: L.z }); },
+    'crewCall Tournament': function () { bus.emit('crewCall', { faction: 0, kind: 'tournament', x: -20, z: 0 }); },
+    'crewCall Drum Circle': function () { bus.emit('crewCall', { faction: 1, kind: 'drumCircle', x: 20, z: 0 }); },
+    'crewCall Group Chat': function () { bus.emit('crewCall', { faction: 2, kind: 'groupChat', x: 0, z: 20 }); },
+    'crewCall Zoomies': function () { bus.emit('crewCall', { faction: 3, kind: 'zoomies', x: 0, z: -20 }); },
+    'eventWarn': function () { bus.emit('eventWarn', { id: 'pianoGuy', lm: 'smallRun' }); },
+    'phase → golden': function () { state.phase = 'golden'; bus.emit('phase', { phase: 'golden' }); },
+    'phase → night': function () { state.phase = 'night'; bus.emit('phase', { phase: 'night' }); },
+    'phase → afternoon': function () { state.phase = 'afternoon'; bus.emit('phase', { phase: 'afternoon' }); },
+    'recruited': function () { bus.emit('recruited', { faction: me(), cls: 'talker' }); },
+    'built': function () { var lm = randLm(); setOwner(lm, me()); bus.emit('built', { lm: lm, pad: 0, setup: 'benchCluster' }); },
+    'hint': function () { bus.emit('hint', { id: 'tri', text: 'Squares beat circles — bring a ■', target: null }); },
+    'aiBark': function () { bus.emit('aiBark', { faction: enemy(), text: 'Back in \'79 this was all hustlers.', lm: randLm() }); },
+    'victory (you win)': function () { bus.emit('victory', { winner: me(), stats: {} }); },
+    'victory (you lose)': function () { bus.emit('victory', { winner: enemy(), stats: {} }); }
+  };
+  ['pianoGuy', 'pigeonLady', 'squirrelHeist', 'pepSweep', 'touristBus', 'summerShower', 'iceCreamTruck', 'judsonBells', 'graduation'].forEach(function (id) {
+    EV['start ' + id] = function () { bus.emit('eventStart', { id: id, lm: id === 'pianoGuy' ? 'smallRun' : randLm() }); };
+    EV['end ' + id] = function () { bus.emit('eventEnd', { id: id }); };
+  });
+  function setOwner(id, f) { state.landmarks.forEach(function (l) { if (l.id === id) l.owner = f; }); draw(); }
+  Object.keys(EV).forEach(function (k) { btn($('busBtns'), k, EV[k]); });
+
+  $('storm').onclick = function () {
+    var n = 0, iv = setInterval(function () {
+      for (var i = 0; i < 15; i++) bus.emit('hit', { from: (Math.random() * 64) | 0, to: (Math.random() * 64) | 0, counter: Math.random() < 0.25 });
+      if (Math.random() < 0.2) bus.emit('overIt', { unit: (Math.random() * 64) | 0, faction: enemy() });
+      if (++n > 120) clearInterval(iv);
+    }, 50);
+  };
+  $('match').onclick = function () {
+    A.setMusic('calm', fac());
+    var t = 0, iv = setInterval(function () {
+      t++;
+      if (t % 5 === 0) EV['capture (you take it)']();
+      if (t % 7 === 0) EV['contested (your lm)']();
+      for (var i = 0; i < (t > 20 && t < 40 ? 20 : 3); i++) EV.hit();
+      if (t === 20) bus.emit('phase', { phase: 'golden' });
+      if (t === 25) EV['crewCall (yours)']();
+      if (t === 30) EV['start pianoGuy']();
+      if (t === 40) { EV['end pianoGuy'](); bus.emit('phase', { phase: 'night' }); }
+      state.factions.forEach(function (f, i) { f.turf += i === state.player ? 26 : 20; });
+      if (t >= 60) { clearInterval(iv); EV['victory (you win)'](); }
+    }, 1000);
+  };
+
+  setInterval(function () {
+    var s = A.stats();
+    $('status').textContent = JSON.stringify(s, null, 1);
+    $('meter').value = A.level();
+  }, 250);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Bake data/raw/osm.json (Overpass export) into js/geo.js.
+
+Coordinates become meters in a local frame centred on the fountain and
+rotated so the park's edges are axis-aligned: +x is "east" (toward
+University Place), +z is "south" (toward West 4th Street), y is up.
+Run: python3 -I tools/bake-osm.py
+"""
+import json, math, os, sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAW = os.path.join(ROOT, 'data', 'raw', 'osm.json')
+OUT = os.path.join(ROOT, 'js', 'geo.js')
+RADIUS = 300  # keep features whose centroid is within this many meters
+
+els = json.load(open(RAW))['elements']
+
+def find(pred):
+    return [e for e in els if pred(e.get('tags', {}))]
+
+fountain = find(lambda t: t.get('amenity') == 'fountain' and t.get('name') == 'Washington Square Fountain')[0]
+park = [e for e in find(lambda t: t.get('leisure') == 'park' and t.get('name') == 'Washington Square Park') if e['type'] == 'way'][0]
+
+def centroid(geom):
+    return (sum(p['lat'] for p in geom) / len(geom), sum(p['lon'] for p in geom) / len(geom))
+
+LAT0, LON0 = centroid(fountain['geometry'])
+KX = math.cos(math.radians(LAT0)) * 111320.0
+KY = 110574.0
+
+def raw_xy(lat, lon):
+    return ((lon - LON0) * KX, -(lat - LAT0) * KY)
+
+# Orientation: angle of the park's longest edges, folded into [-45, 45).
+pg = [raw_xy(p['lat'], p['lon']) for p in park['geometry']]
+best = None
+for a, b in zip(pg, pg[1:]):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy)
+    ang = math.degrees(math.atan2(dy, dx))
+    ang = ((ang + 45) % 90) - 45
+    if best is None or L > best[0]:
+        best = (L, ang)
+ROT = -math.radians(best[1])
+C, S = math.cos(ROT), math.sin(ROT)
+
+def xy(lat, lon):
+    x, y = raw_xy(lat, lon)
+    return (round(x * C - y * S, 2), round(x * S + y * C, 2))
+
+def ring(e):
+    pts = [xy(p['lat'], p['lon']) for p in e.get('geometry', []) if p]
+    if len(pts) > 2 and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    return pts
+
+def near(pts):
+    if not pts:
+        return False
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    return math.hypot(cx, cy) < RADIUS
+
+def num(v, default=None):
+    try:
+        return float(str(v).split()[0].replace('m', ''))
+    except Exception:
+        return default
+
+out = {'origin': [LAT0, LON0], 'rotationDeg': round(math.degrees(ROT), 2),
+       'buildings': [], 'areas': [], 'paths': [], 'roads': [], 'barriers': [],
+       'trees': [], 'benches': [], 'lamps': [], 'points': []}
+
+for e in els:
+    t = e.get('tags', {})
+    if e['type'] == 'way':
+        pts = ring(e)
+        if not near(pts):
+            continue
+        closed = e['geometry'][0] == e['geometry'][-1] if e.get('geometry') else False
+        if 'building' in t and closed:
+            h = num(t.get('height'))
+            lv = num(t.get('building:levels'))
+            if h is None:
+                h = lv * 3.4 if lv else 14.0
+            out['buildings'].append({'id': e['id'], 'name': t.get('name'), 'kind': t['building'],
+                                     'h': round(h, 1), 'levels': lv, 'pts': pts})
+        elif closed and any(k in t for k in ('leisure', 'landuse', 'natural', 'amenity')):
+            kind = t.get('leisure') or t.get('landuse') or t.get('natural') or t.get('amenity')
+            out['areas'].append({'id': e['id'], 'kind': kind, 'name': t.get('name'), 'pts': pts,
+                                 'surface': t.get('surface')})
+        elif t.get('highway') in ('footway', 'pedestrian', 'steps', 'path', 'service'):
+            out['paths'].append({'kind': t['highway'], 'name': t.get('name'), 'pts': pts,
+                                 'area': t.get('area') == 'yes', 'surface': t.get('surface')})
+        elif t.get('highway') in ('residential', 'secondary', 'tertiary', 'primary', 'living_street', 'unclassified'):
+            out['roads'].append({'kind': t['highway'], 'name': t.get('name'), 'pts': pts,
+                                 'lanes': num(t.get('lanes'), 2), 'oneway': t.get('oneway') == 'yes'})
+        elif 'barrier' in t:
+            out['barriers'].append({'kind': t['barrier'], 'pts': pts})
+    elif e['type'] == 'node':
+        p = xy(e['lat'], e['lon'])
+        if math.hypot(*p) > RADIUS:
+            continue
+        if t.get('natural') == 'tree':
+            out['trees'].append([p[0], p[1], num(t.get('height'), 0) or 0])
+        elif t.get('amenity') == 'bench':
+            out['benches'].append(p)
+        elif t.get('highway') == 'street_lamp':
+            out['lamps'].append(p)
+        elif t.get('name') or t.get('historic') or t.get('tourism') or t.get('amenity') in ('drinking_water', 'toilets', 'waste_basket') or t.get('leisure') == 'picnic_table':
+            out['points'].append({'name': t.get('name'), 'pos': p,
+                                  'kind': t.get('historic') or t.get('tourism') or t.get('amenity') or t.get('leisure') or 'poi'})
+
+with open(OUT, 'w') as f:
+    f.write('// Generated by tools/bake-osm.py from OpenStreetMap data (c) OpenStreetMap contributors, ODbL.\n')
+    f.write('// Local meters: +x east, +z south, origin at the fountain.\n')
+    f.write('window.GEO = ')
+    json.dump(out, f, separators=(',', ':'))
+    f.write(';\n')
+
+print('rotation', out['rotationDeg'], 'deg', {k: len(v) for k, v in out.items() if isinstance(v, list)},
+      'bytes', os.path.getsize(OUT), file=sys.stderr)
+pp = ring(park)
+print('park bbox x', min(p[0] for p in pp), max(p[0] for p in pp), 'z', min(p[1] for p in pp), max(p[1] for p in pp), file=sys.stderr)
+for a in out['areas']:
+    if a['name']:
+        xs = [p[0] for p in a['pts']]; zs = [p[1] for p in a['pts']]
+        print(' area', a['kind'], a['name'], 'x', round(min(xs)), round(max(xs)), 'z', round(min(zs)), round(max(zs)), file=sys.stderr)
+for b in out['buildings']:
+    if b['name'] and b['kind'] in ('triumphal_arch', 'church', 'toilets'):
+        xs = [p[0] for p in b['pts']]; zs = [p[1] for p in b['pts']]
+        print(' bldg', b['name'], 'x', round(min(xs)), round(max(xs)), 'z', round(min(zs)), round(max(zs)), file=sys.stderr)
+for p in out['points']:
+    if p['kind'] in ('monument', 'artwork', 'attraction', 'memorial') and math.hypot(*p['pos']) < 160:
+        print(' poi', p['kind'], p['name'], p['pos'], file=sys.stderr)

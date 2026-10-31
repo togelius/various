@@ -1,0 +1,14 @@
+{
+  "name": "square-off",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SQUARE OFF: a single-player 3D real-time strategy game set in the real Washington Square Park, NYC",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "check": "node test/check.cjs",
+    "test:browser": "node test/browser-smoke.cjs",
+    "build:standalone": "node tools/build-standalone.js",
+    "sim:batch": "node tools/sim-batch.js"
+  }
+}
