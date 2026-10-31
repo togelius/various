@@ -61,6 +61,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const causes = Object.keys(R.CAUSES[k] || {});
       for (const c of [null, ...causes]) for (const uid of ['you', 'x.1']) for (const optional of [false, true]) for (const names of [undefined, NAMES]) {
         const e = sample(k, c, { uid, optional }), s = Text.event(e, names);
+        // (M4) A module event of a rule about an exhibit that names none has no sentence, so
+        // that the log never tells it (an event about no exhibit is told whatever is in view);
+        // m4-grammar checks which rules those are.
+        if (k === 'module' && e.who === undefined && s === null) continue;
         assert.ok(clean(s), `${k}${c ? '.' + c : ''}: ${JSON.stringify(s)} for ${JSON.stringify(e)}`);
         assert.ok(/^[A-Z“]/.test(s) && /[.)]$/.test(s), `${k}${c ? '.' + c : ''}: "${s}" is not a sentence`);
         n++;
