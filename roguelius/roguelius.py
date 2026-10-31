@@ -68,25 +68,30 @@ MODIFIERS = {
 
 MONSTERS = {
     "email": dict(ch="e", name="Unread Email", hp=2, atk=1, df=0, cite=1,
-                  color="yellow", traits={"swarm"}, depths=(1, 6), w=5),
+                  color="yellow", traits={"swarm"}, depths=(1, 6), w=4),
     "undergrad": dict(ch="u", name="Confused Undergrad", hp=5, atk=1, df=0,
                       cite=2, color="green", traits=set(), depths=(1, 4), w=4),
+    "adjunct": dict(ch="a", name="Adjunct Lecturer", hp=4, atk=2, df=0,
+                    cite=2, color="green", traits={"fast"}, depths=(1, 5), w=3),
+    "ta": dict(ch="t", name="Teaching Assistant", hp=6, atk=2, df=0, cite=3,
+               color="cyan", traits=set(), depths=(2, 5), w=3),
     "phd": dict(ch="p", name="PhD Student (needs a meeting)", hp=7, atk=2,
                 df=0, cite=3, color="cyan", traits=set(), depths=(1, 6), w=3),
     "bureaucrat": dict(ch="b", name="Bureaucrat", hp=12, atk=2, df=2, cite=4,
-                       color="blue", traits={"slow"}, depths=(2, 7), w=3),
+                       color="blue", traits={"slow", "stun"}, depths=(2, 7), w=3),
     "reviewer": dict(ch="r", name="Reviewer 2", hp=8, atk=3, df=0, cite=5,
-                     color="red", traits={"ranged"}, depths=(3, 8), w=3),
-    "deadline": dict(ch="D", name="Deadline", hp=7, atk=3, df=0, cite=4,
-                     color="magenta", traits={"fast"}, depths=(3, 8), w=3),
+                     color="red", traits={"ranged"}, depths=(3, 8), w=2),
+    "deadline": dict(ch="D", name="Deadline", hp=7, atk=2, df=0, cite=4,
+                     color="magenta", traits={"fast", "looming"},
+                     depths=(3, 8), w=3),
     "meeting": dict(ch="M", name="Faculty Meeting", hp=16, atk=2, df=1, cite=6,
                     color="yellow", traits={"slow", "aura"}, depths=(4, 8), w=2),
     "committee": dict(ch="C", name="Curriculum Committee", hp=18, atk=3, df=1,
                       cite=7, color="blue", traits={"slow", "summoner"},
                       depths=(5, 8), w=2),
-    "dean": dict(ch="A", name="Associate Dean", hp=14, atk=4, df=1, cite=8,
+    "dean": dict(ch="A", name="Associate Dean", hp=16, atk=4, df=1, cite=8,
                  color="magenta", traits=set(), depths=(6, 8), w=3),
-    "panel": dict(ch="G", name="The Grant Panel", hp=46, atk=4, df=1, cite=30,
+    "panel": dict(ch="G", name="The Grant Panel", hp=56, atk=4, df=2, cite=30,
                   color="red", traits={"ranged", "summoner", "boss"},
                   depths=(8, 8), w=0),
 }
@@ -95,7 +100,7 @@ ITEMS = {
     "coffee": dict(ch="%", name="Drip Coffee", color="yellow",
                    depths=(1, 8), w=5),
     "espresso": dict(ch="!", name="Quad Espresso", color="yellow",
-                     depths=(3, 8), w=2),
+                     depths=(2, 8), w=3),
     "bagel": dict(ch="&", name="Everything Bagel", color="green",
                   depths=(1, 8), w=3),
     "sandwich": dict(ch="&", name="Deli Sandwich", color="green",
@@ -116,14 +121,25 @@ ITEMS = {
                 depths=(4, 8), w=1),
     "sabbatical": dict(ch="=", name="Sabbatical Form", color="cyan",
                        depths=(4, 7), w=1),
+    "energy": dict(ch="~", name="Energy Drink", color="magenta",
+                   depths=(2, 8), w=2),
+    "podium": dict(ch="/", name="Seminar Podium", color="white",
+                   depths=(6, 8), w=1),
+    "offer_letter": dict(ch="T", name="Tenure-Track Offer Letter",
+                         color="yellow", depths=(5, 8), w=1),
+    # Vending-machine only; depths (0, 0) keeps it off the floors.
+    "snack": dict(ch="&", name="Mystery Snack", color="magenta",
+                  depths=(0, 0), w=0),
 }
 
-WEAPONS = {"laser": 1, "keyboard": 2}
+WEAPONS = {"laser": 1, "keyboard": 2, "podium": 3}
 ARMOR = {"tweed": 1, "headphones": 1}
 
 KILL_MSGS = {
     "email": "Archived. Inbox zero feels briefly possible.",
     "undergrad": "The undergrad finally gets it. They promise to cite you.",
+    "adjunct": "The adjunct updates their CV. You feel only mild guilt.",
+    "ta": "The TA thanks you for the feedback. The feedback was a sword.",
     "phd": "Great meeting! The PhD student leaves with newfound purpose.",
     "bureaucrat": "The form is stamped in triplicate. The bureaucrat retreats.",
     "reviewer": "Reviewer 2 concedes your contribution is, in fact, novel.",
@@ -137,8 +153,10 @@ KILL_MSGS = {
 ATTACK_MSGS = {
     "email": "An URGENT email demands your attention",
     "undergrad": "The undergrad asks if this will be on the exam",
+    "adjunct": "The adjunct pitches you on their new course idea",
+    "ta": "The TA asks you to grade the midterms by Friday",
     "phd": "The PhD student needs feedback on chapter 3, tonight",
-    "bureaucrat": "The bureaucrat requires another form",
+    "bureaucrat": "The bureaucrat requires another form (may stun you)",
     "reviewer": "Reviewer 2 attacks your methodology",
     "deadline": "The deadline looms closer",
     "meeting": "The meeting spawns an action item for you",
@@ -177,6 +195,22 @@ AMBIENT = [
     "Someone has scheduled a meeting about reducing meetings.",
     "A whiteboard nearby reads: DO NOT ERASE (erased).",
     "Through a window: the East River, indifferent to peer review.",
+    "A poster reads: 'Have you updated your syllabus yet?'",
+    "Two students are arguing about whether attendance is graded.",
+    "The radiator makes a sound like a sigh.",
+]
+
+CRIT_LINES = [
+    "A citation so perfect it cites itself. CRITICAL!",
+    "You deploy the Figure 3. It is devastating. CRITICAL!",
+    "Someone laughs at your joke at exactly the right moment. CRITICAL!",
+]
+
+TENURE_LINES = [
+    "Your h-index reaches %d: the department murmurs about TENURE. "
+    "Sanity fully restored, attack up!",
+    "An anonymous letter praises your service. h-index %d — TENURE! "
+    "Full heal, stronger arguments!",
 ]
 
 # ----------------------------------------------------------------------------
@@ -376,6 +410,8 @@ class Player:
         self.h_index = 0
         self.money = 8
         self.base_atk = 2
+        self.crit_bonus = 0    # extra crit chance, in percent
+        self.stun_turns = 0    # turns during which the player cannot act
         self.inventory = []
         self.weapon = None   # item kind
         self.armor = None    # item kind
@@ -417,6 +453,7 @@ class Game:
         self.msg("Another day at 370 Jay Street. Your grant proposal is due "
                  "on the roof. The elevator is broken.")
         self.msg("Press ? for help. Good luck, Professor.")
+        self.msg("Tip: 5 to take a breather, or just wait. 'o' explores.")
 
     # -- messaging ----------------------------------------------------------
 
@@ -494,7 +531,8 @@ class Game:
 
         # Monsters.
         if self.depth == NUM_FLOORS:
-            roster = ["panel", "reviewer", "reviewer", "committee", "dean"]
+            roster = ["panel", "reviewer", "reviewer", "committee", "dean",
+                      "ta"]
             for kind in roster:
                 c = take_cell()
                 if c:
@@ -508,7 +546,7 @@ class Game:
             pool = [(k, s["w"]) for k, s in MONSTERS.items()
                     if s["w"] > 0 and s["depths"][0] <= self.depth <= s["depths"][1]]
             kinds, weights = zip(*pool)
-            n = 4 + self.depth + rng.randint(0, 2)
+            n = 2 + self.depth + rng.randint(0, 1)
             for _ in range(n):
                 c = take_cell()
                 if not c:
@@ -546,11 +584,12 @@ class Game:
                 kind = "bagel"
             placed.append(kind)
             self.items.append(Item(kind, c[0], c[1]))
-        # Guarantee caffeine supply on most floors.
-        if self.depth <= 6 and "coffee" not in placed and "espresso" not in placed:
+        # Guarantee caffeine supply on every floor.
+        if self.depth <= 7 and "coffee" not in placed and "espresso" not in placed:
             c = take_cell()
             if c:
-                self.items.append(Item("coffee", c[0], c[1]))
+                kind = "espresso" if self.depth >= 5 else "coffee"
+                self.items.append(Item(kind, c[0], c[1]))
         # Stock up before the boss: floor 7 always has supplies.
         if self.depth == NUM_FLOORS - 1:
             for kind in ("espresso", "sandwich"):
@@ -732,9 +771,43 @@ class Game:
                     break
             self.msg("You file the sabbatical form. Reality shifts; you are "
                      "suddenly at the stairwell.")
+        elif kind == "energy":
+            p.caffeine = min(p.maxcaffeine, p.caffeine + 25)
+            p.crit_bonus = min(50, p.crit_bonus + 25)
+            self.msg("The energy drink tastes like battery acid and "
+                     "deadlines. Caffeine +25, crit chance +25% for a while.")
+        elif kind == "offer_letter":
+            p.maxsanity += 10
+            p.sanity = min(p.maxsanity, p.sanity + 10)
+            p.base_atk += 1
+            self.msg("A tenure-track offer letter! The future looks funded. "
+                     "Max sanity +10, attack +1.")
+        elif kind == "snack":
+            roll = rng.random()
+            if roll < 0.45:
+                p.sanity = min(p.maxsanity, p.sanity + 5)
+                self.msg("It's a decent granola bar. Sanity +5.")
+            elif roll < 0.75:
+                p.caffeine = min(p.maxcaffeine, p.caffeine + 15)
+                self.msg("Sugar! Caffeine +15. Probably fine.")
+            else:
+                p.sanity = max(0, p.sanity - 3)
+                self.msg("Expired. Your stomach files a complaint. "
+                         "-3 sanity.")
+                self.check_death("a mystery snack")
         else:
             return False
         p.inventory.pop(idx)
+        return True
+
+    def do_rest(self):
+        """Take a breather: small sanity regen, monsters move as normal."""
+        p = self.player
+        if p.sanity >= p.maxsanity:
+            self.msg("You are already at peak sanity.")
+            return False
+        p.sanity = min(p.maxsanity, p.sanity + 1)
+        self.msg("You sit down for a moment and breathe. Sanity +1.")
         return True
 
     def do_drop(self, idx):
@@ -784,7 +857,7 @@ class Game:
 
     def do_buy(self, what):
         p = self.player
-        prices = {"coffee": 3, "bagel": 5}
+        prices = {"coffee": 3, "bagel": 5, "snack": 2, "energy": 6}
         cost = prices.get(what)
         if cost is None:
             return False
@@ -812,13 +885,18 @@ class Game:
 
     def player_attack(self, m):
         p = self.player
+        crit = self.rng.random() * 100 < 10 + p.crit_bonus
         dmg = max(1, p.atk + self.rng.randint(0, 2) - m.df)
+        if crit:
+            dmg *= 2
+            self.msg(self.rng.choice(CRIT_LINES))
         m.hp -= dmg
         if m.hp <= 0:
             self.kill_monster(m)
         else:
             verb = self.rng.choice(PLAYER_VERBS)
-            self.msg("%s the %s (%d)." % (verb, m.name, dmg))
+            self.msg("%s the %s (%d%s)." % (verb, m.name, dmg,
+                                             " CRIT" if crit else ""))
 
     def kill_monster(self, m, silent=False):
         m.hp = min(m.hp, 0)
@@ -849,6 +927,17 @@ class Game:
             else:
                 self.msg("Your h-index rises to %d! (max sanity up)"
                          % p.h_index)
+            if p.h_index in (12, 25) and p.h_index * p.h_index <= p.citations:
+                p.base_atk += 1
+                p.sanity = p.maxsanity
+                self.msg(self.rng.choice(TENURE_LINES) % p.h_index)
+
+    def apply_crit_decay(self):
+        """Energy-drink crit bonus fades as the caffeine wears off."""
+        p = self.player
+        if p.crit_bonus > 0 and p.caffeine <= 30:
+            p.crit_bonus = 0
+            self.msg("The energy drink wears off. Crit bonus gone.")
 
     def monster_attack(self, m, ranged=False):
         p = self.player
@@ -860,6 +949,15 @@ class Game:
         p.sanity -= dmg
         base = ATTACK_MSGS.get(m.kind, "The %s wears you down" % m.name)
         self.msg("%s (%d sanity)." % (base, dmg))
+        if "stun" in m.traits and not ranged and self.rng.random() < 0.25:
+            p.stun_turns = max(p.stun_turns, 1)
+            self.msg("The bureaucrat files a motion to extend the form. "
+                     "You are STUNNED and cannot act next turn.")
+        elif "looming" in m.traits and not ranged \
+                and self.rng.random() < 0.15:
+            p.stun_turns = max(p.stun_turns, 1)
+            self.msg("PANIC! The deadline is HERE. You freeze "
+                     "(stunned next turn).")
         self.check_death(m.name)
 
     def check_death(self, cause):
@@ -995,6 +1093,7 @@ class Game:
     def upkeep(self):
         p = self.player
         self.turn += 1
+        self.apply_crit_decay()
         drain_every = 4 if self.modifier == "ac_broken" else 5
         if self.turn % drain_every == 0:
             p.caffeine = max(0, p.caffeine - 1)
@@ -1002,10 +1101,13 @@ class Game:
                 p.sanity -= 1
                 self.msg("Caffeine withdrawal headache. (-1 sanity)")
                 self.check_death("caffeine withdrawal")
-        if p.caffeine >= 30 and p.sanity < p.maxsanity and self.turn % 6 == 0:
+        if p.caffeine >= 30 and p.sanity < p.maxsanity and self.turn % 5 == 0:
             p.sanity += 1
         if self.turn % 47 == 0:
             self.msg(self.rng.choice(AMBIENT))
+        # Espresso also lifts the spirit a little.
+        if p.caffeine >= 70 and p.sanity < p.maxsanity and self.turn % 5 == 0:
+            p.sanity += 1
         # Faculty Meetings drain the will to live from a distance.
         for m in self.monsters:
             if "aura" in m.traits and m.hp > 0 \
@@ -1023,10 +1125,21 @@ class Game:
         if self.over:
             return False
         kind = action[0]
+        if self.player.stun_turns > 0 and kind not in ("vending",):
+            # Stunned: the action fizzles, but the turn still passes.
+            self.player.stun_turns -= 1
+            self.msg("You are still reeling from the paperwork. (stunned)")
+            self.monsters_act()
+            if not self.over:
+                self.upkeep()
+            self.update_fov()
+            return False
         if kind == "move":
             result = self.do_move(action[1], action[2])
         elif kind == "wait":
             result = self.do_wait()
+        elif kind == "rest":
+            result = self.do_rest()
         elif kind == "get":
             result = self.do_get()
         elif kind == "use":
@@ -1134,17 +1247,24 @@ def bot_action(game):
         if idx is not None:
             return ("use", idx)
     if p.caffeine <= 15:
-        idx = has("coffee", "espresso")
+        idx = has("coffee", "espresso", "energy")
         if idx is not None:
             return ("use", idx)
     if p.sanity <= 6 and p.caffeine >= 20 and not adjacent_monsters(game):
         return ("deepwork",)
+    if p.sanity <= 10 and p.caffeine >= 12 and not adjacent_monsters(game) \
+            and has("sandwich", "bagel") is None:
+        return ("rest",)
 
     adj = adjacent_monsters(game)
     boss = next((m for m in game.monsters if "boss" in m.traits and m.hp > 0),
                 None)
     if boss and (boss.x, boss.y) in game.visible:
         idx = has("gpu")
+        if idx is not None:
+            return ("use", idx)
+    if len(adj) >= 2 and p.caffeine < 80:
+        idx = has("energy")
         if idx is not None:
             return ("use", idx)
     if len(adj) >= 2 and p.caffeine >= 12:
@@ -1218,8 +1338,16 @@ def autoplay_one(seed):
         action = bot_action(game)
         result = game.player_turn(action)
         if result == "vending":
-            if game.player.money >= 3 and len(game.player.inventory) < INV_CAP:
+            p = game.player
+            if len(p.inventory) >= INV_CAP:
+                stuck += 1
+                game.player_turn(("wait",))
+            elif p.money >= 6 and p.caffeine <= 40:
+                game.player_turn(("buy", "energy"))
+            elif p.money >= 3:
                 game.player_turn(("buy", "coffee"))
+            elif p.money >= 2 and p.sanity <= p.maxsanity - 6:
+                game.player_turn(("buy", "snack"))
             else:
                 stuck += 1
                 game.player_turn(("wait",))
@@ -1301,7 +1429,7 @@ HELP_LINES = [
     "ROGUELIUS — how to survive NYU",
     "",
     "  Move       arrows / hjkl (yubn for diagonals)",
-    "  .          wait a turn",
+    "  .          wait a turn     5  rest (+1 sanity)",
     "  g          grab item     >  climb stairs",
     "  i          inventory (letter: use/equip, SHIFT+letter: drop)",
     "  c          quick-drink first coffee in bag",
@@ -1310,15 +1438,19 @@ HELP_LINES = [
     "  x          Deep Work: restore 6 sanity (20 caffeine)",
     "  ?          this help    Q  abandon the semester",
     "",
-    "  @  you       e email      u undergrad   p PhD student",
-    "  b  bureaucrat  r Reviewer 2  D deadline  M faculty meeting",
+    "  @  you       e email      u undergrad   a adjunct    t TA",
+    "  p  PhD student  b bureaucrat (may stun)  r Reviewer 2",
+    "  D  deadline (fast, panics you)   M faculty meeting",
     "  C  committee   A assoc. dean  G THE GRANT PANEL",
     "  %! coffee    &  food      ?  preprint    $ reimbursement",
     "  /  weapon    [  armor     *  GPU token   = sabbatical form",
+    "  ~  energy drink (crit!)  T  tenure offer (big buff)",
     "  V  vending machine (walk into it)   >  stairs up",
     "",
     "  Caffeine drains each turn; at zero you fight worse and lose",
     "  sanity. Citations raise your h-index, which raises your stats.",
+    "  Attacks crit for double damage (10%%, more with energy drinks).",
+    "  h-index 12 and 25 grant TENURE: full heal and +1 attack.",
     "  Reach the roof and defeat The Grant Panel.",
     "  (press any key)",
 ]
@@ -1407,12 +1539,16 @@ def run_curses(stdscr, seed):
         wpn = ITEMS[p.weapon]["name"] if p.weapon else "Bare Rhetoric"
         arm = ITEMS[p.armor]["name"] if p.armor else "Conference T-Shirt"
         status = ("Sanity %2d/%-2d  Caffeine %3d  Cites %3d (h=%d)  $%-3d "
-                  "Atk %d Def %d"
+                  "Atk %d Def %d%s"
                   % (p.sanity, p.maxsanity, p.caffeine, p.citations,
-                     p.h_index, p.money, p.atk, p.df))
+                     p.h_index, p.money, p.atk, p.df,
+                     "  CRIT+%d%%" % p.crit_bonus if p.crit_bonus else ""))
         sanity_frac = p.sanity / max(1, p.maxsanity)
         scolor = "green" if sanity_frac > 0.5 else \
             ("yellow" if sanity_frac > 0.25 else "red")
+        if p.stun_turns > 0:
+            status += "   STUNNED!"
+            scolor = "red"
         put(MAP_H + 1, 0, status, attr(scolor, bold=sanity_frac <= 0.25))
         put(MAP_H + 2, 0, "Wielding: %s   Wearing: %s" % (wpn, arm),
             attr("white", dim=True))
@@ -1468,14 +1604,13 @@ def run_curses(stdscr, seed):
             % game.player.money, attr("magenta", bold=True))
         put(3, 6, "a) Drip Coffee ........ $3")
         put(4, 6, "b) Everything Bagel ... $5")
-        put(6, 6, "(any other key to walk away)")
+        put(5, 6, "c) Mystery Snack ...... $2   (a gamble)")
+        put(6, 6, "d) Energy Drink ....... $6   (crit chance!)")
+        put(8, 6, "(any other key to walk away)")
         stdscr.refresh()
         key = stdscr.getch()
-        if key == ord("a"):
-            return "coffee"
-        if key == ord("b"):
-            return "bagel"
-        return None
+        return {ord("a"): "coffee", ord("b"): "bagel",
+                ord("c"): "snack", ord("d"): "energy"}.get(key)
 
     def end_screen(game):
         scores = record_score(game)
@@ -1535,6 +1670,7 @@ def run_curses(stdscr, seed):
             ((ord("b"),), ("move", -1, 1)),
             ((ord("n"),), ("move", 1, 1)),
             ((ord("."), ord("s")), ("wait",)),
+            ((ord("5"),), ("rest",)),
             ((ord("g"), ord(",")), ("get",)),
             ((ord(">"),), ("stairs",)),
             ((ord("z"),), ("lecture",)),

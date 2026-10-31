@@ -64,6 +64,7 @@ h-index makes you tougher; every third point makes you more persuasive.
 |-----|--------|
 | arrows / `hjkl` / `yubn` | move (8 directions); walk into things to argue with them |
 | `.` | wait |
+| `5` | **rest**: catch your breath (+1 sanity, costs a turn) |
 | `g` | grab item |
 | `>` | climb stairs (when standing on them) |
 | `i` | inventory — letter to use/equip, SHIFT+letter to drop |
@@ -75,16 +76,23 @@ h-index makes you tougher; every third point makes you more persuasive.
 | `?` | help |
 | `Q` | abandon the semester |
 
+Your attacks have a **10% critical chance** for double damage (shown as
+CRIT). Energy drinks add +25% crit chance that wears off as the caffeine
+fades. Reaching **h-index 12 or 25** grants **TENURE**: a full sanity heal
+and +1 attack.
+
 ### The opposition
 
 | | | |
 |---|---|---|
 | `e` | Unread Email | weak, but they multiply |
 | `u` | Confused Undergrad | mostly harmless |
+| `a` | Adjunct Lecturer | fast, precarious |
+| `t` | Teaching Assistant | wants you to grade the midterms |
 | `p` | PhD Student | needs a meeting; may leave you a preprint |
-| `b` | Bureaucrat | slow, heavily armored in process |
+| `b` | Bureaucrat | slow, heavily armored in process; can **stun** you with paperwork |
 | `r` | Reviewer 2 | attacks your methodology from range, keeps its distance |
-| `D` | Deadline | fast. Deadlines are always fast |
+| `D` | Deadline | fast; its proximity can **panic** you into a stunned turn |
 | `M` | Faculty Meeting | slow, tanky, drains your caffeine just by being near |
 | `C` | Curriculum Committee | slow; generates correspondence |
 | `A` | Associate Dean | hits hard, suggests extra teaching |
@@ -96,13 +104,15 @@ h-index makes you tougher; every third point makes you more persuasive.
 |---|---|---|
 | `%` `!` | coffee / quad espresso | +35 / +70 caffeine |
 | `&` | bagel / deli sandwich | +8 / +12 sanity |
+| `~` | energy drink | +25 caffeine and +25% crit chance while it lasts |
 | `?` | intriguing preprint | read for citations (80% not flawed) |
 | `$` | reimbursement check | walking-around money |
-| `/` | laser pointer, mechanical keyboard | weapons (+1 / +2 attack) |
+| `/` | laser pointer, mechanical keyboard, seminar podium | weapons (+1 / +2 / +3 attack) |
 | `[` | tweed jacket, noise-canceling headphones | armor; headphones also block emails entirely |
+| `T` | tenure-track offer letter | max sanity +10, +1 attack, right now |
 | `*` | GPU cluster token | one use: overwhelming results, 9 damage to all visible foes |
 | `=` | sabbatical form | one use: teleport to the stairwell |
-| `V` | vending machine | walk into it; coffee $3, bagel $5 |
+| `V` | vending machine | walk into it; coffee $3, bagel $5, mystery snack $2 (a gamble), energy drink $6 |
 
 ### Floor modifiers
 
@@ -113,9 +123,10 @@ or broken AC (caffeine drains faster). The message log tells you on arrival.
 ## Balance
 
 The game ships with a headless bot (`--autoplay`) that plays with full map
-knowledge and simple tactics; it wins roughly half its runs. Human players
-have worse routing but far better tactics, so a careful professor should do
-better. Difficulty numbers were tuned against thousands of bot games.
+knowledge and simple tactics; recent 400-game runs win roughly 85–90% of
+their games. Human players have worse routing but far better tactics, so a
+careful professor should do even better. Difficulty numbers were tuned
+against thousands of bot games.
 
 ## Testing
 

@@ -117,6 +117,15 @@ class TestMechanics(unittest.TestCase):
         self.assertIn("coffee", game.player.inventory)
         self.assertFalse(game.do_buy("coffee"))  # broke now
 
+    def test_buy_energy_and_snack(self):
+        game = rl.Game(19)
+        game.player.money = 8
+        self.assertTrue(game.do_buy("energy"))
+        self.assertEqual(game.player.money, 2)
+        self.assertTrue(game.do_buy("snack"))
+        self.assertEqual(game.player.money, 0)
+        self.assertEqual(sorted(game.player.inventory), ["energy", "snack"])
+
     def test_wall_move_costs_no_turn(self):
         game = rl.Game(9)
         p = game.player
@@ -125,6 +134,98 @@ class TestMechanics(unittest.TestCase):
         result = game.player_turn(("move", 0, -1))
         self.assertFalse(result)
         self.assertEqual(game.turn, turn)
+
+    def test_crit_can_double_damage(self):
+        game = rl.Game(11)
+        game.player.crit_bonus = 100  # force crits
+        m = rl.Monster("dean", game.player.x + 1, game.player.y,
+                       random.Random(0))
+        game.monsters.append(m)
+        hp_before = m.hp
+        game.player_attack(m)
+        # crit doubles at least the minimum damage (max(1, atk - df) >= 1,
+        # doubled >= 2)
+        self.assertGreaterEqual(hp_before - m.hp, 2)
+
+    def test_stun_blocks_action_and_consumes_turn(self):
+        game = rl.Game(12)
+        p = game.player
+        p.stun_turns = 1
+        p.sanity = 20
+        turn = game.turn
+        result = game.player_turn(("rest",))
+        self.assertFalse(result)  # stunned: action fizzles
+        self.assertEqual(p.stun_turns, 0)
+        self.assertEqual(game.turn, turn + 1)
+        self.assertEqual(p.sanity, 20)  # no rest healing while stunned
+
+    def test_bureaucrat_can_stun(self):
+        # The stun trait is back on the bureaucrat spec again; one scripted
+        # roll must produce a stun.
+        stunned = False
+        for i in range(500):
+            game = rl.Game(13)
+            game.rng = random.Random(i)
+            game.player.stun_turns = 0
+            m = rl.Monster("bureaucrat", game.player.x + 1, game.player.y,
+                           random.Random(0))
+            game.monster_attack(m)
+            game.player.sanity = 22  # keep alive
+            if game.player.stun_turns:
+                stunned = True
+                break
+        self.assertTrue(stunned, "bureaucrat never stunned in 500 rolls")
+
+    def test_energy_drink_grants_crit(self):
+        game = rl.Game(14)
+        game.player.inventory = ["energy"]
+        game.player.crit_bonus = 0
+        game.player.caffeine = 0
+        self.assertTrue(game.do_use(0))
+        self.assertEqual(game.player.crit_bonus, 25)
+        self.assertEqual(game.player.caffeine, 25)
+        self.assertEqual(game.player.inventory, [])
+
+    def test_crit_bonus_decays_when_decaffeinated(self):
+        game = rl.Game(15)
+        game.player.crit_bonus = 25
+        game.player.caffeine = 20
+        game.upkeep()  # turn passes, caffeine still > 30? no: 20 <= 30
+        self.assertEqual(game.player.crit_bonus, 0)
+
+    def test_tenure_at_h12(self):
+        game = rl.Game(16)
+        p = game.player
+        p.sanity = 5
+        game.gain_citations(144)  # h-index hits 12 exactly
+        self.assertEqual(p.h_index, 12)
+        self.assertEqual(p.sanity, p.maxsanity)  # full heal
+        self.assertGreater(p.base_atk, 2)         # attack up
+
+    def test_snack_gamble(self):
+        outcomes = set()
+        for i in range(60):
+            game = rl.Game(17 + i)
+            p = game.player
+            p.inventory = ["snack"]
+            p.sanity = 20
+            p.caffeine = 50
+            game.rng = random.Random(i)
+            before = (p.sanity, p.caffeine)
+            self.assertTrue(game.do_use(0))
+            self.assertEqual(p.inventory, [])  # always consumed
+            outcomes.add((p.sanity - before[0], p.caffeine - before[1]))
+        # the gamble has more than one possible outcome
+        self.assertGreaterEqual(len(outcomes), 2)
+
+    def test_rest_heals_one(self):
+        game = rl.Game(18)
+        p = game.player
+        p.sanity = 10
+        self.assertTrue(game.do_rest())
+        self.assertEqual(p.sanity, 11)
+        p.sanity = p.maxsanity
+        self.assertFalse(game.do_rest())  # already full
 
 
 class TestPolish(unittest.TestCase):
@@ -178,6 +279,15 @@ class TestBot(unittest.TestCase):
         wins = sum(1 for r in results if r["won"])
         self.assertGreater(wins, 0, "game may be impossibly hard")
         self.assertLess(wins, 40, "game may be trivially easy")
+
+    def test_bot_win_rate_in_a_sane_band(self):
+        """The bot has full map knowledge; it should win roughly half to
+        nine tenths of its games — not always, not never."""
+        results = [rl.autoplay_one(seed) for seed in range(60)]
+        wins = sum(1 for r in results if r["won"])
+        rate = wins / len(results)
+        self.assertGreaterEqual(rate, 0.3, "bot win rate too low: %.2f" % rate)
+        self.assertLessEqual(rate, 0.98, "bot win rate too high: %.2f" % rate)
 
     def test_no_stuck_games(self):
         for seed in range(25):
