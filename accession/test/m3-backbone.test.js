@@ -65,8 +65,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(parity(pending, 'pending choice'), 0);
     const over = TestRoom.create(2); over.over = { k: 'died', turn: 0, by: null, door: null, cause: {} };
     assert.equal(parity(over, 'visit over'), 0);
-    // Reserved and unknown actions are refused as unknown.
-    for (const a of [{ a: 'push', x: 1, y: 1, dir: 0 }, { a: 'view' }, { a: 'dance' }, {}, null]) assert.equal(Step.step(TestRoom.create(1), a)[0].reason, 'unknown_action', key(a));
+    // Reserved and unknown actions are refused as unknown; view, whose handler M4's skeleton
+    // defined (rules/viewing.js), is refused while there is no Centrepiece to view.
+    for (const a of [{ a: 'push', x: 1, y: 1, dir: 0 }, { a: 'dance' }, {}, null]) assert.equal(Step.step(TestRoom.create(1), a)[0].reason, 'unknown_action', key(a));
+    assert.equal(Step.step(TestRoom.create(1), { a: 'view' })[0].reason, 'no_centrepiece');
     assert.ok(states > 150 && legalSeen > 500, `${states} states, ${legalSeen} legal actions`);
   });
 
@@ -75,7 +77,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.throws(() => X.Actions.define('dance', { legal: () => [], candidates: () => [], apply: () => 0 }), /not in Actions\.ORDER/);
     assert.throws(() => X.Actions.define('wait', { legal: () => [], candidates: () => [], apply: () => 0 }), /defined twice/);
     assert.throws(() => X.Actions.define('push', { legal: () => [] }), /needs candidates/);
-    assert.equal(X.Actions.get('push'), null); assert.equal(X.Actions.get('view'), null); assert.equal(X.Actions.get('toString'), null);
+    assert.equal(X.Actions.get('push'), null); assert.equal(X.Actions.get('toString'), null);
+    assert.ok(X.Actions.get('view'), 'view is defined once, by rules/viewing.js');
+    assert.throws(() => X.Actions.define('view', { legal: () => [], candidates: () => [], apply: () => 0 }), /defined twice/);
     X.Actions.defineChoice('planted', () => 0);
     assert.throws(() => X.Actions.defineChoice('planted', () => 0), /defined twice/);
     assert.equal(typeof X.Actions.choice('planted'), 'function'); assert.equal(X.Actions.choice('nothing'), null);

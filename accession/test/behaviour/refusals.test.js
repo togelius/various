@@ -36,7 +36,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   // Codes that no M3 action can give, with why: each is built: 'M4', not an M3 entry.
   const UNREACHABLE = {
-    not_built: 'no M3 action refuses with it: push and view, reserved in Actions.ORDER, have no handler, so step() refuses them unknown_action (§4.2); only m3-backbone\'s planted handler shows it',
+    not_built: 'no action refuses with it: push, reserved in Actions.ORDER, has no handler, so step() refuses it unknown_action, and view refuses no_centrepiece until M4 builds viewing (§4.2); only m3-backbone\'s planted handler shows it',
   };
 
   // Each case: build() → the state, ready (real actions in pre, played first, each must not

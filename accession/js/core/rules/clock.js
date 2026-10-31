@@ -152,5 +152,8 @@ const ClockRules = (() => {
     },
   });
 
-  return { boundary, nearestSleepers, entryTile, spawnWatchman, fell, watchmanAlive };
+  // W0d1 fills (M4's skeleton made it): bring the next clock stage n turns closer, with its cause.
+  function advance(state, n, cause, ev) {}
+
+  return { boundary, nearestSleepers, entryTile, spawnWatchman, fell, watchmanAlive, advance };
 })();

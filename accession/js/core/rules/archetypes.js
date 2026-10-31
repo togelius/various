@@ -25,10 +25,17 @@
 //                                        {k: 'hits', n, halves: true}, n counts the hits on it
 //                                        and on every half it splits off (a splitter that can
 //                                        still split), and its line says so
+// M4's hooks, added by M4's skeleton so the core can ask them (W0d1 routes the rules' calls):
+//   huntsOnSight(state, a) → bool        does a hunt you on seeing you: false if any hook says so
+//   marksAwake(state, a) → bool          may a mark its special while awake: true if any hook says so
+//   immune(state, a, statusId) → bool    is a immune to the status (Status.apply asks): true if any says so
+//   plan(state, a) → null | plan         its shown next move (clockwork): the first that is not null
+//   wakeRegion(state, a, turns) → [[x, y]]   the tiles where standing for `turns` turns would wake
+//                                        it: the first hook's that is not null, else the default
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',
-    'onResolve', 'init', 'present', 'pipless', 'readout'];
+    'onResolve', 'init', 'present', 'pipless', 'readout', 'huntsOnSight', 'marksAwake', 'immune', 'plan', 'wakeRegion'];
   const ARCH = {}, MODS = {};
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   function register(table, kind, reg, id, impl) {
@@ -74,10 +81,20 @@ const Archetypes = (() => {
   function adjustDamage(state, def, amount, cause) { for (const f of hooks(state, def, 'adjustDamage')) amount = f(state, def, amount, cause); return amount; }
   function pipless(state, a) { for (const f of hooks(state, a, 'pipless')) if (f(state, a)) return true; return false; }
   function readout(state, a, you) { let out = []; for (const f of hooks(state, a, 'readout')) out = out.concat(f(state, a, you) || []); return out; }
+  function huntsOnSight(state, a) { for (const f of hooks(state, a, 'huntsOnSight')) if (!f(state, a)) return false; return true; }
+  function marksAwake(state, a) { for (const f of hooks(state, a, 'marksAwake')) if (f(state, a)) return true; return false; }
+  function immune(state, a, statusId) { for (const f of hooks(state, a, 'immune')) if (f(state, a, statusId)) return true; return false; }
+  function plan(state, a) { for (const f of hooks(state, a, 'plan')) { const r = f(state, a); if (r !== null && r !== undefined) return r; } return null; }
+  function wakeRegion(state, a, turns) {
+    for (const f of hooks(state, a, 'wakeRegion')) { const r = f(state, a, turns); if (r !== null && r !== undefined) return r; }
+    return defaultWakeRegion(state, a, turns);
+  }
+  // W0d1 fills: the default wake region, the ring at RING_MOVING with line of sight; [] until then.
+  function defaultWakeRegion(state, a, turns) { return []; }
 
   return {
     HOOKS: HOOKS.slice(), add, addModifier, added, addedModifier,
-    act, mayStep, costPct, speedApplies, adjustDamage, present, pipless, readout,
+    act, mayStep, costPct, speedApplies, adjustDamage, present, pipless, readout, huntsOnSight, marksAwake, immune, plan, wakeRegion,
     onDamaged: each('onDamaged'), onDied: each('onDied'), onTouched: each('onTouched'), onWake: each('onWake'),
     onHome: each('onHome'), onResolve: each('onResolve'), init: each('init'),
   };

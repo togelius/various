@@ -36,5 +36,11 @@ const Actions = (() => {
   }
   const choice = k => typeof k === 'string' && own(choices, k) ? choices[k] : null;
 
-  return { ORDER: ORDER.slice(), define, get, defineChoice, choice };
+  // M4's skeleton made these with their signatures and neutral bodies; W0d1 fills them.
+  // W0d1 fills: fn(state, action) → a refusal code or null, asked by step() after Status.blocks.
+  function addRefuser(fn) {}
+  // W0d1 fills: does an action of this kind cost no time (read, choose and leave)?
+  function free(kind) { return false; }
+
+  return { ORDER: ORDER.slice(), define, get, defineChoice, choice, addRefuser, free };
 })();

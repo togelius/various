@@ -16,6 +16,8 @@
 //                                    accession number, which a mimic's case lacks (§8.3)
 //   Labels.ofStaffDoor(state, f), Labels.ofPlaque(state, f), Labels.ofItem(state, uid),
 //   Labels.you(state)
+//   Labels.ofLectern(state, f), Labels.ofPanel(state, f), Labels.ofSheet(state, f)   M4's
+//                                    fixtures', null until LABELS-M4 fills them
 //   Labels.strip(state)              the nearest readable thing within READ_RANGE (§8.8)
 //   Labels.odds(state, a)            the odds readout (§8.1)
 //   Labels.nameOf(state)             names for Text.event
@@ -530,5 +532,14 @@ const Labels = (() => {
     };
   }
 
-  return { of, strip, odds, speciesOf, stateIcons, MODE_ICON, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours, allowed };
+  // M4's fixtures' labels: M4's skeleton made them with their signatures; LABELS-M4 fills them.
+  // LABELS-M4 fills: a lectern's label (the gateway text, View, the reading tile), or null.
+  function ofLectern(state, f) { return null; }
+  // LABELS-M4 fills: a wall panel's label, or null.
+  function ofPanel(state, f) { return null; }
+  // LABELS-M4 fills: the dust sheet's label, or null.
+  function ofSheet(state, f) { return null; }
+
+  return { of, strip, odds, speciesOf, stateIcons, MODE_ICON, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours, allowed,
+    ofLectern, ofPanel, ofSheet };
 })();

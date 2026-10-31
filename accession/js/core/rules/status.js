@@ -145,5 +145,8 @@ const Status = (() => {
     return null;
   }
 
-  return { has, harmful, EFFECTS, restoreShare, apply, settle, tick, effects, left, blocks };
+  // W0c fills (M4's skeleton made it): a status's rule, {effect, blocks, skipsAction}, M3's moved onto it.
+  function define(id, rule) {}
+
+  return { has, harmful, EFFECTS, restoreShare, apply, settle, tick, effects, left, blocks, define };
 })();

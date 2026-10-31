@@ -15,7 +15,7 @@ const N = Object.freeze({
   COST_BASH_HEAVY: 150, // one Heavy swing at glass, counting as two bashes
   COST_EQUIP: 100, // equip a weapon, curio or instrument
   COST_EQUIP_GARMENT: 300, // equip a garment
-  COST_PUSH: 100, // push a jar
+  COST_PUSH: 100, // reserved: push a jar, cut from M4
   COST_VIEW: 100, // one viewing turn
   COST_SIT: 100, // sit on a bench
   SPECIAL_RECOVERY: 100, // added to the cost of a special's resolve, so the exhibit's next action comes that much later
@@ -75,6 +75,16 @@ const N = Object.freeze({
   VIEW_DISTANCE: 3, // walking tiles from the lectern's reading tile to the Centrepiece
   TREASURE_SEAL_HP_PCT: 34, // a treasure hall also seals when its Centrepiece falls to this share of its health
   TREASURE_SEAL_TURNS: 12, // turns after a treasure's case is touched before its hall seals
+  CP_PHASE_PCT: [67, 34], // phase thresholds, % of total health
+  CP_SPECIAL_EVERY: [3, 2], // a special every this many actions, phases 1–2, then 3; provisional
+  CP_SUMMON: [1, 2], // bodies a summon makes, phases 1–2, then 3; provisional
+  CP_SUMMON_DMG_PCT: 200, // damage the tableau takes while a summon is marked, %
+  CHARGE_RANGE: 5, // tiles a `cp_charge` lane reaches toward you
+  GUARDIAN_PER_STAGE: 2, // galleries walked per limb
+  GUARDIAN_STAGE_MAX: 4, // the Composite's limbs, at most
+  GUARDIAN_LEAVE_HEAL_PCT: 100, // the Composite's heal when you leave its hall while it hunts, % of its maximum health
+  ENSEMBLE_PIECES: 4, // the Ordinance's pieces, its original among them
+  ENSEMBLE_HOOK_PCT: [8, 24], // the Ordinance's health lost per original broken in the galleries, and the most, % of its total; provisional
   CAUSE_RECORDS: 64, // cause records kept in the state
   READ_RANGE: 2, // tiles from a label to read it
   TOTE_SLOTS: 16, // tote size
@@ -134,17 +144,20 @@ const N = Object.freeze({
   WINDOW_POLE: [4, 40, 2], // charges, recharge turns, range
   LAMP_OBSERVE_RANGE: 4, // the Day Curator's Lamp, lit
   LAMP_RING: 1, // added to your ring while the Lamp is lit
+  LAMP_CASE_MIN_WALK: 6, // walking tiles from the Lamp's case to every opening of the S.9 hall, at least
   UNOBSERVED_STEP: 2, // tiles a turn for an unobserved mover
   DEMO_PERIOD: 12, // turns between demonstrations
   DEMO_PERIOD_INTRO: 8, // in an Intro gallery
   DEMO_PERIOD_HALL: 8, // in the Centrepiece hall
-  DEMO_LINE_DMG: [4, 7, 10], // gross damage of a demonstration line; provisional
+  DEMO_LINE_DMG: [4, 7, 10], // gross damage of a demonstration line, a curve at depth anchors 1 / 4 / 8; provisional
   DEMO_WARNING: 2, // turns of warning chime
   DEMO_WINDOW: 3, // minimum safe window at a forced crossing
   ALARM_TURNS: 30, // an alarm's length
   ALARM_CLOCK_ADVANCE: 30, // turns each alarm brings the bell closer
   WEATHER_SHARE_PCT: 20, // cases holding weather
   WEATHER_TURNS: 10, // fog or rain duration
+  WEATHER_SIZE: 3, // side of a fog or rain square
+  WEATHER_FOG_PCT: 50, // share of weather cases holding fog
   RAIN_STOP_TURNS: 2, // a soaked clockwork exhibit stops
   COPY_GROUP: [3, 4], // smallest and largest copy group
   COPY_WEAKEN_PCT: 33, // health and damage lost by a spare whose original falls; provisional
@@ -156,9 +169,23 @@ const N = Object.freeze({
   PERK_SECOND_WIND_BELOW_PCT: 25,
   PERK_SECOND_WIND_TURNS: 5,
   PERK_LIGHT_FINGERS_COST: 100, // ticks to open a case with Light Fingers
+  PERK_SOFT_SOLES: [1, 2], // Soft Soles: your ring this much smaller at ranks 1 and 2
+  PERK_CLOSE_STEPS: [1, 2], // Close the Distance: free steps per exhibit at ranks 1 and 2
+  PERK_ELBOW_ROOM_ADJACENT: 3, // Elbow Room's Padding counts while this many enemies or more are adjacent
+  PERK_LIGHT_FINGERS_ABOVE: 1, // Light Fingers at rank 2 opens locks this many grades above yours
+  PERK_OFFER: [2, 1], // perks offered from the department's primary family, then its secondary
+  STAGGER_TURNS: 1, // turns `staggered` lasts: the exhibit loses its next action
   DEPTS_PER_RUN: 6,
   DEPTS_PER_FLOOR: 2,
   EXIT_DEPTH: 7, // the Exit's depth for the role curves
+  SAFE_ZONE: 8, // walking tiles from the entrance where no hostile is placed
+  SAFE_ZONE_TURNS: 20, // turns of a patrol's round over which no wake region may reach the safe zone
+  INTRO_DEPTH: 12, // fewest walking tiles from the entrance to an onward opening of the Intro
+  INTRO_WIDTH: 14, // the Intro's floor columns, which its stamp fills (layout version 3)
+  RUNNER_PASS_PCT: 80, // the worst-case runner passes at this share of its health
+  RUNNER_MOVES: 2, // exhibits the runner may move before the layout reseeds
+  RUNNER_TOGETHER_TURNS: 3, // exhibits the runner wakes within this many turns of each other along its route are one fight
+  DEAD_END_REWARD: 12, // LV7's length: a dead end this many walking tiles beyond its junction holds a reward
   SAVE_SLOTS: 2, // alternating IndexedDB slots
   ROLE_FODDER_HP: [7, 16, 28],
   ROLE_FODDER_ACC: [2, 3, 4],
@@ -209,7 +236,7 @@ const N = Object.freeze({
   ROLE_AMBUSHER_EVA: [2, 3, 4],
   ROLE_AMBUSHER_DMG: [[3, 6], [5, 11], [8, 16]],
   ROLE_AMBUSHER_PAD: [0, 1, 2],
-  ROLE_CENTREPIECE_HP: [45, 105, 195], // shared pool for an ensemble
+  ROLE_CENTREPIECE_HP: [45, 105, 195], // total over an ensemble's pieces
   ROLE_CENTREPIECE_PAD: [1, 2, 3],
   ROLE_CENTREPIECE_ACC: [3, 4, 5], // provisional
   ROLE_CENTREPIECE_EVA: [1, 2, 3], // provisional
@@ -220,9 +247,11 @@ const N = Object.freeze({
   AXIS_BEAM_RANGE: 10, // the axis_sniper's beam, in tiles
   KITER_HOLD: [3, 5], // the kiter's distance from you, nearest and farthest
   DARTER_STEP_BACK: 1, // tiles a darter steps back after its blow
+  CONSERVATOR_HEAL_PCT: 25, // what a conservator_healer restores to an ally, % of its maximum health
+  CONSERVATOR_KEEP: 2, // tiles a conservator_healer keeps from you
   SPLIT_MAX: 2, // splits per lineage
   SPLIT_HP_PCT: 50, // each half's share of the remaining health
-  SWARM_BODIES: [3, 8], // bodies in a swarm, fewest and most; provisional; the M3 stand-in places the first
+  SWARM_BODIES: [3, 8], // bodies in a swarm, fewest and most; provisional; only the first is used in the slice
   MIMIC_GRIP_TURNS: 2, // turns a mimic's grip roots you
   OLD_REPAIR_PCT: 200, // damage through an old repair's side
   PLASTER_HP_PCT: 70, // a plaster cast's share of its role's health
