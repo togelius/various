@@ -327,13 +327,18 @@ module.exports = (C) => {
     {
       // The creation cause `awake` is told "it never sleeps" (§3.4, §8.2), so only an exhibit
       // whose trigger stands for the wake clause (`awake`) may carry it in its story; one a
-      // room sets out awake that can sleep carries `placed`.
+      // room sets out awake that can sleep carries `placed`. And `patrol` is told "it walks
+      // its round" (M4): only a patrol carries it, a patrol_guard with a round (route.posts),
+      // and a patrol is told that, not that it never sleeps.
       id: 'waking.awake_story',
       applies: exhibit,
       check(pre, events, post, ctx) {
         const a = ctx.actor, T = a.trigger && Object.prototype.hasOwnProperty.call(Registry.TRIGGERS, a.trigger) ? Registry.TRIGGERS[a.trigger] : null;
-        const says = [a.woke, a.hunted].some(st => st && st.cause && st.cause.k === 'awake');
-        return says && !(T && T.replacesWake) ? `its story says it never sleeps (cause awake), but its trigger is ${JSON.stringify(a.trigger)}, and it can sleep` : null;
+        const says = k => [a.woke, a.hunted].some(st => st && st.cause && st.cause.k === k);
+        const patrol = a.arch === 'patrol_guard' && !!a.route && Array.isArray(a.route.posts) && a.route.posts.length > 0;
+        if (says('patrol') && !patrol) return `its story says it walks its round (cause patrol), but it is no patrol_guard with a round`;
+        if (says('awake') && patrol) return 'a patrol on its round, its story says it never sleeps (cause awake), not that it walks its round (patrol)';
+        return says('awake') && !(T && T.replacesWake) ? `its story says it never sleeps (cause awake), but its trigger is ${JSON.stringify(a.trigger)}, and it can sleep` : null;
       },
     },
     {

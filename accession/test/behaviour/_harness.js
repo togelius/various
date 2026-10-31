@@ -11,7 +11,8 @@
 //   failures(results) → [line]
 //   sensitivity(C, sc, modifierId, list?) → {sensitive, problems, runs}
 //   species(C, id, {depths, m4}) → [{sp, depth, acc}]
-//   switchable(C, sc) → the modifier id rulesOff can switch off, or null
+//   switchable(C, sc) → the id rulesOff can switch off (a modifier, a module or a perk), or null
+//   room(C, seed, spec, options) → state   Setup.room's, with rooms and a Centrepiece's hall
 //   reruns(id) → how many runs, in this process, sweep() and sensitivity() made with id
 //                switched off that failed as they must
 'use strict';
@@ -189,11 +190,20 @@ function describe(r) {
     (r.failure ? ': ' + r.failure : ': passed');
 }
 
-// The rule a scenario's clause belongs to that rulesOff can switch off: a modifier built in
-// M3 (and, from M4, a module), or null.
+// The rule a scenario's clause belongs to that rulesOff can switch off (Options.off), or
+// null: a modifier (M3's, and clockwork from M4), a department's module (M4) or a perk (M4,
+// Registry.PERKS), each of them switched off by its id for a visit. A table-qualified id
+// ('MODULES.alarm_network') names only an entry of that table.
+const SWITCHED = ['MODIFIERS', 'MODULES', 'PERKS'];
 function switchable(C, sc) {
-  const id = bare(sc.id), R = C.Registry, own = (t, k) => Object.prototype.hasOwnProperty.call(R[t], k);
-  return id && ((own('MODIFIERS', id) && R.MODIFIERS[id].built === 'M3') || (own('MODULES', id) && R.MODULES[id].built === 'M3')) ? id : null;
+  const q = qualified(sc.id), id = bare(sc.id), R = C.Registry;
+  const own = (t, k) => !!R[t] && typeof R[t] === 'object' && Object.prototype.hasOwnProperty.call(R[t], k);
+  if (!id) return null;
+  for (const t of SWITCHED) {
+    if (q && q.table !== t) continue;
+    if (own(t, id) && (t === 'PERKS' || R[t][id].built === 'M3' || R[t][id].built === 'M4')) return id;
+  }
+  return null;
 }
 
 // Run a scenario for every {sp, depth} in list (by default species(C, sc.id)), once per
@@ -252,8 +262,10 @@ function sensitivity(C, sc, modifierId, list) {
 // part from that table, so a table no line part comes from gives none), from the packs and
 // the shared species (Packs.sharedList: the Night Watchman), at every depth 1–7
 // (opts.depths), as {sp, depth, acc}. The species records are the packs' own, so the fields by which a pack
-// overrides a number (§5.2; modParams) apply. Species whose archetype M3 does not build are
-// left out, as M3 departments leave them out (§5.5), unless opts.m4.
+// overrides a number (§5.2; modParams) apply. A species whose archetype's code is not there
+// yet is left out, as departments leave it out (§5.5), unless opts.m4: its archetype must be
+// added (Archetypes.added), as every M3 archetype is and an M4 one is once its package
+// registers its hooks, so a joined-up scenario sweeps each M4 species from then on.
 function species(C, id, opts) {
   opts = opts || {};
   const depths = opts.depths || DEPTHS, records = [];
@@ -262,9 +274,9 @@ function species(C, id, opts) {
   const out = [];
   for (const { sp, acc } of records) {
     const arch = Object.prototype.hasOwnProperty.call(C.Registry.ARCHETYPES, sp.archetype) ? C.Registry.ARCHETYPES[sp.archetype] : null;
-    const built = !!(arch && arch.built === 'M3');
+    const built = !!arch && C.Archetypes.added(sp.archetype);
     if (!built && !opts.m4) continue;
-    // An M3 species' line always fills (lint-registry checks it), so an error there is
+    // A built species' line always fills (lint-registry checks it), so an error there is
     // thrown; an unbuilt species whose line cannot be read simply uses nothing.
     const q = qualified(id), match = isPart(id);
     let uses = (!q || q.table === 'ARCHETYPES') && sp.archetype === bare(id);
@@ -275,4 +287,90 @@ function species(C, id, opts) {
   return out;
 }
 
-module.exports = { DEPTHS, CAP, play, scenario, run, sweep, failures, describe, sensitivity, species, switchable, reruns };
+// A room for a scenario that needs rooms or a Centrepiece's hall: Setup.room(seed, spec,
+// options) with two more fields spec may give, written into the state once the room is made
+// and before anything acts (as a department's Centrepiece is placed after each archetype's
+// init, M4 plan A10):
+//   rooms: [{key, role, x0, y0, x1, y1}]  the rooms as a department has them: dept.rooms,
+//          numbered 1, 2 … in order, with no accession number (0), and dept.roomOf, each
+//          row's room ids, 0 on a tile in none (a wall, a doorway between two). Each is a
+//          rectangle of the map's tiles, corners included, inside its outer walls; keys once,
+//          roles from Arena.ROOM_ROLES' list (ROOM_ROLES here), none overlapping. The same
+//          as an arena stamp's rooms: line (tools/arena.js), which a test compares;
+//   cp: {uids, room, openings?, form?, sealed?, touched?, sheet?, treasure?}  the
+//          Centrepiece and its hall, dept.cp (A3; Hall.cp reads it): uids, its pieces, actors
+//          of the room; room, the key of its hall among rooms; openings, the hall's ways in
+//          as [{x, y, ch}] (by default every tile one can walk on in the ring just outside the
+//          hall's rectangle, corners left out, in row-major order, ch its tile); form 'fight'
+//          (the default) or 'treasure'; and the rest absent until used: sealed null, touched
+//          false, sheet null, treasure null, unless given.
+// A field it does not know, a room off the map, a cp whose room or uid is not there is
+// refused with an error, as Setup.room refuses one, so nothing a scenario gives is lost.
+const ROOM_ROLES = ['intro', 'section', 'study', 'centre', 'coda', 'staff'];
+const CP_FIELDS = ['uids', 'room', 'openings', 'form', 'sealed', 'touched', 'sheet', 'treasure'];
+function room(C, seed, spec, options) {
+  if (!spec || typeof spec !== 'object') throw new Error('room: needs a spec, as Setup.room takes');
+  const rest = Object.assign({}, spec);
+  delete rest.rooms; delete rest.cp;
+  const state = C.Setup.room(seed, rest, options);
+  if (spec.rooms !== undefined) setRooms(state, spec.rooms);
+  if (spec.cp !== undefined) setCp(C, state, spec.cp);
+  return state;
+}
+const plain = v => JSON.parse(JSON.stringify(v));
+function setRooms(state, list) {
+  const m = state.dept;
+  if (!Array.isArray(list) || !list.length) throw new Error('room: rooms is a list of {key, role, x0, y0, x1, y1}');
+  const out = list.map((r, i) => {
+    const where = `room ${JSON.stringify(r && r.key)}`;
+    if (!r || typeof r !== 'object') throw new Error(`room: ${where} is not {key, role, x0, y0, x1, y1}`);
+    for (const k of Object.keys(r)) if (!['key', 'role', 'x0', 'y0', 'x1', 'y1'].includes(k)) throw new Error(`room: ${where} has the unknown field ${k}`);
+    if (typeof r.key !== 'string' || !/^[a-z][a-z0-9]*$/.test(r.key)) throw new Error(`room: a room's key is lower-case letters and digits, not ${JSON.stringify(r.key)}`);
+    if (!ROOM_ROLES.includes(r.role)) throw new Error(`room: ${where}'s role is one of ${ROOM_ROLES.join(', ')}, not ${JSON.stringify(r.role)}`);
+    if (![r.x0, r.y0, r.x1, r.y1].every(Number.isSafeInteger) || r.x1 < r.x0 || r.y1 < r.y0) throw new Error(`room: ${where} is not a rectangle x0 ≤ x1, y0 ≤ y1`);
+    if (r.x0 < 1 || r.y0 < 1 || r.x1 > m.w - 2 || r.y1 > m.h - 2) throw new Error(`room: ${where} is not inside the map's outer walls (1,1-${m.w - 2},${m.h - 2})`);
+    return { id: i + 1, key: r.key, role: r.role, number: 0, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 };
+  });
+  out.forEach((r, k) => {
+    for (const q of out.slice(0, k)) {
+      if (q.key === r.key) throw new Error(`room: the room ${r.key} is given twice`);
+      if (r.x0 <= q.x1 && q.x0 <= r.x1 && r.y0 <= q.y1 && q.y0 <= r.y1) throw new Error(`room: the rooms ${q.key} and ${r.key} overlap`);
+    }
+  });
+  m.rooms = out;
+  m.roomOf = [];
+  for (let y = 0; y < m.h; y++) {
+    const row = [];
+    for (let x = 0; x < m.w; x++) { const r = out.find(q => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1); row.push(r ? r.id : 0); }
+    m.roomOf.push(row);
+  }
+}
+// The ways into a room: the tiles of the ring just outside it, corners left out, that one
+// can walk on (an archway, a door, a staff door, floor), in row-major order, as {x, y, ch}.
+function openingsOf(C, m, r) {
+  const out = [];
+  for (let y = r.y0 - 1; y <= r.y1 + 1; y++) for (let x = r.x0 - 1; x <= r.x1 + 1; x++) {
+    const ring = x === r.x0 - 1 || x === r.x1 + 1 || y === r.y0 - 1 || y === r.y1 + 1, corner = (x === r.x0 - 1 || x === r.x1 + 1) && (y === r.y0 - 1 || y === r.y1 + 1);
+    if (!ring || corner || x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
+    const ch = m.tiles[y][x], T = Object.prototype.hasOwnProperty.call(C.Grid.TILES, ch) ? C.Grid.TILES[ch] : null;
+    if (T && T.walk) out.push({ x, y, ch });
+  }
+  return out;
+}
+function setCp(C, state, cp) {
+  const m = state.dept;
+  if (!cp || typeof cp !== 'object') throw new Error('room: cp is {uids, room, …}');
+  for (const k of Object.keys(cp)) if (!CP_FIELDS.includes(k)) throw new Error(`room: cp has the unknown field ${k} (it takes ${CP_FIELDS.join(', ')})`);
+  if (!Array.isArray(m.rooms)) throw new Error('room: a cp needs rooms, one of them its hall');
+  const hall = m.rooms.find(r => r.key === cp.room);
+  if (!hall) throw new Error(`room: the cp's hall ${JSON.stringify(cp.room)} is not among the rooms`);
+  if (!Array.isArray(cp.uids) || !cp.uids.length) throw new Error('room: the cp names its pieces by uid (uids)');
+  for (const u of cp.uids) if (!state.actors.some(a => a.uid === u && u !== 'you')) throw new Error(`room: the cp's piece ${JSON.stringify(u)} is no exhibit of the room`);
+  const form = cp.form === undefined ? 'fight' : cp.form;
+  if (form !== 'fight' && form !== 'treasure') throw new Error(`room: the cp's form is fight or treasure, not ${JSON.stringify(form)}`);
+  m.cp = plain({ uids: cp.uids, room: cp.room, openings: cp.openings === undefined ? openingsOf(C, m, hall) : cp.openings, form,
+    sealed: cp.sealed === undefined ? null : cp.sealed, touched: cp.touched === undefined ? false : cp.touched,
+    sheet: cp.sheet === undefined ? null : cp.sheet, treasure: cp.treasure === undefined ? null : cp.treasure });
+}
+
+module.exports = { DEPTHS, CAP, ROOM_ROLES, play, scenario, run, sweep, failures, describe, sensitivity, species, switchable, reruns, room };

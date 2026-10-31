@@ -12,6 +12,7 @@
 //   Arena.depthFor(spec, seed), Arena.speciesFor(spec, seed), Arena.variant(spec, seed)
 //   Arena.gradeAt(depth): your grade at a depth (the arena's kit, below)
 //   Arena.start(start, options) → state: a sim replay's start rebuilt on its own (below)
+//   Arena.rooms(state, rooms): the rooms a stamp's rooms: line gives, written into the state
 //   Arena.DUMMY: a one-room stamp with one sleeping plodder, for the tools' own tests
 //
 // THE STAMP. A header of `key: value` lines, each key with a value, a blank line, then the
@@ -28,8 +29,9 @@
 //                                       dissolved
 //   cap: <turns>       the turn cap (200)
 //   species: <id>…     what a bare `sp` in the legend stands for: an archetype id (its pack
-//                      species whose archetype M3 builds, in pack order, and shared species
-//                      with it) or species ids, in turn by seed (below)
+//                      species, in pack order, and shared species with it; an archetype
+//                      M3 builds, or one whose code its M4 package has added,
+//                      Archetypes.added) or species ids, in turn by seed (below)
 //   depths: <d>…       the depths, in turn by seed (2 5)
 //   kit: <slot> [<form>] [key=value…]; …
 //                      what you wear and carry beyond the arena's kit (below); slots weapon
@@ -87,6 +89,17 @@
 //                        item <kind> [<form>] [key=value…] [on=<tile>]  an item on the floor
 //                        mark [on=<tile>]       a tile the goal names
 //                      `@` is `you` unless the legend says otherwise.
+//   rooms: <key> <role> <x0>,<y0>-<x1>,<y1>; …
+//                      the rooms, as a department has them (dept.rooms and dept.roomOf), so
+//                      that a rule about "its room" or a hall can be tried in an arena: each a
+//                      rectangle of the map's tiles from (x0, y0) to (x1, y1), corners
+//                      included, x counted from the map's first column and y from its first
+//                      row, inside its outer walls; key a name (lower-case letters and
+//                      digits, each once) and role one of ROOM_ROLES (the hall is centre).
+//                      Rooms are numbered 1, 2 … in the order given; a tile in none (a wall, a
+//                      doorway between two) is in room 0, as in a department. The line may
+//                      repeat. With no rooms line the room has none, as before, and an
+//                      exhibit's room is the whole map. Rooms change no uid
 //   variants: swap <ch> <ch>[, swap …] | …
 //                      alternatives to the map as drawn: variant 0 is the map, variant k the
 //                      k-th alternative, where `swap A B` exchanges every A and B tile. The
@@ -112,8 +125,10 @@
 // the first fixed species, else T0.
 'use strict';
 const Arena = (() => {
-  const KEYS = ['arena', 'goal', 'cap', 'species', 'depths', 'kit', 'clock', 'seen', 'grade', 'metric', 'legend', 'variants'];
-  const REPEAT = ['kit', 'legend'];
+  const KEYS = ['arena', 'goal', 'cap', 'species', 'depths', 'kit', 'clock', 'seen', 'grade', 'metric', 'legend', 'variants', 'rooms'];
+  const REPEAT = ['kit', 'legend', 'rooms'];
+  // The roles a room may have, as the layout gives them (centre is the Centrepiece's hall).
+  const ROOM_ROLES = ['intro', 'section', 'study', 'centre', 'coda', 'staff'];
   const GOALS = ['kill', 'reach', 'leave', 'take', 'open'];
   const WHATS = ['you', 'exhibit', 'case', 'item', 'mark'];
   const KINDS = ['weapon', 'garment', 'curio', 'instrument', 'kit', 'consumable'];
@@ -300,6 +315,22 @@ const Arena = (() => {
     }));
   }
 
+  // rooms: <key> <role> <x0>,<y0>-<x1>,<y1>; … → [{key, role, x0, y0, x1, y1}] in order.
+  function parseRooms(text, line) {
+    const out = [];
+    for (const e of text.split(';')) {
+      if (!e.trim()) continue;
+      const w = e.trim().split(/\s+/), m = w.length === 3 ? /^(\d+),(\d+)-(\d+),(\d+)$/.exec(w[2]) : null;
+      if (!m) fail(line, `a room is <key> <role> <x0>,<y0>-<x1>,<y1>, not ${e.trim()}`);
+      if (!/^[a-z][a-z0-9]*$/.test(w[0])) fail(line, `a room's key is lower-case letters and digits, not ${w[0]}`);
+      if (!ROOM_ROLES.includes(w[1])) fail(line, `a room's role is one of ${ROOM_ROLES.join(', ')}, not ${w[1]}`);
+      const r = { key: w[0], role: w[1], x0: Number(m[1]), y0: Number(m[2]), x1: Number(m[3]), y1: Number(m[4]) };
+      if (r.x1 < r.x0 || r.y1 < r.y0) fail(line, `the room ${r.key} runs backwards: ${w[2]}`);
+      out.push(r);
+    }
+    return out;
+  }
+
   // The stamp as plain data (a sim run's replay keeps it whole in its start; see start).
   function parse(text) {
     if (typeof text !== 'string') fail(0, 'needs the stamp as text');
@@ -325,7 +356,7 @@ const Arena = (() => {
       arena: one('arena').text.trim(),
       goal: parseGoal(one('goal').text, one('goal').line),
       cap: DEFAULT_CAP, species: [], depths: DEFAULT_DEPTHS.slice(), kit: [], clock: null, seen: 'none', grade: null, metric: null,
-      legend: [{ ch: '@', parts: [{ what: 'you', on: null }] }], variants: [], map: [],
+      legend: [{ ch: '@', parts: [{ what: 'you', on: null }] }], variants: [], rooms: [], map: [],
     };
     if (one('cap')) { spec.cap = num(one('cap').text.trim()); if (!(spec.cap >= 1)) fail(one('cap').line, 'the cap is a positive whole number of turns'); }
     if (one('species')) spec.species = one('species').text.split(/\s+/).filter(Boolean);
@@ -347,6 +378,7 @@ const Arena = (() => {
       if (at === 0) spec.legend[0] = entry; else spec.legend.push(entry);
     }
     if (one('variants')) spec.variants = parseVariants(one('variants').text, one('variants').line);
+    for (const r of head.rooms || []) for (const x of parseRooms(r.text, r.line)) spec.rooms.push(Object.assign(x, { line: r.line }));
     // The map: every line after the blank line, up to the last non-blank one.
     const rows = lines.slice(i + 1);
     while (rows.length && rows[rows.length - 1].trim() === '') rows.pop();
@@ -378,6 +410,15 @@ const Arena = (() => {
       if (v === undefined || /^\d+,\d+$/.test(v)) continue;
       if (v.length !== 1 || !legendOf(v)) fail(0, `${e.ch}'s ${k} is a legend letter or x,y, not ${v}`);
     }
+    // Each room inside the map's outer walls, its key once, and no two overlapping.
+    spec.rooms.forEach((r, k) => {
+      if (r.x0 < 1 || r.y0 < 1 || r.x1 > w - 2 || r.y1 > rows.length - 2) fail(r.line, `the room ${r.key} (${r.x0},${r.y0}-${r.x1},${r.y1}) is not inside the map's outer walls (1,1-${w - 2},${rows.length - 2})`);
+      for (const q of spec.rooms.slice(0, k)) {
+        if (q.key === r.key) fail(r.line, `the room ${r.key} is given twice`);
+        if (r.x0 <= q.x1 && q.x0 <= r.x1 && r.y0 <= q.y1 && q.y0 <= r.y1) fail(r.line, `the rooms ${q.key} and ${r.key} overlap`);
+      }
+    });
+    for (const r of spec.rooms) delete r.line;
     if (spec.goal.k === 'take' && !legendOf(spec.goal.chars[0]).parts.some(p => p.what === 'item')) fail(one('goal').line, `take ${spec.goal.chars[0]}: that letter holds no item`);
     if (spec.goal.k === 'open' && legendOf(spec.goal.chars[0]).parts[0].what !== 'case') fail(one('goal').line, `open ${spec.goal.chars[0]}: that letter is not a case`);
     if (spec.goal.k === 'kill') for (const c of spec.goal.chars) if (!legendOf(c).parts.some(p => p.what === 'exhibit')) fail(one('goal').line, `kill ${c}: that letter is not an exhibit`);
@@ -397,7 +438,7 @@ const Arena = (() => {
     for (const id of spec.species) {
       const A = Object.prototype.hasOwnProperty.call(Registry.ARCHETYPES, id) ? Registry.ARCHETYPES[id] : null;
       if (A) {
-        if (A.built !== 'M3') throw new Error(`Arena: the archetype ${id} is not built in M3`);
+        if (A.built !== 'M3' && !Archetypes.added(id)) throw new Error(`Arena: the archetype ${id} is neither built in M3 nor added by its M4 package (Archetypes.added)`);
         const found = [];
         for (const p of Packs.list()) for (const sp of p.species) if (sp.archetype === id) found.push(sp);
         for (const sp of Packs.sharedList()) if (sp.archetype === id) found.push(sp);
@@ -556,8 +597,26 @@ const Arena = (() => {
       }
       f.glass = o.glass; f.lock = o.lock; f.loan = o.loan;
     }
+    rooms(state, spec.rooms || []);
     if (spec.seen === 'all') state.dept.seen = state.dept.tiles.join('');
     return state;
+  }
+
+  // The rooms a stamp gives ([{key, role, x0, y0, x1, y1}]), written into the state as a
+  // department has them: dept.rooms, numbered 1, 2 … in order (with no accession number, 0),
+  // and dept.roomOf, each row's room ids, 0 outside every room. Written once the room is made,
+  // before anything acts, as a department's plan is there before anyone moves; no list, no
+  // change (the room has no rooms, as before).
+  function rooms(state, list) {
+    if (!list || !list.length) return;
+    const m = state.dept;
+    m.rooms = list.map((r, i) => ({ id: i + 1, key: r.key, role: r.role, number: 0, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 }));
+    m.roomOf = [];
+    for (let y = 0; y < m.h; y++) {
+      const row = [];
+      for (let x = 0; x < m.w; x++) { const r = m.rooms.find(q => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1); row.push(r ? r.id : 0); }
+      m.roomOf.push(row);
+    }
   }
 
   // A sim run's start, rebuilt on its own: {arena, seed, depth, sp, variant, kit, spec}, where
@@ -676,5 +735,5 @@ const Arena = (() => {
     '##########',
   ].join('\n') + '\n';
 
-  return { parse, layout, build, start, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, gradeAt, DUMMY, KEYS };
+  return { parse, layout, build, start, rooms, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, gradeAt, DUMMY, KEYS, ROOM_ROLES };
 })();

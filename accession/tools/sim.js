@@ -13,6 +13,7 @@
 //   Sim.runArena(arena, p, seed, opts) → one run, built and judged from the arena
 //   Sim.single(arena, p, seeds, opts) → {arena, seeds, runs, summary, notes}
 //   Sim.rebuild(start, options) → the state a run's replay starts from, from its start alone
+//   Sim.parseCarry(text) → the visitor of a department visit, for Dept.create's options.carry
 //   node tools/sim.js --help
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
@@ -86,6 +87,53 @@ function parseSeeds(s) {
 const clean = s => typeof s === 'string' && s.trim() !== '' && !/undefined|NaN|\[object|\bnull\b/.test(s);
 const plainCopy = v => v === null || v === undefined ? null : JSON.parse(JSON.stringify(v));
 const plainOptions = o => ({ rulesOff: ((o && o.rulesOff) || []).slice(), without: ((o && o.without) || []).slice(), invulnerable: !!(o && o.invulnerable) });
+// A department visit's options with its visitor (Dept.create's options.carry), when one is given.
+const carried = (opts, carry) => carry === undefined || carry === null ? opts : Object.assign({}, opts, { carry: plainCopy(carry) });
+
+// The visitor of a department visit (M4 plan A2), as --carry writes it, for Dept.create's
+// options.carry:
+//   median          the median visitor at the depth (what a visit gets with no carry);
+//   start           the visitor at a run's start, as in M3;
+//   {…}             a carry as JSON;
+//   grade=4,tier=2,perks=soft_soles:2+elbow_room:1,items=S9.11:curio0+S9.4:tote
+//                   any of grade and tier (whole numbers), perks (id:rank, joined by +) and
+//                   items (the pack's item id:the slot it goes in, a kit slot or tote, joined
+//                   by +); a field left out is the median visitor's.
+// Only the way it is written is checked here: Dept.create refuses a carry whose grade, tier,
+// perk or item the game does not have, so a carry is never half read.
+const CARRY_KEYS = ['grade', 'tier', 'perks', 'items'];
+function parseCarry(text) {
+  const SAY = 'sim: --carry is median, start, a carry as JSON, or grade=<n>,tier=<n>,perks=<id>:<rank>+…,items=<item>:<slot>+…';
+  if (typeof text !== 'string' || !text.trim()) throw new Error(SAY);
+  const t = text.trim();
+  if (t === 'median' || t === 'start') return t;
+  if (t.startsWith('{')) {
+    let v;
+    try { v = JSON.parse(t); } catch (e) { throw new Error(`${SAY}; ${t} is not JSON (${e.message})`); }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${SAY}; ${t} is not an object`);
+    return v;
+  }
+  const out = {};
+  for (const part of t.split(',')) {
+    const eq = part.indexOf('='), k = eq < 0 ? part : part.slice(0, eq), v = eq < 0 ? '' : part.slice(eq + 1);
+    if (!CARRY_KEYS.includes(k)) throw new Error(`${SAY}; it has no field ${JSON.stringify(k)}`);
+    if (Object.prototype.hasOwnProperty.call(out, k)) throw new Error(`${SAY}; ${k} is given twice`);
+    if (!v) throw new Error(`${SAY}; ${k} has no value`);
+    if (k === 'grade' || k === 'tier') {
+      if (!/^\d+$/.test(v)) throw new Error(`${SAY}; ${k} is a whole number, not ${v}`);
+      out[k] = Number(v);
+      continue;
+    }
+    out[k] = v.split('+').map(x => {
+      const c = x.lastIndexOf(':'), a = c < 0 ? '' : x.slice(0, c), b = c < 0 ? '' : x.slice(c + 1);
+      if (!a || !b) throw new Error(`${SAY}; ${k === 'perks' ? 'a perk is <id>:<rank>' : 'an item is <item>:<slot>'}, not ${JSON.stringify(x)}`);
+      if (k === 'items') return { ref: a, slot: b };
+      if (!/^\d+$/.test(b)) throw new Error(`${SAY}; a perk's rank is a whole number, not ${b}`);
+      return { id: a, rank: Number(b) };
+    });
+  }
+  return out;
+}
 
 // A policy as {name, policy}: an object with card and decide (named by opts.name), or a
 // reference Policies.get resolves (in `group` first).
@@ -200,13 +248,14 @@ function run(o) {
 }
 
 // The state a run's replay starts from, made from replay.start alone (with its options): a
-// department's {dept, seed, depth}, or an arena's {arena, seed, depth, sp, variant, kit,
+// department's {dept, seed, depth, carry?} (the carry, when the run was given one, is its
+// visitor: Dept.create's options.carry), or an arena's {arena, seed, depth, sp, variant, kit,
 // spec, arenaHash}, which holds the parsed stamp; one built by another tools/arena.js is
 // refused, since the same stamp may then build another room.
 function rebuild(start, options, C) {
   C = C || context();
   const opts = plainOptions(options);
-  if (start && typeof start.dept === 'string') return C.Dept.create(start.seed, start.dept, start.depth, opts);
+  if (start && typeof start.dept === 'string') return C.Dept.create(start.seed, start.dept, start.depth, carried(opts, start.carry));
   if (start && typeof start.arena === 'string') {
     if (start.arenaHash !== arenaHash(C)) throw new Error(`sim: the replay's room was built by another tools/arena.js (${start.arenaHash || 'unrecorded'}, now ${arenaHash(C)}), so its room may differ`);
     return C.Arena.start(start, opts);
@@ -291,12 +340,15 @@ function target(C, where) {
 // The replay's start of an arena run holds the parsed stamp whole (spec) and the hash of
 // tools/arena.js, so Sim.rebuild makes its room from the start alone (§0 point 3).
 function runOn(C, t, a, seed, o) {
+  const carry = o.carry === undefined || o.carry === null ? undefined : o.carry;
   if (t.kind === 'dept') {
     const depth = o.depth || 3, options = Object.assign({}, a.options, { without: removed(C, t, a.options.without, seed) });
-    const r = run({ C, make: (s, opts) => C.Dept.create(s, t.acc, depth, opts), policy: a.policy, name: a.name, seed, options,
-      cap: o.cap || DEPT_CAP, check: o.check, invDir: o.invDir, log: o.log, coreHash: o.coreHash, start: { dept: t.acc, seed, depth } });
+    const start = Object.assign({ dept: t.acc, seed, depth }, carry === undefined ? {} : { carry: plainCopy(carry) });
+    const r = run({ C, make: (s, opts) => C.Dept.create(s, t.acc, depth, carried(opts, carry)), policy: a.policy, name: a.name, seed, options,
+      cap: o.cap || DEPT_CAP, check: o.check, invDir: o.invDir, log: o.log, coreHash: o.coreHash, start });
     return Object.assign(r, { depth, sp: null, variant: null });
   }
+  if (carry !== undefined) throw new Error(`sim: a carry gives the visitor of a department visit; the arena ${t.spec.arena} gives its own kit (its stamp's kit: line)`);
   const spec = t.spec, depth = o.depth || C.Arena.depthFor(spec, seed);
   const spRec = o.sp ? C.Packs.speciesFor(null, { sp: o.sp }) : C.Arena.speciesFor(spec, seed);
   if (o.sp && !spRec) throw new Error(`sim: no species ${o.sp}`);
@@ -417,6 +469,10 @@ Seeds and setting:
   --depth <d>           a fixed depth (an arena's own rotation otherwise)
   --species <id>        a fixed species for the arena's sp (its rotation otherwise)
   --cap <turns>         the turn cap (the arena's, else 200; a department's 1000)
+  --carry <visitor>     a department visit's visitor (M4 plan A2): median (the default),
+                        start (a run's start, as in M3), a carry as JSON, or
+                        grade=4,tier=2,perks=soft_soles:2+elbow_room:1,items=S9.11:curio0;
+                        the replay's start keeps it, so the replay rebuilds the visit
 Counterfactuals:
   --rules-off <ids>     switch rules off by id, comma-separated (modifiers in M3)
   --without <uids>      remove actors by uid, comma-separated; in an arena, a letter of the
@@ -433,7 +489,7 @@ Cards:
   --cards               print tools/policies/README.md from the policies' cards
   --cards --write       write it
   --help                this
-The JSON holds coreHash, vmHash, the seeds, and per run its outcome, its reasons (one line a
+The JSON holds coreHash, vmHash, the seeds, the carry, and per run its outcome, its reasons (one line a
 decision), what it read, any violations, and its replay, whose start rebuilds the room on
 its own; an interval's limit without bound is written "Infinity".`;
 
@@ -451,6 +507,7 @@ function parseArgs(argv) {
     else if (a === '--depth') { o.depth = Number(need(++i, a)); if (!(Number.isInteger(o.depth) && o.depth >= 1 && o.depth <= 7)) throw new Error('sim: --depth is a whole number from 1 to 7'); }
     else if (a === '--species') o.sp = need(++i, a);
     else if (a === '--cap') { o.cap = Number(need(++i, a)); if (!(Number.isInteger(o.cap) && o.cap >= 1)) throw new Error('sim: --cap is a positive whole number of turns'); }
+    else if (a === '--carry') { if (o.carry !== undefined) throw new Error('sim: --carry is given twice'); o.carry = parseCarry(need(++i, a)); }
     else if (a === '--rules-off') o.rulesOff = o.rulesOff.concat(need(++i, a).split(',').filter(Boolean));
     else if (a === '--without') o.without = o.without.concat(need(++i, a).split(',').filter(Boolean));
     else if (a === '--invulnerable') o.invulnerable = true;
@@ -475,12 +532,14 @@ function main(argv) {
     return 0;
   }
   if (!!o.arena === !!o.dept) throw new Error('sim: give one of --arena <id> and --dept <acc>');
+  if (o.arena && o.carry !== undefined) throw new Error('sim: --carry gives the visitor of a department visit (--dept); an arena gives its own kit');
   if (!!o.policy === !!o.paired) throw new Error('sim: give one of --policy <name> and --paired <A> <B>');
   const seeds = parseSeeds(o.seeds), where = o.arena || { dept: o.dept };
   const h = hashes(C), options = { rulesOff: o.rulesOff, without: o.without, invulnerable: o.invulnerable };
-  const opts = { C, depth: o.depth, sp: o.sp, cap: o.cap, check: o.check, log: o.log, options, coreHash: h.coreHash };
+  const opts = { C, depth: o.depth, sp: o.sp, cap: o.cap, check: o.check, log: o.log, options, coreHash: h.coreHash, carry: o.carry };
   const body = o.paired ? paired(where, o.paired[0], o.paired[1], seeds, opts) : single(where, o.policy, seeds, opts);
-  const out = Object.assign({ tool: 'sim', coreHash: h.coreHash, vmHash: h.vmHash, hashFrom: h.from, seeds, depth: o.depth || null, species: o.sp || null, cap: o.cap || null, options }, body);
+  const out = Object.assign({ tool: 'sim', coreHash: h.coreHash, vmHash: h.vmHash, hashFrom: h.from, seeds, depth: o.depth || null, species: o.sp || null, cap: o.cap || null,
+    carry: o.carry === undefined ? null : o.carry, options }, body);
   const json = JSON.stringify(out, jsonValue, 1) + '\n';
   if (o.out) fs.writeFileSync(o.out, json); else process.stdout.write(json);
   // The summary, in words, on stderr.
@@ -518,7 +577,7 @@ function failures(body) {
 // stays "no value" (a ratio that does not exist).
 const jsonValue = (k, v) => typeof v === 'number' && !Number.isFinite(v) ? String(v) : v;
 
-module.exports = { load, context, policyFiles, hashes, arenaHash, parseSeeds, parseArgs, resolve, run, rebuild, runArena, paired, single, arenaSpec, arm, removed, compare, failures, jsonValue, HELP, README, POLICY_DIR, ARENA_DIR };
+module.exports = { load, context, policyFiles, hashes, arenaHash, parseSeeds, parseArgs, parseCarry, resolve, run, rebuild, runArena, paired, single, arenaSpec, arm, removed, compare, failures, jsonValue, HELP, README, POLICY_DIR, ARENA_DIR };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (e) { console.error((e && e.message) || String(e)); process.exitCode = 1; }

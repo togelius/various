@@ -20,6 +20,7 @@
 //                    state (criterion 6), and its lines read clean;
 //   start_story      in a run's first state, an exhibit not dormant has the story a room, an
 //                    arena or a department starts it with (§3.4): woke at that state's turn,
+//                    'patrol' if it is a patrol (a patrol_guard with a round, M4), else
 //                    'awake' if its trigger stands for the wake clause and 'placed' otherwise,
 //                    and a hunter's hunt begun then for the same cause; Recap.fromLog reads it
 //                    there, since no event tells it.
@@ -131,8 +132,9 @@ function runs(level, opts) {
 // is its last woke event (a creation's included: the Night Watchman, made mid-visit, has one,
 // and a split half); its hunt began at its last hunting event, or at a creation woke into a
 // hunt, whichever came last. An exhibit not dormant in the initial state was started awake by
-// its room or arena (cause 'awake' or 'placed') or by its department ('awake'), which no event
-// tells: until an event says otherwise, its waking and hunt are those the initial state gives.
+// its room or arena (cause 'awake' or 'placed') or by its department ('awake', or 'patrol' for
+// a patrol on its round), which no event tells: until an event says otherwise, its waking and
+// hunt are those the initial state gives.
 const Recap = {
   fromLog(initial, events) {
     let died = null;
@@ -156,11 +158,18 @@ const RECAP_FIELDS = ['killer', 'wakeTurn', 'wakeTrigger', 'huntTurn'];
 
 // CAUSER: who caused an event, for completeness. The cause's `by`, when it names someone (a
 // blow's attacker, a grip's mimic, a call's herald, a cast's dust); else, for a kind whose
-// subject acts, that subject (its `who`, or `by` for blows and cases). An event an actor only
-// suffers (damaged, a status, a pip) is not caused by it.
+// subject acts, that subject (its `who`, or `by` for blows, cases and an alarm). An event an
+// actor only suffers (damaged, a status, a pip) is not caused by it. M4's kinds: a Wader raises
+// an alarm (`by`); you view (`who`); a Centrepiece enters a phase by its own rule (`who`); and
+// a module event's `who` is the exhibit the department's rule moved, marked or changed, which
+// is held to its line like any other doer, so no module acts on an exhibit whose Behaviour
+// line does not say so (§5.3; a line's module part covers `module`). Certificates, grades and
+// perks are yours.
 const DOER = { moved: 'who', opened: 'who', closed: 'who', attacked: 'by', missed: 'by', telegraphed: 'who', special: 'who', waited: 'who',
   regenerated: 'who', case_opened: 'by', glass_cracked: 'by', glass_broke: 'by', took: 'who', dropped: 'who', equipped: 'who', used: 'who',
-  entered: 'who', left: 'who', returned: 'who' };
+  entered: 'who', left: 'who', returned: 'who', alarm: 'by', viewed: 'who', phase: 'who', module: 'who' };
+// A patrol (§3.4, §8.2): a patrol_guard walking a round, its route {posts, i} with posts to walk.
+const isPatrol = a => a.arch === 'patrol_guard' && !!a.route && Array.isArray(a.route.posts) && a.route.posts.length > 0;
 function causer(e) {
   if (e.cause && typeof e.cause.by === 'string') return e.cause.by;
   const f = Object.prototype.hasOwnProperty.call(DOER, e.k) ? DOER[e.k] : null;
@@ -194,17 +203,18 @@ function checks(C, o) {
   // A run's first state: Recap.fromLog reads the starting story of an exhibit not dormant
   // there, which no event tells, so that story is held here to the rule a room, an arena or a
   // department starts it with (§3.4), not to itself: it woke at this state's turn, for the
-  // cause 'awake' if its trigger stands for the wake clause ("It never sleeps.") and 'placed'
-  // otherwise; a hunter began hunting then, for the same cause; one that does not hunt has no
-  // hunt.
+  // cause 'patrol' if it is a patrol ("it walks its round": a patrol_guard with a round,
+  // route.posts, M4), else 'awake' if its trigger stands for the wake clause ("It never
+  // sleeps.") and 'placed' otherwise; a hunter began hunting then, for the same cause; one
+  // that does not hunt has no hunt.
   function startStory(state, v) {
     const T = C.Registry.TRIGGERS;
     for (const a of state.actors) {
       if (a.uid === 'you' || a.gone || a.mode === 'dormant') continue;
       const trig = typeof a.trigger === 'string' && Object.prototype.hasOwnProperty.call(T, a.trigger) ? T[a.trigger] : null;
-      const want = trig && trig.replacesWake ? 'awake' : 'placed', w = a.woke, h = a.hunted, k = w && w.cause ? w.cause.k : null;
+      const want = isPatrol(a) ? 'patrol' : trig && trig.replacesWake ? 'awake' : 'placed', w = a.woke, h = a.hunted, k = w && w.cause ? w.cause.k : null;
       const says = s => s ? `${s.cause ? s.cause.k : 'no cause'} on turn ${s.turn}` : 'none';
-      if (k !== want) v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke ${k ? `by ${k}` : 'never'}, not '${want}', as a room or arena starts it`);
+      if (k !== want) v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke ${k ? `by ${k}` : 'never'}, not '${want}', as a room, an arena or a department starts it`);
       else if (w.turn !== state.turn) v('start_story', `${a.uid} starts ${a.mode}, but its story says it woke on turn ${w.turn}, not on turn ${state.turn}, when the visit began`);
       else if (a.mode === 'hunting' && !(h && h.turn === state.turn && h.cause && h.cause.k === want)) v('start_story', `${a.uid} starts hunting, but its story's hunt is ${says(h)}, not ${want} on turn ${state.turn}`);
       else if (a.mode !== 'hunting' && h) v('start_story', `${a.uid} starts ${a.mode}, not hunting, but its story has a hunt: ${says(h)}`);
@@ -444,7 +454,7 @@ function main(argv) {
   return report.pass ? 0 : 1;
 }
 
-module.exports = { runs, run, arenas, checks, causer, Recap, context, load, sentence, nameOf, overGate, GATE_CPU_MS, RNG_KEYS, GOLDEN_SEED, PARTS, USAGE };
+module.exports = { runs, run, arenas, checks, causer, isPatrol, DOER, Recap, context, load, sentence, nameOf, overGate, GATE_CPU_MS, RNG_KEYS, GOLDEN_SEED, PARTS, USAGE };
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (e) { console.error(msg(e)); process.exitCode = 1; }

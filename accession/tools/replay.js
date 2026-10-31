@@ -43,19 +43,25 @@ const Replay = (() => {
 
   // The state a replay starts from. start is one of:
   //   {seed, room: 'T0'}       the M0 test room (content/testroom.js);
-  //   {seed, dept, depth}      a department visit (Dept.create);
+  //   {seed, dept, depth, carry?}   a department visit (Dept.create), whose visitor is the
+  //                            carry (Dept.create's options.carry: 'median', 'start', or
+  //                            {grade, perks, tier, items}; M4 plan A2), the median visitor
+  //                            when there is none; a carry on any other start is refused, so
+  //                            it is never silently dropped;
   //   {state}                  a snapshot where logging restarted, which keeps its own options;
   //   a start with a field a tool registered with Replay.starter.
   // A run's seed alone (§3.6) needs the run, which M5 builds.
   function begin(start, o) {
     if (!start || typeof start !== 'object') throw new Error('Replay: a start is {seed, room}, {seed, dept, depth} or {state}, not ' + json(start));
+    const carry = start.carry, dept = !start.state && typeof start.dept === 'string';
+    if (carry !== undefined && !dept) throw new Error('Replay: a carry gives the visitor of a department visit, and the start ' + json(start) + ' is not one');
     if (start.state) return State.clone(start.state);
     if (!Number.isSafeInteger(start.seed)) throw new Error('Replay: the start ' + json(start) + ' has no whole-number seed');
     const opts = options(o);
     if (start.room === 'T0') return Setup.room(start.seed, TestRoom.spec, opts);
-    if (typeof start.dept === 'string') {
+    if (dept) {
       if (!Number.isSafeInteger(start.depth)) throw new Error('Replay: the department start ' + json(start) + ' has no depth');
-      return Dept.create(start.seed, start.dept, start.depth, opts);
+      return Dept.create(start.seed, start.dept, start.depth, carry === undefined ? opts : Object.assign({}, opts, { carry }));
     }
     for (const s of starters) if (start[s.key] !== undefined && start[s.key] !== null) return s.fn(start, opts);
     throw new Error('Replay: no way to make the start ' + json(start) + ' (a whole run starts with M5)');
