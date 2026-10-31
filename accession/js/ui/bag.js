@@ -31,6 +31,17 @@
 //                            tile where it cannot be used, the action step() refuses, saying why.
 //                            An aim lasts until time passes (its action taken, or another), or
 //                            until Cancel, Escape, the Bag or the map ends it
+//   Bag.cursor(dir) → bool   the keyboard's aim (§7.1): moves the previewed tile one step in
+//                            direction dir (from your tile before any), as a first tap there
+//   Bag.cycleAim(by) → bool  previews the next (by 1) or previous (by −1) tile the aim can be
+//                            used at, those with an exhibit first, nearest first
+//   Bag.aimDefault() → bool  previews the first of those, when no tile is previewed yet
+//   Bag.picking(), Bag.cancelPick()   whether the Window Pole's sheet asks; closes it, the aim kept
+//   Bag.shown()              'bag', 'map' or null
+//   Bag.key(e) → bool        a key while the Bag, the map or the pole's sheet is open: the arrows
+//                            move the focus through its buttons, a key a button carries presses
+//                            it, Backspace goes Back, i and m open or close the Bag and the map,
+//                            and 1–3 choose on the pole's sheet
 // Bag is a plain object whose methods main.js calls by name (check-play puts recorders in
 // their place for a while, so they stay writable); the Bag's own handlers call its inner
 // functions.
@@ -45,6 +56,9 @@ const Bag = (() => {
   // aimed tile while its sheet asks which.
   let aim = null, pick = null, seenPending = null, redrawSoon = false;
   const shown = { slots: ['', ''], panel: '', aim: '', pick: '' };
+  // keyed: the focus is to go to the open view's first control at the next draw (a view
+  // opened or changed while the focus was in the Bag, or the Bag just opened).
+  let keyed = false;
   const POLE_SAYS = { push: 'Push it one tile away', pull: 'Pull it one tile toward you', take: 'Take what the case holds' };
   const SLOT_NAMES = { weapon: 'Weapon slot', garment: 'Garment slot', curio0: 'Curio slot', curio1: 'Curio slot', instrument: 'Instrument slot' };
 
@@ -87,7 +101,7 @@ const Bag = (() => {
     // laptop, never over the board. Its words change in one element that stays, so a screen
     // reader hears each change (a live region put in afresh is not reliably heard).
     el.aim = make('bagaim', '', [['role', 'region'], ['aria-label', 'Aiming']]);
-    el.aim.innerHTML = '<div class="in"><button class="btn" data-aim-cancel>Cancel</button><p class="aim-text" aria-live="polite"></p></div>';
+    el.aim.innerHTML = `<div class="in"><button class="btn corner" data-aim-cancel${UI.keyAttrs('Escape')}>Cancel</button><p class="aim-text" aria-live="polite"></p></div>`;
     el.aimText = el.aim.querySelector('.aim-text');
     // The Window Pole's choice: a sheet like a confirmation's. It is an overlay, so while it
     // asks the keys leave the game alone (a key cannot move you or pass a turn behind it).
@@ -103,11 +117,35 @@ const Bag = (() => {
     });
   }
 
+  // ---- Keys (BUILD.md §7.1) ----
+
+  // A key while the Bag, the map or the Window Pole's sheet is open; true when it was used.
+  function key(e) {
+    const ROVE = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: 'first', End: 'last' };
+    if (pick) {
+      if (Object.prototype.hasOwnProperty.call(ROVE, e.key)) return UI.rove(el.pick, ROVE[e.key]);
+      return UI.pressKey(el.pick, e.key);
+    }
+    if (!mode) return false;
+    if (Object.prototype.hasOwnProperty.call(ROVE, e.key)) return UI.rove(el.panel, ROVE[e.key]);
+    if (e.key === 'i' || e.key === 'm') {
+      const want = e.key === 'i' ? 'bag' : 'map';
+      if (mode === want && !(st() && st().ui && st().ui.pendingChoice)) close(); else { mode = want; view = { k: 'list' }; keyed = true; }
+      redraw();
+      return true;
+    }
+    if (e.key === '?') { UI.toggle('how', true); return true; }
+    return UI.pressKey(el.panel, e.key);
+  }
+  const picking = () => !!pick;
+  function cancelPick() { if (!pick) return false; pick = null; redraw(); return true; }
+
+
   // ---- Opening and closing ----
 
   function show(m, v) {
     if (!mode) { focusBack = document.activeElement; focusIn = true; }
-    mode = m; view = v || { k: 'list' }; pick = null; aim = null;
+    mode = m; view = v || { k: 'list' }; pick = null; aim = null; keyed = true;
   }
   function open(uid) {
     const s = st();
@@ -122,9 +160,15 @@ const Bag = (() => {
   }
   function map() { const s = st(); if (s && !s.over) show('map'); }
   function close() {
-    const was = mode;
+    const was = mode, inside = el.panel && el.panel.contains(document.activeElement);
     mode = null; view = { k: 'list' }; pick = null; aim = null;
-    if (was && focusBack && focusBack.isConnected && el.panel.contains(document.activeElement) && focusBack.getClientRects().length) focusBack.focus({ preventScroll: true });
+    // The focus goes back where it was (the board, or the button that opened the Bag), once
+    // the Bag no longer lies over it.
+    if (was && inside) {
+      el.panel.classList.remove('open'); UI.sync();
+      if (focusBack && focusBack.isConnected && focusBack !== document.body && !focusBack.closest('[inert]') && focusBack.getClientRects().length) focusBack.focus({ preventScroll: true });
+      else UI.focusBoard();
+    }
     focusBack = null;
   }
 
@@ -139,7 +183,7 @@ const Bag = (() => {
     return out.slice(0, 6);
   }
   function slotHtml(n, q) {
-    if (!q) return `<button class="btn slot bag-slot empty" data-act="q${n}" aria-label="Quickslot ${n}, empty: opens the Bag"><span class="q-n">Q${n}</span></button>`;
+    if (!q) return `<button class="btn slot bag-slot empty corner" data-act="q${n}" aria-label="Quickslot ${n}, empty: opens the Bag"${UI.keyAttrs(String(n))}><span class="q-n">Q${n}</span></button>`;
     const s = st(), aimed = !!aim && aim.uid === q.uid;
     let icon, count, name, words;
     if (q.inst) {
@@ -150,7 +194,7 @@ const Bag = (() => {
     }
     // Only an instrument's slot is a toggle (pressed while it is aimed); a consumable's opens
     // the Bag, so it says nothing of being pressed.
-    return `<button class="btn slot bag-slot${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}"${q.inst ? ` aria-pressed="${aimed}"` : ''} aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}">${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
+    return `<button class="btn slot bag-slot corner${aimed ? ' aimed' : ''}" data-act="q${n}" data-uid="${esc(q.uid)}"${q.inst ? ` aria-pressed="${aimed}"` : ''} aria-label="Quickslot ${n}: ${esc(name)}, ${esc(words)}"${UI.keyAttrs(String(n))}>${P(icon, 16)}<span class="q-n">${esc(count)}</span><span class="q-name">${esc(name)}</span></button>`;
   }
   function drawSlots(vm) {
     const list = quickList(vm);
@@ -225,6 +269,44 @@ const Bag = (() => {
     if (mode === 'bag' && view.k === 'restore') return { kind: 'item', uid: view.uid };
     return null;
   }
+  // The keyboard's aim (§7.1): a key moves the previewed tile a step, as a first tap on the
+  // tile it comes to (its marks and words, or the refusal); Enter is the second tap (main.js).
+  function cursor(dir) {
+    const s = st();
+    if (!aim || pick || !s || s.over || !Number.isInteger(dir) || dir < 0 || dir > 7) return false;
+    const me = s.actors[0], from = aim.tile || { x: me.x, y: me.y };
+    const x = Math.max(0, Math.min(s.dept.w - 1, from.x + Grid.DX[dir])), y = Math.max(0, Math.min(s.dept.h - 1, from.y + Grid.DY[dir]));
+    aim.tile = { x, y };
+    return true;
+  }
+  // The tiles the aim can be used at now, those with an exhibit in view on them first, each
+  // group nearest first (then row-major): what x steps through while aiming.
+  function aimTiles(s) {
+    const it = itemOf(s, aim.uid), me = s.actors[0], vm = ViewModel.derive(s, {});
+    const tiles = aim.kind === 'throw' ? Consumables.targets(s, aim.uid) : it ? Kit.targets(s, aim.uid) : [];
+    const someone = (x, y) => vm.actors.some(a => a.uid !== 'you' && x >= a.x && y >= a.y && x < a.x + a.size && y < a.y + a.size);
+    const d = ([x, y]) => Math.max(Math.abs(x - me.x), Math.abs(y - me.y));
+    return tiles.filter(([x, y]) => legalAt(s, x, y).length).map(t => ({ t, k: someone(t[0], t[1]) ? 0 : 1 }))
+      .sort((p, q) => p.k - q.k || d(p.t) - d(q.t) || p.t[1] - q.t[1] || p.t[0] - q.t[0]).map(q => q.t);
+  }
+  function cycleAim(by) {
+    const s = st();
+    if (!aim || pick || !s || s.over) return false;
+    const list = aimTiles(s);
+    if (!list.length) return false;
+    const i = aim.tile ? list.findIndex(([x, y]) => x === aim.tile.x && y === aim.tile.y) : -1;
+    const j = i < 0 ? (by > 0 ? 0 : list.length - 1) : (i + by + list.length) % list.length;
+    aim.tile = { x: list[j][0], y: list[j][1] };
+    return true;
+  }
+  function aimDefault() {
+    const s = st();
+    if (!aim || aim.tile || pick || !s || s.over) return false;
+    if (cycleAim(1)) return true;
+    const me = s.actors[0];
+    aim.tile = { x: me.x, y: me.y };
+    return true;
+  }
 
   // What the aim strip says: what you aim, then what a tap does there, or why it cannot be
   // used there (the game's refusal), or, before a tap, how to aim (or that nothing is in
@@ -267,14 +349,20 @@ const Bag = (() => {
     const on = !!pick && !!aim && !!s && !s.over;
     el.pick.classList.toggle('open', on);
     const html = on ? `<div class="box"><h2 id="bagpick-title">The Window Pole</h2><p>What should it do at this tile?</p><div class="acts">${
-      pick.map((a, i) => `<button class="btn" data-pick="${i}" data-how="${a.how}">${esc(POLE_SAYS[a.how])}</button>`).join('')}<button class="btn" data-pick-cancel>Cancel</button></div></div>` : '';
-    if (html !== shown.pick) { el.pick.innerHTML = html; shown.pick = html; if (on) { const b = el.pick.querySelector('[data-pick]'); if (b) b.focus({ preventScroll: true }); } }
+      pick.map((a, i) => `<button class="btn" data-pick="${i}" data-how="${a.how}"${UI.keyAttrs(String(i + 1))}>${esc(POLE_SAYS[a.how])}</button>`).join('')}<button class="btn" data-pick-cancel${UI.keyAttrs('Escape')}>Cancel</button></div></div>` : '';
+    if (html !== shown.pick) {
+      const inside = el.pick.contains(document.activeElement);
+      el.pick.innerHTML = html; shown.pick = html;
+      if (on) { const b = el.pick.querySelector('[data-pick]'); if (b) b.focus({ preventScroll: true }); }
+      // Closed, it gives the focus back to the board, where the aim goes on.
+      else if (inside || document.activeElement === document.body) { el.pick.classList.remove('open'); UI.sync(); UI.focusBoard(); }
+    }
   }
 
   // ---- The panel ----
 
   function head(title) {
-    return `<div class="ohead"><h2 id="bag-title">${esc(title)}</h2><span class="ohead-btns"><button class="btn" data-how aria-label="How the museum works">?</button><button class="btn" data-close>Close</button></span></div>`;
+    return `<div class="ohead"><h2 id="bag-title">${esc(title)}</h2><span class="ohead-btns"><button class="btn" data-how aria-label="How the museum works"${UI.keyAttrs('?', false)}>?</button><button class="btn" data-close${UI.keyAttrs('Escape')}>Close</button></span></div>`;
   }
   // A row for an item you carry: its pictogram, name and what it is (its slot when worn).
   function row(uid, note) {
@@ -320,9 +408,10 @@ const Bag = (() => {
     const l = labelOf(uid), it = itemOf(s, uid);
     if (!l || !carried(s, uid)) return null;
     const where = it.where.at === 'kit' ? `You wear it, in your ${SLOT_NAMES[it.where.slot].toLowerCase()}.` : 'It is in your tote.';
-    const acts = l.actions.length ? `<div class="acts">${l.actions.map((a, i) => `<button class="btn" data-do="${i}" data-action="${esc(a.id)}">${esc(a.text)}</button>`).join('')}</div>`
+    const keys = UI.keysFor(l.actions);
+    const acts = l.actions.length ? `<div class="acts">${l.actions.map((a, i) => `<button class="btn" data-do="${i}" data-action="${esc(a.id)}"${UI.keyAttrs(keys[i])}>${esc(a.text)}</button>`).join('')}</div>`
       : `<p class="bag-none">${s.ui && s.ui.pendingChoice ? 'Answer the Catalogue Card first.' : 'There is nothing to do with it now.'}</p>`;
-    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<p class="bag-where">${esc(where)}</p>${acts}`);
+    return `<button class="btn bag-back" data-back${UI.keyAttrs('Backspace')}>Back</button>` + card(l, `<p class="bag-where">${esc(where)}</p>${acts}`);
   }
   // A Restoration kit's items: those its legal uses name, in Kit.useLegal's order (what you
   // wear in slot order, then your tote). A first tap on one shows what it would gain; a
@@ -343,7 +432,7 @@ const Bag = (() => {
       return `<li><button class="btn bag-row${sel ? ' chosen' : ''}" data-on="${esc(a.on)}" aria-pressed="${sel}">${P(t.pictos[0] ? t.pictos[0].icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(t.title)}</span><span class="bag-note">${esc(where)}</span>${gain ? `<span class="bag-gain">${esc(gain)}</span>` : ''}</span></button></li>`;
     }).join('');
     const say = acts.length ? 'Tap an item to see what it would gain, then tap it again to use the kit on it.' : 'There is nothing you wear or carry that it can be used on now.';
-    return `<button class="btn bag-back" data-back>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
+    return `<button class="btn bag-back" data-back${UI.keyAttrs('Backspace')}>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
   }
   // What one level gives the item: Kit.restore on a copy of the state, read back through
   // Kit.describe (its own numbers at your grade before any bonus, its rank, bonuses and
@@ -457,26 +546,38 @@ const Bag = (() => {
       html = head('Bag') + choice(vm) + body;
     }
     el.panel.classList.add('open');
+    let had = null;
     if (html !== shown.panel) {
       // Rebuilt, it keeps its scroll, and a keyboard's focus stays on the same button (a
-      // chosen item, the same action) or else on the panel, so Tab goes on inside it.
-      const top = el.panel.scrollTop, had = el.panel.contains(document.activeElement) ? document.activeElement : null;
-      const key = had && had !== el.panel ? ['on', 'item', 'action', 'choose'].filter(k => had.dataset[k] !== undefined).map(k => `[data-${k}="${had.dataset[k]}"]`)[0] : null;
+      // chosen item, the same action) or else goes to the view's first control, so Tab and
+      // the arrows go on inside it.
+      const top = el.panel.scrollTop;
+      had = el.panel.contains(document.activeElement) ? document.activeElement : null;
+      const key = had && had !== el.panel && !keyed ? ['on', 'item', 'action', 'choose'].filter(k => had.dataset[k] !== undefined).map(k => `[data-${k}="${had.dataset[k]}"]`)[0] : null;
       el.panel.innerHTML = html; shown.panel = html;
       el.panel.scrollTop = top;
-      if (had) (key && el.panel.querySelector(key) || el.panel).focus({ preventScroll: true });
+      const same = key && el.panel.querySelector(key);
+      if (same) same.focus({ preventScroll: true });
+      else if (had) keyed = true;
     }
     if (mode === 'map') drawMap(vm);
-    if (focusIn) { focusIn = false; el.panel.focus({ preventScroll: true }); }
+    // The view's first control: the Card's first seal; a kit's chosen item, or its first; an
+    // item's first action; the first item; the map's Close.
+    if (focusIn || keyed) {
+      focusIn = false; keyed = false;
+      const first = el.panel.querySelector('[data-choose]') || el.panel.querySelector('[data-on].chosen') || el.panel.querySelector('[data-on]')
+        || el.panel.querySelector('[data-do]') || el.panel.querySelector('[data-item]') || el.panel.querySelector('[data-close]');
+      (first || el.panel).focus({ preventScroll: true });
+    }
   }
   function onPanel(e) {
     const s = st(), b = e.target.closest('button');
     if (!b || !s) return;
     if (b.matches('[data-close]')) { close(); redraw(); return; }
     if (b.matches('[data-how]')) { UI.toggle('how', true); return; }
-    if (b.matches('[data-back]')) { view = view.k === 'restore' && view.from ? { k: 'item', uid: view.uid } : { k: 'list' }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.matches('[data-back]')) { view = view.k === 'restore' && view.from ? { k: 'item', uid: view.uid } : { k: 'list' }; el.panel.scrollTop = 0; keyed = true; redraw(); return; }
     if (b.dataset.choose !== undefined) { close(); ask({ a: 'choose', index: Number(b.dataset.choose) }); return; }
-    if (b.dataset.item !== undefined) { view = { k: 'item', uid: b.dataset.item }; el.panel.scrollTop = 0; redraw(); return; }
+    if (b.dataset.item !== undefined) { view = { k: 'item', uid: b.dataset.item }; el.panel.scrollTop = 0; keyed = true; redraw(); return; }
     if (b.dataset.on !== undefined && view.k === 'restore') {
       if (view.on !== b.dataset.on) { view.on = b.dataset.on; redraw(); return; }
       const a = restoreTargets(s, view.uid).find(q => q.on === view.on);
@@ -487,7 +588,7 @@ const Bag = (() => {
       const l = labelOf(view.uid), a = l && l.actions[Number(b.dataset.do)];
       if (!a) return;
       if (a.aim === 'tile') { startAim(s, view.uid); redraw(); return; }
-      if (a.aim === 'item') { view = { k: 'restore', uid: view.uid, on: null, from: 'item' }; el.panel.scrollTop = 0; redraw(); return; }
+      if (a.aim === 'item') { view = { k: 'restore', uid: view.uid, on: null, from: 'item' }; el.panel.scrollTop = 0; keyed = true; redraw(); return; }
       if (a.act) { close(); ask(a.act); }
     }
   }
@@ -517,5 +618,5 @@ const Bag = (() => {
     drawPanel(s, vm);
   }
 
-  return { attach, render, open, close, quick, map, aiming, tapAim };
+  return { attach, render, open, close, quick, map, aiming, tapAim, cursor, cycleAim, aimDefault, picking, cancelPick, key, shown: () => mode };
 })();

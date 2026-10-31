@@ -5,7 +5,7 @@
 
 /* The Bag and the floor plan. */
 #bag { z-index: 19; }
-#bag:focus { outline: none; }
+#bag:focus { outline: none; box-shadow: none; }
 #bag h3 { margin: 14px 0 6px; font-size: 0.95em; color: var(--muted); font-weight: 600; }
 #bag .ohead + * { margin-top: 12px; }
 #bag > :not(.ohead) { max-width: 640px; margin-left: auto; margin-right: auto; }

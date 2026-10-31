@@ -3,9 +3,13 @@
    Phone: top bar (with the stage chip and your statuses on a second row), board, strip,
    bottom bar, with the label as a bottom sheet.
    Laptop: the board on the left; the strip and log, the label and six quickslots on the right.
-   Over either: the confirmation sheet (§7.1) and the end of a visit. */
+   Over either: the confirmation sheet (§7.1) and the end of a visit.
+   Every input works alone (§7.1): a focused control has a ring of two bands, light on dark,
+   so one band stands out on the dark panels and the other on label paper; a button with a
+   key shows it (its data-hint), except on a touch screen until a key is pressed. */
 :root {
   --bg: #15131a; --panel: #1f1c25; --panel2: #2a2631; --line: #3b3644; --ink: #ece6d8; --muted: #a39d90;
+  --focus: #ffd43b; --focus-halo: #15131a;
   --paper: #f3ecdc; --paper-ink: #231f1a; --paper-muted: #4a4238; --paper-line: #d9cfb9;
   /* The reserved colours (hostile, hazard, readable, item, player) are set by ui.js from
      art/palettes.json, their one source. */
@@ -19,7 +23,18 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   font: calc(16px * var(--text-scale))/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden;
   -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; color: var(--ink); }
-button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; }
+/* The focus ring: a yellow band 3 px wide outside a dark band 2 px wide, on every control and
+   on a box that scrolls by the keys (the laptop's log). */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 2px var(--focus-halo); }
+/* The board's ring is drawn inside it, over its canvases. */
+#board:focus, #board:focus-visible { outline: none; box-shadow: none; }
+#board:focus-visible::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border: 3px solid var(--focus); box-shadow: inset 0 0 0 2px var(--focus-halo); }
+/* A button's key, after its words; in a corner where the button is small. */
+.btn[data-hint]::after { content: attr(data-hint); content: attr(data-hint) / ""; display: inline-block; margin-left: 6px; padding: 0 3px; border: 1px solid currentColor;
+  border-radius: 3px; font: 600 0.72em/1.25 ui-monospace, "SF Mono", Menlo, Consolas, monospace; opacity: 0.85; vertical-align: 1px; }
+.btn.corner { position: relative; }
+.btn.corner[data-hint]::after { position: absolute; top: 1px; right: 2px; margin: 0; padding: 0 2px; border: none; font-size: 0.62em; opacity: 0.75; }
+@media (hover: none) and (pointer: coarse) { :root:not(.keys) .btn[data-hint]::after { display: none; } }
 #app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "top top" "board board" "strip zoom" "bar bar"; padding-top: env(safe-area-inset-top); }
 
@@ -152,6 +167,12 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .systems { padding: 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
 .note { color: var(--muted); font-size: 0.9em; }
+/* "How the museum works": the keys. */
+.keys-title { margin: 18px 0 4px; font-size: 1em; }
+.keytable { border-collapse: collapse; width: 100%; max-width: 640px; font-size: 0.9em; }
+.keytable th, .keytable td { text-align: left; vertical-align: top; padding: 4px 8px 4px 0; border-top: 1px solid var(--line); }
+.keytable th { font: 600 0.95em/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: normal; width: 34%; color: var(--ink); }
+.keytable td { color: var(--muted); }
 
 @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
   #app { grid-template-columns: minmax(0, 1fr) auto 380px; grid-template-rows: auto auto minmax(0, 1fr) auto auto;

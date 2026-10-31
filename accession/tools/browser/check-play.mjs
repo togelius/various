@@ -14,10 +14,14 @@
 // stop when it comes back with a pip), onto a pool and until the bell rings (its banner in
 // the strip), die and press "Another visit", leave and
 // press it again; a status shown in the top bar; and no sideways scroll or target under
-// 44 px. Last (touchM3), with a finger on a touch screen: a confirmation stays until it is
-// answered.
+// 44 px. Then (touchM3), with a finger on a touch screen: a confirmation stays until it is
+// answered. Last (scenesByMouse), at laptop size in both views, the scenes check-keys and
+// check-touch play (tools/browser/scenes.mjs), by left clicks alone, which reach the verbs
+// the scenes above leave out: take off, drop, close a staff door, the Pin-Driver, the pole's
+// take, Settings' zoom, and the recap closed and shown again.
 import { open, playwright, fileUrl } from './lib.mjs';
 import { nextStep, labelVisible, logVisible, freeTile as freeTileIn, layout, targets } from './measure.mjs';
+import { playScenes, install, pointerDriver } from './scenes.mjs';
 
 const problems = [], lines = [];
 const bad = s => problems.push(s);
@@ -291,9 +295,10 @@ for (const [W, Hh] of SIZES) {
 }
 await playM3(SIZES, lines, bad);
 await touchM3(lines, bad);
+await scenesByMouse(lines, bad);
 for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; the Bag wired; cases read, opened and broken, shards, a beam stepped off, sat and rested (a long rest in one log line), an item taken, a plaque read, walks stopped by a status, a pool and the bell, not by an exhibit seen before coming back as it was but by one come back with a pip, a death and a leaving each followed by another visit; a confirmation answered by finger taps; no problems`);
+console.log(problems.length ? `play: ${problems.length} problem(s)` : `play: left clicks only, phone and laptop, every view: walked, examined, read, zoomed, two-tap walk; the Bag wired; cases read, opened and broken, shards, a beam stepped off, sat and rested (a long rest in one log line), an item taken, a plaque read, walks stopped by a status, a pool and the bell, not by an exhibit seen before coming back as it was but by one come back with a pip, a death and a leaving each followed by another visit; a confirmation answered by finger taps; every M3 verb and screen of the shared scenes by clicks at laptop size; no problems`);
 process.exit(problems.length ? 1 : 0);
 
 // ---- M3's verbs (BUILD.md §7.1, §8.1, §8.3, §8.4) ----
@@ -1006,4 +1011,31 @@ async function touchM3(lines, bad) {
     await ctx.close();
   }
   await browser.close();
+}
+
+// ---- Every M3 verb and screen by left clicks (tools/browser/scenes.mjs) ----
+// At 1280×800, in every view: the scenes check-keys plays with the keyboard and check-touch
+// with a finger, here with left clicks alone on what is on screen; the page must see no key.
+async function scenesByMouse(lines, bad) {
+  const W = 1280, H = 800;
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?dept=M11&seed=3' });
+  const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await install(page); };
+  await ready();
+  const views = await page.evaluate(() => window.ACCESSION.views.list());
+  for (const v of views) {
+    const tag = `${W}×${H} ${v.label} clicks`, did = [];
+    if (v !== views[0]) { await page.reload(); await ready(); }
+    await page.evaluate(() => { window.__keys = 0; window.addEventListener('keydown', e => { if (e.isTrusted) window.__keys++; }, true); });
+    const drv = pointerDriver(page, tag, bad, (x, y) => page.mouse.click(x, y, { button: 'left' }), W);
+    await drv.settings('motion', 'reduce');
+    await drv.settings('board', v.id);
+    await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+    const active = await page.evaluate(() => window.ACCESSION.views.active());
+    if (active.id !== v.id) { bad(`${tag}: fell back (${active.note})`); continue; }
+    await playScenes({ page, drv, tag, bad, did, W, H, layout, targets });
+    if (await page.evaluate(() => window.__keys)) bad(`${tag}: the page saw a key`);
+    lines.push(`${tag}: ${did.join('; ')}`);
+  }
+  await browser.close();
+  if (errors.length) bad(`${W}×${H} clicks: console errors: ${errors.join('; ')}`);
 }

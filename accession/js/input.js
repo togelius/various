@@ -1,11 +1,20 @@
-// ACCESSION — input: one button and optional keys become intents (BUILD.md §7.1). A tap
-// is resolved to a tile by the active renderer; main.js decides what the tap means. Keys:
-// arrows, vi-keys or numpad move; . waits; x examines; r reads; Enter confirms; Escape
-// cancels; i opens the Bag, m the floor plan, and 1–6 use the quickslots.
+// ACCESSION — input: taps, clicks and keys become intents (BUILD.md §7.1). Each works alone:
+// a tap or a left click is resolved to a tile by the active renderer, and main.js decides what
+// it means; every control off the board is a button that a tap, a click or the keyboard
+// presses. Keys: arrows, vi-keys or numpad move (or, while aiming, move the aim); Enter does
+// the selected thing's first action, or confirms; Escape cancels; Tab moves the focus; every
+// other key is main.js's (its table is in §7.1 and in "How the museum works"). While a layer
+// is open (a confirmation, a sheet, an overlay) the keys go to it alone.
 'use strict';
 const Input = (() => {
   const KEYS = { ArrowUp: 0, ArrowRight: 2, ArrowDown: 4, ArrowLeft: 6, k: 0, l: 2, j: 4, h: 6, y: 7, u: 1, b: 5, n: 3,
     Numpad8: 0, Numpad9: 1, Numpad6: 2, Numpad3: 3, Numpad2: 4, Numpad1: 5, Numpad4: 6, Numpad7: 7 };
+  // The direction a key steps in, or −1. The numpad moves whether NumLock is on (key '1'–'9')
+  // or off (arrows).
+  function dirOf(e) {
+    if (e.code && e.code.startsWith('Numpad') && e.code in KEYS) return KEYS[e.code];
+    return Object.prototype.hasOwnProperty.call(KEYS, e.key) && !e.code.startsWith('Numpad') ? KEYS[e.key] : -1;
+  }
   function attach(board, getRenderer, on) {
     board.addEventListener('pointerup', e => {
       if (e.button !== 0) return;
@@ -19,27 +28,28 @@ const Input = (() => {
     board.addEventListener('touchend', e => { if (e.cancelable) e.preventDefault(); }, { passive: false });
     board.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'Escape') { on.escape(); return; }
+      // Once a key is used, the buttons show their keys on a touch screen too (CSS).
+      document.documentElement.classList.add('keys');
+      if (e.key === 'Escape') { on.escape(); e.preventDefault(); return; }
       // A held Enter or Space answers nothing more: each confirmation asks for a press of its
       // own, so key repeat cannot ask and answer, then ask and answer again.
       if (e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); return; }
-      // Enter on a focused button presses it; otherwise it confirms what waits for it (a
-      // confirmation, a previewed walk, the selected thing's first action).
-      if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
-      // While an overlay or a confirmation covers the board, keys do nothing to the game.
-      if (on.blocked()) return;
-      // The numpad moves whether NumLock is on (key '1'–'9') or off (arrows).
-      if (e.code && e.code.startsWith('Numpad') && e.code in KEYS) { on.key({ a: 'move', dir: KEYS[e.code] }); e.preventDefault(); return; }
-      if (e.key === '.' || e.code === 'Numpad5' || e.code === 'NumpadDecimal') { on.key({ a: 'wait' }); e.preventDefault(); return; }
-      if (e.key === 'x') { on.examine(); e.preventDefault(); return; }
-      if (e.key === 'r') { on.read(); e.preventDefault(); return; }
-      if (e.key === 'i') { on.bag(); e.preventDefault(); return; }
-      if (e.key === 'm') { on.map(); e.preventDefault(); return; }
-      if (/^[1-6]$/.test(e.key)) { on.quick(Number(e.key)); e.preventDefault(); return; }
-      const d = e.key in KEYS ? KEYS[e.key] : -1;
-      if (d >= 0) { on.key({ a: 'move', dir: d }); e.preventDefault(); }
+      // Enter or Space on a focused button presses it; Tab moves the focus, which stays inside
+      // an open layer (ui.js makes the rest inert).
+      const control = e.target && e.target.closest ? e.target.closest('button, [role="button"]') : null;
+      if ((e.key === 'Enter' || e.key === ' ') && control) return;
+      if (e.key === 'Tab') return;
+      // Otherwise Enter confirms what waits for it (a confirmation, a previewed aim or walk, the
+      // selected thing's first action).
+      if (e.key === 'Enter') { on.confirm(); e.preventDefault(); return; }
+      // While a layer covers the board, keys go to it alone and do nothing to the game.
+      if (on.blocked()) { if (on.layerKey(e)) e.preventDefault(); return; }
+      const d = dirOf(e);
+      if (d >= 0) { on.move(d); e.preventDefault(); return; }
+      const k = e.code === 'Numpad5' || e.code === 'NumpadDecimal' ? '.' : e.key;
+      if (on.key(k)) e.preventDefault();
     });
   }
   return { attach };

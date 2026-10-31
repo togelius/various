@@ -136,7 +136,8 @@ accession/
                            from the cards)
     hash-template.html     the cross-browser hash page (§3.5)
     remove-3d.sh           reverting the 3D view (§6.3); vendor-three.sh
-    browser/*.mjs          Playwright scripts: smoke, screens, clicks, kills, 3D checks
+    browser/*.mjs          Playwright scripts: smoke, screens, clicks, the keyboard alone, a finger alone
+                           (scenes.mjs: the scenes those three share), kills, 3D checks
   test/                    *.test.js, golden/ (expected hashes), behaviour/ (scenarios, invariants and
                            _harness.js), arena/, run.js (m3-battery.test.js is check-all's short sims)
   dist/accession.html      the single-file build (committed, as elsewhere in this repo)
@@ -640,13 +641,14 @@ renderer.dispose()
 
 ### 7.1 One input model
 
+**Every input works alone:** the keyboard only; a mouse or trackpad only (one button); a touchscreen only. Each reaches every verb and every screen, and none is an extra that another needs. A tap and a left click are one input, set out first; the keys follow.
+
 **Taps:**
 - **A tile:** walk there. The walk stops when a hostile comes into view, a pip appears on a visible exhibit, a telegraph appears, or an event names you. As built (`js/main.js`): it stops after a step whose events the log tells you of and that include a refusal, a door opened, a hunt begun, a hit or a miss, a death, a mark, a waking, an alert, a clock stage, an arrival, a case opened, cracked or broken, an item taken or used, a seal identified, or a status of yours beginning or ending; when an exhibit in view changes its mode or pips, or one comes into view that you have not seen this visit or that is not as you last saw it (its mode, pips or tile), never for one going out of view or one you have seen coming back into view as it was; when a new mark appears; on the first loud tile it brings you onto; and where the next tile is taken. A step that needs a confirmation (below) ends the walk: the sheet asks, and its answer takes that one step or none.
 - **An exhibit or object,** adjacent or not: examine it and select it. The strip and panel show it, with its action as a button ("Attack: 75%, 3–5 damage"; "Open: Grade III"; "Break the glass: loud"). Tapping a selected adjacent exhibit again does its first action, which for a hostile is Attack. A case, an item on the floor, an identifying label and a staff door are selected the same way, and tapping what is selected does its label's first action (Open, or on a case your grade cannot open Break the glass, which asks first; Take; Read; Open or Close a staff door); with none, the next thing on that tile is selected (a case under the exhibit standing in it), or, where you can stand, you walk there. Every label button acts through the same confirmations as a tap.
 - **Yourself:** Wait, Rest, Sit on a bench, and Leave on an exit.
 - **Tapping yourself** shows your label with those buttons, and tapping yourself again waits; an item lying on your tile is selected before you. Rest repeats under the walk's stop rules until you are at full health, or after one rest while no health can come back (the night watch); a rest that repeated leaves one line in the log when it ends, however it ends: the turns it took and the health that came back (`Text.rest`).
 - **Walking confirmation** is a setting, "Walk: one tap / tap twice", the same in both views; with "tap twice", a tile tap previews the path and a second tap on the same tile goes.
-- **Keys:** a direction key into an exhibit attacks it, as bumping does.
 
 **Confirmations** come before:
 - stepping onto shards (from a tile without them; a broken case's tile holds its glass, so it counts as shards);
@@ -658,22 +660,54 @@ renderer.dispose()
 A confirmation is a sheet over the board, saying what the action would do in `Text.confirm`'s words (`main.js` decides when to ask, never what to say), with a button of at least 44 px that does it and one that cancels; Enter does it, and Escape or a tap beside the sheet cancels. An action `step()` would refuse is never asked about: its refusal says why.
 
 **Everything works with one button:**
-- no right-click, long-press, hover-only information or scroll wheel;
+- no right-click, long-press, hover-only information (no tooltip, no hover style that tells anything) or scroll wheel;
 - zoom has buttons;
-- a test drives the whole slice with left clicks only (§10).
+- a test drives the whole slice with left clicks only, and another with a finger's taps only on a touch screen (§10).
 
-**Keyboard extras on a Mac or PC, never required:**
+**Touch only.** Every verb is a tap on what is on screen, every control at least 44 px (§7.2). A touch that begins on the board ends there, so the click the browser makes of a tap never answers a sheet the tap has just opened.
 
-| Keys | Action |
+**Keyboard only.** Every control is a button: Tab reaches it, Enter or Space presses it, and the keys below do the rest without it. A button that has a key shows it (after its words, or in its corner where the button is small), except on a touch screen until a key is pressed; "How the museum works" lists them all.
+- **The focus ring:** a focused control has a ring of two bands, 3 px of yellow outside 2 px of near-black, so one band stands out at 3:1 or more on the dark panels and the other on label paper; the board draws the same ring inside its edge. A box that scrolls by the keys (the laptop's log) has it too.
+- **Layers:** while one is open (the confirmation, the Window Pole's sheet, Settings, "How the museum works", the end of a visit, the Bag or the floor plan), everything else is inert: no Tab, key, click or tap reaches what lies behind it, and keys do nothing to the game. It takes the focus when it opens (the confirmation its button that does it, the Bag its first item or button, Settings its first chosen value, the end of a visit "Another visit") and gives it back when it closes, to where it was, or else to the board. On a phone the open label covers the strip, Zoom and the bar, which are inert while it does, so Tab never reaches a control the sheet hides.
+- **Keys that act on the board** (a step, Wait, `x`, `r`, a verb, a quickslot, zoom) move the focus to the board, unless it is on the label, so Enter then acts on the board, not on a button Tab had reached.
+
+**The keys** (none of the verbs' letters is a vi-key, and no key does two things in one place):
+
+| Keys | What they do |
 |---|---|
-| Arrows, vi-keys or numpad | Move |
-| `.` | Wait |
-| `x` | Examine |
-| `r` | Read the nearest label |
-| `i` | Bag |
-| `1`–`6` | Quickslots |
-| `m` | Floor plan |
-| Enter | Confirm |
+| Arrows, `h j k l y u b n`, or the numpad (with NumLock on or off) | Step; into an exhibit, attack it (as bumping does). While aiming at a tile, move the aimed tile instead |
+| `.` or numpad 5 | Wait |
+| `z` | Rest, repeated as Rest is |
+| `s` | Sit on a bench |
+| `>` | Leave by the exit you stand on (it asks first) |
+| `x`, Shift+`X` | Select the next, or the previous, thing in sight, nearest first (king moves; an exhibit from its nearest tile; on a tie exhibits, cases, items on the floor, identifying labels, staff doors, then exits, each kind in row order), and yourself last; its label opens. An exit is selected as a walk there: its path is shown, and Enter walks. While aiming, the next or previous tile the aim can be used at, those with an exhibit first |
+| Enter | The selected thing's first action, as a second tap (Attack; Open, or Break the glass; Take; Read; Wait), and with none, what a second tap on its tile does; never for an item you carry. A previewed walk goes. A confirmation's yes. While aiming, a second tap on the aimed tile, or with no tile aimed yet, the first tile the aim can be used at. On the recap or the end of a visit, "Another visit" (once closed, Enter shows it again) |
+| `a o c g t e d q r` | The selected label's buttons, each showing its key: `a` Attack (an item's Use at a tile… or Use on an item…), `o` Open (a case, a staff door), `c` Close (a staff door), `g` Break the glass, `t` Take (Take off, Throw…), `e` Equip, `d` Drop, `q` Drink or Use, `r` Read |
+| `r` | With no Read button on the selected label: select the nearest label (as before) |
+| Tab, Shift+Tab | Move the focus; Enter or Space presses the button it is on |
+| Arrows, Home, End, in a layer | Move the focus through its buttons (the Bag's items, a kit's items, the Card's seals, Settings' choices, a sheet's buttons); in one with no buttons but its Close ("How the museum works", the floor plan) they scroll it |
+| Backspace | Back, in the Bag |
+| `i`, `m` | The Bag, the floor plan; pressed again, closed |
+| `1`–`6` | The quickslots; on the Window Pole's sheet, its choices in order |
+| `+`, `-` | The next or previous zoom step (the Zoom button steps forward) |
+| `?`, `,` | "How the museum works", Settings |
+| Escape | Cancel the confirmation; close what lies on top (the Window Pole's sheet, keeping the aim; "How the museum works" or Settings over the Bag or the end of a visit); else close every overlay and the Bag, stop aiming, and let go of the selection |
+
+**How a keyboard player reaches each verb and screen:**
+- **Moving and fighting:** the step keys; a step into an exhibit attacks it; or `x` to the exhibit and Enter (or `a`).
+- **Selecting anything in sight:** `x` and Shift+`X` (exhibits, cases, items on the floor, identifying labels, staff doors, exits, yourself); an item in your tote: `i`, the arrows, Enter.
+- **A case:** `x` to it; `o` opens it, `g` breaks its glass (each blow asks: Enter, or Escape), `t` takes what it holds; Enter does the first of them; on an opened, empty one Enter walks you in.
+- **An item on the floor:** `x`, then `t` (or Enter). **An identifying label:** `r` selects the nearest, `r` again reads it.
+- **A staff door:** `x`, then `o` opens it (as a step into it does), `c` closes it.
+- **What you carry:** `i`, the arrows to an item, Enter; then its keys: `e` Equip, `t` Take off, `d` Drop, `q` Drink or Use, `r` Read (a Catalogue Card, a Floor Plan), `t` Throw…, `a` Use at a tile… or Use on an item…; Backspace goes back.
+- **Aiming at a tile** (a throw, the fork, the Pin-Driver, the Window Pole), from Throw… or the instrument's quickslot (`1`): the step keys move the aimed tile a step, each a first tap there (its marks and words, or the refusal), `x` jumps to the next tile it can be used at, Enter does it there (a second tap, through the confirmations), Escape stops aiming. On the Window Pole's sheet, `1`–`3` (or the arrows and Enter) choose push, pull or take; Escape closes it and the aim stays.
+- **A Restoration kit:** its Use on an item… (`a`); the arrows to an item, Enter shows what a level would give it, Enter again uses the kit on it.
+- **A Catalogue Card's choice:** the Bag opens on it; the arrows to a seal, Enter.
+- **The floor plan:** `m`. **The quickslots:** `1`–`6`.
+- **Wait, Rest, Sit, Leave:** `.`, `z`, `s`, `>`; your label (`x` to yourself) shows them with their keys.
+- **Every confirmation:** Enter does it, Escape cancels.
+- **The recap and the end of a visit:** Enter presses "Another visit"; Escape closes it, and Enter shows it again.
+- **Settings:** `,`, then the arrows and Enter: the board (Flat or 3D), zoom, walking, text size, label font, motion. **"How the museum works":** `?`; it lists these keys. **Zoom:** `+` and `-`.
 
 ### 7.2 Screens
 
@@ -694,7 +728,7 @@ A confirmation is a sheet over the board, saying what the action would do in `Te
 **The Bag** (`js/ui/bag.js`), opened by the bar's Bag or `i`:
 - **What it shows:** what you wear, slot by slot, then your tote. A tap on an item shows its label (§8.8) with its buttons, each acting through the confirmations (§7.1). A Catalogue Card's choice, one button for each seal you do not know, opens the Bag by itself and stays at its top until it is answered; closed, it opens again when anything else is tried, since nothing else can be done first.
 - **Quickslots** hold your instrument, then your consumables in the order of your tote: three on a phone, six on a laptop. An instrument's quickslot aims it (pressed again, it stops aiming); a consumable's shows it in the Bag with its buttons; an empty one opens the Bag.
-- **Aiming at a tile** (a throw, an instrument): on a phone the strip's place, on a laptop the bar under the board, says what you aim and what a tap does, at a height set by the text size alone (enough for its longest words), so the board never moves between taps. The first tap on a tile marks it (with a thrown Solution's square, §6.1) and says what a second tap would do there, or the refusal `step()` would give; Enter does what a second tap would. The second tap does it, through the confirmations, or, where it cannot be done, is refused with that sentence, and the aim stays for another tile, as it does when a confirmation is cancelled. The aim ends once time passes, by its action or another (a Wait), so the strip it stands in for shows what happened; Cancel or Escape ends it too. Where the Window Pole can do more than one thing, the second tap opens a sheet with a button for each, in the order push, pull, take; while it asks, keys do nothing to the game, and a tap beside it cancels.
+- **Aiming at a tile** (a throw, an instrument): on a phone the strip's place, on a laptop the bar under the board, says what you aim and what a tap does, at a height set by the text size alone (enough for its longest words), so the board never moves between taps. The first tap on a tile marks it (with a thrown Solution's square, §6.1) and says what a second tap would do there, or the refusal `step()` would give; Enter does what a second tap would. With the keys, a step key moves the marked tile one step (from your tile before any) as a first tap there, `x` and Shift+`X` step through the tiles it can be used at, and Enter, with no tile marked yet, marks the first of them (§7.1). The second tap does it, through the confirmations, or, where it cannot be done, is refused with that sentence, and the aim stays for another tile, as it does when a confirmation is cancelled. The aim ends once time passes, by its action or another (a Wait), so the strip it stands in for shows what happened; Cancel or Escape ends it too. Where the Window Pole can do more than one thing, the second tap opens a sheet with a button for each, in the order push, pull, take (keys `1`–`3`); while it asks, keys do nothing to the game, and a tap beside it, its Cancel or Escape closes it, the aim kept.
 - **A Restoration kit** is aimed in the Bag: the items it can be used on are listed in `Kit.useLegal`'s order (what you wear in slot order, then your tote); a first tap on one shows what a level would give it, and a second uses the kit on it.
 - **The floor plan** (the bar's Map or `m`): the department as you have seen and remember it, with you, the exits and the entrance; once a Floor Plan has been read in this department, all of it, with the rooms whose Highlights have not been taken outlined and numbered. A door, a staff door and a case each have a shape there as well as a tint (a band across the tile; a band with a dot; a frame, filled while the case is shut).
 
@@ -706,8 +740,8 @@ A confirmation is a sheet over the board, saying what the action would do in `Te
 - the death label and its recap (in M3 the recap, `Text.recap`, is an overlay with "Another visit", which starts the same department at the same depth with the next seed until M5's run; leaving shows the end of the visit's sentence with the same button);
 - Your Collection;
 - the Catalogue;
-- Settings;
-- "How the museum works" (the nine sentences with their icons, one tap from any screen).
+- Settings: the board (Flat or 3D), zoom (one choice for each of the board's zoom steps), walking, text size, label font and motion;
+- "How the museum works" (the nine sentences with their icons, then the keys, one tap from any screen).
 
 **Accessibility:**
 - **Colour.** At most six meaning-carrying colours, and shape always carries the meaning too.
@@ -1478,7 +1512,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 | 1. Rule tests, golden scenarios, Behaviour-line scenarios and invariants, hashes | every `check-all.sh` | yes |
 | 2. Monkeys (random legal actions), 10,000-turn soak, save fuzzing | every `check-all.sh` (short); per milestone (long) | yes |
 | 3. Layout validators, the worst-case runner, 1,000-seed sweeps | every `check-all.sh` (100 seeds); per milestone (1,000) | yes |
-| 4. Screens: no horizontal scroll, 44-px targets, colour-blind check, left-click-only play, both views | per milestone, and when UI changes | yes |
+| 4. Screens: no horizontal scroll, 44-px targets, colour-blind check, play with left clicks only, with the keyboard only and with taps only, both views | per milestone, and when UI changes | yes |
 | 5. Paired scripted bots: counterplay against naive, rule-aware against rule-blind, on the same seeds | per milestone from M3 | yes, at the margins of §10.3 |
 | 6. An expert search bot over the core, looking for exploits | M4 onward, per milestone | no: reports annotated replays |
 | 7. A language-model reader of the labels | M4, then on label changes, when an API key is available | never |
@@ -1509,8 +1543,10 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 - **`tools/browser/*.mjs`** (Playwright, Chromium; WebKit when run on a Mac) cover:
   - smoke: boot `dist/accession.html` from `file://` at phone size, play 200 left clicks on the board and 150 anywhere in the window, and fail on a console error, sideways scroll, or "undefined", "NaN" or "[object" on screen;
   - screens at 390×844 and 1280×800;
-  - play: the left-click-only script of §7.1, at both sizes and in both views;
+  - play: the left-click-only script of §7.1, at both sizes and in both views, and, at laptop size in both views, the shared scenes of `scenes.mjs` by left clicks;
   - the Bag: its quickslots, aiming and floor plan with left clicks (§7.2), at both sizes and in both views;
+  - keys: a visit with the keyboard alone (`page.keyboard`; no pointer event reaches the page), at both sizes and in both views, in M.11 (seed 3): every M3 verb and screen of §7.1's list, through the shared scenes of `scenes.mjs` (set up on the state as play's are; the action under test is always a key), and x's order, every layer's focus ring (at least 3:1, 2 px), the focus kept inside it and given back, and no key acting behind it;
+  - touch: the same scenes with `page.touchscreen.tap` alone in a touch screen's browser (no mouse event but a finger's, no key), at 390×844 and on a tablet (820×1180), in both views: no target under 44 px at each screen, and nothing shown only on hover;
   - the hash page;
   - the 3D checks (§6.3);
   - the kill test (§10.4, from M5).

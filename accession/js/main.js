@@ -60,6 +60,7 @@ const Main = (() => {
     another() { anotherVisit(); },
     setting(key, value) {
       stop();
+      if (key === 'zoom') { setZoom(Number(value)); return; }
       settings[key] = value; store.set(key, value);
       if (key === 'board') makeView();
       applySettings(); draw();
@@ -71,7 +72,7 @@ const Main = (() => {
     document.documentElement.dataset.text = settings.text;
     document.documentElement.dataset.font = settings.font;
     document.documentElement.dataset.motion = settings.motion;
-    UI.renderSettings(settings, Views.list());
+    UI.renderSettings(settings, Views.list(), renderer ? renderer.zooms.length : 1);
   }
 
   // Build the chosen board view. A view that fails, now or once it has loaded, is replaced
@@ -87,7 +88,10 @@ const Main = (() => {
     if (settings.boardNote) say(settings.boardNote);
     renderer.ready.then(() => draw(), () => {});
   }
-  function setZoom(i) { settings.zoom = String(i); store.set('zoom', settings.zoom); renderer.setZoom(i); draw(); }
+  function setZoom(i) {
+    const n = renderer.zooms.length, z = ((Number(i) % n) + n) % n;
+    settings.zoom = String(z); store.set('zoom', settings.zoom); renderer.setZoom(z); applySettings(); draw();
+  }
 
   // The log: the newest entry shows on a phone's strip until the next action. Once the
   // visit is over, nothing else is logged, so its last sentence stays in view.
@@ -433,6 +437,9 @@ const Main = (() => {
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
     shown = vm.camera;
+    // What lies open over the board makes everything else inert (the Bag's too, opened or shut
+    // by its render), and the focus goes where it can still be used.
+    UI.sync(); UI.refocus();
   }
   // The stage chip: the clock's stage (n, for its colour) with Text.stage's words, its name
   // and what comes next (§7.2, §8.4, §3.4), or null with no clock.
@@ -482,7 +489,83 @@ const Main = (() => {
     return { x: axis(you.x, a.x, a.size, half(b.width, t), c.x), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d), c.y) };
   }
 
-  // Examine (x): the nearest readable thing first, then each visible exhibit in turn.
+  // ---- The keys (§7.1) ----
+
+  // What x steps through: everything in sight that a tap can select, nearest first (king
+  // moves; an exhibit from its nearest tile), and on a tie exhibits, cases, items on the
+  // floor, identifying labels, staff doors, then exits, each kind in row order; you last. An
+  // exit is selected as a walk there (its path previewed; Enter walks), since a tap on it
+  // walks there; on it, your label offers Leave.
+  const KIND = { exhibit: 0, case: 1, item: 2, plaque: 3, staff: 4, exit: 5 };
+  function sights() {
+    const vm = ViewModel.derive(state, ui), me = state.actors[0], out = [];
+    const add = (kind, id, x, y, d) => out.push({ kind, id, x, y, d: d === undefined ? Math.max(Math.abs(x - me.x), Math.abs(y - me.y)) : d });
+    for (const a of vm.actors) if (a.uid !== 'you') add('exhibit', a.uid, a.x, a.y, Actors.dist(Actors.byUid(state, a.uid), me.x, me.y));
+    for (const c of vm.cases) if (Labels.of(state, `case:${c.x},${c.y}`)) add('case', `case:${c.x},${c.y}`, c.x, c.y);
+    for (const i of vm.items) if (!i.inCase) add('item', 'item:' + i.uid, i.x, i.y);
+    for (const p of vm.plaques) add('plaque', `plaque:${p.x},${p.y}`, p.x, p.y);
+    for (const f of vm.staff) add('staff', `staff:${f.x},${f.y}`, f.x, f.y);
+    for (const [x, y] of state.dept.exits || []) if (vm.vis[y * vm.w + x] === 2 && !(x === me.x && y === me.y)) add('exit', `exit:${x},${y}`, x, y);
+    out.sort((p, q) => p.d - q.d || KIND[p.kind] - KIND[q.kind] || p.y - q.y || p.x - q.x);
+    out.push({ kind: 'you', id: 'you', x: me.x, y: me.y, d: 0 });
+    return out;
+  }
+  // The thing x last chose: the selection, or the exit whose walk is previewed.
+  const chosen = () => ui.selection || (preview && preview.exit ? `exit:${preview.x},${preview.y}` : null);
+  // x (by 1) and Shift+X (by −1): the next or previous thing in sight; the first (or the last)
+  // when nothing in the list is chosen.
+  function cycle(by) {
+    stop();
+    const list = sights(), i = list.findIndex(t => t.id === chosen());
+    const t = list[i < 0 ? (by > 0 ? 0 : list.length - 1) : (i + by + list.length) % list.length];
+    if (t.kind !== 'exit') { select(t.id, true); return; }
+    ui.selection = null; UI.closeLabel();
+    const path = Path.to(state, t.x, t.y);
+    preview = { x: t.x, y: t.y, exit: true }; ui.path = path.length ? path : null;
+    say(path.length ? 'An exit. Enter walks there; on it, > leaves.' : 'An exit, with no way there from here.');
+    draw();
+  }
+  // A key that does something to the game moves the focus to the board, so that Enter then
+  // acts on the board, not on a button Tab had reached; a focus on the label stays there.
+  function keyed() {
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.closest('#sheet')) UI.focusBoard();
+  }
+  // Every key that is not a step, Enter, Escape or Tab (input.js). A letter on a button of
+  // the selected thing's label presses it (UI.keysFor, the keys the buttons show), else one
+  // of your own label's (. Wait, z Rest, s Sit, > Leave); r with no Read button reads the
+  // nearest label. True when the key was used.
+  function gameKey(k) {
+    const aim = Bag.aiming(), onTile = !!aim && aim.kind !== 'item';
+    if (k === 'x' || k === 'X') {
+      keyed();
+      if (onTile) { if (Bag.cycleAim(k === 'x' ? 1 : -1)) draw(); } else cycle(k === 'x' ? 1 : -1);
+      return true;
+    }
+    if (k === '.') { keyed(); request({ a: 'wait' }); return true; }
+    if (k === 'i') { stop(); Bag.open(); draw(); return true; }
+    if (k === 'm') { stop(); Bag.map(); draw(); return true; }
+    if (/^[1-6]$/.test(k)) { keyed(); stop(); Bag.quick(Number(k)); draw(); return true; }
+    if (k === '+' || k === '=') { keyed(); setZoom(renderer.zoom + 1); return true; }
+    if (k === '-' || k === '_') { keyed(); setZoom(renderer.zoom - 1); return true; }
+    if (k === '?') { stop(); UI.toggle('settings', false); UI.toggle('how', true); return true; }
+    if (k === ',') { stop(); UI.toggle('how', false); UI.toggle('settings', true); return true; }
+    for (const id of [ui.selection, 'you']) {
+      const l = id ? labelOf(id) : null;
+      const i = l ? UI.keysFor(l.actions).indexOf(k) : -1;
+      if (i >= 0) { keyed(); stop(); perform(l.actions[i], id); return true; }
+    }
+    if (k === 'r') { keyed(); read(); return true; }
+    return false;
+  }
+  // A key while a layer is open goes to it alone: the Bag's or the pole's sheet to the Bag,
+  // any other to ui.js (the arrows move the focus, a key a button carries presses it).
+  function layerKey(e) {
+    const top = UI.topLayer();
+    if (top === 'bag' || top === 'bagpick') { const used = Bag.key(e); if (used) draw(); return used; }
+    return top ? UI.layerKey(top, e) : false;
+  }
+
   // Read (r): always the nearest label, never the next one.
   function nearestSeen() {
     const you = state.actors[0], s = Labels.strip(state);
@@ -490,12 +573,6 @@ const Main = (() => {
     const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you')
       .map(a => ({ uid: a.uid, d: Actors.dist(Actors.byUid(state, a.uid), you.x, you.y) })).sort((p, q) => p.d - q.d);
     return seen.length ? seen[0].uid : null;
-  }
-  function examine() {
-    stop();
-    const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you').map(a => a.uid), at = seen.indexOf(ui.selection);
-    if (!seen.length) { say('Nothing here to examine.'); draw(); return; }
-    select(ui.selection && at >= 0 && UI.labelShown() ? seen[(at + 1) % seen.length] : nearestSeen(), true);
   }
   function read() {
     stop();
@@ -512,29 +589,49 @@ const Main = (() => {
   const bagWiring = Object.assign(UI.slots(), { act: request, state: () => state, draw: () => draw() });
   Bag.attach(app, bagWiring);
   Input.attach(board, () => renderer, {
-    tap, key(a) { request(a); }, examine, read,
+    tap, layerKey, key: gameKey,
     blocked: () => UI.overlayOpen() || UI.confirmOpen(),
-    bag() { stop(); Bag.open(); draw(); },
-    map() { stop(); Bag.map(); draw(); },
-    quick(n) { stop(); Bag.quick(n); draw(); },
-    // Enter: yes to a waiting confirmation; else, while the Bag aims, a second tap on the tile
-    // it previews (nothing before a tile is previewed); else go on a previewed walk; else the
-    // selected thing's first action, as a second tap on it would do: so only for something a
-    // tap can reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
+    // A step key steps (into an exhibit, a blow), or, while the Bag aims at a tile, moves the
+    // tile it previews (Bag.cursor).
+    move(dir) {
+      keyed();
+      if (Bag.aiming() && Bag.cursor(dir)) { draw(); return; }
+      request({ a: 'move', dir });
+    },
+    // Enter: yes to a waiting confirmation; once the visit is over, its end shown again;
+    // else, while the Bag aims, a second tap on the tile it previews (with none yet, the first
+    // tile it can be used at is previewed); else go on a previewed walk; else the selected
+    // thing's first action, as a second tap on it would do, or, with none, what a second tap
+    // does on its tile (walk onto it, or the next thing there): so only for something a tap
+    // can reach (yourself, an exhibit, or a thing on a tile), never for an item you carry.
     confirm() {
       if (asking) { answer(true); return; }
-      if (UI.overlayOpen() || state.over) return;
+      if (state.over) { if (!UI.overlayOpen() && ended) { UI.end(ended); draw(); } return; }
+      if (UI.overlayOpen()) return;
       const aim = Bag.aiming();
-      if (aim) { if (Number.isInteger(aim.x) && Number.isInteger(aim.y)) tap({ x: aim.x, y: aim.y }); return; }
-      if (preview && ui.path) { tap(preview); return; }
-      if (ui.selection && (ui.selection === 'you' || Actors.byUid(state, ui.selection) || tileOf(ui.selection))) {
-        const l = labelOf(ui.selection), first = l && l.actions.find(a => a.act);
-        if (first) perform(first, ui.selection);
+      if (aim) {
+        if (aim.kind === 'item') return;
+        if (Number.isInteger(aim.x) && Number.isInteger(aim.y)) tap({ x: aim.x, y: aim.y }); else if (Bag.aimDefault()) draw();
+        return;
+      }
+      if (preview) { tap(preview); return; }
+      const id = ui.selection;
+      if (id && (id === 'you' || Actors.byUid(state, id) || tileOf(id))) {
+        const l = labelOf(id), first = l && l.actions.find(a => a.act);
+        if (first) { perform(first, id); return; }
+        const me = state.actors[0], t = id === 'you' ? { x: me.x, y: me.y } : tileOf(id);
+        if (t) tap(t);
       }
     },
+    // Escape closes what lies on top: the confirmation (no), the pole's sheet (the aim kept),
+    // or "How the museum works" or Settings opened over the Bag or the end of a visit; else
+    // every overlay, the Bag and any aim, and lets go of the selection.
     escape() {
       stop();
       if (asking) { answer(false); return; }
+      if (Bag.picking()) { Bag.cancelPick(); draw(); return; }
+      const top = UI.topLayer();
+      if ((top === 'how' || top === 'settings') && (Bag.shown() || UI.endOpen())) { UI.toggle(top, false); draw(); return; }
       UI.closeOverlays(); Bag.close(); ui.selection = null; ui.path = null; preview = null; UI.closeLabel(); draw();
     },
   });

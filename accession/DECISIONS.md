@@ -145,7 +145,7 @@ Patron membership, the opt-in assist, is a setting, not a system. Stamps, the Gi
 
 - **One input model everywhere.** Tap or click a tile to walk there; tap an exhibit to examine it. The action it allows appears as a button ("Attack: 75%, 3–5 damage").
 - **Everything works with one button:** no right-click, no long-press, no hover-only information, no scroll wheel. Zoom has buttons.
-- **Keyboard shortcuts are an extra** on a Mac, never required.
+- **Keyboard shortcuts are an extra** on a Mac, never required. *Superseded on 31 October 2026 (Julian): every input works alone, the keyboard only, a mouse or trackpad only, or a touchscreen only (BUILD.md §7.1).*
 - **Phone portrait first;** on a laptop the label panel sits beside the map.
 - **Tested** with Playwright in WebKit (Safari's engine) and Chromium, at phone and laptop sizes, by a script that uses left clicks only.
 
