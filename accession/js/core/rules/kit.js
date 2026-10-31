@@ -60,15 +60,18 @@ const Kit = (() => {
     if (slot === 'curio0') k.curio[0] = uid; else if (slot === 'curio1') k.curio[1] = uid; else k[slot] = uid;
   }
 
-  // The starting kit (§8.1): a T1 weapon of the given form (Balanced if none) and a T1
-  // Standard garment, equipped, with the uids you.w and you.g (§3.2).
-  function start(state, form) {
+  // The starting kit (§8.1): a weapon of the given form (Balanced if none) and a Standard
+  // garment, both of the given tier (1 if none, as at a run's start), equipped, with the uids
+  // you.w and you.g (§3.2).
+  function start(state, form, tier) {
     form = form || 'balanced';
+    tier = tier === undefined || tier === null ? 1 : tier;
     if (!WEAPON_FORMS.includes(form)) throw new Error('Kit.start: no weapon form ' + form);
+    if (!isInt(tier) || tier < 1 || tier > 4) throw new Error('Kit.start: no tier ' + tier);
     if (byUid(state, 'you.w') || byUid(state, 'you.g')) throw new Error('Kit.start: you already have a starting kit');
     if (!state.you) state.you = { kit: { weapon: null, garment: null, curio: [null, null], instrument: null }, tote: [] };
-    state.items.push(item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier: 1 }));
-    state.items.push(item({ uid: 'you.g', kind: 'garment', where: { at: 'kit', slot: 'garment' }, form: 'standard', tier: 1 }));
+    state.items.push(item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier }));
+    state.items.push(item({ uid: 'you.g', kind: 'garment', where: { at: 'kit', slot: 'garment' }, form: 'standard', tier }));
     state.you.kit.weapon = 'you.w';
     state.you.kit.garment = 'you.g';
   }
@@ -789,6 +792,9 @@ const Kit = (() => {
     return out;
   }
 
+  // W0d1 fills (M4's skeleton made it): the range a lit `observing` curio you wear observes within; 0.
+  function observing(state) { return 0; }
+
   return { SLOTS, item, start, needs, short, derive, stats, settle, ringDelta, slots, addToTote, shot, useInstrument, recharge, restore,
-    useLegal, useAction, useCandidates, targets, nextUid, make, drawTier, standIn, view, describe };
+    useLegal, useAction, useCandidates, targets, nextUid, make, drawTier, standIn, view, describe, observing };
 })();

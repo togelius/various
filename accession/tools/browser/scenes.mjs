@@ -8,6 +8,14 @@
 // check-play stages its own (you are put beside what it needs, exhibits put back to sleep,
 // items made in your tote, a lock, a clock or a tile set); the action under test is never
 // staged: it is always the driver's input. In M.11, seed 3, as check-play.
+//
+// M4's scenes are in scene files of their own, one for each package that adds verbs and
+// screens (SCENE_FILES, in the order played): each exports play(c), called after the scenes
+// here with the same context, so a package adds its scenes without editing this file or the
+// checks that play them.
+import * as progressScenes from './scenes-m4-progress.mjs';
+import * as moduleScenes from './scenes-m4-modules.mjs';
+export const SCENE_FILES = Object.freeze([['scenes-m4-progress.mjs', progressScenes], ['scenes-m4-modules.mjs', moduleScenes]]);
 
 // The centre of the first element matching sel that a player can see and press: displayed,
 // inside every box that clips it, on screen, and the topmost thing there. Else null.
@@ -666,6 +674,9 @@ export async function playScenes(c) {
       ok(!t2.over && t2.seed === t1.seed + 1, 'another visit after a death', '"Another visit" after the death did not start a new visit');
     }
   }
+
+  // ---- M4's scene files, in order ----
+  for (const [, file] of SCENE_FILES) await file.play(c);
 }
 
 // ---- The pointer's driver: taps on a touch screen (check-touch) or left clicks (check-play) ----
