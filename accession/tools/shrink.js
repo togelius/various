@@ -1,20 +1,22 @@
 // ACCESSION — crash cards (BUILD.md §10.2). A failing run (a monkey, a soak, a golden run, a
 // scenario) is replayed from its start, and its action list is shrunk with ddmin (Zeller and
 // Hildebrandt, 2002) to a list that still fails and from which no single action can be
-// removed, within a time limit (60 s). The card then gives the seed, coreHash, the shrunk
+// removed, within a time limit (60 CPU-seconds: this process's CPU time, process.cpuUsage, so
+// that a loaded machine stops it no sooner, BUILD.md §10.2). The card then gives the seed, coreHash, the shrunk
 // action count, the first bad step with its events, what that step changed in the state as
 // a list of JSON paths, and the replay, with the command that plays it again.
 // Node only: it keeps the time, which the core may not (it calls the core through a context
 // from tools/core-context.js or tools/replay.js's load()).
 'use strict';
 
-// ddmin(actions, fails, {ms}) → {actions, tests, ms, timedOut, minimal, from}
+// ddmin(actions, fails, {ms}) → {actions, tests, ms, timedOut, minimal, from} (ms: CPU-ms)
 //   fails(list) → false (it passes), true (it fails), or the 1-based number of the action at
 //   which it fails, which also drops every action after it (nothing after the failure can
 //   matter). The full list must fail. The result fails; if minimal, removing any single
 //   action makes it pass. On running out of time it is the smallest failing list found.
+const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 function ddmin(actions, fails, opts) {
-  const ms = (opts && opts.ms) || 60000, t0 = Date.now();
+  const ms = (opts && opts.ms) || 60000, t0 = cpuMs();
   let tests = 0, timedOut = false;
   const test = list => {
     tests++;
@@ -34,12 +36,12 @@ function ddmin(actions, fails, opts) {
     for (let i = 0; i < cur.length; i += size) chunks.push([i, Math.min(cur.length, i + size)]);
     let next = null, nextN = n;
     for (const [lo, hi] of chunks) {
-      if (Date.now() - t0 > ms) { timedOut = true; break; }
+      if (cpuMs() - t0 > ms) { timedOut = true; break; }
       const got = test(cur.slice(lo, hi));
       if (got) { next = got; nextN = 2; break; }
     }
     if (!next && !timedOut && chunks.length > 2) for (const [lo, hi] of chunks) {
-      if (Date.now() - t0 > ms) { timedOut = true; break; }
+      if (cpuMs() - t0 > ms) { timedOut = true; break; }
       const got = test(cur.slice(0, lo).concat(cur.slice(hi)));
       if (got) { next = got; nextN = Math.max(chunks.length - 1, 2); break; }
     }
@@ -48,7 +50,7 @@ function ddmin(actions, fails, opts) {
     if (n >= cur.length) { minimal = true; break; }
     n = Math.min(cur.length, 2 * n);
   }
-  return { actions: cur, tests, ms: Date.now() - t0, timedOut, minimal, from: actions.length };
+  return { actions: cur, tests, ms: Math.round(cpuMs() - t0), timedOut, minimal, from: actions.length };
 }
 
 // The paths at which two plain values differ, in key order: [{path, from, to}], with each
@@ -133,7 +135,7 @@ function card(replay, failure, info) {
   const lines = [
     `Crash card: ${failure.message}`,
     `Seed ${start.seed !== undefined ? start.seed : 'from a snapshot'}, start ${JSON.stringify(start.state ? { state: 'snapshot' } : start)}, coreHash ${replay.coreHash || 'not recorded'}, layout pin ${replay.layoutPin === null || replay.layoutPin === undefined ? 'none' : replay.layoutPin}.`,
-    shrunk ? `Shrunk to ${replay.actions.length} actions from ${info.from}${info.firstStep ? ` (the full list first failed at action ${info.firstStep})` : ''}, in ${info.tests} replays and ${info.ms} ms${info.timedOut ? ', stopped by the time limit' : ''}.`
+    shrunk ? `Shrunk to ${replay.actions.length} actions from ${info.from}${info.firstStep ? ` (the full list first failed at action ${info.firstStep})` : ''}, in ${info.tests} replays and ${info.ms} CPU-ms${info.timedOut ? ', stopped by the time limit' : ''}.`
       : `${replay.actions.length} actions (not shrunk).`,
     `The first bad step is step ${failure.step}: ${JSON.stringify(failure.action)}.`,
     failure.threw ? (failure.events.length ? `It threw before returning its events; it had emitted these (${failure.events.length}):` : 'It threw before emitting any event.')

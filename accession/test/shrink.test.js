@@ -2,7 +2,7 @@
 // time limit; the JSON-path diff of the state; and the card itself, in words, for planted
 // failures: a rule that throws before it does anything, one that throws after it has
 // changed the state, an invariant that breaks, a monkey failure in a later visit, and a
-// golden run that throws, each shrunk well within 60 s to a list from which no action can
+// golden run that throws, each shrunk well within 60 CPU-seconds to a list from which no action can
 // be removed. Which monkey visit each plant is tried on is found by playing visits by hand,
 // since how a visit goes depends on the rules, which every wave changes.
 module.exports = ({ test, assert, loadCore, root, path }) => {
@@ -13,6 +13,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const EXTRA = ['tools/monkey.js', 'tools/replay.js'];
   const json = x => JSON.stringify(x);
   const clean = s => !/undefined|NaN|\[object/.test(s);
+  // This process's CPU time in ms: the time limits are CPU time, which other processes' load does not move (BUILD.md §10.2).
+  const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
   const C = loadCore(EXTRA);
   const monkey = (seed, actions) => ({ kind: 'monkey', seed, actions, make: null });
 
@@ -77,15 +79,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(Shrink.diff({ s: 'x'.repeat(200) }, { s: 'y' })[0].from.endsWith('...'));
   });
 
-  test('a planted rule that throws before it does anything is shrunk to a 1-minimal replay well within 60 s, and its card says what happened in words', () => {
+  test('a planted rule that throws before it does anything is shrunk to a 1-minimal replay well within 60 CPU-seconds, and its card says what happened in words', () => {
     // The plant: a move made from the east room throws.
     const found = visitWhere((pre, a) => a.a === 'move' && pre.actors[0].x >= EAST, 'moves from the east room');
     const K = loadCore(EXTRA), h = K.Actions.get('move'), f = h.apply;
     h.apply = (state, action, ev) => { if (state.actors[0].x >= EAST) throw new Error('planted crash in the east room'); return f(state, action, ev); };
-    const replay = found.replay, t0 = Date.now();
+    const replay = found.replay, t0 = cpuMs();
     const s = Shrink.shrinkReplay(K, replay, null);
-    const ms = Date.now() - t0;
-    assert.ok(ms < 60000, `${ms} ms`);
+    const ms = cpuMs() - t0;
+    assert.ok(ms < 60000, `${ms} CPU-ms`);
     assert.ok(s.result.minimal && !s.result.timedOut, json(s.result));
     assert.equal(s.first.message, 'threw planted crash in the east room');
     assert.equal(s.first.step, found.step, 'the full list first fails where the honest visit first moves from the east room');
@@ -146,9 +148,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const found = visitWhere((pre, a, post) => hp(post) < hp(pre), 'harms the first training dummy');
     const inv = { id: 'planted_unhurt', applies: a => a.uid === D, check: (pre, events, post, ctx) => ctx.before && ctx.actor.hp < ctx.before.hp ? `lost health (${ctx.before.hp} to ${ctx.actor.hp})` : null };
     const check = ReplayNode.invariants(C, [inv]);
-    const replay = found.replay, t0 = Date.now();
+    const replay = found.replay, t0 = cpuMs();
     const s = Shrink.shrinkReplay(C, replay, check);
-    assert.ok(Date.now() - t0 < 60000);
+    assert.ok(cpuMs() - t0 < 60000);
     assert.ok(s.result.minimal, json(s.result));
     assert.equal(s.first.step, found.step);
     assert.ok(s.failure.message.startsWith('planted_unhurt: lost health'), s.failure.message);
