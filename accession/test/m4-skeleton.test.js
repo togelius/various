@@ -156,10 +156,18 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     X.Modules.init = (state, pack) => {};
     X.Hall.onDefeat = (state, ev) => { ev.push({ k: 'planted' }); };
     delete X.Labels.ofSheet;
-    const noComment = f => f === R + 'fixtures.js' ? src(f).replace(/^ *\/\/ W0d1 fills: read fixture f.*\n/m, '') : src(f);
-    const got = check(X, noComment).out;
+    // The first row whose stub is still in its file has its filler's name taken out of the
+    // comment above it (none is left once every stub is filled).
+    const stubbed = ROWS.find(([, , file, stub, call]) => stub && call && src(file).split('\n').some(l => l.trim() === stub[1]));
+    const unnamed = f => {
+      if (!stubbed || f !== stubbed[2]) return src(f);
+      const lines = src(f).split('\n'), i = lines.findIndex(l => l.trim() === stubbed[3][1]);
+      lines[i - 1] = lines[i - 1].split(stubbed[3][0]).join('NOBODY');
+      return lines.join('\n');
+    };
+    const got = check(X, unnamed).out;
     for (const want of ['Progress.award on a fresh test room gives true, not false', 'Hall.inside takes 2 arguments, not 3', 'Perks.ringDelta on a fresh test room gives 1, not 0',
-      'Viewing.apply changed the test room', 'Hall.onDefeat emitted', 'Labels.ofSheet is missing', 'Fixtures.read: the stub']) assert.ok(got.some(l => l.startsWith(want)), `not caught: ${want}\n${got.join('\n')}`);
+      'Viewing.apply changed the test room', 'Hall.onDefeat emitted', 'Labels.ofSheet is missing'].concat(stubbed ? [`${stubbed[0]}: the stub`] : [])) assert.ok(got.some(l => l.startsWith(want)), `not caught: ${want}\n${got.join('\n')}`);
     assert.ok(!got.some(l => l.startsWith('Modules.init')), 'a neutral replacement passes');
     // A filled stub (its line gone from its file) keeps only its arity here.
     const filled = f => f === R + 'progress.js' ? src(f).replace('function award(state, how, cause, ev) { return false; }', 'function award(state, how, cause, ev) { return grant(state, how, cause, ev); }') : src(f);

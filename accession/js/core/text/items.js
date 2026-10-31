@@ -41,7 +41,7 @@
   });
   Text.defineCause('equipped', 'unequip', (e, w) => `${w.Name(e.who)} took ${what(e.cause)} out of the ${slot(e.slot)} and into the tote.`);
 
-  // Using an instrument or a Restoration kit.
+  // Using an instrument, a Restoration kit or the Lamp.
   Text.define('used', (e, w) => `${w.Name(e.who)} used an item.`);
   Text.defineCause('used', 'use', (e, w) => {
     const c = e.cause, who = w.Name(e.who);
@@ -50,6 +50,9 @@
     if (e.how === 'push' || e.how === 'pull') return `${who} ${e.how === 'push' ? 'pushed' : 'pulled'} ${c.at ? w.name(c.at) : 'an exhibit'} one tile with the Window Pole${left(c)}.`;
     if (e.how === 'take') return `${who} hooked an item out of the case with the Window Pole${left(c)}.`;
     if (e.how === 'restore') return `${who} used a Restoration kit: ${c.kind ? `the ${c.kind}` : 'the item'} is now at level ${isInt(c.level) ? c.level : 1}.`;
+    // The Lamp (an observing curio, §5.5), lit or hooded.
+    if (e.how === 'light') return `${who} lit the lamp: every exhibit within ${N.LAMP_OBSERVE_RANGE} tiles of you counts as seen, even out of sight, and your ring is ${N.LAMP_RING} larger.`;
+    if (e.how === 'hood') return `${who} hooded the lamp.`;
     return `${who} used an item${left(c)}.`;
   });
 

@@ -14,7 +14,10 @@
 //                               home tile;
 //   modes_search_after_out_of_sight
 //                               a hunter searches for having lost you only after
-//                               LOSE_TRACK_TURNS turns without seeing you;
+//                               LOSE_TRACK_TURNS turns without seeing you (out_of_sight),
+//                               or after fewer only when a perk you hold says so (vanished:
+//                               Vanishing Act, M4), and then after no fewer than it says
+//                               (Perks.loseTrack, the perks' dispatcher, not the AI's);
 //   modes_exhibit_steps         every step an exhibit takes is one step of the exhibits'
 //                               walking rule (Grid.canStep(…, 'exhibit') for its footprint);
 //   modes_returning_walks       a plodder going home never stands still: each of its actions
@@ -89,9 +92,11 @@ module.exports = (C) => {
       check(pre, events, post, ctx) {
         const a = ctx.actor, b = ctx.before;
         for (const e of events) {
-          if (e.k !== 'lost' || e.who !== a.uid || e.to !== 'searching' || !e.cause || e.cause.k !== 'out_of_sight') continue;
-          // §8.2's 8 turns (M4's Vanishing Act will shorten them, and this with them).
-          const need = N.LOSE_TRACK_TURNS;
+          if (e.k !== 'lost' || e.who !== a.uid || e.to !== 'searching' || !e.cause || (e.cause.k !== 'out_of_sight' && e.cause.k !== 'vanished')) continue;
+          // §8.2's 8 turns, or as few as a perk you hold says, with the cause vanished (plan A5).
+          const perk = C.Perks.loseTrack(post, a), vanished = e.cause.k === 'vanished';
+          if (vanished && !(perk < N.LOSE_TRACK_TURNS)) return `it lost you with the cause vanished, but no perk you hold makes a hunter search sooner than ${N.LOSE_TRACK_TURNS} turns`;
+          const need = vanished ? perk : N.LOSE_TRACK_TURNS;
           if (e.from !== 'hunting') return `it began searching for losing you while ${e.from}, not hunting`;
           if (!(e.cause.turns >= need)) return `it began searching after ${e.cause.turns} turns out of sight, before ${need}`;
           if (b && b.mode === 'hunting' && e.turn - b.stim < need) return `it began searching at turn ${e.turn}, ${e.turn - b.stim} turns after it last saw you, before ${need}`;
