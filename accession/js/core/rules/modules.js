@@ -15,7 +15,10 @@
 //   Modules.mayReturn(state, a) → bool       may idle awake exhibit a go back (not while an alarm runs)
 //   Modules.threat(state, untilTick) → [mark]   the module marks falling due before untilTick (the
 //                                            chime's lines, and chimes not yet sounded), for
-//                                            Specials.threat
+//                                            Specials.threat; a mark is plain data, read as a
+//                                            telegraph is: {by, sp, tiles: [[x, y]…], gross,
+//                                            due}, by the uid that marks it, sp its special, due
+//                                            the tick it resolves
 'use strict';
 const Modules = (() => {
   function onEvent(state, e, ev) {}

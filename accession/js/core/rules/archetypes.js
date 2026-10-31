@@ -31,7 +31,10 @@
 //   immune(state, a, statusId) → bool    is a immune to the status (Status.apply asks): true if any says so
 //   plan(state, a) → null | plan         its shown next move (clockwork): the first that is not null
 //   wakeRegion(state, a, turns) → [[x, y]]   the tiles where standing for `turns` turns would wake
-//                                        it: the first hook's that is not null, else the default
+//                                        it: the default's (the ring at RING_MOVING with line of
+//                                        sight) and every hook's, which each add their own (a
+//                                        station its line, a patrol its round's sight); each tile
+//                                        once, in row-major order (y, then x)
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',
@@ -85,9 +88,14 @@ const Archetypes = (() => {
   function marksAwake(state, a) { for (const f of hooks(state, a, 'marksAwake')) if (f(state, a)) return true; return false; }
   function immune(state, a, statusId) { for (const f of hooks(state, a, 'immune')) if (f(state, a, statusId)) return true; return false; }
   function plan(state, a) { for (const f of hooks(state, a, 'plan')) { const r = f(state, a); if (r !== null && r !== undefined) return r; } return null; }
+  // Plan A8: a hook adds its tiles to the default's, so it states only its own reach.
+  const rowMajor = (p, q) => p[1] - q[1] || p[0] - q[0];
   function wakeRegion(state, a, turns) {
-    for (const f of hooks(state, a, 'wakeRegion')) { const r = f(state, a, turns); if (r !== null && r !== undefined) return r; }
-    return defaultWakeRegion(state, a, turns);
+    let all = defaultWakeRegion(state, a, turns).slice();
+    for (const f of hooks(state, a, 'wakeRegion')) all = all.concat(f(state, a, turns) || []);
+    const out = [];
+    for (const t of all.sort(rowMajor)) if (!out.length || rowMajor(out[out.length - 1], t) !== 0) out.push([t[0], t[1]]);
+    return out;
   }
   // W0d1 fills: the default wake region, the ring at RING_MOVING with line of sight; [] until then.
   function defaultWakeRegion(state, a, turns) { return []; }

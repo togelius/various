@@ -77,7 +77,7 @@ const N = Object.freeze({
   TREASURE_SEAL_TURNS: 12, // turns after a treasure's case is touched before its hall seals
   CP_PHASE_PCT: [67, 34], // phase thresholds, % of total health
   CP_SPECIAL_EVERY: [3, 2], // a special every this many actions, phases 1–2, then 3; provisional
-  CP_SUMMON: [1, 2], // bodies a summon makes, phases 1–2, then 3; provisional
+  CP_SUMMON: [1, 2], // bodies a summon makes, fewest and most; provisional
   CP_SUMMON_DMG_PCT: 200, // damage the tableau takes while a summon is marked, %
   CHARGE_RANGE: 5, // tiles a `cp_charge` lane reaches toward you
   GUARDIAN_PER_STAGE: 2, // galleries walked per limb
@@ -172,7 +172,7 @@ const N = Object.freeze({
   PERK_SOFT_SOLES: [1, 2], // Soft Soles: your ring this much smaller at ranks 1 and 2
   PERK_CLOSE_STEPS: [1, 2], // Close the Distance: free steps per exhibit at ranks 1 and 2
   PERK_ELBOW_ROOM_ADJACENT: 3, // Elbow Room's Padding counts while this many enemies or more are adjacent
-  PERK_LIGHT_FINGERS_ABOVE: 1, // Light Fingers at rank 2 opens locks this many grades above yours
+  PERK_LIGHT_FINGERS_ABOVE: 1, // Light Fingers at rank 2 opens case locks up to this many grades above yours
   PERK_OFFER: [2, 1], // perks offered from the department's primary family, then its secondary
   STAGGER_TURNS: 1, // turns `staggered` lasts: the exhibit loses its next action
   DEPTS_PER_RUN: 6,
@@ -185,7 +185,7 @@ const N = Object.freeze({
   RUNNER_PASS_PCT: 80, // the worst-case runner passes at this share of its health
   RUNNER_MOVES: 2, // exhibits the runner may move before the layout reseeds
   RUNNER_TOGETHER_TURNS: 3, // exhibits the runner wakes within this many turns of each other along its route are one fight
-  DEAD_END_REWARD: 12, // LV7's length: a dead end this many walking tiles beyond its junction holds a reward
+  DEAD_END_REWARD: 12, // LV7's length: a dead end reaching this many walking tiles or more beyond its junction holds a reward
   SAVE_SLOTS: 2, // alternating IndexedDB slots
   ROLE_FODDER_HP: [7, 16, 28],
   ROLE_FODDER_ACC: [2, 3, 4],
@@ -247,7 +247,7 @@ const N = Object.freeze({
   AXIS_BEAM_RANGE: 10, // the axis_sniper's beam, in tiles
   KITER_HOLD: [3, 5], // the kiter's distance from you, nearest and farthest
   DARTER_STEP_BACK: 1, // tiles a darter steps back after its blow
-  CONSERVATOR_HEAL_PCT: 25, // what a conservator_healer restores to an ally, % of its maximum health
+  CONSERVATOR_HEAL_PCT: 25, // what a conservator_healer restores to an ally, % of the ally's maximum health
   CONSERVATOR_KEEP: 2, // tiles a conservator_healer keeps from you
   SPLIT_MAX: 2, // splits per lineage
   SPLIT_HP_PCT: 50, // each half's share of the remaining health

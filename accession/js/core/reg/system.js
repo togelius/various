@@ -12,11 +12,11 @@
   // consumable. m3-backbone makes each one refuse, with nothing changed and nothing drawn;
   // their invariant is test/behaviour/system.inv.js (a refused step has no other event and
   // changes nothing). The real game makes each refuse in test/behaviour/refusals.test.js
-  // (ready true). not_built is the code of an action whose rules a later part builds: no M3
-  // action gives it (push and view, the actions M4 builds, have no handler in M3, so they
-  // are refused unknown_action, §4.2), so it is built: 'M4', and M4, which builds them,
-  // either refuses with it or removes it; m3-backbone plants a handler that returns it, to
-  // show its refusal and sentence.
+  // (ready true). not_built is the code of an action whose rules a later part builds: no
+  // action gives it (push, reserved, has no handler, so it is refused unknown_action, and
+  // view, whose handler M4's skeleton defined, is refused no_centrepiece until M4 builds
+  // viewing, §4.2), so it is built: 'M4', and M4 removes it; m3-backbone plants a handler
+  // that returns it, to show its refusal and sentence.
   for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
     'not_built', 'no_use']) R.define('REFUSALS', code, code === 'not_built' ? { built: 'M4', ready: 'unit', tests: ['m3-backbone.test.js'], inv: 'system' }
     : { ready: true, tests: ['m3-backbone.test.js', 'behaviour/refusals.test.js'], inv: 'system' });
