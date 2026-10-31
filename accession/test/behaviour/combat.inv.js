@@ -114,10 +114,19 @@ module.exports = C => {
       // tile the moment before the step (Specials.marks, which the view model draws), a beam
       // sent back included; and a beam's damage is the reflector's exactly on the tiles its
       // mark says it reaches only on its way back from that reflector (telegraph.via).
+      // A due line (M4, §8.1) goes off at a turn boundary, so it may be marked and go off
+      // within one long action of yours: it must then have been warned of instead, by the
+      // threat of the action you took (Specials.threat, its line due at that tick, the same
+      // number); and one shown before your action must have been warned of as well.
       id: 'combat_special_shown',
-      check(pre, events) {
-        let marks = null;
-        for (const e of events) {
+      check(pre, events, post, ctx) {
+        let marks = null, warned = null;
+        const warning = () => {
+          if (warned === null) { const t = ctx && ctx.action ? Specials.threat(pre, ctx.action) : null; warned = t ? [t].concat(t.more || []) : []; }
+          return warned;
+        };
+        for (let n = 0; n < events.length; n++) {
+          const e = events[n];
           if (e.k !== 'damaged' || !ownerOf(e.cause)) continue;
           const c = e.cause, owner = ownerOf(c), o = byUid(pre, owner), tel = o && o.telegraph;
           const i = tel ? tel.tiles.findIndex(t => t[0] === c.x && t[1] === c.y) : -1;
@@ -125,6 +134,16 @@ module.exports = C => {
           if (i >= 0 && (c.k === 'reflected') !== (via !== null)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y} as ${c.k}${c.k === 'reflected' ? ` by ${c.by}` : ''}, but its mark there was ${via ? `sent back by ${via}` : 'on its way out'}`;
           if (c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
           if (e.who !== 'you') continue;
+          // Whether this was a due line: shown before the step with its due tick, or marked
+          // during the step as one (its telegraphed event's cause.due).
+          const marked = events.slice(0, n).filter(t => t.k === 'telegraphed' && t.who === owner && t.cause && t.cause.k === 'special').pop();
+          const due = marked ? (Number.isInteger(marked.cause.due) ? marked.cause.due : null) : tel && Number.isInteger(tel.due) ? tel.due : null;
+          if (due !== null) {
+            const w = warning().find(h => h.by === owner && h.due === due && h.x === c.x && h.y === c.y);
+            if (!w) return `${owner}'s ${c.sp}, a line due at ${due}, struck you at ${c.x},${c.y}, and the threat of your action did not warn of it`;
+            if (w.dmg !== e.amount) return `${owner}'s ${c.sp} was warned of as ${w.dmg} at ${c.x},${c.y} and dealt ${e.amount}`;
+            if (marked) continue;
+          }
           marks = marks || Specials.marks(pre);
           const m = marks.find(k => k.kind === 'telegraph' && k.by === owner && k.x === c.x && k.y === c.y);
           if (!m) return `${owner}'s ${c.sp} struck you at ${c.x},${c.y}, which no mark showed`;

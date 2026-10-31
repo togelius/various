@@ -79,9 +79,13 @@
     return Text.tiles(n);
   };
   Text.define('telegraphed', (e, w) => `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}.`);
+  // When it goes off: at its owner's next action, or, for a due line (cause.due, the tick of
+  // the turn boundary it goes off at, §8.1), in the turns until that boundary.
+  const turns = n => n === 1 ? '1 turn' : `${n} turns`;
+  const when = e => isInt(e.cause.due) ? `in ${turns(Int.idiv(e.cause.due, N.TICKS_PER_TURN) - Int.idiv(e.tick, N.TICKS_PER_TURN))}` : 'at its next action';
   Text.defineCause('telegraphed', 'special', (e, w) => isInt(e.cause.gross) && e.cause.gross > 0
-    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, at its next action.`
-    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, at its next action.`);
+    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, ${when(e)}.`
+    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, ${when(e)}.`);
   // Whom a damage special struck: you, and how many exhibits (never their names, since some
   // may be out of your sight).
   const struck = hits => {

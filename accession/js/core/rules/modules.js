@@ -4,7 +4,9 @@
 //                                    event a module emits from it goes through Causes.emit
 //                                    again and lands after e (M4 states the re-entry rule)
 //   Modules.alarmDecay(state, ev)    turn boundary step 7 (§8.1)
-//   Modules.turn(state, ev)          turn boundary step 8, the module turn rules
+//   Modules.turn(state, ev)          turn boundary step 8, the module turn rules; it first sets
+//                                    off the due lines whose boundary this is
+//                                    (Specials.resolveDue, M4's W0d2: §8.1's due lines)
 // M4's skeleton added the rest with their signatures and neutral bodies, so the core can ask
 // them before W0e fills them (W0d1 routes the core's calls to them):
 //   Modules.on(state, id) → bool             is module id present in the visit and not switched off
@@ -23,7 +25,7 @@
 const Modules = (() => {
   function onEvent(state, e, ev) {}
   function alarmDecay(state, ev) {}
-  function turn(state, ev) {}
+  function turn(state, ev) { Specials.resolveDue(state, ev); }
   // W0e fills: is module id present in the visit and not in rulesOff?
   function on(state, id) { return false; }
   // W0e fills (M5 wires it): the ids of the pack's modules to switch off, given those met.

@@ -47,7 +47,8 @@
   // A death carries the killing cause, as the damage did.
   R.defineCause('died', 'attack', { fields: blow });
   R.defineCause('died', 'special', { fields: special });
-  R.defineCause('telegraphed', 'special', { fields: { by: 'uid', sp: 'str', gross: 'int', every: 'int?' } });
+  // A mark's cause: due is the tick of the turn boundary a due line goes off at (§8.1, M4).
+  R.defineCause('telegraphed', 'special', { fields: { by: 'uid', sp: 'str', gross: 'int', every: 'int?', due: 'int?' } });
   R.defineCause('special', 'special', { fields: { by: 'uid', sp: 'str' } });
   R.defineCause('special', 'cancel', { fields: { by: 'uid', why: 'str' } });
   R.defineCause('waited', 'action', { fields: { how: 'str' } });
