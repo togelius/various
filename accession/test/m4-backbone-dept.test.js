@@ -57,8 +57,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // M3's starting state, hashed at W0c's base (a33bbd7) as Dept.create(1, acc, depth) made it.
   // A package that changes a department's start on purpose re-pins these with its reason, as
-  // it does the golden runs.
-  const M3_START = { 'S9/2': 2432457489, 'S9/5': 3437461748, 'A4/2': 4034716962, 'A4/5': 1349062711, 'M11/2': 324451422, 'M11/5': 690195461 };
+  // it does the golden runs. Re-pinned by D-INTRO-GEN: layout version 3 grows the Intro to its
+  // stamp, so every department's plan, and so its start, moves.
+  const M3_START = { 'S9/2': 1266330469, 'S9/5': 2577597585, 'A4/2': 1896667028, 'A4/5': 1024964630, 'M11/2': 2845619567, 'M11/5': 479322793 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' });
@@ -131,9 +132,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       // The oracle: the room of each tile you stand on, once, from the department's own map.
       const stood = () => { const y = s.actors[0], id = m.roomOf[y.y][y.x]; if (m.rooms.some(r => r.id === id) && !oracle.includes(id)) oracle.push(id); };
       stood();
+      // The walk takes, in a turning order, the first move onto a tile not yet stood on, else
+      // the turning order's move, so it leaves the Intro's vestibule (layout version 3).
+      const been = new Set();
       for (let i = 0; i < 600 && !s.over; i++) {
-        const moves = Step.legal(s).filter(a => a.a === 'move');
-        Step.step(s, moves.length ? moves[(i * 7919 + (i >> 3)) % moves.length] : { a: 'wait' });
+        const moves = Step.legal(s).filter(a => a.a === 'move'), you = s.actors[0], k0 = (i * 7919 + (i >> 3)) % Math.max(1, moves.length);
+        been.add(you.y * m.w + you.x);
+        const fresh = moves.map((_, k) => moves[(k0 + k) % moves.length]).find(mv => !been.has((you.y + Grid.DY[mv.dir]) * m.w + you.x + Grid.DX[mv.dir]));
+        Step.step(s, fresh || (moves.length ? moves[k0] : { a: 'wait' }));
         stood();
         eq(Dept.walked(s), oracle, `${acc}, after step ${i + 1}`);
       }
@@ -151,7 +157,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     eq([once.attempt, once.fallback, once.tries[0]], [1, false, [{ id: 'planted', why: 'planted', tiles: [[1, 1]] }]]);
     const never = Layout.generate(P, 0, seed, { acc, depth, accept: () => ({ id: 'planted', reason: 'never', tiles: [] }) });
     eq([never.attempt, never.fallback, never.tries.length, never.rejected], [5, true, 5, { id: 'planted', why: 'never', tiles: [] }]);
-    const certified = Layout.fallback(P, 0).L.G.rows();
+    const certified = Layout.fallback(P, 0, { acc }).L.G.rows();
     eq(never.plan.tiles, certified);
     assert.equal(Layout.generate(P, 0, seed, { acc, depth }).rejected, undefined, 'no accept, no answer kept');
     // Through Dept.create, with validators registered as their files register them.

@@ -152,9 +152,11 @@ for (const [w, h] of SIZES) {
     await browser.close();
   }
 }
-// A far exhibit's label (a fixed frame): in A.4, seed 7, at the 48-px zoom, from (5,5), the
-// bust at (4,17) is in sight 12 rows south. Its label open, you and it cannot both fit above
-// the sheet: you stay in view and it is on the board or marked at its edge.
+// A far exhibit's label (a fixed frame): in A.4, seed 7, at the 48-px zoom, from (9,4), east of
+// the Intro's partition (layout version 3), an exhibit of the band room below is in sight 11
+// rows south. Its label open, you and it cannot both fit above the sheet: you stay in view and
+// it is on the board or marked at its edge. The walk there plans again after every step, since
+// a step into the partition's closed door opens it and leaves you where you were.
 const registered = await (async () => {
   const { browser, page } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: '?orient=0&dept=A4&seed=7' });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
@@ -169,9 +171,13 @@ for (const view of registered) {
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
   const frame = await page.evaluate(() => {
     const A = window.ACCESSION; A.setZoom(1);
-    for (const [x, y] of Path.to(A.state, 5, 5)) { const me = A.state.actors[0]; A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], [x, y]) }); }
+    for (let k = 0; k < 40; k++) {
+      const me = A.state.actors[0], p = me.x === 9 && me.y === 4 ? [] : Path.to(A.state, 9, 4);
+      if (!p.length) break;
+      A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], p[0]) });
+    }
     const me = A.state.actors[0], a = A.vm().actors.find(q => q.uid !== 'you' && q.y - me.y >= 7);
-    if (!a || me.x !== 5 || me.y !== 5) return null;
+    if (!a || me.x !== 9 || me.y !== 4) return null;
     A.tap({ x: a.x, y: a.y });
     return a.uid;
   });

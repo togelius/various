@@ -14,15 +14,28 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const json = JSON.stringify, same = (a, b, m) => assert.equal(json(a), json(b), m);
   const OPEN = ['############', '#..........#', '#..........#', '#..........#', '#..........#', '#..........#', '############'];
   const DEPTS = ['S9', 'A4', 'M11'];
-  // A walk through a department: each step the first legal move toward the far side, else a
-  // wait, so the view model is tried in many rooms. Your health is kept high.
+  // A walk through a department: each step the legal move toward the far side (onto a tile not
+  // yet stood on if there is one, then the farthest walk from the entrance; ties in a turning
+  // order), else a wait, so the view model is tried in many rooms, past the Intro's vestibule
+  // and its door (layout version 3). Your health is kept high.
   function walk(s, n, fn) {
     s.actors[0].hp = s.actors[0].maxHp = 999;
     let last = [];
+    const m = s.dept, at = (x, y) => y * m.w + x, far = new Map([[at(m.entrance[0], m.entrance[1]), 0]]), q = [m.entrance], been = new Set();
+    for (let h = 0; h < q.length; h++) {
+      const [x, y] = q[h];
+      for (let d = 0; d < 8; d++) { const k = at(x + Grid.DX[d], y + Grid.DY[d]); if (!far.has(k) && Grid.canStep(m, x, y, d)) { far.set(k, far.get(at(x, y)) + 1); q.push([x + Grid.DX[d], y + Grid.DY[d]]); } }
+    }
     for (let i = 0; i < n && !s.over; i++) {
       fn(ViewModel.derive(s, { events: last }), last, i);
-      const legal = Step.legal(s), moves = legal.filter(a => a.a === 'move');
-      last = Step.step(s, moves.length ? moves[(i * 7 + 3) % moves.length] : { a: 'wait' });
+      const you = s.actors[0], moves = Step.legal(s).filter(a => a.a === 'move');
+      been.add(at(you.x, you.y));
+      let pick = null, best = -1;
+      for (let k = 0; k < moves.length; k++) {
+        const mv = moves[(i * 7 + 3 + k) % moves.length], t = at(you.x + Grid.DX[mv.dir], you.y + Grid.DY[mv.dir]), score = (been.has(t) ? 0 : 10000) + (far.get(t) || 0);
+        if (score > best) { best = score; pick = mv; }
+      }
+      last = Step.step(s, pick || { a: 'wait' });
     }
   }
   const seenNow = s => Vision.visible(s);

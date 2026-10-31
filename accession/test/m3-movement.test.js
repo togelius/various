@@ -171,7 +171,9 @@ module.exports = ({ test, assert, loadCore }) => {
         for (let i = 0; i < 18 && a.mode === 'awake'; i++) {
           Step.step(t, { a: 'wait' });
           if (a.mode !== 'awake') break;
-          assert.equal(m.roomOf[a.y][a.x], rid, `${acc}: it stands in its room at ${a.x},${a.y}`);
+          // It walks to tiles of its room by shortest walks (§8.2), which may cross a doorway in
+          // the room's own wall (room 0) when that is as short; it never stands in another room.
+          assert.ok(m.roomOf[a.y][a.x] === rid || m.roomOf[a.y][a.x] === 0, `${acc}: it stands in its room, or a doorway of it, at ${a.x},${a.y}`);
           if (a.target) assert.equal(m.roomOf[a.target[1]][a.target[0]], rid, `${acc}: it wanders to its room`);
           checks++;
         }
