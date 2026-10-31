@@ -198,7 +198,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       adjust: (s, action, t, ev, r) => (action.a === 'move' ? { r: 0, why: 'planted_a' } : null), charge: (s, r) => ({ left: r }),
     });
     P.add('planted_b', {
-      ringDelta: (s, r) => -10 * r, loseTrack: (s, a, r) => null, openCost: (s, base, r) => base * 2, padding: (s, r) => 1,
+      ringDelta: (s, r) => -10 * r, loseTrack: (s, a, r) => (a === s.actors[1] ? 5 : null), openCost: (s, base, r) => base * 2, padding: (s, r) => 1,
       afterStep: (s, a, from, ev, r) => calls.push(['b', a.uid, from, r]), onLow: (s, who, before, ev, r) => calls.push(['b low', who.uid, before, r]),
       onLoseTrack: (s, a, ev, r) => { calls.push(['b search', a.uid, r]); ev.push({ k: 'planted', who: a.uid }); },
       onResolve: (s, a, tel, struck, ev, r) => calls.push(['b resolve', a.uid, tel.id, struck, r]), surprise: (s, att, def, r) => def.uid === 'x',
@@ -214,6 +214,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(P.rank(s, 'planted_a'), 2); assert.equal(P.rank(s, 'planted_c'), 0); assert.equal(P.rank(s, 'not_added'), 1);
     assert.equal(P.ringDelta(s), -2 - 10);
     assert.equal(P.loseTrack(s, a), 3, 'the fewest turns any hook gives');
+    assert.equal(P.loseTrack(s, s.actors[2]), 3, 'a hook that gives null says nothing');
+    s.run.perks = [{ id: 'planted_b', rank: 1 }];
+    assert.equal(P.loseTrack(s, a), 5, 'one hook\'s turns stand');
+    assert.equal(P.loseTrack(s, s.actors[2]), C.N.LOSE_TRACK_TURNS, 'no hook said anything');
+    s.run.perks = [{ id: 'planted_b', rank: 1 }, { id: 'planted_a', rank: 2 }, { id: 'not_added', rank: 1 }];
     assert.equal(P.openCost(s, 200), (200 - 100) * 2, 'chained in the order added');
     assert.equal(P.openQuiet(s), true); assert.equal(P.lockBonus(s), 2); assert.equal(P.padding(s), 5);
     const lostEv = [];
