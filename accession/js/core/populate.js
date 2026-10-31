@@ -119,6 +119,7 @@ const Populate = (() => {
     const fields = (what, rec, allowed) => { for (const k of Object.keys(rec)) if (!allowed.includes(k)) out.push(`${what} has the unknown field ${k}`); };
     // An exhibit's own options, wherever it is named (a gallery entry or the legend).
     const options = (what, e, sp) => {
+      if ((sp.size || 1) !== 1) out.push(`${what}: ${sp.id} is ${sp.size} tiles across, and population places one-tile exhibits (a Centrepiece by its own rule)`);
       if (e.guards !== undefined && !(e.guards === 'case' && arch(sp) === 'tethered_warden')) out.push(`${what}: guards is 'case', and only for a tethered_warden`);
       if (e.dir !== undefined && !(LINE_DIRS.includes(e.dir) && arch(sp) === 'demonstrator')) out.push(`${what}: dir is one of ${LINE_DIRS.join(', ')}, and only for a demonstrator`);
     };
@@ -149,7 +150,7 @@ const Populate = (() => {
         if (!Number.isInteger(n) || n < 1) out.push(`${at}: the count of ${sp.id} is not a whole number of 1 or more`);
         if (e.case !== undefined && e.case !== true) out.push(`${at}: case is true or absent`);
         if (e.near !== undefined && e.near !== 'case') out.push(`${at}: near is 'case' or absent`);
-        if (e.case === true && (arch(sp) === 'mimic_vitrine' || (sp.size || 1) !== 1)) out.push(`${at}: ${sp.id} cannot stand in a case (a mimic is its own case; a case holds one tile)`);
+        if (e.case === true && arch(sp) === 'mimic_vitrine') out.push(`${at}: ${sp.id} cannot stand in a case (a mimic is its own case)`);
         if (arch(sp) === 'mimic_vitrine' && g.key === 'centre') out.push(`${at}: no mimic stands in the Centrepiece hall`);
         options(at, e, sp);
         if (sp.group) bodies[sp.group] = (bodies[sp.group] || 0) + (Number.isInteger(n) ? n : 0);
@@ -232,23 +233,27 @@ const Populate = (() => {
     return by;
   }
 
-  // Would a case on (x, y) cut any tile off from the entrance, or leave a case with no tile
-  // beside it to stand on (layout's LV1 and LV10, run again for a mimic's disguise, plan
-  // DE8)? reach is the walking distances from the entrance as the department stands.
-  function cuts(m, x, y, reach) {
-    const was = m.tiles[y];
-    m.tiles[y] = was.slice(0, x) + 'v' + was.slice(x + 1);
+  // Would a case on (x, y), with the disguises of the mimics already placed (each a case on its
+  // tile, [[x, y]…]), cut any tile off from the entrance, or leave a case with no tile beside
+  // it to stand on (layout's LV1 and LV10, run again for a mimic's disguise, plan DE8)? reach
+  // is the walking distances from the entrance as the department stands before any disguise.
+  // The disguises are made at the mimics' init, after population, so they are counted
+  // together here: two mimics that each cut nothing alone may close a passage between them.
+  function cuts(m, x, y, reach, disguises) {
+    const all = (disguises || []).concat([[x, y]]), rows = all.map(([, ty]) => [ty, m.tiles[ty]]);
+    for (const [tx, ty] of all) m.tiles[ty] = m.tiles[ty].slice(0, tx) + 'v' + m.tiles[ty].slice(tx + 1);
     const d = Grid.distances(m, [m.entrance], 99999);
-    m.tiles[y] = was;
-    for (let i = 0; i < d.length; i++) if (reach[i] >= 0 && d[i] < 0 && i !== y * m.w + x) return true;
-    for (let k = -1; k < 8; k++) {
+    let cut = false;
+    for (let i = 0; i < d.length && !cut; i++) if (reach[i] >= 0 && d[i] < 0 && !all.some(([tx, ty]) => i === ty * m.w + tx)) cut = true;
+    for (let k = -1; k < 8 && !cut; k++) {
       const cx = k < 0 ? x : x + Grid.DX[k], cy = k < 0 ? y : y + Grid.DY[k];
       if (!(k < 0 || Grid.ch(m, cx, cy) === 'v')) continue;
       let ok = false;
-      for (let j = 0; j < 8 && !ok; j++) { const nx = cx + Grid.DX[j], ny = cy + Grid.DY[j]; if (Grid.inside(m, nx, ny) && !(nx === x && ny === y) && d[ny * m.w + nx] >= 0) ok = true; }
-      if (!ok) return true;
+      for (let j = 0; j < 8 && !ok; j++) { const nx = cx + Grid.DX[j], ny = cy + Grid.DY[j]; if (Grid.inside(m, nx, ny) && d[ny * m.w + nx] >= 0) ok = true; }
+      if (!ok) cut = true;
     }
-    return false;
+    for (let i = rows.length - 1; i >= 0; i--) m.tiles[rows[i][0]] = rows[i][1];
+    return cut;
   }
 
   // Populate.takeOk(state, x, y): may a tethered_warden guard (x, y) with something there to
@@ -282,8 +287,12 @@ const Populate = (() => {
 
   // Place the exhibits of a pack's gallery list (§5.5), and return null when every one stood
   // where its list says, or why not, {reason, tiles}, which fails the layout attempt (Dept.create
-  // takes it as the rejection `population`). log, given, gets a line for each thing worth
-  // knowing that is no fault ({check: 'population', room, op}).
+  // takes it as the rejection `population`): the first exhibit that could not be placed. log,
+  // given, gets a line for each thing worth knowing ({check: 'population', room, op}), and one
+  // for every exhibit not placed, saying why. An exhibit that cannot be placed never stops the
+  // rest: every other one is still placed and fixed (its round, line or guarded case), so a
+  // certified fallback taken despite the rejection holds every exhibit that fits, and its log
+  // names each one that does not.
   function fromGalleries(state, plan, pack, base, log) {
     const problems = check(pack);
     if (problems.length) throw new Error(`Populate: ${pack.acc}'s gallery list is not sound:\n${problems.join('\n')}`);
@@ -298,12 +307,28 @@ const Populate = (() => {
     const counts = {}, holder = { seed: state.seed, rng: {} }, claimed = new Set(), placed = [], instances = new Map();
     // The rules every exhibit's tile keeps (A10): beyond the safe zone; off the Centrepiece's
     // footprint; never within RING_STILL + 1 walking tiles of the hall's reading tile.
-    const keeps = (x, y) => {
-      const d = dist(reach, x, y);
+    const keeps = (x, y, as) => {
+      const d = (as || dist)(reach, x, y);
       if (d < 0 || d <= N.SAFE_ZONE) return false;
       if (plan.tiles[y][x] === 'C') return false;
-      if (view) { const v = dist(view, x, y); if (v >= 0 && v <= N.RING_STILL + 1) return false; }
+      if (view) { const v = (as || dist)(view, x, y); if (v >= 0 && v <= N.RING_STILL + 1) return false; }
       return true;
+    };
+    // The walking distance to (x, y) once a case stands there, as a mimic's disguise will
+    // (§8.2: 1 + the distance of its nearest neighbour you could step onto, a diagonal past a
+    // corner included), from distances d on the map before it. It can be shorter than the
+    // floor tile's own (a tile round a doorway's corner), so a mimic's tile keeps the rules
+    // above as the case it becomes. Disguises only lengthen other ways, so this never
+    // understates the distance in the department as it is made.
+    const asCase = (d, x, y) => {
+      let best = -1;
+      for (let k = 0; k < 8; k++) {
+        const nx = x + Grid.DX[k], ny = y + Grid.DY[k];
+        if (!Grid.walkable(m, nx, ny)) continue;
+        const v = d[ny * m.w + nx];
+        if (v >= 0 && (best < 0 || v + 1 < best)) best = v + 1;
+      }
+      return best;
     };
     // Each room's floor tiles the rules keep, row-major, found once (no tile changes while
     // exhibits are placed); and which tiles an actor already covers (occ, by tile index).
@@ -346,12 +371,11 @@ const Populate = (() => {
       return null;
     };
 
-    // The tiles of one set an exhibit may take: on no one, and as far from every exhibit as
-    // the set allows (3 or more tiles, else 2, else 1, Chebyshev).
-    const spread = tiles => {
+    // The tiles of one set an exhibit may take, by spacing: those on no one at least 3 tiles
+    // from every exhibit, then at least 2, then at least 1 (Chebyshev); the empty levels left out.
+    const levels = tiles => {
       const free = tiles.filter(([x, y]) => !covered(x, y));
-      for (const gap of [3, 2, 1]) { const pool = free.filter(([x, y]) => spaced(x, y, gap)); if (pool.length) return pool; }
-      return [];
+      return [3, 2, 1].map(gap => free.filter(([x, y]) => spaced(x, y, gap))).filter(p => p.length);
     };
     // A guarded case nearest (x, y) of nests (squared distance, then row-major).
     const nearest = (nests, x, y) => {
@@ -359,43 +383,69 @@ const Populate = (() => {
       return nests.slice().sort((p, q) => (sq(p) - sq(q)) || rowMajor(p, q))[0];
     };
     const nestsIn = tiles => tiles.filter(([x, y]) => m.tiles[y][x] === 'v' && caseOk(Cases.at(state, x, y)) && takeOk(state, x, y));
+    // The tiles the mimics placed so far will take as their disguises (at their init).
+    const disguises = [];
+    // The first exhibit not placed, which the attempt is rejected for; each one is logged.
+    let first = null;
+    const miss = (rm, no, what) => { say(rm, what ? `${no.reason}: ${what}` : no.reason); if (!first) first = no; };
+    // A swarm's further bodies: the nearest tiles to its first of tiles (no draw), or null when
+    // there are too few, checked before its first body stands, so a swarm is never part-made.
+    const rest = (tiles, x, y) => {
+      const near = tiles.filter(([tx, ty]) => !covered(tx, ty) && !(tx === x && ty === y))
+        .sort((p, q) => (Grid.chebyshev(p[0], p[1], x, y) - Grid.chebyshev(q[0], q[1], x, y)) || rowMajor(p, q));
+      return near.length < N.SWARM_BODIES[0] - 1 ? null : near.slice(0, N.SWARM_BODIES[0] - 1);
+    };
 
-    // One exhibit (a swarm's first body) of entry e in room rm, on rm's exhibits stream: the
-    // tiles its option asks for (an empty case, a tile beside a case, a tile within the tether
-    // of a case it could guard), or, when none is left, the room's floor; kept by the rules
-    // above and spread as far as the set allows; one drawn (a mimic: the set shuffled, and the
-    // first whose disguise cuts nothing off). Then a swarm's further bodies on the nearest such
-    // floor tiles to the first (no draw).
+    // One exhibit (a swarm's bodies) of entry e in room rm, on rm's exhibits stream: the tiles
+    // its option asks for (an empty case, a tile beside a case, a tile within the tether of a
+    // case it could guard), or, when none is left, the room's floor; kept by the rules above,
+    // and as far from every exhibit as the set allows: one drawn from the widest level. A mimic
+    // takes only a tile that keeps those rules as the case it becomes and whose disguise cuts
+    // nothing off, counting the mimics placed before it: each level in turn, its tiles shuffled
+    // on the stream, the first that does. Then a swarm's further bodies on the nearest such
+    // floor tiles to the first (no draw). Returns null, or why it could not be placed (nothing
+    // then stands).
     function placeOne(sp, e, rm, gallery) {
       const all = tilesOf.get(rm.id) || [], rng = Rng.stream(holder, `${base}/room/${rm.key}/exhibits`);
+      const swarm = (sp.archetype || 'plodder') === 'mote_swarm';
+      const fits = new Map(), fit = ([x, y]) => {
+        const i = y * m.w + x;
+        if (!fits.has(i)) fits.set(i, keeps(x, y, asCase) && !cuts(m, x, y, reach, disguises));
+        return fits.get(i);
+      };
       const mimic = (sp.archetype || 'plodder') === 'mimic_vitrine';
+      const take = tiles => {
+        const ls = levels(tiles);
+        if (!mimic) return ls.length ? ls[0][rng.int(0, ls[0].length - 1)] : null;
+        for (const pool of ls) { const t = rng.shuffle(pool).find(fit); if (t) return t; }
+        return null;
+      };
       const floor = floorOf(rm);
-      let pool = [], nests = null;
+      let at = null, nests = null;
       if (e.case) {
-        pool = spread(all.filter(([x, y]) => m.tiles[y][x] === 'v' && caseOk(Cases.at(state, x, y)) && keeps(x, y)));
-        if (!pool.length) say(rm, `${sp.id} found no empty case in ${rm.key} and stands on the floor`);
+        at = take(all.filter(([x, y]) => m.tiles[y][x] === 'v' && caseOk(Cases.at(state, x, y)) && keeps(x, y)));
+        if (!at) say(rm, `${sp.id} found no empty case in ${rm.key} and stands on the floor`);
       } else if (e.near === 'case') {
-        pool = spread(floor.filter(([x, y]) => { for (let k = 0; k < 8; k++) if (realCase(Cases.at(state, x + Grid.DX[k], y + Grid.DY[k]))) return true; return false; }));
-        if (!pool.length) say(rm, `${sp.id} found no tile beside a case in ${rm.key} and stands elsewhere in it`);
+        at = take(floor.filter(([x, y]) => { for (let k = 0; k < 8; k++) if (realCase(Cases.at(state, x + Grid.DX[k], y + Grid.DY[k]))) return true; return false; }));
+        if (!at) say(rm, `${sp.id} found no tile beside a case in ${rm.key} and stands elsewhere in it`);
       } else if (e.guards === 'case') {
         nests = nestsIn(all);
-        pool = spread(floor.filter(([x, y]) => nests.some(([gx, gy]) => Grid.disc(x - gx, y - gy, N.TETHER_RANGE))));
-        if (!pool.length) { nests = null; say(rm, `${sp.id} found no case in ${rm.key} it could guard and guards its own tile`); }
+        at = take(floor.filter(([x, y]) => nests.some(([gx, gy]) => Grid.disc(x - gx, y - gy, N.TETHER_RANGE))));
+        if (!at) { nests = null; say(rm, `${sp.id} found no case in ${rm.key} it could guard and guards its own tile`); }
       }
-      if (!pool.length) pool = spread(floor);
-      let at = null;
-      if (mimic) { rng.shuffle(pool); at = pool.find(([x, y]) => !cuts(m, x, y, reach)) || null; }
-      else if (pool.length) at = pool[rng.int(0, pool.length - 1)];
-      if (!at) return { reason: `no tile in room ${rm.key} could take ${sp.id} (${(pack.galleries[gallery] || {}).name || 'its gallery'})`, tiles: [[rm.x0, rm.y0], [rm.x1, rm.y1]] };
-      if (m.tiles[at[1]][at[0]] === 'v') claimed.add(at[0] + ',' + at[1]);
+      if (!at) at = take(floor);
+      const name = (pack.galleries[gallery] || {}).name || 'its gallery';
+      if (!at) return { reason: `no tile in room ${rm.key} could take ${sp.id} (${name})`, tiles: [[rm.x0, rm.y0], [rm.x1, rm.y1]] };
+      const more = swarm ? rest(floor, at[0], at[1]) : [];
+      if (!more) return { reason: `room ${rm.key} has no room for the rest of the swarm ${sp.id} (${name})`, tiles: [at] };
       const opts = e.dir ? { dir: e.dir } : {};
-      if (nests) { const g = nearest(nests, at[0], at[1]); claimed.add(g[0] + ',' + g[1]); opts.guards = g; }
+      if (nests) opts.guards = nearest(nests, at[0], at[1]);
       const no = spawn(sp, at, rm, gallery, opts);
       if (no) return no;
-      if ((sp.archetype || 'plodder') !== 'mote_swarm') return null;
-      const near = floor.filter(([x, y]) => !covered(x, y)).sort((p, q) => (Grid.chebyshev(p[0], p[1], at[0], at[1]) - Grid.chebyshev(q[0], q[1], at[0], at[1])) || rowMajor(p, q));
-      if (near.length < N.SWARM_BODIES[0] - 1) return { reason: `room ${rm.key} has no room for the rest of the swarm ${sp.id}`, tiles: [at] };
-      for (const t of near.slice(0, N.SWARM_BODIES[0] - 1)) { const n2 = spawn(sp, t, rm, gallery, {}); if (n2) return n2; }
+      if (m.tiles[at[1]][at[0]] === 'v') claimed.add(at[0] + ',' + at[1]);
+      if (opts.guards) claimed.add(opts.guards[0] + ',' + opts.guards[1]);
+      if (mimic) disguises.push(at.slice());
+      for (const t of more) spawn(sp, t, rm, gallery, {});
       return null;
     }
 
@@ -407,11 +457,14 @@ const Populate = (() => {
     if (intro) for (const mk of intro.marks) {
       const e = legend && own(legend, mk.ch) ? legend[mk.ch] : null, sp = e && e.sp !== undefined ? (pack.species || []).find(s => s.id === e.sp) : null;
       if (!sp) continue;
-      const rm = roomById(m.roomOf[mk.y][mk.x]);
+      const rm = roomById(m.roomOf[mk.y][mk.x]), at = [[mk.x, mk.y]];
       if (!ready(sp)) { say(rm, `${sp.id} (stamp ${mk.ch}) is not placed: its archetype, a modifier or its trigger is not ready`); continue; }
-      if (!Grid.hold(m, mk.x, mk.y) || covered(mk.x, mk.y)) return { reason: `the stamp's ${mk.ch} at ${mk.x},${mk.y} is no free tile an exhibit can stand on`, tiles: [[mk.x, mk.y]] };
-      const d = dist(reach, mk.x, mk.y);
-      if (d >= 0 && d <= N.SAFE_ZONE) return { reason: `the stamp puts ${sp.id} ${d} walking tiles from the entrance, inside the safe zone (${N.SAFE_ZONE})`, tiles: [[mk.x, mk.y]] };
+      if (!Grid.hold(m, mk.x, mk.y) || covered(mk.x, mk.y)) { miss(rm, { reason: `the stamp's ${mk.ch} at ${mk.x},${mk.y} is no free tile an exhibit can stand on`, tiles: at }, 'not placed'); continue; }
+      const mimic = (sp.archetype || 'plodder') === 'mimic_vitrine', d = (mimic ? asCase : dist)(reach, mk.x, mk.y);
+      if (d >= 0 && d <= N.SAFE_ZONE) { miss(rm, { reason: `the stamp puts ${sp.id} ${d} walking tiles from the entrance, inside the safe zone (${N.SAFE_ZONE})`, tiles: at }, 'not placed'); continue; }
+      if (mimic && cuts(m, mk.x, mk.y, reach, disguises)) { miss(rm, { reason: `the stamp's ${mk.ch} at ${mk.x},${mk.y} would cut a way off as a mimic's case`, tiles: at }, 'not placed'); continue; }
+      const more = (sp.archetype || 'plodder') === 'mote_swarm' ? rest(rm ? floorOf(rm) : [], mk.x, mk.y) : [];
+      if (!more) { miss(rm, { reason: `the Intro has no room for the rest of the swarm ${sp.id}`, tiles: at }, 'not placed'); continue; }
       const opts = e.dir ? { dir: e.dir } : {};
       if (e.guards === 'case') {
         const nests = nestsIn(tilesOf.get(rm ? rm.id : 0) || []).filter(([x, y]) => Grid.disc(x - mk.x, y - mk.y, N.TETHER_RANGE));
@@ -419,37 +472,38 @@ const Populate = (() => {
         else say(rm, `${sp.id} (stamp ${mk.ch}) found no case it could guard and guards its own tile`);
       }
       const no = spawn(sp, [mk.x, mk.y], rm, -1, opts);
-      if (no) return no;
-      if ((sp.archetype || 'plodder') === 'mote_swarm') {
-        const near = (rm ? floorOf(rm) : []).filter(([x, y]) => !covered(x, y))
-          .sort((p, q) => (Grid.chebyshev(p[0], p[1], mk.x, mk.y) - Grid.chebyshev(q[0], q[1], mk.x, mk.y)) || rowMajor(p, q));
-        if (near.length < N.SWARM_BODIES[0] - 1) return { reason: `the Intro has no room for the rest of the swarm ${sp.id}`, tiles: [[mk.x, mk.y]] };
-        for (const t of near.slice(0, N.SWARM_BODIES[0] - 1)) { const n2 = spawn(sp, t, rm, -1, {}); if (n2) return n2; }
-      }
+      if (no) { miss(rm, no, 'not placed'); continue; }
+      if (mimic) disguises.push([mk.x, mk.y]);
+      for (const t of more) spawn(sp, t, rm, -1, {});
     }
 
     // Each gallery, in the pack's order, in the room it maps to: its entries in order, each
-    // as many times as its count. Its room keeps the gallery's index (dept.rooms[].galleries).
+    // as many times as its count; an entry one of whose exhibits cannot be placed places no
+    // more of them (the log says how many are missing), and the next entry goes on. Its room
+    // keeps the gallery's index (dept.rooms[].galleries).
     const map = mapping(plan, pack);
     for (let i = 0; i < map.length; i++) {
       const g = pack.galleries[i], rm = roomById(map[i].room);
-      if (!rm) { say(null, `${g.name} (${g.key}) has no room in this plan`); continue; }
+      const exhibitsIn = g.contents.filter(e => e.item === undefined).length;
+      if (!rm) { say(null, `${g.name} (${g.key}) has no room in this plan${exhibitsIn ? ', so its exhibits are not placed' : ''}`); continue; }
       if (!rm.galleries) rm.galleries = [];
       rm.galleries.push(i);
-      if (map[i].how === 'merged') say(rm, `${g.name} (${g.key}) joins room ${rm.key}`);
-      if (g.key === 'intro' && intro) continue;
+      if (g.where && map[i].how !== 'where') say(rm, `${g.name} (${g.key}) names ${g.where}, which no section left has in this plan, and ${map[i].how === 'merged' ? 'joins' : 'takes'} room ${rm.key}`);
+      else if (map[i].how === 'merged') say(rm, `${g.name} (${g.key}) joins room ${rm.key}`);
+      if (g.key === 'intro' && intro) { if (exhibitsIn) say(rm, `${g.name} (intro): the stamp places the Intro's exhibits, not its gallery`); continue; }
       for (const e of g.contents) {
         if (e.item !== undefined) continue;
-        const sp = (pack.species || []).find(s => s.id === e.sp);
+        const sp = (pack.species || []).find(s => s.id === e.sp), n = e.count === undefined ? 1 : e.count;
         if (!ready(sp)) { say(rm, `${sp.id} (${g.name}) is not placed: its archetype, a modifier or its trigger is not ready`); continue; }
-        for (let k = 0; k < (e.count === undefined ? 1 : e.count); k++) { const no = placeOne(sp, e, rm, i); if (no) return no; }
+        for (let k = 0; k < n; k++) { const no = placeOne(sp, e, rm, i); if (no) { miss(rm, no, `${n - k} of ${n} not placed`); break; } }
       }
     }
 
     // What placement fixes with no draw, once every exhibit stands: a station's line (route
     // {dir}), a Wader's round (route {posts, i}: the free tiles nearest its room's corners,
     // north-west, north-east, south-east, south-west, each once, starting at the post nearest
-    // it), and what a warden guards.
+    // it), and what a warden guards. A Wader whose room gives it fewer than two posts keeps no
+    // round (route null), which the log says.
     for (const { a, rm, opts } of placed) {
       if (opts.guards) a.guards = opts.guards.slice();
       if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(m, a) };
@@ -461,12 +515,12 @@ const Populate = (() => {
         for (const t of free) if (!best || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(best[0], best[1], cx, cy)) best = t;
         if (best && !posts.some(p => p[0] === best[0] && p[1] === best[1])) posts.push(best.slice());
       }
-      if (posts.length < 2) return { reason: `room ${rm.key} has no round for ${a.uid}`, tiles: [[a.x, a.y]] };
+      if (posts.length < 2) { miss(rm, { reason: `room ${rm.key} has no round for ${a.uid}`, tiles: [[a.x, a.y]] }, 'it keeps none'); continue; }
       let i = 0;
       for (let k = 1; k < posts.length; k++) if (Grid.chebyshev(posts[k][0], posts[k][1], a.x, a.y) < Grid.chebyshev(posts[i][0], posts[i][1], a.x, a.y)) i = k;
       a.route = { posts, i };
     }
-    return null;
+    return first;
   }
 
   // Place the pack's exhibits (§5.5): from its gallery list when it has one, else the

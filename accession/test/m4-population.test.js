@@ -399,7 +399,8 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('Populate.check names every fault of a gallery list and of the stamp\'s exhibits, and population refuses such a pack', () => {
     const X = loadCore(), A4 = X.Packs.get('A4'), S9 = X.Packs.get('S9');
-    const with4 = galleries => Object.assign({}, A4, { galleries });
+    const big = Object.assign({}, A4.species.find(sp => sp.id === 'A4.3'), { id: 'A4.big', size: 2 });
+    const with4 = galleries => Object.assign({}, A4, { galleries, species: A4.species.concat([big]) });
     const ok = [{ key: 's1', name: 'Fine', contents: [{ sp: 'A4.1', case: true }, { sp: 'A4.1a', count: 2 }] }];
     assert.equal(json(X.Populate.check(with4(ok))), '[]');
     const plants = [
@@ -416,6 +417,7 @@ module.exports = ({ test, assert, loadCore }) => {
       [[{ key: 's1', name: 'x', contents: [{ sp: 'A4.3', guards: 'case' }] }], 'guards is \'case\', and only for a tethered_warden'],
       [[{ key: 's1', name: 'x', contents: [{ sp: 'A4.3', dir: 'E' }] }], 'dir is one of N, E, S, W, and only for a demonstrator'],
       [[{ key: 's1', name: 'x', contents: [{ item: 'A4.99' }] }], 'names "A4.99", which is no item of A4'],
+      [[{ key: 's1', name: 'x', contents: [{ sp: 'A4.big' }] }], 'A4.big is 2 tiles across, and population places one-tile exhibits'],
     ];
     for (const [galleries, want] of plants) {
       const got = X.Populate.check(with4(galleries));
@@ -467,6 +469,7 @@ module.exports = ({ test, assert, loadCore }) => {
       for (const a of inIntro) if (a.sp === 'M11.2') assert.equal(json(a.route), json({ dir: 'W' }), 'the legend gives the station its direction');
       assert.equal(json(inIntro.map(a => a.uid)), json(inIntro.map((a, i) => `M11.${depthOf(seed)}.intro.${i + 1}`)));
       assert.ok(!paths.some(p => p.endsWith('/room/intro/exhibits')), `seed ${seed}: the stamped Intro opens no stream`);
+      assert.ok(out.log.some(l => l.op === 'The First Landing (intro): the stamp places the Intro\'s exhibits, not its gallery'), `seed ${seed}: the log says why`);
       placed += inIntro.length;
     }
     assert.equal(placed, 60);
@@ -497,7 +500,8 @@ module.exports = ({ test, assert, loadCore }) => {
   //   s2, x 22–31: open;
   //   the hall, x 33–44: the Centrepiece's footprint C at 42–43,2–3, the reading tile 37,3;
   //   the coda, a one-tile corridor x 46–53 on row 4, to the exit at 54,4.
-  function handMap() {
+  // edit(t, roomOf), given, redraws tiles first (t[y][x], a character; roomOf[y][x], a room id).
+  function handMap(edit) {
     const w = 55, h = 9, t = Array.from({ length: h }, () => Array(w).fill('#')), roomOf = Array.from({ length: h }, () => Array(w).fill(0));
     const rooms = [];
     const room = (id, key, role, x0, y0, x1, y1) => {
@@ -511,11 +515,13 @@ module.exports = ({ test, assert, loadCore }) => {
     t[2][14] = '#'; t[2][16] = '#'; roomOf[2][14] = 0; roomOf[2][16] = 0;
     for (const [x, y] of [[42, 2], [43, 2], [42, 3], [43, 3]]) t[y][x] = 'C';
     t[4][0] = 'E'; t[4][10] = '.'; t[4][21] = ','; t[4][32] = ','; t[4][45] = ','; t[4][54] = 'X';
+    if (edit) edit(t, roomOf);
     return { w, h, tiles: t.map(r => r.join('')), roomOf, rooms };
   }
-  function hand(galleries, seed) {
-    const X = loadCore(), { w, h, tiles, roomOf, rooms } = handMap();
-    const plan = { programme: 'enfilade', pin: 2, w, h, tiles, rooms, roomOf, entrance: [0, 4], exits: [[54, 4]], cpl: [42, 2], lectern: null, viewTile: [37, 3], ltour: 60, tourOrder: [1, 2, 3, 4], intro: null };
+  // opts: edit (above); intro, a plan.intro, with legend, the stamp legend it reads.
+  function hand(galleries, seed, opts = {}) {
+    const X = loadCore(), { w, h, tiles, roomOf, rooms } = handMap(opts.edit);
+    const plan = { programme: 'enfilade', pin: 2, w, h, tiles, rooms, roomOf, entrance: [0, 4], exits: [[54, 4]], cpl: [42, 2], lectern: null, viewTile: [37, 3], ltour: 60, tourOrder: [1, 2, 3, 4], intro: opts.intro || null };
     const dept = Object.assign({ acc: 'M11', depth: 3, pin: 2, programme: 'enfilade', w, h, tiles: tiles.map(r => r.replace(/C/g, '.')), ltour: 60,
       rooms: rooms.map(r => ({ id: r.id, key: r.key, role: r.role, number: 300 + r.id, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 })), roomOf, entrance: [0, 4], exits: [[54, 4]], lectern: null, viewTile: [37, 3], seen: '' }, X.Setup.deptParts(3));
     const s = X.Setup.base(seed, dept, 1, 4, {}, 3), base = 'layout/M11@2/d3/a0', log = [];
@@ -523,7 +529,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const f of s.dept.fixtures) f.loan = false;
     for (const tb of ['ARCHETYPES', 'MODIFIERS', 'TRIGGERS']) for (const id of M4_READY[tb]) X.Registry[tb][id].ready = 'unit';
     const extra = [...X.Packs.get('S9').species, ...X.Packs.get('A4').species].filter(sp => ['S9.2', 'S9.4', 'S9.5', 'A4.2'].includes(sp.id));
-    const pack = Object.assign({}, X.Packs.get('M11'), { galleries, species: X.Packs.get('M11').species.concat(extra) });
+    const pack = Object.assign({}, X.Packs.get('M11'), { galleries, species: X.Packs.get('M11').species.concat(extra) }, opts.legend ? { intro: { legend: opts.legend } } : {});
     const short = X.Populate.exhibits(s, plan, pack, base, log);
     return { X, s, plan, log, short };
   }
@@ -606,5 +612,97 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(exhibitsOf(s).filter(a => a.y === 4 && a.x >= 46).length, 5);
     // And a ninth has no tile: the attempt fails, saying which.
     assert.equal(hand([{ key: 'coda', name: 'Corridor', contents: [{ sp: 'M11.4', count: 9 }] }], 2).short.reason, 'no tile in room coda could take M11.4 (Corridor)');
+  });
+
+  // ---- Review: mimics, and what a rejected plan still holds ----
+
+  // The tiles cut off from the entrance once every mimic's disguise is made (at its init).
+  const cutOff = (X, s) => {
+    X.Setup.settleActors(s, 1);
+    const m = s.dept, d = X.Grid.distances(m, [m.entrance], 9999), out = [];
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (X.Grid.walkable(m, x, y) && m.roomOf[y][x] && d[y * m.w + x] < 0) out.push([x, y]);
+    if (d[4 * m.w + 54] < 0) out.push([54, 4]);
+    return out;
+  };
+
+  test('on a hand-drawn plan: a mimic keeps the safe zone as the case it becomes, and two mimics never close a passage between them', () => {
+    // A partition across the Intro at column 7, open only at 7,4 (walk 7): 8,3 and 8,5 are 9
+    // walking tiles away round its corner, but as cases 8 (1 + 7,4's walk), inside the safe zone.
+    const partition = t => { for (let y = 1; y <= 7; y++) if (y !== 4) t[y][7] = '#'; };
+    let corner = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const { X, s, short } = hand([{ key: 'intro', name: 'Intro', contents: [{ sp: 'S9.5' }] }], seed, { edit: partition });
+      assert.equal(short, null, `seed ${seed}`);
+      const [mimic] = exhibitsOf(s);
+      X.Setup.settleActors(s, 1);
+      const m = s.dept, d = X.Grid.distances(m, [m.entrance], 9999);
+      assert.equal(m.tiles[mimic.y][mimic.x], 'v', `seed ${seed}: the disguise is made`);
+      assert.ok(X.Grid.reachDist(d, m, mimic.x, mimic.y) > X.N.SAFE_ZONE, `seed ${seed}: the mimic's case at ${mimic.x},${mimic.y} is ${X.Grid.reachDist(d, m, mimic.x, mimic.y)} walking tiles from the entrance`);
+      if (mimic.x === 9 && (mimic.y === 3 || mimic.y === 5)) corner++;
+    }
+    assert.ok(corner > 0, 'the tiles beside the corner ones are taken');
+    // The coda two tiles wide at x 46–48: each tile there cuts nothing off alone (but 46,4, the
+    // only way in, and 48,4, the only way on), yet 47,4 with 47,5 or 46,5 would close it. Two
+    // mimics stand there only where both together leave the way open; after a first on 47,4
+    // there is no such tile, and the attempt is rejected for the second.
+    const wide = (t, roomOf) => { for (let x = 46; x <= 48; x++) { t[5][x] = '.'; roomOf[5][x] = 5; } };
+    let both = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const { X, s, short, log } = hand([{ key: 'coda', name: 'Corridor', contents: [{ sp: 'S9.5', count: 2 }] }], seed, { edit: wide });
+      const at = exhibitsOf(s).map(a => [a.x, a.y]);
+      assert.equal(json(cutOff(X, s)), '[]', `seed ${seed}: the mimics at ${json(at)} cut a way off`);
+      if (short === null) { both++; assert.equal(at.length, 2); continue; }
+      assert.equal(json([short.reason, at]), json(['no tile in room coda could take S9.5 (Corridor)', [[47, 4]]]), `seed ${seed}`);
+      assert.ok(log.some(l => l.op === 'no tile in room coda could take S9.5 (Corridor): 1 of 2 not placed'));
+    }
+    assert.ok(both >= 20, `${both} of 40 hold both`);
+  });
+
+  test('on a hand-drawn plan: a mimic asked to stand beside a case stands elsewhere when every tile beside one would cut it off; a stamp\'s mimic that would cut a way off is not placed', () => {
+    // Without the open case at 19,1, s1's only case is the nook's, whose one tile beside it
+    // (15,2) a mimic would take from it.
+    const nookOnly = t => { t[1][19] = '#'; };
+    for (let seed = 1; seed <= 20; seed++) {
+      const { X, s, log, short } = hand([{ key: 's1', name: 'Nook', contents: [{ sp: 'S9.5', near: 'case' }] }], seed, { edit: nookOnly });
+      assert.equal(short, null, `seed ${seed}: ${short && short.reason}`);
+      const [mimic] = exhibitsOf(s);
+      assert.ok(!(mimic.x === 15 && mimic.y === 2) && mimic.x >= 11 && mimic.x <= 20, `seed ${seed}: ${mimic.x},${mimic.y}`);
+      assert.ok(log.some(l => l.op === 'S9.5 found no tile beside a case in s1 and stands elsewhere in it'), `seed ${seed}`);
+      assert.equal(json(cutOff(X, s)), '[]');
+    }
+    // The stamp's marks: a mimic on 9,4, the Intro's only way on, would cut the rest off; on 9,1 it stands.
+    const intro = (x, y) => ({ intro: { x0: 1, y0: 1, x1: 9, y1: 7, cut: [[1, 4]], marks: [{ ch: 't', x, y }], openings: [] }, legend: { t: { sp: 'S9.5' } } });
+    const cut = hand([{ key: 's2', name: 'Court', contents: [{ sp: 'S9.2' }] }], 1, intro(9, 4));
+    assert.equal(json(cut.short), json({ reason: 'the stamp\'s t at 9,4 would cut a way off as a mimic\'s case', tiles: [[9, 4]] }));
+    assert.equal(json(exhibitsOf(cut.s).map(a => a.sp)), json(['S9.2']), 'the rest is placed');
+    assert.ok(cut.log.some(l => l.op === 'the stamp\'s t at 9,4 would cut a way off as a mimic\'s case: not placed'));
+    const ok = hand([], 1, intro(9, 1));
+    assert.equal(ok.short, null);
+    assert.equal(json(exhibitsOf(ok.s).map(a => [a.sp, a.x, a.y])), json([['S9.5', 9, 1]]));
+    // A section gallery whose element no section has here takes its room in tour order, and says so.
+    assert.ok(hand([{ key: 's1', where: 'central', name: 'Court', contents: [] }], 1).log.some(l => l.op === 'Court (s1) names central, which no section left has in this plan, and takes room s1'));
+  });
+
+  test('a plan the list cannot fill is rejected for its first missing exhibit, yet the department holds every other exhibit, fixed, and the log names each one missing', () => {
+    // S.9's court is asked for 400 Hoppers; the band room's Wader and herald and the hall's two
+    // Grazers come after it in the list.
+    const { X } = core(true, Object.assign({}, GALLERIES, { S9: [
+      { key: 's1', where: 'central', name: 'Court', contents: [{ sp: 'S9.6', count: 400 }] },
+      { key: 's2', where: 'band', name: 'Bay', contents: [{ sp: 'S9.2' }, { sp: 'S9.3' }] },
+      { key: 'centre', name: 'Hall', contents: [{ sp: 'S9.1', count: 2 }] },
+    ] }));
+    for (const seed of [3, 8]) {
+      const out = X.Dept.generate(seed, 'S9', 3), ex = exhibitsOf(out.state);
+      assert.equal(json([out.fallback, out.tries.length]), json([true, 5]), `seed ${seed}`);
+      for (const t of out.tries) assert.equal(json(t.map(f => f.id)), json(['population']));
+      assert.match(out.rejected.why, /^no tile in room s\d could take S9\.6 \(Court\)$/);
+      const n = sp => ex.filter(a => a.sp === sp).length, hoppers = n('S9.6');
+      assert.equal(json([n('S9.2'), n('S9.3'), n('S9.1')]), json([1, 1, 2]), `seed ${seed}: the galleries after the shortfall are placed`);
+      assert.ok(hoppers > 0 && hoppers < 400);
+      const [wader] = ex.filter(a => a.sp === 'S9.2');
+      assert.ok(wader.route && wader.route.posts.length >= 2, `seed ${seed}: the Wader keeps its round`);
+      const short = out.log.filter(l => l.check === 'population' && / not placed$/.test(l.op));
+      assert.equal(json(short.map(l => l.op)), json([`${out.rejected.why}: ${400 - hoppers} of 400 not placed`]), `seed ${seed}: one line for the one entry short, with its count`);
+    }
   });
 };
