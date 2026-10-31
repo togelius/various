@@ -238,11 +238,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // On the honest core the run passes.
     assert.equal(Golden.selfCheck(C, 'mk', g).problem, null);
     // test/golden.test.js itself, given the planted core with this run as its only golden run:
-    // its one test fails with the card.
+    // its one test of that run fails with the card (its other tests are about the file's
+    // runs as a whole: M3's kept).
     const tests = [];
     require(path.join(root, 'test/golden.test.js'))({ test: (name, fn) => tests.push({ name, fn }), assert, root, path,
       loadCore: () => Object.assign({}, K, { GOLDEN: { mk: Object.assign({ hash: null, checkpoints: [], visits: null, steps: null, pending: 'planted' }, g) } }) });
-    assert.equal(tests.length, 1);
-    assert.throws(() => tests[0].fn(), e => e.message.startsWith(`mk: the monkey threw at action ${at} of ${N}`) && e.message.includes('\nCrash card: threw planted crash in a later visit\n'));
+    const runs = tests.filter(t => t.name.startsWith('mk: '));
+    assert.equal(runs.length, 1);
+    assert.throws(() => runs[0].fn(), e => e.message.startsWith(`mk: the monkey threw at action ${at} of ${N}`) && e.message.includes('\nCrash card: threw planted crash in a later visit\n'));
   });
 };
