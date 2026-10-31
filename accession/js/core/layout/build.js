@@ -101,9 +101,11 @@ const LBuild = (() => {
     return e;
   }
 
-  // 8-way breadth-first distances on the working grid, diagonals not cutting corners. A tile of
-  // blockedRoom is not entered; a tile set in the mask `blocked` is a wall, which a diagonal
-  // does not cut past either (a start is always entered).
+  // 8-way breadth-first distances on the working grid, diagonals not cutting the corners of
+  // tiles that cannot be walked. A tile of blockedRoom, or set in the mask `blocked`, is not
+  // entered (a start is always entered); it is still the tile it is for the diagonal rule, so a
+  // walk may pass diagonally between two such tiles, as a visitor can (Grid.canStep): a walk
+  // that does so steps on neither.
   function bfs(G, starts, mode, blockedRoom, blocked) {
     const N = G.W * G.H, D = new Int32Array(N).fill(-1), q = new Int32Array(N), W = G.W;
     let h = 0, t = 0;
@@ -117,7 +119,7 @@ const LBuild = (() => {
         const j = yy * W + xx;
         if (D[j] >= 0) continue;
         if (!walk(G.t[j], mode) || (blockedRoom && G.room[j] === blockedRoom) || (blocked && blocked[j])) continue;
-        if (dx && dy && (!walk(G.t[y * W + xx], mode) || !walk(G.t[yy * W + x], mode) || (blocked && (blocked[y * W + xx] || blocked[yy * W + x])))) continue;
+        if (dx && dy && (!walk(G.t[y * W + xx], mode) || !walk(G.t[yy * W + x], mode))) continue;
         D[j] = D[i] + 1; q[t++] = j;
       }
     }

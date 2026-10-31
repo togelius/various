@@ -6,10 +6,15 @@
 // of 25 ms holds or fails the same on a loaded machine (BUILD.md §10.2).
 // The Intro (layout version 3, BUILD.md §5.5), per programme: the walk from the entrance to the
 // nearest onward opening (p5/p50/p95), the plans whose every onward opening is at walk
-// INTRO_DEPTH or more, the plans where the stamp's cut holds (a walk from the entrance with the
-// cut walled reaches no onward opening), and the Intro's floor tiles beyond the safe zone (walk
+// INTRO_DEPTH or more, the plans where the stamp's cut holds (a walk from the entrance that
+// steps on no tile of the cut reaches no onward opening), and the Intro's floor tiles beyond the safe zone (walk
 // more than SAFE_ZONE; p50, and the plans with none). They are read from the plan's tiles and
-// rooms, so the same columns can be measured on a plan of an earlier version (cut: '-').
+// rooms, so the same columns can be measured on a plan of an earlier version (cut: '-'). A plan
+// of version 3 or later fails the sweep if it has no plan.intro, if an onward opening is nearer
+// than INTRO_DEPTH, or if its cut does not hold.
+// The identity shares (design/layout.md §13.2) leave the stamped Intro out at version 3 (§5.5),
+// so they are printed both ways, p50: the glass and narrow shares as the checks count them, and
+// with the Intro counted, beside the Intro's share of the public floor; not gated.
 // Usage: node tools/layout-sweep.js [seeds=1000] [--locality] [--maps] [--json out.json]
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
@@ -21,11 +26,31 @@ const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.m
 const out = {};
 let bad = 0;
 
-// The Intro's measures for one plan: {open, deep, cut, beyond} (above).
+// The Intro's measures for one plan: {open, deep, cut, beyond, glass, blockers, narrow, floor}
+// (above): the last four are the Intro's own counts of what LAnalyse counts for the identity
+// shares (blockers next to public floor, the glass among them; public floor, the narrow among it).
 function introOf(plan) {
-  const r = plan.rooms.find(q => q.role === 'intro'), G = LBuild.grid(plan.w, plan.h);
+  const r = plan.rooms.find(q => q.role === 'intro'), G = LBuild.grid(plan.w, plan.h), W = plan.w, T = LBuild.T;
   plan.tiles.forEach((row, y) => { for (let x = 0; x < plan.w; x++) G.set(x, y, row.charCodeAt(x)); });
   const at = (x, y) => y * plan.w + x, [ex, ey] = plan.entrance, D = LBuild.bfs(G, [at(ex, ey)], LBuild.ALL);
+  const P = LBuild.bfs(G, [at(ex, ey)], LBuild.PUBLIC), open = i => i >= 0 && i < P.length && P[i] >= 0;
+  let glass = 0, blockers = 0, narrow = 0, floor = 0;
+  for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+    const i = at(x, y), c = G.get(x, y);
+    if (LBuild.BLOCK[c] && c !== T.CPL) {
+      let near = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (G.in(x + dx, y + dy) && open(at(x + dx, y + dy))) near = true;
+      if (near) { blockers++; if (LBuild.GLASS[c]) glass++; }
+    }
+    if (!open(i)) continue;
+    floor++;
+    let h = 1, v = 1;
+    for (let k = 1; x + k < W && open(i + k); k++) h++;
+    for (let k = 1; x - k >= 0 && open(i - k); k++) h++;
+    for (let k = 1; y + k < plan.h && open(i + k * W); k++) v++;
+    for (let k = 1; y - k >= 0 && open(i - k * W); k++) v++;
+    if (Math.min(h, v) <= 2) narrow++;
+  }
   const ops = [];
   for (let y = r.y0 - 1; y <= r.y1 + 1; y++) for (let x = r.x0 - 1; x <= r.x1 + 1; x++) {
     if (x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) continue;
@@ -41,12 +66,13 @@ function introOf(plan) {
     const Dz = LBuild.bfs(G, [at(ex, ey)], LBuild.ALL, 0, mask);
     cut = ops.every(i => Dz[i] < 0);
   }
-  return { open: Math.min(...walks), deep: walks.every(d => d >= N.INTRO_DEPTH), cut, beyond };
+  return { open: Math.min(...walks), deep: walks.every(d => d >= N.INTRO_DEPTH), cut, beyond, glass, blockers, narrow, floor };
 }
 
 console.log(`programme | seeds | fallback | reseeded | repaired | L_tour p5/p50/p95 | rooms p50 | size p50 | CPU-ms p50/p95/max`);
 for (const prog of ['enfilade', 'case_labyrinth', 'sculpture_court']) {
   const times = [], tours = [], rooms = [], ws = [], hs = [], opens = [], beyonds = [];
+  const share = { glass: [], glassAll: [], narrow: [], narrowAll: [], intro: [] };
   let fallback = 0, reseeded = 0, repaired = 0, deep = 0, cuts = 0, uncut = 0, bare = 0;
   const reasons = {};
   for (let s = 1; s <= seeds; s++) {
@@ -69,9 +95,15 @@ for (const prog of ['enfilade', 'case_labyrinth', 'sculpture_court']) {
     if (r.log.length) repaired++;
     if (r.failed.length) { bad++; console.log(`${prog} seed ${s}: ${r.failed.map(f => f.id + ' ' + f.why).join('; ')}\n${Layout.text(r.plan, r.failed.flatMap(f => f.tiles))}`); }
     tours.push(r.plan.ltour); rooms.push(r.analysis.rooms); ws.push(r.plan.w); hs.push(r.plan.h);
-    const I = introOf(r.plan);
+    const I = introOf(r.plan), A = r.analysis;
     opens.push(I.open); beyonds.push(I.beyond);
-    if (I.deep) deep++;
+    if (r.plan.pin >= 3 && !r.plan.intro) { bad++; console.log(`${prog} seed ${s}: the plan has no plan.intro`); }
+    if (I.deep) deep++; else if (r.plan.pin >= 3) { bad++; console.log(`${prog} seed ${s}: an onward opening of the Intro is at walk ${I.open} (at least ${N.INTRO_DEPTH})`); }
+    // As the identity checks count (outside the stamped Intro at version 3), and with it counted.
+    const out3 = r.plan.pin >= 3, gB = A.blockers + (out3 ? I.blockers : 0), gG = A.glass + (out3 ? I.glass : 0);
+    const nF = out3 ? A.narrowFloor + I.floor : A.floor, nN = A.narrow + (out3 ? I.narrow : 0);
+    share.glass.push(A.blockers ? 1000 * A.glass / A.blockers : 0); share.glassAll.push(gB ? 1000 * gG / gB : 0);
+    share.narrow.push(1000 * A.narrow / (out3 ? A.narrowFloor : A.floor)); share.narrowAll.push(1000 * nN / nF); share.intro.push(1000 * I.floor / nF);
     if (I.cut === true) cuts++; else if (I.cut === false) { uncut++; bad++; console.log(`${prog} seed ${s}: the Intro's cut does not hold`); }
     if (!I.beyond) bare++;
   }
@@ -80,6 +112,10 @@ for (const prog of ['enfilade', 'case_labyrinth', 'sculpture_court']) {
   out[prog].intro = { open: [q(opens, .05), q(opens, .5), q(opens, .95)], deep, cut: cuts + uncut ? cuts : null, beyond: q(beyonds, .5), bare };
   console.log(`    Intro: nearest onward opening at walk ${q(opens, .05)}/${q(opens, .5)}/${q(opens, .95)}; every opening at walk ≥ ${N.INTRO_DEPTH} in ${deep} of ${seeds}; ` +
     `cut held in ${cuts + uncut ? cuts + ' of ' + seeds : '-'}; floor beyond walk ${N.SAFE_ZONE}: p50 ${q(beyonds, .5)}, none in ${bare}`);
+  const pc = a => (q(a, .5) / 10).toFixed(1) + '%';
+  out[prog].shares = { glass: q(share.glass, .5), glassAll: q(share.glassAll, .5), narrow: q(share.narrow, .5), narrowAll: q(share.narrowAll, .5), intro: q(share.intro, .5) };
+  console.log(`    identity, p50: glass ${pc(share.glass)} of blockers as checked, ${pc(share.glassAll)} with the Intro counted; ` +
+    `narrow ${pc(share.narrow)} of floor as checked, ${pc(share.narrowAll)} with the Intro counted; the Intro is ${pc(share.intro)} of the public floor`);
   for (const [k, v] of Object.entries(reasons).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))) console.log(`    failed attempts: ${v} × ${k}`);
   if (process.argv.includes('--locality')) {
     let compared = 0, changed = 0, leaks = 0;

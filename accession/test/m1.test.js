@@ -10,18 +10,20 @@ module.exports = ({ test, assert, loadCore }) => {
   const json = JSON.stringify;
 
   // An oracle written apart from the generator: 8-way walking distances over a plan's rows,
-  // a diagonal only past two walkable tiles, staff doors walkable (a visitor of their grade),
-  // and the tiles in `walls` made walls.
+  // a diagonal only past two walkable tiles (Grid.canStep), staff doors walkable (a visitor of
+  // their grade), and the tiles in `walls` never stepped on (design/layout.md §11.2: removed
+  // from the walk; a diagonal may still pass between two of them that can be walked).
   const WALKS = '.,+EXbwS';
   function walkFrom(plan, x0, y0, walls) {
     const W = plan.w, H = plan.h, wall = new Set((walls || []).map(([x, y]) => y * W + x));
-    const ok = (x, y) => x >= 0 && y >= 0 && x < W && y < H && WALKS.includes(plan.tiles[y][x]) && !wall.has(y * W + x);
+    const tile = (x, y) => x >= 0 && y >= 0 && x < W && y < H && WALKS.includes(plan.tiles[y][x]);
+    const ok = (x, y) => tile(x, y) && !wall.has(y * W + x);
     const D = new Map([[y0 * W + x0, 0]]), q = [[x0, y0]];
     for (let h = 0; h < q.length; h++) {
       const [x, y] = q[h];
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const nx = x + dx, ny = y + dy;
-        if ((!dx && !dy) || D.has(ny * W + nx) || !ok(nx, ny) || (dx && dy && (!ok(nx, y) || !ok(x, ny)))) continue;
+        if ((!dx && !dy) || D.has(ny * W + nx) || !ok(nx, ny) || (dx && dy && (!tile(nx, y) || !tile(x, ny)))) continue;
         D.set(ny * W + nx, D.get(y * W + x) + 1); q.push([nx, ny]);
       }
     }
@@ -117,6 +119,34 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.throws(() => Layout.generate('enfilade', 0, 3, { stamp: leaky }), /certified fallback for enfilade failed: LV4 the Intro's cut leaks/);
   });
 
+  // No pack gives a stamp yet (D-STAMPS does), so a pack's stamp is given here, in a core of its
+  // own: its departments' plans, and its certified fallback, take it; another pack's keep the
+  // fixture.
+  test('a pack\'s own stamp is the Intro of its departments and of its certified fallback', () => {
+    const X = loadCore();
+    const st = { map: ['#....|.........', '#....|...p.....', 'E....+....s....', '#....|...p.....', '#....|.........'],
+      legend: { s: { sp: 'X.1' } }, stretch: [0, 4], cut: '+', invariants: [{ near: 's', k: 6 }] };
+    assert.equal(X.LStamp.check(st), null);
+    X.Packs.part('S9', 'intro', st);
+    assert.equal(X.LStamp.of({ acc: 'S9' }), st);
+    const prog = X.Packs.get('S9').programme, other = X.Packs.get('A4');
+    for (let s = 1; s <= 4; s++) {
+      const p = X.Layout.generate(prog, 0, s, { acc: 'S9', depth: 2 }).plan;
+      introHolds(p, st, `S9 seed ${s}`);
+      assert.equal(json(p.intro.marks.map(m => m.ch)), json(['s']), `S9 seed ${s}`);
+      introHolds(X.Layout.generate(other.programme, 0, s, { acc: 'A4', depth: 2 }).plan, LStamp.FIXTURE, `A4 seed ${s}`);
+    }
+    // Through Dept.create: the department's Intro is the plan's, so the stamp's.
+    const d = X.Dept.create(3, 'S9', 2), p = X.Layout.generate(prog, 0, 3, { acc: 'S9', depth: 2 }).plan, I = p.intro;
+    for (let y = I.y0; y <= I.y1; y++) assert.equal(d.dept.tiles[y].slice(I.x0, I.x1 + 1), p.tiles[y].slice(I.x0, I.x1 + 1), `the department's Intro row ${y}`);
+    // The pack's certified fallback takes its stamp too, and differs from the programme's.
+    const block = { stage: 'afterCurate', fn: L => { for (const [x, y] of L.meta.exits) L.G.set(x, y, T.WALL); } };
+    const f = X.Layout.generate(prog, 0, 7, { acc: 'S9', depth: 2, plant: block });
+    assert.equal(f.fallback, true);
+    introHolds(f.plan, st, 'S9\'s fallback');
+    assert.notEqual(json(f.plan.tiles), json(X.Layout.fallback(prog, 0).L.G.rows()));
+  });
+
   test('the same seed gives the same plan; a different depth gives a different one', () => {
     for (const p of PROGS) {
       const a = Layout.generate(p, 0, 5, { acc: 'S9', depth: 2 }), b = Layout.generate(p, 0, 5, { acc: 'S9', depth: 2 });
@@ -191,6 +221,28 @@ module.exports = ({ test, assert, loadCore }) => {
       // Unplanted, the same attempt holds.
       assert.ok(!Layout.attempt(p, 0, s, 'plant/leak' + s).failed.some(f => f.id === 'LV4'), `${p} seed ${s} unplanted`);
     }
+  });
+
+  // A visitor may step diagonally between two tiles that can be walked (Grid.canStep), so a cut
+  // or a near ball drawn on a diagonal of floor tiles is crossed without stepping on it: LV4
+  // must remove those tiles from the walk, not make them walls a diagonal cannot pass.
+  test('a cut or a near invariant drawn on a diagonal of floor does not hold: a walk passes between its tiles', () => {
+    const diag = { map: ['#....z.........', '#.....z........', '#......z.......', 'E.......z......', '#........z.....', '#.........z....', '#..........z...'],
+      legend: { z: {} }, stretch: [0, 6], cut: 'z', invariants: [] };
+    const near = Object.assign({}, LStamp.FIXTURE, { legend: { n: {} }, invariants: [{ near: 'n', k: 0 }],
+      map: ['#......|.n.....', '#......|..n....', '#......|...n...', 'E......+....n..', '#......|.....n.', '#......|......n', '#......|......n'] });
+    assert.equal(LStamp.check(diag), null);
+    assert.equal(LStamp.check(near), null);
+    for (const p of PROGS) for (let s = 1; s <= 3; s++) {
+      const a = Layout.attempt(p, 0, s, 'plant/diag' + s, { stamp: diag }), lv4 = a.failed.find(f => f.id === 'LV4');
+      assert.ok(lv4 && /^the Intro's cut leaks: /.test(lv4.why), `${p} seed ${s}: ${json(a.failed)}`);
+      // The oracle reaches the opening LV4 names without stepping on a tile of the cut.
+      const plan = { w: a.L.G.W, h: a.L.G.H, tiles: a.L.G.rows() }, cut = a.L.meta.stamp.cut;
+      assert.ok(cut.length >= 7);
+      assert.ok(walkFrom(plan, ...a.L.meta.entrance, cut)(...lv4.tiles[0]) > 0, `${p} seed ${s}`);
+    }
+    const b = Layout.attempt('enfilade', 0, 1, 'plant/diag1', { stamp: near }), lv4 = b.failed.find(f => f.id === 'LV4');
+    assert.ok(lv4 && /^a walk from the entrance reaches the Intro's onward opening at \(\d+, \d+\) without passing within 0 tiles of 'n'$/.test(lv4.why), json(b.failed));
   });
 
   test('an onward opening nearer than INTRO_DEPTH, a stamp that does not fit and a near invariant a walk can avoid each fail LV4', () => {

@@ -217,9 +217,12 @@ const LStamp = (() => {
     return { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, cut: s.cut.map(t => t.slice()), marks: s.marks.map(m => ({ ch: m.ch, x: m.x, y: m.y })), openings: openings(L, r) };
   }
 
-  // The onward openings a walk from the entrance reaches with the tiles of `walled` made walls
-  // (staff doors walkable, as for a visitor of their grade), nearest first (then row-major),
-  // each with its walk; none if the entrance itself is walled (every walk starts there).
+  // The onward openings a walk from the entrance reaches without stepping on a tile of `walled`
+  // (design/layout.md §11.2: a BFS with those tiles removed), nearest first (then row-major),
+  // each with its walk; none if the entrance itself is one (every walk starts there). Staff
+  // doors are walkable, as for a visitor of their grade, and a walk may pass diagonally between
+  // two removed tiles that can be walked, as a visitor can (Grid.canStep), stepping on neither:
+  // so a cut or a near ball drawn on a diagonal of floor does not hold.
   function reached(L, ops, walled) {
     const G = L.G, [ex, ey] = L.meta.entrance, e = ey * G.W + ex, mask = new Uint8Array(G.W * G.H);
     for (const [x, y] of walled) if (G.in(x, y)) mask[y * G.W + x] = 1;
