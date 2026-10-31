@@ -12,7 +12,7 @@ const UI = (() => {
   let els = {}, handlers = {}, shown = null, current = null, app = null;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const P = (id, px) => Pictograms.svg(id, px || 16);
-  const EMPTY = '<p class="hint">Tap an exhibit, a case or yourself to read its label.</p>';
+  const EMPTY = '<p class="hint">Tap an exhibit, a case or yourself to read its label, or press x.</p>';
 
   // ---- Keys (BUILD.md §7.1) ----
   // A label button's key: one per verb, the same on every label and in the Bag, never a
@@ -37,13 +37,15 @@ const UI = (() => {
   // The keys, as "How the museum works" lists them.
   const KEY_TABLE = [
     ['Arrows, h j k l y u b n, or the numpad', 'Step; into an exhibit, attack it'],
-    ['.', 'Wait'], ['z', 'Rest, until your health is back'], ['s', 'Sit on a bench'], ['>', 'Leave by the exit you stand on'],
+    ['. or numpad 5', 'Wait'], ['z', 'Rest, until your health is back'], ['s', 'Sit on a bench'], ['>', 'Leave by the exit you stand on'],
     ['x, Shift+X', 'Select the next or previous thing in sight, nearest first: exhibits, cases, items, labels, staff doors, exits, you'],
-    ['Enter', 'The selected thing\'s first action, as a second tap; walk to a selected exit; yes to a question'],
+    ['Enter', 'The selected thing\'s first action, as a second tap; walk to a selected exit; yes to a question; "Another visit" at the end of a visit'],
     ['a o c g t e d q r', 'The selected label\'s buttons, each showing its key: Attack or aim, Open, Close, Break the glass, Take (or Take off, Throw), Equip, Drop, Drink or Use, Read'],
     ['r', 'With no Read button: the nearest label'],
-    ['Tab, Shift+Tab', 'Move between buttons; Enter or Space presses one; in the Bag and on a sheet the arrows do too'],
-    ['i, m', 'The Bag, the floor plan'], ['1–6', 'Quickslots'],
+    ['Tab, Shift+Tab', 'Move between buttons; Enter or Space presses one'],
+    ['Arrows, Home, End', 'In the Bag, Settings or a sheet: move between its buttons; in "How the museum works", the floor plan or the laptop\'s log: scroll'],
+    ['Backspace', 'Back, in the Bag'],
+    ['i, m', 'The Bag, the floor plan; pressed again, closed'], ['1–6', 'Quickslots; on the Window Pole\'s sheet, its choices'],
     ['While aiming', 'Arrows or x move the mark; Enter does it there; Escape stops aiming'],
     ['+, −', 'Zoom'], ['?, ,', '"How the museum works", Settings'],
     ['Escape', 'Cancel; close; let go of the selection'],
@@ -88,7 +90,7 @@ const UI = (() => {
     els.bar.addEventListener('click', act); els.slots.addEventListener('click', act); els.zoombtn.addEventListener('click', act);
     els.strip.addEventListener('click', () => handlers.openLabel());
     // The strip is a button for the keyboard too: Enter or Space opens the label.
-    els.strip.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); handlers.openLabel(); } });
+    els.strip.addEventListener('keydown', e => { if (e.target === els.strip && (e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); handlers.openLabel(); } });
     document.getElementById('howbtn').onclick = () => { toggle('settings', false); toggle('how', true); };
     document.getElementById('setbtn').onclick = () => { toggle('how', false); toggle('settings', true); };
     // A label's button names its action by its place in the label shown, so two buttons with
@@ -290,11 +292,19 @@ const UI = (() => {
     els.strip.classList.toggle('has-summary', !!s);
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
+    const was = document.activeElement, onLog = !!was && was.matches('[data-scrolls]') && els.strip.contains(was);
     els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${withBanner(l, banners || [])}</div>`).join('')}</div>`;
     // The laptop's log scrolls inside its own box: keep the newest entry in view from its
     // first sentence, even when it is taller than the box.
     const log = els.strip.querySelector('.log'), last = log && log.lastElementChild;
     if (last) log.scrollTop = Math.min(log.scrollHeight - log.clientHeight, last.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop);
+    // While it holds more than it shows, it is a box that scrolls by the keys (§7.1): Tab
+    // reaches it, the arrows, Page Up and Down, Home and End scroll it (input.js), and it
+    // keeps the focus when it is written again.
+    if (log && log.scrollHeight > log.clientHeight + 1) {
+      log.tabIndex = 0; log.dataset.scrolls = ''; log.setAttribute('role', 'region'); log.setAttribute('aria-label', 'The log');
+      if (onLog) log.focus({ preventScroll: true });
+    }
   }
   // A log entry with any stage announcement in it set off as a banner; its text is the
   // entry's, unchanged.

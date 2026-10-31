@@ -13,8 +13,9 @@
 // each control, the focus kept inside it, and no game key acting behind it; leaving, the end
 // of the visit and "Another visit"; a death, its recap closed and shown again, and "Another
 // visit". The scenes are tools/browser/scenes.mjs's; this file is their keyboard driver.
-import { open } from './lib.mjs';
-import { layout, targets } from './measure.mjs';
+import { readFileSync } from 'node:fs';
+import { open, root } from './lib.mjs';
+import { layout, targets, keyHints } from './measure.mjs';
 import { playScenes, install } from './scenes.mjs';
 
 const problems = [], lines = [];
@@ -292,6 +293,127 @@ function keyDriver(page, tag) {
   return d;
 }
 
+// ---- After the scenes: what the keys alone must also get right ----
+// A held step key whose step asks first leaves the focus on the confirmation's yes (its repeats
+// go to the board's layer, not the sheet's), so Enter steps; a held Enter strikes once; a step key takes the focus from a
+// button Tab reached to the board; the laptop's log, longer than its
+// box, is reached by Tab and scrolled by the keys, which do not step; no button's key runs
+// into its words, or cuts them, at any text size; the aim strip says what the keys do, not
+// taps; Caps Lock changes no key; and, once, every key of BUILD.md §7.1's table is in "How
+// the museum works", and every key that lists is in the table.
+async function alone(page, d, tag, W, did, once) {
+  const ok = (c, yes, no) => { if (c) did.push(yes); else bad(`${tag}: ${no}`); return c; };
+  const at = () => page.evaluate(() => { const A = window.ACCESSION, me = A.state.actors[0]; return { x: me.x, y: me.y, tick: A.state.tick, asking: !!A.asking, sel: A.vm().selection, top: UI.topLayer(), yes: !!document.activeElement && document.activeElement.matches('#confirm .yes') }; });
+  const ARROW = { 0: 'ArrowUp', 2: 'ArrowRight', 4: 'ArrowDown', 6: 'ArrowLeft' };
+  await d.escape();
+  // A held step key: its first press steps, a repeat asks to step onto shards, the rest repeat.
+  const sh = await page.evaluate(() => { const A = window.ACCESSION, T = window.__s; T.calm(); const l = T.lane(3); if (!l) return null; const [x, y] = l.tiles[2]; Grid.set(A.state.dept, x, y, 'x'); A.redraw(); return { d: l.d, x, y }; });
+  if (!sh) bad(`${tag}: no lane for a held step key`);
+  else {
+    const k = ARROW[sh.d];
+    // Its first press steps, the next asks, and three more repeat (an odd number, so a repeat
+    // that reached the sheet would leave the focus on Cancel).
+    await page.keyboard.down(k);
+    for (let i = 0; i < 4; i++) await page.keyboard.down(k);
+    await page.keyboard.up(k);
+    const held = await at();
+    await d.press('Enter');
+    const after = await at();
+    ok(held.asking && held.yes && after.x === sh.x && after.y === sh.y, 'a held step key: the confirmation kept its yes, and Enter stepped', `a held step key: asking ${held.asking}, focus on yes ${held.yes}; after Enter you are at ${after.x},${after.y}, not on the shards at ${sh.x},${sh.y}`);
+    if (after.asking) await d.press('Escape');
+  }
+  // A held Enter does one thing: with an exhibit selected beside you, one blow, however long
+  // it is held.
+  const foe = await page.evaluate(() => { const A = window.ACCESSION, T = window.__s, s = A.state, me = s.actors[0]; T.calm(); const a = T.plodder(), l = T.lane(1); if (!a || !l) return null; const [x, y] = l.tiles[1]; Object.assign(a, { x, y }); a.hp = a.maxHp = 999; A.redraw(); return a.uid; });
+  if (foe) {
+    await d.escape(); await d.select(foe);
+    const t0 = await page.evaluate(() => window.ACCESSION.state.turn);
+    await page.keyboard.down('Enter');
+    for (let i = 0; i < 3; i++) await page.keyboard.down('Enter');
+    await page.keyboard.up('Enter');
+    const t1 = await page.evaluate(() => window.ACCESSION.state.turn);
+    ok(t1 === t0 + 1, 'a held Enter struck once', `a held Enter on an exhibit took ${t1 - t0} turns, not 1`);
+    await page.evaluate(() => { window.__s.calm(); window.ACCESSION.redraw(); });
+    await d.escape();
+  }
+  // A step key moves the focus to the board from a button Tab reached, so the Enter that
+  // follows acts on the board, not on the button.
+  const lane = await page.evaluate(() => { window.__s.calm(); const l = window.__s.lane(2); window.ACCESSION.redraw(); return l; });
+  if (lane) {
+    await d.escape();
+    let on = false;
+    for (let i = 0; i < 30 && !on; i++) { await page.keyboard.press('Tab'); on = await page.evaluate(() => !!document.activeElement && document.activeElement.matches('#bar [data-act="bag"]')); }
+    await d.press(ARROW[lane.d]);
+    ok(on && await page.evaluate(() => document.activeElement && document.activeElement.id === 'board'), 'a step key moved the focus from a button to the board', `a step key with the focus on ${on ? 'the bar\'s Bag' : 'something Tab reached'} left the focus on ${await page.evaluate(() => document.activeElement && (document.activeElement.id || document.activeElement.textContent.trim().slice(0, 20)))}`);
+  }
+  // The laptop's log: written past its box, Tab reaches it; the arrows and Home scroll it.
+  if (W >= 900) {
+    await page.evaluate(() => { const A = window.ACCESSION, s = A.state, me = s.actors[0], T = window.__s; T.calm(); const a = T.plodder(); const l = T.lane(2); if (!a || !l) return; const [x, y] = l.tiles[1]; Object.assign(a, { x, y, mode: 'hunting', sawYou: true, lastKnown: [me.x, me.y], stim: s.turn, next: me.next }); me.hp = me.maxHp = 999; A.redraw(); for (let i = 0; i < 8; i++) A.request({ a: 'move', dir: l.d }); });
+    await d.escape();
+    let reached = false;
+    for (let i = 0; i < 30 && !reached; i++) { await page.keyboard.press('Tab'); reached = await page.evaluate(() => !!document.activeElement && document.activeElement.matches('#strip .log[data-scrolls]')); }
+    if (!ok(reached, 'Tab reached the log', 'Tab never reached the laptop\'s log, written past its box')) { /* */ }
+    else {
+      const s0 = await at(), top0 = await page.evaluate(() => document.querySelector('#strip .log').scrollTop);
+      await page.keyboard.press('ArrowUp'); await page.keyboard.press('Home');
+      const moved = await page.waitForFunction(t => document.querySelector('#strip .log').scrollTop < t, top0, { timeout: 3000 }).then(() => true, () => false);
+      const s1 = await at();
+      ok(moved && s1.x === s0.x && s1.y === s0.y && s1.tick === s0.tick, 'the arrows and Home scrolled the log, and did not step', `on the log, the arrows and Home ${moved ? 'scrolled it' : 'did not scroll it'}, and you went ${s0.x},${s0.y} → ${s1.x},${s1.y} (tick ${s0.tick} → ${s1.tick})`);
+    }
+    await page.evaluate(() => { window.__s.calm(); window.ACCESSION.redraw(); });
+    await d.escape();
+  }
+  // Every button's key, at every text size: the bar, a case's label with its longest button
+  // (Break the glass…), an item's buttons in the Bag.
+  const c = await page.evaluate(() => window.__s.shutCase(false));
+  const uid = await page.evaluate(() => window.__s.make('consolidant'));
+  for (const size of ['1', '1.15', '1.3']) {
+    await d.settings('text', size);
+    const seen = [...await page.evaluate(keyHints)];
+    if (c) { await d.select(c.id); seen.push(...await page.evaluate(keyHints)); await d.escape(); }
+    await d.bag(); await d.bagItem(uid); seen.push(...await page.evaluate(keyHints)); await d.closeBag();
+    for (const p of new Set(seen)) bad(`${tag} at text ${size}: ${p}`);
+    if (!seen.length) did.push(`every key clear of its words at text ${size}`);
+  }
+  await d.settings('text', '1');
+  // The aim strip, aimed by the keys, says what the keys do.
+  await page.evaluate(() => window.__s.lane(4));
+  await d.bag(); await d.bagItem(uid); await d.bagAct('throw');
+  const words = [await page.evaluate(() => document.querySelector('#bagaim .aim-text').textContent)];
+  await d.press('ArrowUp'); await d.press('x');
+  words.push(await page.evaluate(() => document.querySelector('#bagaim .aim-text').textContent));
+  ok(/Enter/.test(words[0]) && !words.some(w => /\btap\b/i.test(w)), 'the aim strip said what the keys do', `the aim strip, aimed by the keys, said "${words.join('" then "')}"`);
+  await d.cancelAim();
+  // Caps Lock on (a key event as the browser sends it then: X with no Shift is x): x and
+  // Shift+X go as they do without it, and i opens and closes the Bag.
+  const caps = (key, shift) => page.evaluate(([key, shift]) => window.dispatchEvent(new KeyboardEvent('keydown', { key, code: 'Key' + key.toUpperCase(), shiftKey: shift, modifierCapsLock: true, bubbles: true, cancelable: true })), [key, shift]);
+  await d.escape(); await d.press('x'); await d.press('x'); const want = await d.chosen();
+  await d.escape(); await caps('X', false); await caps('X', false); const got = await d.chosen(); await caps('x', true); const back = await d.chosen();
+  await d.escape(); await d.press('x'); const first = await d.chosen(); await d.escape();
+  await caps('I', false); const bag = await page.evaluate(() => Bag.shown()); await caps('I', false); const shut = await page.evaluate(() => Bag.shown());
+  ok(got === want && back === first && bag === 'bag' && !shut, 'Caps Lock changed no key', `with Caps Lock, x x chose ${got} (not ${want}), Shift+X ${back} (not ${first}), i ${bag} then ${shut}`);
+  if (!once) return;
+  // "How the museum works" lists the keys of BUILD.md §7.1's table, and only those.
+  const build = readFileSync(`${root}/BUILD.md`, 'utf8'), lines = build.slice(build.indexOf('| Keys | What they do |')).split('\n').slice(2);
+  const rows = lines.slice(0, lines.findIndex(l => !l.startsWith('|'))).map(l => l.split('|')[1]);
+  // A cell's keys: its key names (Enter, Home, numpad 5…), then each key in backticks, or
+  // each that is left of the How's own words (single characters, 1–6, Shift+X as X).
+  const WORDS = ['Backspace', 'Escape', 'Arrows', 'Enter', 'Home', 'End', 'Tab', 'numpad 5', 'numpad'];
+  const keysOf = (cell, ticked) => {
+    const out = new Set();
+    let rest = cell.replace(/`(\d)`–`(\d)`/g, '`$1–$2`');
+    for (const w of WORDS) if (rest.includes(w)) { out.add(w); rest = rest.split(w + ',').join(' ').split(w).join(' '); }
+    const bits = ticked ? [...rest.matchAll(/`([^`]+)`/g)].flatMap(m => m[1].split(/\s+/)) : rest.split(/\s+/).map(t => t === ',' ? t : t.replace(/,$/, '').replace(/^Shift\+/, ''));
+    for (const t of bits) if (t.length === 1 || /^\d–\d$/.test(t)) out.add(t.replace('−', '-'));
+    return out;
+  };
+  const table = new Set(rows.flatMap(r => [...keysOf(r, true)]));
+  const how = await page.evaluate(() => [...document.querySelectorAll('#how .keytable th')].map(t => t.textContent));
+  const listed = new Set(how.flatMap(h => [...keysOf(h, false)]));
+  const missing = [...table].filter(t => !listed.has(t)), extra = [...listed].filter(t => !table.has(t));
+  ok(rows.length >= 10 && !missing.length && !extra.length, `"How the museum works" lists the ${table.size} keys of §7.1's table`, `"How the museum works" and §7.1's key table differ: missing ${missing.join(' ') || 'none'}; not in the table ${extra.join(' ') || 'none'}`);
+}
+
 const t0 = Date.now();
 for (const [W, H] of SIZES) {
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?dept=M11&seed=3' });
@@ -312,6 +434,7 @@ for (const [W, H] of SIZES) {
     // No pointer at all: every mouse and touch event the page sees is a problem.
     await page.evaluate(() => { window.__pointer = []; for (const t of ['pointerdown', 'mousedown', 'touchstart', 'click']) window.addEventListener(t, e => { if (e.isTrusted && (t !== 'click' || e.detail > 0 || e.pointerType)) window.__pointer.push(t); }, true); });
     await playScenes({ page, drv, tag, bad, did, W, H, layout, targets });
+    await alone(page, drv, tag, W, did, W === SIZES[0][0] && v === views[0]);
     const pointer = await page.evaluate(() => window.__pointer);
     if (pointer.length) bad(`${tag}: the page saw pointer input (${[...new Set(pointer)].join(', ')})`);
     lines.push(`${tag} (${Math.round((Date.now() - tv) / 1000)} s): ${did.join('; ')}`);

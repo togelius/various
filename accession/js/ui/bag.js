@@ -310,32 +310,37 @@ const Bag = (() => {
 
   // What the aim strip says: what you aim, then what a tap does there, or why it cannot be
   // used there (the game's refusal), or, before a tap, how to aim (or that nothing is in
-  // reach now). Short, so that it fits the strip at every text size.
+  // reach now). Short, so that it fits the strip at every text size. Its words are for the
+  // input in use (Input.using): a tap (a click is the same input, §7.1), or the keys, which
+  // move the mark and press Enter where a finger taps again.
   function aimWords(s) {
-    const it = itemOf(s, aim.uid), name = nameOf(s, aim.uid);
+    const it = itemOf(s, aim.uid), name = nameOf(s, aim.uid), keys = Input.using() === 'keys';
+    const again = what => (keys ? 'Press Enter to ' : 'Tap it again to ') + what;
+    const first = (where, what) => keys ? `Move the mark${where.startsWith('a tile') ? where.slice(6) : ' to ' + where} with the arrows or x, then press Enter${what ? ' to ' + what : ''}.`
+      : `Tap ${where}, then tap it again${what ? ' to ' + what : ''}.`;
     const names = Labels.nameOf(s), who = (x, y) => { const a = Actors.at(s, x, y); return (a && names(a.uid)) || 'the exhibit'; };
     const I = aim.kind === 'tile' && own(Registry.INSTRUMENTS, it.form) ? Registry.INSTRUMENTS[it.form] : null, range = I ? N[I.row][2] : 0;
     const head = aim.kind === 'throw' ? `Throwing ${name}.` : `${I ? I.name : name}, ${it.charges} of ${plural(it.max, 'charge', 'charges')}.`;
     if (!aim.tile) {
-      if (aim.kind === 'throw') return { head, text: Consumables.targets(s, aim.uid).length ? `Tap a tile within ${N.THROW_RANGE} tiles, then tap it again to throw.` : 'There is no tile you can throw it at from here.' };
+      if (aim.kind === 'throw') return { head, text: Consumables.targets(s, aim.uid).length ? first(`a tile within ${N.THROW_RANGE} tiles`, 'throw') : 'There is no tile you can throw it at from here.' };
       if (!Kit.targets(s, aim.uid).length) return { head, text: it.charges < 1 ? Text.refusal('no_charges') : 'There is no tile it can be used at from here.' };
-      return { head, text: it.form === 'pin_driver' ? `Tap an exhibit within ${range} tiles, then tap it again to fire.`
-        : it.form === 'pole' ? `Tap an exhibit, or an opened or broken case, within ${range} tiles, then tap it again.`
-          : `Tap a tile within ${range} tiles, then tap it again to strike.` };
+      return { head, text: it.form === 'pin_driver' ? first(`an exhibit within ${range} tiles`, 'fire')
+        : it.form === 'pole' ? first(`an exhibit, or an opened or broken case, within ${range} tiles`, '')
+          : first(`a tile within ${range} tiles`, 'strike') };
     }
     const { x, y } = aim.tile, legal = legalAt(s, x, y);
     if (!legal.length) return { head, text: refusal(s, x, y).sentence, refused: true };
-    if (legal.length > 1) return { head, text: 'Tap it again to choose what the pole does here.' };
+    if (legal.length > 1) return { head, text: again('choose what the pole does here.') };
     const a = legal[0];
     if (a.a === 'throw') {
       const ck = it.ck, known = Consumables.known(s, ck), side = known ? N[Registry.CONSUMABLES[ck].area] : Consumables.AREA;
-      return { head, text: known ? `Tap it again to throw it here; it covers the marked ${side}×${side}.`
-        : `Tap it again to throw it here. Its kind unknown, the mark is the largest any Solution covers: ${side}×${side}.` };
+      return { head, text: known ? again(`throw it here; it covers the marked ${side}×${side}.`)
+        : again(`throw it here. Its kind unknown, the mark is the largest any Solution covers: ${side}×${side}.`) };
     }
-    if (a.how === 'push' || a.how === 'pull') return { head, text: `Tap it again to ${a.how} ${who(x, y)} one tile ${a.how === 'push' ? 'away' : 'toward you'}.` };
-    if (a.how === 'take') return { head, text: 'Tap it again to take what the case holds.' };
-    if (it.form === 'pin_driver') return { head, text: `Tap it again to fire a bolt at ${who(x, y)}.` };
-    return { head, text: 'Tap it again to strike the fork here: a soft noise, as if you made it.' };
+    if (a.how === 'push' || a.how === 'pull') return { head, text: again(`${a.how} ${who(x, y)} one tile ${a.how === 'push' ? 'away' : 'toward you'}.`) };
+    if (a.how === 'take') return { head, text: again('take what the case holds.') };
+    if (it.form === 'pin_driver') return { head, text: again(`fire a bolt at ${who(x, y)}.`) };
+    return { head, text: again('strike the fork here: a soft noise, as if you made it.') };
   }
   function drawAim(s) {
     const on = !!aim && !!s && !s.over;
@@ -431,7 +436,8 @@ const Bag = (() => {
       const gain = sel ? preview(s, view.uid, a.on) : '';
       return `<li><button class="btn bag-row${sel ? ' chosen' : ''}" data-on="${esc(a.on)}" aria-pressed="${sel}">${P(t.pictos[0] ? t.pictos[0].icon : 'kit', 20)}<span class="bag-text"><span class="bag-name">${esc(t.title)}</span><span class="bag-note">${esc(where)}</span>${gain ? `<span class="bag-gain">${esc(gain)}</span>` : ''}</span></button></li>`;
     }).join('');
-    const say = acts.length ? 'Tap an item to see what it would gain, then tap it again to use the kit on it.' : 'There is nothing you wear or carry that it can be used on now.';
+    const say = !acts.length ? 'There is nothing you wear or carry that it can be used on now.' : Input.using() === 'keys'
+      ? 'Press Enter on an item to see what it would gain, then press it again to use the kit on it.' : 'Tap an item to see what it would gain, then tap it again to use the kit on it.';
     return `<button class="btn bag-back" data-back${UI.keyAttrs('Backspace')}>Back</button>` + card(l, `<h3>Use it on</h3><p class="bag-where">${esc(say)}</p><ul class="bag-list">${rows}</ul>`);
   }
   // What one level gives the item: Kit.restore on a copy of the state, read back through

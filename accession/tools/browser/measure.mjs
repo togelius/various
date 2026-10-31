@@ -225,3 +225,34 @@ export function freeTile() {
   }
   return null;
 }
+
+// The buttons that show a key (§7.1) whose key runs into their words, or whose words are cut:
+// a corner key's ink (its glyph, measured with its font on a canvas) meeting the ink of the
+// button's words, or the words wider or taller than the button. One line each.
+export function keyHints() {
+  const out = [], cx = document.createElement('canvas').getContext('2d');
+  const font = (cs, text) => { cx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; return cx.measureText(text); };
+  const px = v => parseFloat(v) || 0;
+  for (const b of document.querySelectorAll('.btn[data-hint]')) {
+    const after = getComputedStyle(b, '::after'), bs = getComputedStyle(b), br = b.getBoundingClientRect();
+    if (!b.getClientRects().length || bs.visibility === 'hidden' || after.display === 'none' || after.content === 'none') continue;
+    const name = `"${(b.textContent.trim() || b.getAttribute('aria-label') || '').slice(0, 20)}" [${b.dataset.hint}]`;
+    if (b.scrollWidth > b.clientWidth + 1 || b.scrollHeight > b.clientHeight + 1) out.push(`${name}: its words are cut (${b.scrollWidth}×${b.scrollHeight} in ${b.clientWidth}×${b.clientHeight})`);
+    if (after.position !== 'absolute') continue;
+    const hm = font(after, b.dataset.hint), lh = px(after.lineHeight) || px(after.fontSize) * 1.2;
+    const right = br.right - px(bs.borderRightWidth) - px(after.right) - px(after.paddingRight);
+    const base = br.top + px(bs.borderTopWidth) + px(after.top) + px(after.paddingTop) + (lh - hm.fontBoundingBoxAscent - hm.fontBoundingBoxDescent) / 2 + hm.fontBoundingBoxAscent;
+    const key = { l: right - hm.width, r: right, t: base - hm.actualBoundingBoxAscent, b: base + hm.actualBoundingBoxDescent };
+    const walk = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const m = font(getComputedStyle(n.parentElement), n.textContent), range = document.createRange();
+      range.selectNodeContents(n);
+      for (const q of range.getClientRects()) {
+        const tb = q.top + m.fontBoundingBoxAscent, ink = { l: q.left, r: Math.min(q.right, br.right), t: tb - m.actualBoundingBoxAscent, b: Math.min(tb + m.actualBoundingBoxDescent, br.bottom) };
+        if (q.width && ink.l < key.r - 0.5 && key.l < ink.r - 0.5 && ink.t < key.b - 0.5 && key.t < ink.b - 0.5) { out.push(`${name}: its key runs into its words`); break; }
+      }
+    }
+  }
+  return [...new Set(out)];
+}

@@ -14,7 +14,7 @@
 // under 44 px and nothing scrolls sideways; nothing on the page is shown only on hover (no
 // title, no :hover rule). The scenes are tools/browser/scenes.mjs's; this file runs them
 // with the finger's driver.
-import { playwright, fileUrl } from './lib.mjs';
+import { playwright, fileUrl, muted } from './lib.mjs';
 import { layout, targets } from './measure.mjs';
 import { playScenes, install, pointerDriver } from './scenes.mjs';
 
@@ -33,10 +33,78 @@ function hoverOnly() {
   return out;
 }
 
+// ---- After the scenes: what a finger alone must also get right ----
+// A swipe across the board is no tap (it walks nowhere, selects nothing), while a tap that
+// slides a few pixels still is one; on a phone, a long Bag scrolls under a swipe that starts on
+// an item, which opens nothing, and swipes back, and a long label's sheet scrolls under one;
+// and the aim strip says what a tap does.
+// Swipes are touch events sent through the browser's own input (CDP Input.dispatchTouchEvent).
+async function fingerAlone(page, ctx, drv, tag, phone, did) {
+  const ok = (c, yes, no) => { if (c) did.push(yes); else bad(`${tag}: ${no}`); return c; };
+  const cdp = await ctx.newCDPSession(page);
+  const swipe = async (from, to, steps = 8) => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y }] });
+    for (let i = 1; i <= steps; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x + (to.x - from.x) * i / steps, y: from.y + (to.y - from.y) * i / steps }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForFunction(() => !window.ACCESSION.busy());
+  };
+  // A box's scroll, once it has come to rest (a swipe flings it).
+  const rest = sel => page.waitForFunction(sel => { const b = document.querySelector(sel), t = b.scrollTop, same = t === b.__was; b.__was = t; return same ? { t } : false; }, sel, { polling: 150, timeout: 10000 }).then(h => h.jsonValue()).then(v => v.t);
+  const at = () => page.evaluate(() => { const A = window.ACCESSION, me = A.state.actors[0], vm = A.vm(); return { x: me.x, y: me.y, tick: A.state.tick, sel: vm.selection, path: !!vm.path && vm.path.length > 0, bag: Bag.shown(), item: !!document.querySelector('#bag.open [data-back]') }; });
+  await drv.escape();
+  const lane = await page.evaluate(() => { window.__s.calm(); const l = window.__s.lane(4); window.ACCESSION.redraw(); return l && l.tiles.map(([x, y]) => window.__spot({ x, y }) && { x, y, p: window.__spot({ x, y }) }); });
+  if (!lane || lane.some(t => !t)) bad(`${tag}: no lane on screen to swipe along`);
+  else {
+    const s0 = await at();
+    await swipe(lane[0].p, lane[3].p);
+    const s1 = await at();
+    ok(s1.x === s0.x && s1.y === s0.y && s1.tick === s0.tick && s1.sel === s0.sel && !s1.path, 'a swipe across the board was no tap', `a swipe across the board acted: you ${s0.x},${s0.y} → ${s1.x},${s1.y}, tick ${s0.tick} → ${s1.tick}, selection ${s1.sel}, path ${s1.path}`);
+    await swipe({ x: lane[2].p.x + 5, y: lane[2].p.y + 4 }, lane[2].p, 2);
+    const s2 = await at();
+    ok(s2.x === lane[2].x && s2.y === lane[2].y, 'a tap that slid a few pixels walked', `a tap that slid 6 px did not walk to ${lane[2].x},${lane[2].y} (you are at ${s2.x},${s2.y})`);
+  }
+  const uid = await page.evaluate(() => { window.__s.lane(4); return window.__s.make('consolidant'); });
+  await drv.bag(); await drv.bagItem(uid); await drv.bagAct('throw');
+  const words = await page.evaluate(() => (document.querySelector('#bagaim.open .aim-text') || {}).textContent || '');
+  ok(/^.*Tap /.test(words) && !/Enter/.test(words), 'the aim strip said what a tap does', `the aim strip, aimed by taps, said "${words}"`);
+  await drv.cancelAim();
+  if (phone) {
+    // A long Bag: your tote filled.
+    await page.evaluate(() => { const s = window.ACCESSION.state; while (s.you.tote.length < N.TOTE_SLOTS - 2) Kit.make(s, { kind: 'weapon', form: 'light', tier: 1 }, { at: 'tote' }); window.ACCESSION.redraw(); });
+    await drv.bag();
+    const row = await page.evaluate(() => { const r = [...document.querySelectorAll('#bag.open [data-item]')][1].getBoundingClientRect(), b = document.getElementById('bag'); return { x: r.left + r.width / 2, y: r.top + r.height / 2, max: b.scrollHeight - b.clientHeight }; });
+    if (row.max < 200) bad(`${tag}: the filled Bag is too short to swipe (${row.max} px to scroll)`);
+    else {
+      const s0 = await at();
+      await swipe(row, { x: row.x, y: row.y - 300 });
+      const down = await rest('#bag'), s1 = await at();
+      await swipe({ x: row.x, y: 200 }, { x: row.x, y: 700 });
+      const up = await rest('#bag'), s2 = await at();
+      ok(down > 0 && up === 0 && s1.bag === 'bag' && !s1.item && !s2.item && s2.tick === s0.tick, 'a long Bag scrolled under a swipe and back, opening nothing', `a swipe on the Bag: scrolled to ${down}, then back to ${up}; an item opened: ${s1.item || s2.item}; the Bag ${s1.bag}; tick ${s0.tick} → ${s2.tick}`);
+    }
+    await drv.closeBag();
+    // A long label, at the largest text: its sheet scrolls under a swipe, which presses nothing.
+    await drv.settings('text', '1.3');
+    const c = await page.evaluate(() => window.__s.shutCase(false));
+    if (c && await drv.select(c.id)) {
+      const box = await page.evaluate(() => { const e = document.getElementById('sheet'), r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 40, max: e.scrollHeight - e.clientHeight }; });
+      if (box.max < 60) bad(`${tag}: the case's label at the largest text is too short to swipe (${box.max} px to scroll)`);
+      else {
+        const s0 = await at();
+        await swipe({ x: box.x, y: box.y + 200 }, box);
+        const down = await rest('#sheet'), s1 = await at();
+        ok(down > 0 && s1.sel === c.id && s1.tick === s0.tick && !await page.evaluate(() => UI.confirmOpen()), 'a long label scrolled under a swipe, pressing nothing', `a swipe on the label: scrolled to ${down}; selection ${s1.sel}; tick ${s0.tick} → ${s1.tick}`);
+      }
+      await drv.escape();
+    } else bad(`${tag}: no case to read a long label of`);
+    await drv.settings('text', '1');
+  }
+}
+
 const pw = playwright();
 if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
 const t0 = Date.now();
-const browser = await pw.chromium.launch();
+const browser = await pw.chromium.launch({ args: muted() });
 for (const [W, H, phone] of SIZES) {
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, hasTouch: true, isMobile: phone });
   const page = await ctx.newPage(), errors = [];
@@ -64,6 +132,7 @@ for (const [W, H, phone] of SIZES) {
     if (phone && hints !== 'none') bad(`${tag}: a touch screen shows the buttons' keys (${hints})`);
     for (const h of await page.evaluate(hoverOnly)) bad(`${tag}: shown only on hover: ${h}`);
     await playScenes({ page, drv, tag, bad, did, W, H, layout, targets });
+    await fingerAlone(page, ctx, drv, tag, phone, did);
     for (const h of await page.evaluate(hoverOnly)) bad(`${tag}: shown only on hover, after play: ${h}`);
     const other = await page.evaluate(() => window.__other);
     if (other.length) bad(`${tag}: the page saw input other than a finger's (${[...new Set(other)].join(', ')})`);

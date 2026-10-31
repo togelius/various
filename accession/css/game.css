@@ -33,7 +33,9 @@ button { font: inherit; color: var(--ink); }
 .btn[data-hint]::after { content: attr(data-hint); content: attr(data-hint) / ""; display: inline-block; margin-left: 6px; padding: 0 3px; border: 1px solid currentColor;
   border-radius: 3px; font: 600 0.72em/1.25 ui-monospace, "SF Mono", Menlo, Consolas, monospace; opacity: 0.85; vertical-align: 1px; }
 .btn.corner { position: relative; }
-.btn.corner[data-hint]::after { position: absolute; top: 1px; right: 2px; margin: 0; padding: 0 2px; border: none; font-size: 0.62em; opacity: 0.75; }
+/* A corner key grows with the text no further than 10 px, so at the larger text sizes it stays
+   above the words of a narrow button (the phone's bar) and never runs into them. */
+.btn.corner[data-hint]::after { position: absolute; top: 1px; right: 2px; margin: 0; padding: 0 2px; border: none; font-size: min(0.62em, 10px); opacity: 0.75; }
 @media (hover: none) and (pointer: coarse) { :root:not(.keys) .btn[data-hint]::after { display: none; } }
 #app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "top top" "board board" "strip zoom" "bar bar"; padding-top: env(safe-area-inset-top); }

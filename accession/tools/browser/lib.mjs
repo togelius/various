@@ -16,11 +16,15 @@ export function playwright() {
 
 export const fileUrl = rel => pathToFileURL(path.join(root, rel)).href;
 
+// Every browser a check or a playtest launches is muted (BUILD.md §10.2): --mute-audio merged into
+// whatever arguments it is given.
+export const muted = (args = []) => args.includes('--mute-audio') ? args : [...args, '--mute-audio'];
+
 // Launch Chromium, open a page, collect console errors. Returns { browser, page, errors }.
 export async function open(rel, opts = {}) {
   const pw = playwright();
   if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
-  const browser = await pw.chromium.launch({ args: opts.args || [] });
+  const browser = await pw.chromium.launch({ args: muted(opts.args || []) });
   const page = await browser.newPage({ viewport: opts.viewport || { width: 390, height: 844 }, deviceScaleFactor: opts.dpr || 1 });
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));

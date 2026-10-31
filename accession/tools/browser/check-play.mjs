@@ -19,7 +19,7 @@
 // check-touch play (tools/browser/scenes.mjs), by left clicks alone, which reach the verbs
 // the scenes above leave out: take off, drop, close a staff door, the Pin-Driver, the pole's
 // take, Settings' zoom, and the recap closed and shown again.
-import { open, playwright, fileUrl } from './lib.mjs';
+import { open, playwright, fileUrl, muted } from './lib.mjs';
 import { nextStep, labelVisible, logVisible, freeTile as freeTileIn, layout, targets } from './measure.mjs';
 import { playScenes, install, pointerDriver } from './scenes.mjs';
 
@@ -940,7 +940,7 @@ async function playM3(sizes, lines, bad) {
 async function touchM3(lines, bad) {
   const pw = playwright();
   if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
-  const browser = await pw.chromium.launch();
+  const browser = await pw.chromium.launch({ args: muted() });
   const probe = await browser.newPage();
   await probe.goto(fileUrl('dist/accession.html') + '?dept=M11&seed=3');
   await probe.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
@@ -1033,6 +1033,23 @@ async function scenesByMouse(lines, bad) {
     const active = await page.evaluate(() => window.ACCESSION.views.active());
     if (active.id !== v.id) { bad(`${tag}: fell back (${active.note})`); continue; }
     await playScenes({ page, drv, tag, bad, did, W, H, layout, targets });
+    // A drag across the board with the button held is no click: it walks nowhere and selects
+    // nothing; a click whose pointer slips a few pixels before the button comes up still is one.
+    const lane = await page.evaluate(() => { window.__s.calm(); const l = window.__s.lane(4); window.ACCESSION.redraw(); return l && l.tiles.map(([x, y]) => ({ x, y, p: window.__spot({ x, y }) })); });
+    if (!lane || lane.some(t => !t.p)) bad(`${tag}: no lane on screen to drag along`);
+    else {
+      const at = () => page.evaluate(() => { const A = window.ACCESSION, me = A.state.actors[0], vm = A.vm(); return { x: me.x, y: me.y, tick: A.state.tick, sel: vm.selection, path: !!vm.path && vm.path.length > 0 }; });
+      const press = async (from, to, steps) => { await page.mouse.move(from.x, from.y); await page.mouse.down({ button: 'left' }); await page.mouse.move(to.x, to.y, { steps }); await page.mouse.up({ button: 'left' }); await page.waitForFunction(() => !window.ACCESSION.busy()); };
+      const s0 = await at();
+      await press(lane[0].p, lane[3].p, 6);
+      const s1 = await at();
+      if (s1.x !== s0.x || s1.y !== s0.y || s1.tick !== s0.tick || s1.sel !== s0.sel || s1.path) bad(`${tag}: a drag across the board acted: you ${s0.x},${s0.y} → ${s1.x},${s1.y}, tick ${s0.tick} → ${s1.tick}, selection ${s1.sel}, path ${s1.path}`);
+      else did.push('a drag across the board was no click');
+      await press({ x: lane[2].p.x + 4, y: lane[2].p.y + 3 }, lane[2].p, 2);
+      const s2 = await at();
+      if (s2.x !== lane[2].x || s2.y !== lane[2].y) bad(`${tag}: a click that slipped 5 px did not walk to ${lane[2].x},${lane[2].y} (you are at ${s2.x},${s2.y})`);
+      else did.push('a click that slipped a few pixels walked');
+    }
     if (await page.evaluate(() => window.__keys)) bad(`${tag}: the page saw a key`);
     lines.push(`${tag}: ${did.join('; ')}`);
   }

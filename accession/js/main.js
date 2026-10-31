@@ -591,6 +591,8 @@ const Main = (() => {
   Input.attach(board, () => renderer, {
     tap, layerKey, key: gameKey,
     blocked: () => UI.overlayOpen() || UI.confirmOpen(),
+    // The layer on top (ui.js), so a held key acts only in the one it went down in.
+    layer: () => UI.topLayer(),
     // A step key steps (into an exhibit, a blow), or, while the Bag aims at a tile, moves the
     // tile it previews (Bag.cursor).
     move(dir) {

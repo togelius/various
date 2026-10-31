@@ -641,9 +641,15 @@ async function run(W, H) {
     // (900×675).
     const LG = await page.evaluate(() => window.__t.longest());
     if (!LG) bad(`${tag}: no unknown Solution left to give the longest name`);
+    // The words for a tap, and the words the strip says instead when the keys are in use
+    // (Input.using: the last input; set here for the measurement alone, then put back).
     const fits = async what => {
       await sized(`${tag} ${what}`);
-      if (!await page.evaluate(() => { const e = document.querySelector('#bagaim.open .in'); return !!e && e.scrollHeight <= e.clientHeight + 1; })) bad(`${tag}: the aim strip's words do not fit it (${what})`);
+      for (const input of ['pointer', 'keys']) {
+        await page.evaluate(i => { document.documentElement.dataset.input = i; window.ACCESSION.redraw(); }, input);
+        if (!await page.evaluate(() => { const e = document.querySelector('#bagaim.open .in'); return !!e && e.scrollHeight <= e.clientHeight + 1; })) bad(`${tag}: the aim strip's words${input === 'keys' ? ' for the keys' : ''} do not fit it (${what})`);
+      }
+      await page.evaluate(() => { document.documentElement.dataset.input = 'pointer'; window.ACCESSION.redraw(); });
     };
     for (const size of ['1', '1.15', '1.3']) {
       await textSize(size, tag);
