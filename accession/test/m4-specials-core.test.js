@@ -12,8 +12,11 @@
 //   - a due line: it goes off at its boundary, never at its owner's action; it is shown, and
 //     warned of before every decision that could let it go off, a 300-tick equip during
 //     which it is marked and goes off included ("no unseen special"); its sentence says when;
-//   - the threat with the perks' cost (Perks.adjust), module marks (Modules.threat), an
-//     owner the action destroys, several marks in order, and Perks.onResolve with atYou.
+//     a line of a shape that passes glass strikes into a case, as combat_glass agrees; a line
+//     that defeats you ends the visit, and none after it goes off;
+//   - the threat with the perks' cost (Perks.adjust, asked with the action's own events, as
+//     step() asks it), module marks (Modules.threat), an owner the action destroys, several
+//     marks in order, and Perks.onResolve with atYou.
 // The planted chime (PERIOD 4, WARNING 2): at each boundary, after Modules.turn has set off
 // the due lines (Specials.resolveDue), at turns ≡ 2 (mod 4) the station marks its row, due 2
 // turns later; Modules.threat gives that line before the chime sounds.
@@ -303,7 +306,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         const t = st.telegraph;
         if (t && Number.isInteger(t.due) && t.due < until) out.push({ by: st.uid, sp: t.sp, tiles: t.tiles, gross: t.gross, due: t.due });
         for (let T = state.turn + 1; (T + WARNING) * TPT < until; T++)
-          if ((T + WARNING) % PERIOD === 0) out.push({ by: st.uid, sp: 'planted_due', tiles: S.tiles(state, st, 'planted_row'), gross: S.info(state, 'planted_due').gross, due: (T + WARNING) * TPT });
+          if ((T + WARNING) % PERIOD === 0) out.push({ by: st.uid, sp: 'planted_due', tiles: S.tiles(state, st, 'planted_row'), gross: S.info(state, 'planted_due').gross + (o.lie || 0), due: (T + WARNING) * TPT });
       }
       return out;
     };
@@ -391,6 +394,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const r = H.play(X, s, [{ a: 'equip', uid: 'g2' }], { inv: ['combat_special_shown'] });
     assert.equal(r.violations.length, 1);
     assert.match(r.violations[0].text, /a line due at 400, struck you at 12,1, and the threat of your action did not warn of it/);
+    // A chime whose module warns of the line with the wrong number: warned, but not of what struck.
+    const L = core();
+    chime(L, { lie: 1 });
+    const l = rowRoom(L, 3), [ly, lst] = l.actors;
+    l.tick = 150; l.turn = 1; ly.next = 150; lst.next = 200;
+    const told = L.Specials.threat(l, { a: 'equip', uid: 'g2' }), dealt = L.Specials.net(L.Specials.info(l, 'planted_due').gross, ly.pad);
+    assert.equal(json([told && told.due, told && told.dmg]), json([400, dealt + 1]));
+    const lr = H.play(L, l, [{ a: 'equip', uid: 'g2' }], { inv: ['combat_special_shown'] });
+    assert.equal(json(lr.violations.map(v => v.message)), json([`${lst.uid}'s planted_due was warned of as ${dealt + 1} at 12,1 and dealt ${dealt}`]));
     // Without marksAwake the awake station marks nothing, and nothing goes off.
     const Y = core();
     chime(Y, { awake: false });
@@ -415,6 +427,48 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     st.telegraph = null;
     assert.throws(() => S.mark(s, st, 'planted_due', S.tiles(s, st, 'planted_row'), [], { due: 450 }), /not a turn boundary/);
     assert.throws(() => S.mark(s, st, 'planted_due', S.tiles(s, st, 'planted_row'), [], { due: s.tick }), /not a turn boundary/);
+  });
+
+  test('a line of an added shape that passes glass strikes an exhibit in a case, and the invariants agree (combat_glass reads Specials.passesGlass)', () => {
+    const Inv = require(path.join(root, 'tools/invariants.js'));
+    const X = core(), S = X.Specials;
+    chime(X);
+    X.Specials.addShape('planted_plain', { tiles: () => [] });
+    X.Registry.define('SPECIALS', 'planted_plain', { shape: 'planted_plain', effect: 'damage', curve: 'ROLE_ARTILLERY_SPECIAL', range: null, every: null });
+    assert.equal(json(['ring', 'call', 'line', 'burst', 'planted_row', 'planted_plain'].map(S.passesGlass)), json([false, false, true, false, true, false]));
+    // A vitrine on the station's row, an exhibit asleep in it.
+    const map = ROW.slice();
+    map[1] = '#......v.......#';
+    const s = room(X, map, [12, 1], [{ sp: 'dummy', at: [1, 1], arch: 'planted_station', mode: 'awake', stats: BODY, next: 100 }, { sp: 'dummy', at: [7, 1], mode: 'dormant', stats: BODY }], { depth: 3 });
+    const [, , inCase] = s.actors;
+    assert.ok(X.Cases.encased(s, inCase), 'the exhibit is in an intact case');
+    // combat_glass as it is, and the same check told the line was a shape that does not pass glass.
+    const glass = Inv.select(X, ['combat_glass'])[0];
+    const plain = { id: 'combat_glass_if_plain', check: (pre, events, post, ctx) => glass.check(pre, events.map(e => (e.k === 'damaged' && e.cause && e.cause.sp === 'planted_due'
+      ? Object.assign({}, e, { cause: Object.assign({}, e.cause, { sp: 'planted_plain' }) }) : e)), post, ctx) };
+    const r = H.play(X, s, Array(5).fill(wait), { inv: Inv.select(X, 'all').concat([plain]), clone: true });
+    const hits = r.events.filter(e => e.k === 'special' && e.who === s.actors[1].uid).map(e => e.hits);
+    assert.equal(json(hits), json([['you', inCase.uid]]), 'the line struck you and the exhibit in its case');
+    assert.equal(json(violations(r).map(v => v.replace(/, at step.*$/, ''))), json([`combat_glass_if_plain: ${s.actors[1].uid}'s planted_plain struck ${inCase.uid} inside its case`]));
+  });
+
+  test('a line that defeats you at its boundary ends the visit there: no line after it goes off', () => {
+    const X = core(), S = X.Specials;
+    chime(X);
+    // Two corridors out of each other's hearing: a station in each, you on the first's line,
+    // an exhibit asleep on the second's.
+    const map = ['################', '#..............#', '################', '#..............#', '################'];
+    const s = room(X, map, [12, 1], [{ sp: 'dummy', at: [1, 1], arch: 'planted_station', mode: 'awake', stats: BODY, next: 100 },
+      { sp: 'dummy', at: [1, 3], arch: 'planted_station', mode: 'awake', stats: BODY, next: 100 }, { sp: 'dummy', at: [8, 3], mode: 'dormant', stats: BODY }], { depth: 3 });
+    const [you, first, second] = s.actors;
+    you.hp = 1;
+    const r = H.play(X, s, Array(5).fill(wait), { inv: 'all', clone: true });
+    assert.deepEqual(violations(r), []);
+    assert.equal(json([r.stopped, s.over && s.over.k, s.over && s.over.turn]), json(['over', 'died', 4]));
+    const after = r.events.slice(r.events.findIndex(e => e.k === 'died' && e.who === 'you') + 1);
+    assert.equal(json(after.map(e => [e.k, e.who || null, e.cause.k, e.cause.by])), json([['noise', null, 'special', first.uid], ['special', first.uid, 'special', first.uid]]),
+      'only what is left of the line that struck you: its noise, then its own event');
+    assert.equal(json([second.telegraph && second.telegraph.due, r.events.filter(e => e.k === 'damaged' && e.who !== 'you').length]), json([400, 0]), 'the second line did not go off');
   });
 
   // ---- The threat ----
@@ -442,6 +496,26 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(S.threat(s, wait)), json(on));
     assert.equal(X.State.hash(s), h, 'nothing changed');
     assert.equal(json(asked), json([[false, 'wait', 100], [false, 'wait', 100], [false, 'wait', 100]]), 'asked of a copy, with the action\'s own cost');
+  });
+
+  test('the threat asks Perks.adjust as step() does, with the events the action made: a step a perk frees by what it did is free in the threat too', () => {
+    const X = core(), S = X.Specials, s = ringRoom(X), [you, w] = s.actors;
+    S.mark(s, w, 'ring', S.tiles(s, w, 'ring'), []);
+    s.tick = 100; you.next = 100; w.next = 160;
+    // You at (4,2) on the ring round (5,2); a step south leaves you on it, at (4,3).
+    const south = { a: 'move', dir: 4 }, dmg = S.net(S.info(s, 'ring').gross, you.pad);
+    assert.equal(json(S.threat(s, south)), json({ x: 4, y: 3, dmg, by: w.uid }), 'a step that costs a turn: the ring goes off at 160, before your decision at 200');
+    // A perk that makes a step free when the step moved you, which it reads from the step's
+    // own events (the moved event), as Close the Distance may.
+    const asked = [];
+    X.Perks.adjust = (state, action, r, ev) => {
+      const moved = ev.filter(e => e.k === 'moved' && e.who === 'you').map(e => e.to);
+      asked.push([action.a, json(moved)]);
+      return action.a === 'move' && moved.length ? { r: 0, why: 'planted' } : { r, why: null };
+    };
+    assert.equal(S.threat(s, south), null, 'made free: nothing goes off before your next decision');
+    assert.equal(json(S.threat(s, wait)), json({ x: 4, y: 2, dmg, by: w.uid }), 'a wait moves you nowhere, so it is not free');
+    assert.equal(json(asked), json([['move', json([[4, 3]])], ['wait', '[]']]), 'asked with the events of the action itself');
   });
 
   test('the threat\'s order: what goes off first, then the rest (more); a boundary before an exhibit at the same tick; a module line for an owner the action destroys still counts', () => {
@@ -487,10 +561,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([w.telegraph.offYou, S.atYou(w.telegraph)]), json([true, false]));
     you.x = 4;
     S.resolve(s, w, []);
-    // A call is never at you, and stores nothing.
+    // A call is never at you, and stores nothing, whether or not it reaches your tile.
     arch(X, 'planted_caller', {}, 'call');
-    const u = room(X, OPEN, [4, 2], [{ sp: 'dummy', at: [8, 4], arch: 'planted_caller', mode: 'hunting', stats: BODY }]), c = u.actors[1];
-    S.mark(u, c, 'call', S.tiles(u, c, 'call'), []);
+    const WIDE = ['########################', '#......................#', '#......................#', '#......................#', '########################'];
+    const u = room(X, WIDE, [2, 2], [{ sp: 'dummy', at: [20, 2], arch: 'planted_caller', mode: 'hunting', stats: BODY }]), c = u.actors[1];
+    const reach = S.tiles(u, c, 'call');
+    assert.ok(reach.length && !reach.some(([x, y]) => x === 2 && y === 2), 'the call does not reach your tile');
+    S.mark(u, c, 'call', reach, []);
     assert.equal(json(['offYou' in c.telegraph, S.atYou(c.telegraph)]), json([false, false]));
     S.resolve(u, c, []);
     assert.equal(json(heard), json([[w.uid, 'ring', true, false, null], [w.uid, 'ring', false, true, true], [c.uid, 'call', false, false, null]]));

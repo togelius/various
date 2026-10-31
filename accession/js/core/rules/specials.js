@@ -152,7 +152,8 @@ const Specials = (() => {
   }
   // Specials.shapes() → [id…]: every shape, those written here first, then those added in order.
   const shapes = () => SHAPES.concat(ADDED_ORDER);
-  // Does a special of this shape pass glass? Only a beam: the line, or an added shape that says so.
+  // Specials.passesGlass(shape) → bool: does a special of this shape pass glass? Only a beam:
+  // the line, or an added shape that says so (glass).
   const passesGlass = shape => shape === 'line' || (own(ADDED, shape) && ADDED[shape].glass);
   // A list of tiles an added shape gave, checked: each [x, y] of integers inside the map.
   function checked(state, id, got, what) {
@@ -360,10 +361,13 @@ const Specials = (() => {
   // Specials.resolveDue(state, ev) → [uid…]: at a turn boundary (step 8, before the module
   // turn rules: Modules.turn calls it), every due line whose tick has come goes off (fire),
   // in its owners' spawn order; the uids of those owners. It costs its owner nothing: the
-  // line is the boundary's, not an action of its owner's.
+  // line is the boundary's, not an action of its owner's. Nothing more goes off once the
+  // visit is over (a line that defeats you ends it, as an exhibit's action that does ends
+  // the world's turn, Step.advance).
   function resolveDue(state, ev) {
     const out = [];
     for (const a of state.actors.slice()) {
+      if (state.over) break;
       if (a.gone || !isDue(a.telegraph) || a.telegraph.due > state.tick) continue;
       fire(state, a, ev);
       out.push(a.uid);
@@ -419,8 +423,9 @@ const Specials = (() => {
   // leave you on a tile marked for damage by a special that will go off before your next
   // decision? The interface asks before such an action ("Stay in the beam: 9 damage?", §7.1).
   // The tile is where the action leaves you, and your next decision comes when its ticks are
-  // done, as the perks you hold make them (Perks.adjust: a step made free leaves no time for
-  // anything to go off). What goes off first:
+  // done, as the perks you hold make them (Perks.adjust, asked as step() asks it: on the state
+  // the action left, with the events the action made, so a perk that reads its step reads
+  // the same one; a step made free leaves no time for anything to go off). What goes off first:
   //   - a pending mark, if its owner's next action comes earlier (ties go to you, §8.1);
   //   - a due line, if its boundary comes at or before your next decision (a boundary runs
   //     before anyone who acts at its tick), whether it is marked already or will be marked
@@ -459,9 +464,9 @@ const Specials = (() => {
     if (state.ui && state.ui.pendingChoice && action.a !== 'choose') return null;
     const h = Actions.get(action.a), you = state.actors[0];
     if (!h || Status.blocks(state, you, action)) return null;
-    const copy = State.clone(state), raw = h.apply(copy, action, []);
+    const copy = State.clone(state), made = [], raw = h.apply(copy, action, made);
     if (typeof raw === 'string' || !Number.isInteger(raw) || raw <= 0) return null;
-    const r = Perks.adjust(copy, action, raw, []).r;
+    const r = Perks.adjust(copy, action, raw, made).r;
     if (r <= 0) return null;
     const seen = unforeseen(state, action) ? state : copy;
     if (seen.over && seen.over.k === 'left') return null;
@@ -504,6 +509,6 @@ const Specials = (() => {
     return first;
   }
 
-  return { SHAPES: SHAPES.slice(), info, of, cpGross, list, cadence, nextUp, markNext, addShape, shapes, tiles, marking, canMark, mark, atYou,
+  return { SHAPES: SHAPES.slice(), info, of, cpGross, list, cadence, nextUp, markNext, addShape, shapes, passesGlass, tiles, marking, canMark, mark, atYou,
     net, resolve, resolveDue, cancel, marks, readout, threat };
 })();
