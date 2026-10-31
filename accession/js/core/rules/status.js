@@ -1,5 +1,5 @@
 // ACCESSION — statuses on actors (BUILD.md §8.1, §8.6), owned by W1-STATUS after M3's Wave 0.
-// A status is { id, until, turns, from } on actor.statuses, in the order applied.
+// A status is { id, until, turns, from, perm? } on actor.statuses, in the order applied.
 //
 // The timing rule (§8.1): a status of N turns covers the N turns that start at its bearer's
 // next decision. It is applied with until and from null and its N in `turns`; once the action

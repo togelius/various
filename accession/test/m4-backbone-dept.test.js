@@ -125,6 +125,22 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
   });
 
+  test('in play, every step keeps dept.walked equal to the rooms you have stood in, in the order entered', () => {
+    for (const acc of ACCS) {
+      const s = Dept.create(4, acc, 2, { invulnerable: true }), m = s.dept, oracle = [];
+      // The oracle: the room of each tile you stand on, once, from the department's own map.
+      const stood = () => { const y = s.actors[0], id = m.roomOf[y.y][y.x]; if (m.rooms.some(r => r.id === id) && !oracle.includes(id)) oracle.push(id); };
+      stood();
+      for (let i = 0; i < 600 && !s.over; i++) {
+        const moves = Step.legal(s).filter(a => a.a === 'move');
+        Step.step(s, moves.length ? moves[(i * 7919 + (i >> 3)) % moves.length] : { a: 'wait' });
+        stood();
+        eq(Dept.walked(s), oracle, `${acc}, after step ${i + 1}`);
+      }
+      assert.ok(oracle.length >= 2, `${acc}: the walk left its first room (${json(oracle)})`);
+    }
+  });
+
   // ---- The layout attempt's accept and the validators (A10) ----
 
   test('a planted validator that rejects an attempt makes it fail and reseed; one that always rejects reaches the certified fallback, populated', () => {
@@ -231,6 +247,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('Status.define holds M3\'s statuses\' rules; a status is defined once, after its registry entry, with only effect, blocks and skipsAction', () => {
     eq(Status.defined(), ['fixed', 'rooted', 'coughing', 'restoring', 'slowed', 'dazed']);
     eq(Object.keys(Status.EFFECTS).sort(), ['coughing', 'restoring']);
+    // Of M3's statuses only fixed makes its bearer only wait (§8.1), and only fixed and rooted
+    // forbid you anything.
+    for (const id of Status.defined()) {
+      const r = Setup.room(1, { acc: 'T0', map: ['#####', '#...#', '#####'], you: [1, 1], exhibits: [{ sp: 'x', at: [3, 1], stats: C.Roles.stats('fodder', 1) }] });
+      Status.apply(r, r.actors[1], id, 2, { k: 'status', id }, []);
+      Status.apply(r, r.actors[0], id, 2, { k: 'status', id }, []);
+      assert.equal(Status.skips(r, r.actors[1]), id === 'fixed', id);
+      assert.equal(Status.blocks(r, r.actors[0], { a: 'move', dir: 2 }), id === 'fixed' || id === 'rooted' ? id : null, id);
+    }
     const X = loadCore();
     assert.throws(() => X.Status.define('fixed', {}), /fixed is defined twice/);
     assert.throws(() => X.Status.define('planted', {}), /not in Registry.STATUSES/);
@@ -249,6 +274,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     X.Status.apply(s, s.actors[0], 'rooted', 3, { k: 'status', id: 'rooted' }, []);
     X.Status.apply(s, s.actors[0], 'fixed', 3, { k: 'status', id: 'fixed' }, []);
     assert.equal(X.Status.blocks(s, s.actors[0], { a: 'move', dir: 2 }), 'fixed');
+    // An exhibit holding a status defined with skipsAction only waits (AI.act asks
+    // Status.skips), as a fixed one does; without it, the same exhibit strikes you.
+    const struck = withStatus => {
+      const r = X.Setup.room(1, { acc: 'T0', map: ['#####', '#...#', '#####'], you: [1, 1], exhibits: [{ sp: 'x', at: [2, 1], mode: 'hunting', stats: C.Roles.stats('fodder', 1) }] });
+      if (withStatus) { X.Status.apply(r, r.actors[1], 'planted', 5, { k: 'status', id: 'planted' }, []); X.Status.settle(r); }
+      const ev = [];
+      for (let i = 0; i < 3; i++) ev.push(...X.Step.step(r, { a: 'wait' }));
+      return ev.filter(e => (e.k === 'attacked' || e.k === 'damaged' || e.k === 'missed') && e.cause && e.cause.by === r.actors[1].uid).length;
+    };
+    assert.ok(struck(false) > 0, 'the control exhibit strikes you');
+    assert.equal(struck(true), 0, 'a skipping exhibit only waits');
   });
 
   test('a status for the rest of the visit (perm) outlives 10,000 turns and every timed renewal, and ends with the visit when you leave', () => {
@@ -328,9 +364,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('tools/dept-p95.js: the p95 of Dept.create in CPU-ms over every department, depth 1–7 and seed, and OVER past the budget of 40', () => {
     const P = require(path.join(root, 'tools/dept-p95.js'));
     assert.equal(P.BUDGET_MS, 40);
-    // Nearest rank: of 1–20, p50 is the 10th and p95 the 19th.
-    const t = Array.from({ length: 20 }, (_, i) => i + 1);
-    assert.deepEqual([P.rank(t, 50), P.rank(t, 95), P.rank([7], 95)], [10, 19, 7]);
+    // Nearest rank: of 1–20, p50 is the 10th and p95 the 19th; of 1–21, the 11th and the 20th
+    // (the rank rounded up, never down).
+    const t = Array.from({ length: 20 }, (_, i) => i + 1), t21 = t.concat([21]);
+    assert.deepEqual([P.rank(t, 50), P.rank(t, 95), P.rank([7], 95), P.rank(t21, 50), P.rank(t21, 95)], [10, 19, 7, 11, 20]);
     assert.equal(P.line(t, 40), 'Dept.create: 20 departments, CPU-ms p50 10.0, p95 19.0, max 20.0; budget p95 40');
     assert.equal(P.line(t, 18), 'Dept.create: 20 departments, CPU-ms p50 10.0, p95 19.0, max 20.0; budget p95 18 OVER');
     const m = P.measure(C, 1);
