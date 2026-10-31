@@ -11,7 +11,14 @@ module.exports = ({ test, assert, root, path, fs }) => {
   // You at (2,2); a sleeping fodder beside you; another 3 tiles off; a third behind a wall.
   const ROOM = stamp(['arena: look', 'goal: kill', 'species: plodder', 'depths: 2', 'legend: N exhibit sp; F exhibit sp; G exhibit role=fodder'],
     ['##########', '#........#', '#.@N..F.##', '#.......#G', '##########']);
-  const os = require('node:os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-policies-'));
+  const os = require('node:os');
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-policies-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const planted = (name, src) => { const f = path.join(tmp, name); fs.writeFileSync(f, "'use strict';\n" + src + '\n'); return f; };
 
   test('Obs.make shows what a player sees: the view model with the events, the legal actions, the log and the stream', () => {
@@ -175,7 +182,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
   // A policy's memory is obs.memory, one plain object for each run, empty at its start; a
   // policy file keeps no state of its own, which would last from one run into the next in
   // the shared context (BUILD.md §10.2: two runs on one seed make the same decisions).
-  test('a policy remembers in obs.memory, fresh for each run, so a seed decides alike run alone or after others; a policy file that keeps its own state fails the lint', () => {
+  tmpTest('a policy remembers in obs.memory, fresh for each run, so a seed decides alike run alone or after others; a policy file that keeps its own state fails the lint', () => {
     // A lure bot: it waits three turns, remembering how many, then fights.
     const lure = "Policies.add('lure', { stages: { card: { summary: 'Waits three turns, then fights.', rules: ['Wait three turns.', 'Then fight.'] }, decide(obs) {" +
       " obs.memory.stage = (obs.memory.stage || 0) + 1;" +
@@ -211,7 +218,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     }
   });
 
-  test('policies run in the hardened context: Math.random and the clock throw', () => {
+  tmpTest('policies run in the hardened context: Math.random and the clock throw', () => {
     const f = planted('chance.js', [
       "Policies.add('chance', {",
       "  dice: { card: { summary: 'Rolls a die it may not have.', rules: ['Roll.'] }, decide: obs => ({ action: { a: 'wait' }, reason: 'rolled ' + Math.random() }) },",
@@ -226,7 +233,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.equal(b.stopped, 'error'); assert.match(b.error, /Date is not allowed in the deterministic core/);
   });
 
-  test('lint-core passes the policy files and the arena tool, and fails a planted policy', () => {
+  tmpTest('lint-core passes the policy files and the arena tool, and fails a planted policy', () => {
     const { spawnSync } = require('node:child_process');
     const lint = files => spawnSync(process.execPath, [path.join(root, 'tools/lint-core.js'), ...files], { encoding: 'utf8' });
     const ours = fs.readdirSync(Sim.POLICY_DIR).filter(f => f.endsWith('.js')).map(f => path.join(Sim.POLICY_DIR, f));

@@ -24,6 +24,9 @@
 //     CPU time with `--write-timings`, keeping the pool's. A failure fails the run, in one
 //     process or in workers, and so does a test that ends the process early. A stale or
 //     unreadable timings.json orders nothing and stops nothing.
+//   - A run of the tests leaves no new folder in os.tmpdir(): it has one of its own, gone when
+//     it ends (even early), and a test, or a file as it loads, that leaves anything there fails,
+//     saying what; a test that removes its folder in a finally block, passed or failed, does not.
 //   - The budgets check-all prints are BUILD.md §10.2's.
 'use strict';
 module.exports = ({ test, assert, root, fs, path }) => {
@@ -375,6 +378,60 @@ module.exports = ({ test, assert, root, fs, path }) => {
       r = run('--file=e.test.js');
       assert.equal(r.status, 1, r.stdout + r.stderr);
       assert.match(r.stdout, /^FAIL the test run stopped before its end \(exit code 0\)/m);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('a run of the tests leaves no new folder in os.tmpdir(): it has one of its own, a test or a file that leaves anything there fails, and a test that removes its folder in a finally block, passed or failed, does not', () => {
+    const dir = temp('tmp-runner');
+    try {
+      const plant = (name, body) => fs.writeFileSync(path.join(dir, name), `const fs = require('node:fs'), os = require('node:os'), path = require('node:path');\nmodule.exports = ({ test }) => {\n${body}\n};\n`);
+      const make = name => `fs.mkdtempSync(path.join(os.tmpdir(), '${name}-'))`;
+      const removed = (name, then) => `const d = ${make(name)}; try { fs.writeFileSync(path.join(d, 'f'), ''); ${then} } finally { fs.rmSync(d, { recursive: true, force: true }); }`;
+      plant('clean.test.js', [`test('clean, passes', () => { ${removed('planted-clean', '')} console.log('TMPDIR ' + os.tmpdir()); });`,
+        `test('clean, fails', () => { ${removed('planted-clean', "throw new Error('a planted failure');")} });`].join('\n'));
+      plant('leaks.test.js', [`test('leaks, passes', () => { ${make('planted-leak')}; });`,
+        `test('leaks, fails', () => { ${make('planted-leak')}; throw new Error('a planted failure'); });`,
+        "test('leaks a file', () => { fs.writeFileSync(path.join(os.tmpdir(), 'planted-file'), ''); });"].join('\n'));
+      plant('loads.test.js', `${make('planted-load')};\ntest('loaded', () => {});`);
+      const run = (jobs, ...a) => spawnSync(process.execPath, [path.join(root, 'test/run.js'), ...a], { encoding: 'utf8', env: Object.assign({}, process.env, { ACCESSION_TEST_DIR: dir, ACCESSION_TEST_JOBS: String(jobs) }) });
+      const names = () => json(fs.readdirSync(os.tmpdir()).sort());
+      const had = names();
+      const left = what => new RegExp(`^  left ${what} in os\\.tmpdir\\(\\): a test removes each temporary folder it makes, in a finally block$`, 'm');
+      const fails = (out, file, name, ...lines) => {
+        const at = out.indexOf(`FAIL ${file} :: ${name}\n`);
+        assert.ok(at >= 0, `${file} :: ${name} did not fail:\n${out}`);
+        const said = out.slice(at).split('\n').slice(1), n = said.findIndex(l => !l.startsWith('  '));
+        assert.equal(n, lines.length, out);
+        lines.forEach((re, i) => assert.match(said[i] + '\n', re, out));
+      };
+      // In workers and in one process: only what is left fails, with what it left, and the
+      // run's own os.tmpdir() is gone with whatever was left in it.
+      for (const jobs of [2, 1]) {
+        const r = run(jobs), out = r.stdout;
+        assert.equal(r.status, 1, out + r.stderr);
+        fails(out, 'clean.test.js', 'clean, fails', /^  a planted failure\n/);
+        fails(out, 'leaks.test.js', 'leaks, passes', left('planted-leak-\\w{6}'));
+        fails(out, 'leaks.test.js', 'leaks, fails', /^  a planted failure\n/, left('planted-leak-\\w{6}'));
+        fails(out, 'leaks.test.js', 'leaks a file', left('planted-file'));
+        fails(out, 'loads.test.js', 'loading the file', left('planted-load-\\w{6}'));
+        assert.ok(!/FAIL clean\.test\.js :: clean, passes/.test(out), out);
+        assert.match(out, new RegExp(`^tests: 2/7 passed in \\d+ ms \\(.+, ${jobs === 1 ? '1 process' : '2 workers'}\\) — 5 FAILED$`, 'm'));
+        const own = /^TMPDIR (.+)$/m.exec(out)[1];
+        assert.equal(path.dirname(path.dirname(own)), os.tmpdir(), own);
+        assert.match(path.basename(path.dirname(own)), /^accession-tests-\w{6}$/);
+        assert.ok(!fs.existsSync(path.dirname(own)), `${own} is still there`);
+        assert.equal(names(), had, `${jobs} job(s)`);
+      }
+      // A run that a test ends early leaves nothing either.
+      plant('ends.test.js', `test('ends the run', () => { ${make('planted-end')}; process.exit(0); });`);
+      const r = run(1, '--file=ends.test.js');
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.equal(names(), had);
+      // Clean files alone pass.
+      fs.unlinkSync(path.join(dir, 'leaks.test.js')); fs.unlinkSync(path.join(dir, 'loads.test.js')); fs.unlinkSync(path.join(dir, 'ends.test.js'));
+      plant('clean.test.js', `test('clean', () => { ${removed('planted-clean', '')} });`);
+      assert.equal(run(2).status, 0);
+      assert.equal(names(), had);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 

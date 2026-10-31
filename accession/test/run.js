@@ -18,8 +18,12 @@
 // the output is printed file by file in path order, as a single run prints it. The last line
 // gives the wall time and the CPU time of every process the run used. `--write-timings`
 // records each file's CPU time in test/timings.json (BUILD.md §10.2; the file is generated).
+// A run has an os.tmpdir() of its own (TMPDIR, which every process a test starts inherits), a
+// folder for each process that runs tests, removed when the run ends. A test removes every
+// temporary folder it makes in a finally block, so whatever is new there when a test ends, or
+// when a file has loaded, fails that test or file.
 'use strict';
-const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 
 // The folders searched: test/ itself (its files only), and these subfolders in full.
@@ -96,34 +100,48 @@ const childCpu = () => {
 const ownCpu = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 const cpuNow = () => ownCpu() + childCpu();
 
+// The names in this process's os.tmpdir() (the run's own, see main).
+const tmpNames = () => new Set(fs.readdirSync(os.tmpdir()));
+// What is in os.tmpdir() now and was not in `before`: null if nothing, else why that fails.
+function leftBehind(before) {
+  const left = [...tmpNames()].filter(n => !before.has(n)).sort();
+  return left.length ? `left ${left.join(', ')} in os.tmpdir(): a test removes each temporary folder it makes, in a finally block` : null;
+}
+
 // Runs the given files' tests here. With capture, what each file prints is kept per file. Each
-// file's CPU-ms (loading it and running its tests) is kept in cpu.
+// file's CPU-ms (loading it and running its tests) is kept in cpu. A file that leaves anything
+// in os.tmpdir() as it loads counts as one more test, failed.
 function runFiles(dir, list, capture) {
   const { loadCore } = require('../tools/core-context.js');
   const tests = [], printed = {}, cpu = {};
   const test = (name, fn) => tests.push({ name, fn });
-  let current = null;
+  let current = null, failed = 0, loads = 0;
+  const fail = (file, name, why) => { failed++; console.log(`FAIL ${file} :: ${name}\n  ${why.split('\n').join('\n  ')}`); };
   if (capture) {
     const keep = s => { printed[current] = (printed[current] || '') + s; };
     console.log = (...a) => keep(a.map(String).join(' ') + '\n');
     process.stdout.write = chunk => { keep(String(chunk)); return true; };
   }
   for (const f of list) {
-    const before = tests.length, c = cpuNow();
+    const before = tests.length, c = cpuNow(), had = tmpNames();
     current = f;
     require(path.join(dir, f))({ test, assert, loadCore, root, fs, path });
     for (let i = before; i < tests.length; i++) tests[i].file = f;
+    const left = leftBehind(had);
+    if (left) { loads++; fail(f, 'loading the file', left); }
     cpu[f] = cpuNow() - c;
   }
-  let failed = 0;
   for (const t of tests) {
     current = t.file;
-    const c = cpuNow();
+    const c = cpuNow(), had = tmpNames();
+    let why = null;
     try { t.fn(); }
-    catch (e) { failed++; console.log(`FAIL ${t.file} :: ${t.name}\n  ${(e && e.message || String(e)).split('\n').join('\n  ')}`); }
+    catch (e) { why = e && e.message || String(e); }
+    const left = leftBehind(had);
+    if (why !== null || left) fail(t.file, t.name, [why, left].filter(x => x !== null).join('\n'));
     cpu[t.file] += cpuNow() - c;
   }
-  return { total: tests.length, failed, printed, cpu };
+  return { total: tests.length + loads, failed, printed, cpu };
 }
 
 // Writes the files' CPU-ms into dir's timings.json, rounded to 10 ms, keeping the other files'
@@ -172,19 +190,27 @@ function main() {
     process.exit(0);
   }
   const want = parseInt(process.env.ACCESSION_TEST_JOBS || '', 10);
-  const jobs = Math.max(1, Math.min(list.length, want > 0 ? want : Math.min(4, require('node:os').cpus().length)));
+  const jobs = Math.max(1, Math.min(list.length, want > 0 ? want : Math.min(4, os.cpus().length)));
+  // The run's own os.tmpdir(): what another run or another worker makes in its own is never
+  // seen as this test's (runFiles). It goes when the run ends, however it ends.
+  const tmpRun = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-tests-'));
+  process.on('exit', () => fs.rmSync(tmpRun, { recursive: true, force: true }));
+  const tmpFor = k => { const d = path.join(tmpRun, String(k)); fs.mkdirSync(d); return d; };
   if (jobs === 1) {
+    process.env.TMPDIR = tmpFor(0);
     const r = runFiles(dir, list, false);
     if (record && !r.failed) writeTimings(dir, r.cpu, !filter && !named.length);
     return done(r.total, r.failed, cpuNow(), 1);
   }
+  // With workers, this process only waits, so an interrupt ends it at once, and by its exit.
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(sig === 'SIGINT' ? 130 : 143));
   const { spawn } = require('node:child_process');
   const parts = share(dir, list, jobs).filter(p => p.length);
   let left = parts.length, total = 0, failed = 0, cpu = 0;
   const printed = {}, each = {};
-  parts.forEach(part => {
+  parts.forEach((part, k) => {
     const arg = '--shard=' + Buffer.from(JSON.stringify(part)).toString('base64');
-    const child = spawn(process.execPath, [__filename, arg], { env: process.env });
+    const child = spawn(process.execPath, [__filename, arg], { env: Object.assign({}, process.env, { TMPDIR: tmpFor(k) }) });
     let out = '', err = '';
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { err += d; });

@@ -10,6 +10,14 @@ module.exports = ({ test, assert, root, path, fs }) => {
   const DUMMY = C.Arena.parse(C.Arena.DUMMY);
   const dummy = (s, o) => C.Arena.build(DUMMY, s, { options: o }), judged = (s, ev) => C.Arena.outcome(DUMMY, s, ev);
   const cli = args => spawnSync(process.execPath, [path.join(root, 'tools/sim.js'), ...args], { encoding: 'utf8', cwd: root });
+  const os = require('node:os');
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-sim-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const policy = (decide, extra) => Object.assign({ card: { summary: 'A planted policy.', rules: ['As planted.'] }, decide }, extra || {});
 
   test('a run plays a policy to its outcome, with a reason for every decision', () => {
@@ -80,7 +88,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.throws(() => Sim.run({ policy: 'idle', seed: 1 }), /needs make/);
   });
 
-  test('check runs a checker after every step, and its violations are listed with their step, counted from 1', () => {
+  tmpTest('check runs a checker after every step, and its violations are listed with their step, counted from 1', () => {
     let calls = 0;
     const r = Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 1, check: (pre, action, events, post) => {
       calls++;
@@ -93,7 +101,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     eq(r.replay.actions[2], r.replay.actions[r.violations[0].step - 1]);
     // check: true loads every *.inv.js of test/behaviour/ (here a planted folder) through
     // tools/invariants.js, and runs each after every step.
-    const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-inv-'));
+    const dir = tmp;
     fs.writeFileSync(path.join(dir, 'planted.inv.js'), [
       "module.exports = (C) => [",
       "  { id: 'still_far', check: (pre, events, post) => post.actors[0].x >= 4 ? 'you came within reach of the plodder' : null },",
@@ -134,7 +142,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     eq(m.violations.map(v => [v.id, v.step]), [['policy', 1]]);
   });
 
-  test('a policy that writes into what it sees changes nothing, and in a policy file it is stopped', () => {
+  tmpTest('a policy that writes into what it sees changes nothing, and in a policy file it is stopped', () => {
     // In code that is not strict, the write is lost: the view model is a frozen copy.
     const vandal = policy(obs => { const t = obs.vm.tiles; t[2] = t[2].slice(0, 6) + '#' + t[2].slice(7); obs.vm.over = { k: 'won' }; return { action: { a: 'wait' }, reason: 'waits' }; });
     const r = Sim.run({ make: dummy, policy: vandal, name: 'test.vandal', seed: 1, cap: 5, check: () => [] });
@@ -144,7 +152,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.equal(C.State.hash(s), r.endHash, 'its replay replays');
     assert.equal(s.dept.tiles[2], C.Arena.parse(C.Arena.DUMMY).map[2].replace('@', '.').replace('P', '.'));
     // Policy files are strict, so there the write fails at once, naming the policy.
-    const f = path.join(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-vandal-')), 'vandal.js');
+    const f = path.join(tmp, 'vandal.js');
     fs.writeFileSync(f, "'use strict';\nPolicies.add('vandal', { walls: { card: { summary: 'Draws walls on the map it sees.', rules: ['Draw a wall.'] }, " +
       "decide(obs) { obs.vm.tiles[2] = '#'; return { action: { a: 'wait' }, reason: 'waits' }; } } });\n");
     const C2 = Sim.load([f]);
@@ -246,8 +254,8 @@ module.exports = ({ test, assert, root, path, fs }) => {
     }
   });
 
-  test("a run's replay rebuilds its room from its start alone, in an arena or a department", () => {
-    const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-stamp-')), file = path.join(tmp, 'pick.txt');
+  tmpTest("a run's replay rebuilds its room from its start alone, in an arena or a department", () => {
+    const file = path.join(tmp, 'pick.txt');
     const stamp = map => ['arena: pick', 'goal: kill', 'species: plodder', 'kit: weapon heavy', 'legend: P exhibit sp; F exhibit role=fodder', 'variants: swap P F', '', ...map].join('\n') + '\n';
     fs.writeFileSync(file, stamp(['#########', '#.@..P.F#', '#.......#', '#########']));
     for (const seed of [1, 2, 3, 4]) {
@@ -332,7 +340,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     } else assert.equal(h.from, 'tools/core-hash.js');
   });
 
-  test('the command line: --help lists the §10.2 flags, and the dummy arena runs end to end', () => {
+  tmpTest('the command line: --help lists the §10.2 flags, and the dummy arena runs end to end', () => {
     const help = cli(['--help']);
     assert.equal(help.status, 0);
     for (const f of ['--policy', '--seeds', '--depth', '--dept', '--rules-off', '--without', '--paired', '--invulnerable', '--arena', '--cards'])
@@ -345,7 +353,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     for (const run of j.a.runs.concat(j.b.runs)) { assert.equal(run.replay.coreHash, j.coreHash); assert.ok(run.reasons.length === run.steps); }
     assert.match(r.stderr, /^dummy: /); clean(r.stderr);
     // One policy, written to a file; a department; the cards.
-    const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-sim-')), out = path.join(tmp, 'out.json');
+    const out = path.join(tmp, 'out.json');
     const one = cli(['--arena', 'dummy', '--policy', 'fighter', '--seeds', '2', '--out', out, '--rules-off', 'marble']);
     assert.equal(one.status, 0, one.stderr);
     const k = JSON.parse(fs.readFileSync(out, 'utf8'));

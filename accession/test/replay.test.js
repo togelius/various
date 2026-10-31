@@ -16,7 +16,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const EXTRA = ['tools/monkey.js', 'tools/replay.js'];
   const C = loadCore(EXTRA);
   const { Replay: R, State, TestRoom, Dept, Monkey, Text, Setup, Options, Step } = C;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-replay-'));
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-replay-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const json = x => JSON.stringify(x);
   const clean = s => !/undefined|NaN|\[object/.test(s);
 
@@ -274,7 +280,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(ok.problem, null); assert.equal(ok.run.hash, R.play(rp).hash);
   });
 
-  test('tools/golden.js keeps its format, re-pins with per-step hashes, checks, adds, marks pending, and names the first changed step', () => {
+  tmpTest('tools/golden.js keeps its format, re-pins with per-step hashes, checks, adds, marks pending, and names the first changed step', () => {
     // The real file is in the tool's format, and every run in it is a valid definition.
     const real = Golden.read(Golden.FILE);
     assert.equal(fs.readFileSync(Golden.FILE, 'utf8'), Golden.format(real), 'test/golden/golden.js is as tools/golden.js writes it');
@@ -353,7 +359,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(HashCompare.compare(open, page, node)[0], /checkpoint 1 \(action 100\) differs/);
   });
 
-  test('tools/golden.js writes only when asked: --help prints its usage, and an option or word it does not know, or two modes at once, is refused, writing nothing', () => {
+  tmpTest('tools/golden.js writes only when asked: --help prints its usage, and an option or word it does not know, or two modes at once, is refused, writing nothing', () => {
     // A file that a re-pin would change: one run, pinned, then marked pending.
     const file = path.join(tmp, 'asked.js');
     Golden.write(file, { mk: monkey(5, 60) });
@@ -389,7 +395,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Golden.read(file).mk.pending, undefined);
   });
 
-  test('--against on a planted pair of commits finds the step where the planted rule first changes the state', () => {
+  tmpTest('--against on a planted pair of commits finds the step where the planted rule first changes the state', () => {
     // A checkout with the core and the tools, committed; then the planted rule, committed.
     const repo = path.join(tmp, 'repo');
     const copy = rel => { const from = path.join(root, rel), to = path.join(repo, rel); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.cpSync(from, to, { recursive: true }); };
@@ -421,7 +427,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.throws(() => Golden.against('no-such-commit', { root: repo, golden: runs }), /no-such-commit is not a commit here/);
   });
 
-  test('coreHash covers js/core and content/ except viewmodel.js, and vmHash covers viewmodel.js', () => {
+  tmpTest('coreHash covers js/core and content/ except viewmodel.js, and vmHash covers viewmodel.js', () => {
     assert.match(Hashes.coreHash(), /^[0-9a-f]{8}$/); assert.match(Hashes.vmHash(), /^[0-9a-f]{8}$/);
     const files = Hashes.coreFiles();
     assert.ok(files.includes('js/core/state.js') && files.includes('js/core/layout/generate.js') && files.includes('content/testroom.js'));
@@ -449,7 +455,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(out), json({ coreHash: Hashes.coreHash(), vmHash: Hashes.vmHash() }));
   });
 
-  test('build-single.py stamps the game with coreHash, vmHash and the build, and the hash page with coreHash; --release keeps the game as builds/<coreHash>.html', () => {
+  tmpTest('build-single.py stamps the game with coreHash, vmHash and the build, and the hash page with coreHash; --release keeps the game as builds/<coreHash>.html', () => {
     const want = JSON.parse(cp.execFileSync('node', [path.join(root, 'tools/core-hash.js'), '--json'], { encoding: 'utf8' }));
     const build = (out, args, name) => {
       const r = cp.spawnSync('python3', [path.join(root, 'tools/build-single.py'), '--out', out].concat(args), { encoding: 'utf8', env: Object.assign({}, process.env, { ACCESSION_BUILD: name }) });
@@ -471,7 +477,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(fs.readdirSync(path.join(release, 'builds')).length, 1);
   });
 
-  test('node tools/replay.js plays a replay file, or a crash card holding one, and prints what happened in words', () => {
+  tmpTest('node tools/replay.js plays a replay file, or a crash card holding one, and prints what happened in words', () => {
     const r = R.make(visit.start, null, visit.actions.slice(0, 40), Hashes.coreHash());
     const file = path.join(tmp, 'replay.json'), cardFile = path.join(tmp, 'card.json');
     fs.writeFileSync(file, json(r)); fs.writeFileSync(cardFile, json({ text: 'a card', replay: r }));
@@ -490,7 +496,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(run().status, 2);
   });
 
-  test('node tools/replay.js plays a sim run\'s replay from an arena, rebuilt by tools/arena.js, and says when that file has changed', () => {
+  tmpTest('node tools/replay.js plays a sim run\'s replay from an arena, rebuilt by tools/arena.js, and says when that file has changed', () => {
     const Sim = require(path.join(root, 'tools/sim.js'));
     const run = (...args) => cp.spawnSync('node', [path.join(root, 'tools/replay.js')].concat(args), { encoding: 'utf8' });
     for (const seed of [1, 2]) {
@@ -509,10 +515,5 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.ok(b.stdout.includes('built by tools/arena.js 00000000') && b.stdout.includes('(another tools/arena.js: the room may not be the same)'), b.stdout);
       assert.ok(clean(a.stdout + b.stdout));
     }
-  });
-
-  test('the tests leave no temporary files behind', () => {
-    fs.rmSync(tmp, { recursive: true, force: true });
-    assert.ok(!fs.existsSync(tmp));
   });
 };

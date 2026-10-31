@@ -54,20 +54,31 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.throws(() => Shrink.ddmin(list, () => false), /the full action list does not fail/);
     // Out of time: the smallest failing list found so far.
     let calls = 0;
-    // Each test here takes about 2 ms, and a full shrink needs more than 20 of them.
-    const slow = l => { calls++; const t0 = process.hrtime.bigint(); while (process.hrtime.bigint() - t0 < 2000000n); return both(l); };
+    // Each test here uses 2 CPU-ms (CPU time, so a loaded machine, which stretches a busy wait's
+    // wall time, does not change how many fit in the limit), and a full shrink needs more than
+    // 20 of them.
+    const slow = l => { calls++; const t0 = cpuMs(); while (cpuMs() - t0 < 2); return both(l); };
     const t = Shrink.ddmin(list, slow, { ms: 5 });
     assert.ok(t.timedOut && !t.minimal, json(t));
     assert.ok(both(t.actions) && t.actions.length <= 40);
     assert.ok(calls < 10, `stopped after ${calls} tests`);
     // The limit is CPU time: tests that wait without using the CPU, as a loaded machine makes
-    // a test wait, do not use it up, and the shrink ends whole however long they wait.
-    const nap = new Int32Array(new SharedArrayBuffer(4));
-    let naps = 0;
-    const sleepy = l => { naps++; Atomics.wait(nap, 0, 0, 4); return both(l); };
-    const w = Shrink.ddmin(list, sleepy, { ms: 25 });
+    // a test wait, do not use it up, and the shrink ends whole however long they wait. It runs
+    // in a fresh process of its own, since a process's CPU time counts all its threads, and in
+    // a test worker's, with its large heap, the other threads (such as the garbage collector's)
+    // once used 26 CPU-ms while the tests waited. Its tests wait 5 ms each, over twice the
+    // limit of 100 CPU-ms in all; the shrink itself uses about 5.
+    const script = `const Shrink = require(${json(path.join(root, 'tools/shrink.js'))});
+      const list = Array.from({ length: 40 }, (_, i) => i + 1), both = l => l.includes(3) && l.includes(29);
+      const nap = new Int32Array(new SharedArrayBuffer(4));
+      let naps = 0;
+      const w = Shrink.ddmin(list, l => { naps++; Atomics.wait(nap, 0, 0, 5); return both(l); }, { ms: 100 });
+      console.log(JSON.stringify({ w, naps }));`;
+    const alone = require('node:child_process').spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
+    assert.equal(alone.status, 0, alone.stdout + alone.stderr);
+    const { w, naps } = JSON.parse(alone.stdout);
     assert.ok(!w.timedOut && w.minimal && json(w.actions) === json([3, 29]), json(w));
-    assert.ok(naps * 4 > 2 * 25, `only ${naps} tests of 4 ms each, so the wall clock would not have stopped it either`);
+    assert.ok(naps * 5 > 2 * 100, `only ${naps} tests of 5 ms each, so the wall clock would not have stopped it either`);
   });
 
   test('the state diff lists each changed JSON path in key order, with absent keys, and stops at its limit', () => {

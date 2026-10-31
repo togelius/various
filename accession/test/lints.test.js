@@ -3,11 +3,17 @@
 module.exports = ({ test, assert, root, fs, path }) => {
   const { spawnSync } = require('node:child_process');
   const os = require('node:os');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-lint-'));
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-lint-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const run = (script, args) => spawnSync(process.execPath, [path.join(root, script), ...args], { encoding: 'utf8' });
   const lintSrc = src => { const f = path.join(tmp, 'planted.js'); fs.writeFileSync(f, "'use strict';\n" + src + '\n'); return run('tools/lint-core.js', [f]).status; };
 
-  test('lint-core fails on each forbidden thing, however it is written', () => {
+  tmpTest('lint-core fails on each forbidden thing, however it is written', () => {
     const bad = [
       'const r = Math.random();', 'const t = Date.now();', 'const d = Math.sqrt(2);', 'const p = 2 ** 3;', 'const r = Math["random"]();',
       'const M = Math; M.random();', 'const { random } = Math;', 'const a = Math.PI * 2;', 'parseFloat("1.5");', 'new Intl.Collator();',
@@ -22,7 +28,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
   // parseFloat reached through Number, GC-timed callbacks, a sort whose comparator is left
   // out by writing undefined or null or by toSorted, and the Function constructor reached
   // through a function's .constructor.
-  test('lint-core fails on the equivalents of what it bans: locale case, Number.parseFloat, FinalizationRegistry, toSorted, a missing comparator, a constructor call', () => {
+  tmpTest('lint-core fails on the equivalents of what it bans: locale case, Number.parseFloat, FinalizationRegistry, toSorted, a missing comparator, a constructor call', () => {
     const bad = ["'i'.toLocaleUpperCase();", "'I'.toLocaleLowerCase();", 'd.toLocaleTimeString();', "Number.parseFloat('1.5');", 'const { parseFloat: p } = Number;',
       'new FinalizationRegistry(() => {});', '[3, 1].toSorted();', '[3, 1].sort(undefined);', '[3, 1].toSorted(null);', "(() => {}).constructor('return 1')();",
       "const f = function () {}; f.constructor('x');"];
@@ -34,7 +40,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
   // A comparator that returns a comparison (true or false) never returns a negative number,
   // so engines sort with it differently: V8 leaves [3, 1, 2] as it is, SpiderMonkey sorts it
   // (BUILD.md §3.3).
-  test('lint-core fails a sort whose comparator returns true or false rather than a number', () => {
+  tmpTest('lint-core fails a sort whose comparator returns true or false rather than a number', () => {
     const bad = ['[3, 1].sort((a, b) => a > b);', '[3, 1].sort(function (a, b) { return a < b; });', '[3, 1].toSorted((a, b) => a >= b);', 'xs.sort((p, q) => p.d <= q.d);'];
     for (const b of bad) assert.equal(lintSrc(b), 1, 'not caught: ' + b);
     const ok = ['[3, 1].sort((a, b) => (a > b) - (a < b));', '[3, 1].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));', '[3, 1].sort(function (a, b) { return a - b; });', 'const lt = (a, b) => a < b;'];
@@ -47,14 +53,14 @@ module.exports = ({ test, assert, root, fs, path }) => {
     assert.equal(run('tools/lint-core.js', ['tools/arena.js', 'tools/monkey.js', 'tools/replay.js']).status, 0);
   });
 
-  test('lint-core ignores comments, strings, keys and the allowed Math functions', () => {
+  tmpTest('lint-core ignores comments, strings, keys and the allowed Math functions', () => {
     const ok = ["// Math.random is banned\nconst s = 'Date.now';\n/* window */", "const o = { window: 'window', Date: 1 };", 'const k = o.Date;',
       'const m = Math.max(1, Math.floor(7 / 2), Math.ceil(1), Math.imul(3, 4), Math.abs(-1), Math.min(2, 3), Math.sign(-2), Math.trunc(2));',
       "const t = 'Long-Handled Date Stamp';", "[3, 1].sort((a, b) => a - b);"];
     for (const g of ok) assert.equal(lintSrc(g), 0, 'wrongly flagged: ' + g);
   });
 
-  test('lint-numbers fails on a planted mismatch', () => {
+  tmpTest('lint-numbers fails on a planted mismatch', () => {
     const md = fs.readFileSync(path.join(root, 'BUILD.md'), 'utf8').replace('| TICKS_PER_TURN | 100 |', '| TICKS_PER_TURN | 101 |');
     const f = path.join(tmp, 'BUILD.md');
     fs.writeFileSync(f, md);
@@ -65,7 +71,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
 
   // A number's meaning is written twice, in §8.10 and beside it in numbers.js, and the two
   // must say the same thing, so a reader tuning the table reads what the number controls.
-  test('lint-numbers fails on a planted difference between a number\'s meaning in BUILD.md and in numbers.js', () => {
+  tmpTest('lint-numbers fails on a planted difference between a number\'s meaning in BUILD.md and in numbers.js', () => {
     const md = fs.readFileSync(path.join(root, 'BUILD.md'), 'utf8');
     const row = md.split('\n').find(l => l.startsWith('| TICKS_PER_TURN |'));
     assert.ok(row, 'the TICKS_PER_TURN row');
@@ -77,7 +83,7 @@ module.exports = ({ test, assert, root, fs, path }) => {
     assert.equal(run('tools/lint-numbers.js', []).status, 0);
   });
 
-  test('lint-registry passes, and fails on an unledgered file or a ledger entry with no file', () => {
+  tmpTest('lint-registry passes, and fails on an unledgered file or a ledger entry with no file', () => {
     assert.equal(run('tools/lint-registry.js', []).status, 0);
     const led = JSON.parse(fs.readFileSync(path.join(root, 'art/ledger.json'), 'utf8'));
     const f = path.join(tmp, 'ledger.json');

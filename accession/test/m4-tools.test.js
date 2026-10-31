@@ -15,9 +15,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const json = x => JSON.stringify(x);
   const C = loadCore(['tools/monkey.js', 'tools/replay.js', 'tools/arena.js']);
-  // One temporary folder for every test here, removed when the process ends, whatever failed.
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-m4-tools-'));
-  process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-m4-tools-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const tool = (...args) => cp.spawnSync(process.execPath, [path.join(root, 'tools/golden.js')].concat(args), { encoding: 'utf8' });
   const refusedText = /^golden: .+; nothing was written \(node tools\/golden\.js --help lists the usage\)\n$/;
 
@@ -275,7 +279,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   const mk = (seed, actions) => ({ kind: 'monkey', seed, actions, make: null });
 
-  test('golden --pending "reason" <name…> marks only the runs it names: the others stay held to their pins; a name not in the file, a name twice or none is refused, writing nothing', () => {
+  tmpTest('golden --pending "reason" <name…> marks only the runs it names: the others stay held to their pins; a name not in the file, a name twice or none is refused, writing nothing', () => {
     const file = path.join(tmp, 'pending.js');
     Golden.write(file, { a: mk(3, 60), b: mk(4, 60), c: mk(5, 60) });
     Golden.repin(C, file);
@@ -343,7 +347,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const LAST = Golden.indexScripts(fs.readFileSync(path.join(root, 'index.html'), 'utf8')).filter(f => f && (f.startsWith('js/core/') || f.startsWith('content/'))).pop();
   const markWaits = (f, text) => f === LAST ? text + "\n;(() => { const h = Actions.get('wait'), f = h.apply; h.apply = (state, action, ev) => { state.dept.planted = state.turn; return f(state, action, ev); }; })();\n" : text;
 
-  test('golden --retire moves a run to test/golden/retired.js with the release build it plays in (named by the index.html git has where it was added), pinned in that build\'s own core; a retired run plays against its build', () => {
+  tmpTest('golden --retire moves a run to test/golden/retired.js with the release build it plays in (named by the index.html git has where it was added), pinned in that build\'s own core; a retired run plays against its build', () => {
     const repo = checkout(path.join(tmp, 'retire-repo')), b = plantBuild(repo);
     const git = (...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.name=test', '-c', 'user.email=test@example.invalid', '-c', 'commit.gpgsign=false'].concat(args), { encoding: 'utf8' }).trim();
     git('init', '-q'); git('add', '-A'); git('commit', '-q', '-m', 'the release build');
@@ -395,7 +399,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(all.bad, 1); assert.ok(all.lines.some(l => l.startsWith('golden: the retired rp differs')));
   });
 
-  test('a retired run is played in its build\'s own core, never this tree\'s: a build whose rules differ pins it otherwise, and a build whose core does not hash to its stamp, or that is gone, fails', () => {
+  tmpTest('a retired run is played in its build\'s own core, never this tree\'s: a build whose rules differ pins it otherwise, and a build whose core does not hash to its stamp, or that is gone, fails', () => {
     const dir = checkout(path.join(tmp, 'moved-repo')), b = plantBuild(dir, markWaits);
     assert.notEqual(b.coreHash, Hashes.coreHash());
     const file = path.join(dir, 'golden.js'), rfile = path.join(dir, 'retired.js');
@@ -445,7 +449,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   story(C, run) { return run.events.some(e => e.k === 'used' && e.who === 'you') ? null : 'you never use an item'; },
 };`;
 
-  test('golden --record makes a replay from its recipe: a recorded replay equals its recipe\'s, twice over, and its story is checked; a pending run with a broken story fails', () => {
+  tmpTest('golden --record makes a replay from its recipe: a recorded replay equals its recipe\'s, twice over, and its story is checked; a pending run with a broken story fails', () => {
     const dir = path.join(tmp, 'recipes'), file = path.join(tmp, 'recorded.js');
     writeRecipe(dir, 'uses', USES);
     Golden.write(file, { m0: mk(3, 40) });
@@ -495,7 +499,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(chk.stdout.includes("golden: uses's story holds (pending)"), chk.stdout);
   });
 
-  test('golden --record refuses a recipe whose story fails, one that decides otherwise when recorded again, one with no story or past its cap, and a recipe that is not there, writing nothing', () => {
+  tmpTest('golden --record refuses a recipe whose story fails, one that decides otherwise when recorded again, one with no story or past its cap, and a recipe that is not there, writing nothing', () => {
     const dir = path.join(tmp, 'bad-recipes'), file = path.join(tmp, 'bad-recorded.js');
     Golden.write(file, { m0: mk(3, 40) });
     const kept = fs.readFileSync(file, 'utf8'), S = Sim.context();

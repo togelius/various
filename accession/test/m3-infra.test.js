@@ -12,7 +12,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const Runner = require(path.join(root, 'test/run.js'));
   const C = loadCore(['tools/monkey.js']);
   const { Setup, Roles, Packs, Registry, TestRoom, Monkey } = C;
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-infra-'));
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-infra-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const write = (rel, text) => { const f = path.join(tmp, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); return f; };
   const json = x => JSON.stringify(x);
 
@@ -71,7 +77,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(got[2], /^bad_applies: applies threw no/);
   });
 
-  test('tools/invariants.js loads every .inv.js file in name order, selects by id or file, and refuses a malformed one', () => {
+  tmpTest('tools/invariants.js loads every .inv.js file in name order, selects by id or file, and refuses a malformed one', () => {
     write('inv/b.inv.js', "module.exports = C => [{ id: 'b1', applies: a => a.uid === 'you', check: () => null }, { id: 'b2', check: () => null }];\n");
     write('inv/a.inv.js', "module.exports = C => ({ id: 'a1', check: () => typeof C.Step.step === 'function' ? null : 'no core' });\n");
     write('inv/notes.js', "module.exports = 'not an invariant';\n");
@@ -237,7 +243,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(H.sensitivity(C, crash, jaw, list).problems[0], /it threw, which shows nothing/);
   });
 
-  test('the runner finds test files in test/, behaviour/ and arena/ at any depth, and its filter matches the path from test/', () => {
+  tmpTest('the runner finds test files in test/, behaviour/ and arena/ at any depth, and its filter matches the path from test/', () => {
     const t = path.join(tmp, 'tests');
     const mark = name => `module.exports = ({ test }) => { test('${name}', () => { console.log('RAN ${name}'); }); };\n`;
     write('tests/a.test.js', mark('a'));

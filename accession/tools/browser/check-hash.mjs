@@ -107,22 +107,24 @@ for (const name of Object.keys(expect)) {
   const at = built.indexOf(src);
   if (at < 0 || built.indexOf(src, at + 1) >= 0) fail('the built page does not hold test/golden/golden.js exactly once');
   const html = built.slice(0, at) + "'use strict';\nconst GOLDEN = " + JSON.stringify(planted) + ';\n' + built.slice(at + src.length);
+  // The planted page's folder is removed in a finally block, whatever happens to the page.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-hash-')), file = path.join(dir, 'planted.html');
-  fs.writeFileSync(file, html);
-  const { browser, page, errors } = await open(path.relative(root, file), { viewport: { width: 390, height: 844 } });
-  let title, text, report, results, box, saved;
+  let title, text, report, results, box, saved, errors;
   try {
-    await settle(page);
-    title = await page.title();
-    text = await page.textContent('#out');
-    report = await page.inputValue('#report');
-    results = await page.evaluate(() => window.HASH_RESULTS);
-    box = { shown: await page.isVisible('#diverged'), copy: await page.locator('#copy').boundingBox(), download: await page.locator('#download').boundingBox() };
-    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.click('#download')]);
-    saved = fs.readFileSync(await dl.path(), 'utf8');
-  } catch (e) { console.log('errors:', errors.join('; ')); await browser.close(); fs.rmSync(dir, { recursive: true, force: true }); throw e; }
-  await browser.close();
-  fs.rmSync(dir, { recursive: true, force: true });
+    fs.writeFileSync(file, html);
+    const opened = await open(path.relative(root, file), { viewport: { width: 390, height: 844 } }), { browser, page } = opened;
+    errors = opened.errors;
+    try {
+      await settle(page);
+      title = await page.title();
+      text = await page.textContent('#out');
+      report = await page.inputValue('#report');
+      results = await page.evaluate(() => window.HASH_RESULTS);
+      box = { shown: await page.isVisible('#diverged'), copy: await page.locator('#copy').boundingBox(), download: await page.locator('#download').boundingBox() };
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.click('#download')]);
+      saved = fs.readFileSync(await dl.path(), 'utf8');
+    } catch (e) { console.log('errors:', errors.join('; ')); throw e; } finally { await browser.close(); }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   if (errors.length) fail('the planted page logged errors', errors);
   if (title !== 'FAIL') fail(`the planted page says ${title}, not FAIL`);
   if (!box.shown) fail('the planted page does not show its copyable block');

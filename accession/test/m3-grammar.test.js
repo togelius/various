@@ -6,6 +6,14 @@
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore();
   const { Registry: R, Text, Clauses, Roles, Labels, Dept, TestRoom, Step, Packs } = C;
+  const os = require('node:os');
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-grammar-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   const clean = s => typeof s === 'string' && s.length > 0 && !/undefined|NaN|\[object|null/.test(s);
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   // Values from the core's context have that context's prototypes; compare them as data.
@@ -242,9 +250,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(Clauses.line(brute, { depth: 2 }).includes(`Each of its blows takes ${C.N.COST_ATTACK_HEAVY} ticks, not ${C.N.COST_ATTACK}. Moves at half speed.`), Clauses.line(brute, { depth: 2 }));
   });
 
-  test('lint-registry fails on a planted (kind, cause) pair with no sentence, and on other planted faults', () => {
-    const { spawnSync } = require('node:child_process'), os = require('node:os');
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-grammar-'));
+  tmpTest('lint-registry fails on a planted (kind, cause) pair with no sentence, and on other planted faults', () => {
+    const { spawnSync } = require('node:child_process');
     const lint = (src, extra) => {
       const args = [path.join(root, 'tools/lint-registry.js'), ...(extra || [])];
       if (src) { const f = path.join(tmp, 'planted-' + Math.abs(src.length) + '.js'); fs.writeFileSync(f, "'use strict';\n" + src + '\n'); args.push('--load', f); }

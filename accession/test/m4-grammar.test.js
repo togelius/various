@@ -304,7 +304,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // ---- lint-registry's new rules, each against a planted fault ----
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-m4-grammar-'));
+  // A test given a temporary folder of its own, tmp: made as it starts, and removed in a
+  // finally block as it ends, whether it passed or failed.
+  let tmp = null;
+  const tmpTest = (name, fn) => test(name, () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-m4-grammar-'));
+    try { fn(); } finally { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; }
+  });
   let planted = 0;
   const lint = (lines, extra) => {
     const args = [path.join(root, 'tools/lint-registry.js'), ...(extra || [])];
@@ -315,7 +321,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const has = (r, re) => assert.match(r.out, re);
   const hasNot = (r, re) => assert.doesNotMatch(r.out, re);
 
-  test('lint-registry --strict covers M3 and M4; --strict=M3 is M3\'s acceptance, as before', () => {
+  tmpTest('lint-registry --strict covers M3 and M4; --strict=M3 is M3\'s acceptance, as before', () => {
     {
       let r = lint(null);
       assert.equal(r.status, 0, r.out); has(r, /M3 entries at ready false \d+, 'unit' \d+, true \d+; M4 entries at ready false \d+, 'unit' \d+, true \d+/);
@@ -340,7 +346,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
   });
 
-  test('lint-registry\'s word rules: a digit outside {} in an M4 template, and a phrase that states a number untied to its row, fail past ready false', () => {
+  tmpTest('lint-registry\'s word rules: a digit outside {} in an M4 template, and a phrase that states a number untied to its row, fail past ready false', () => {
     const m4 = (id, ready, clause, more) => `Registry.define('MODIFIERS', '${id}', Object.assign({ built: 'M4', ready: ${json(ready)}, clause: ${json(clause)}, params: {}, covers: [], tests: ['m4-grammar.test.js'], inv: 'system' }, ${json(more || {})}));`;
     let r = lint([
       m4('planted_digit', 'unit', 'Stops for 2 turns.'),
@@ -405,7 +411,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     hasNot(r, /MODIFIERS\.marble: "(twice|one turn)"/);
   });
 
-  test('lint-registry fails a refusal at ready true that no refusals*.test.js file it names makes happen', () => {
+  tmpTest('lint-registry fails a refusal at ready true that no refusals*.test.js file it names makes happen', () => {
     const refusal = (code, tests) => [`Registry.define('REFUSALS', '${code}', { built: 'M4', ready: true, tests: ${json(tests)}, inv: 'system' });`, `Text.defineRefusal('${code}', () => 'Planted.');`];
     let r = lint([
       ...refusal('planted_unreached', ['behaviour/refusals.test.js']),
@@ -428,7 +434,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, /REFUSALS\.no_centrepiece is at ready "unit", but no test\/behaviour\/refusals\*\.test\.js file/);
   });
 
-  test('lint-registry holds an M4 id past ready false to §5.1\'s reference rule, as an M3 one: a pack, a scenario file or an arena stamp names it', () => {
+  tmpTest('lint-registry holds an M4 id past ready false to §5.1\'s reference rule, as an M3 one: a pack, a scenario file or an arena stamp names it', () => {
     // The orphan's id is built here, so that this file does not name it in quotes.
     const orphan = ['planted', 'm4', 'orphan'].join('_');
     let r = lint([`Registry.define('GLASS', '${orphan}', { built: 'M4', ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'cases' });`,
@@ -443,7 +449,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     hasNot(r, /MODULES\.[a-z_]+ is referenced/); has(r, /WAKE_CAUSES\.alarm is referenced by no pack/);
   });
 
-  test('lint-registry fails a flag a species\' department does not hold, and malformed keywords', () => {
+  tmpTest('lint-registry fails a flag a species\' department does not hold, and malformed keywords', () => {
     let r = lint([
       "Packs.get('S9').species[0].flags = ['copies_weaken'];",
       "Packs.get('S9').species[1].flags = ['alarm_network'];",
@@ -476,7 +482,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       { id: 'T9.5', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
     ] }, more || {}))});`;
 
-  test('lint-registry\'s Intro rule (WO6): the Intro teaches only its signature module, in its panel and its stamp', () => {
+  tmpTest('lint-registry\'s Intro rule (WO6): the Intro teaches only its signature module, in its panel and its stamp', () => {
     // The teaching instance (T9.3, an ambusher flagged with the signature), fodder and a
     // skirmisher, under a panel that says the signature's sentence: clean.
     let r = lint(T9({ intro: { map: ['######', '#ab.c#', '######'], legend: { a: { sp: 'T9.3' }, b: { sp: 'T9.1' }, c: { sp: 'T9.2' } }, stretch: [], invariants: [] },
@@ -509,24 +515,22 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, /T9's intro panel says "chime", a word of hourly_demonstration's rule, but its Intro teaches only weather_cases/);
   });
 
-  test('lint-registry --report ACC lists every number a pack holds, and every value it gives a module or a modifier', () => {
-    try {
-      let r = lint(T9({ modules: [{ id: 'unobserved_motion', params: { step: 1, scope: 'flagged' } }, { id: 'alarm_network' }], treasure: { case: { glass: 3 } },
-        centrepiece: { id: 'T9.9', archetype: 'plodder', role: 'centrepiece', modifiers: [], trigger: null, size: 2, modParams: { old_repair: { side: 'E' } } } }), ['--report', 'T9']);
-      assert.equal(r.status, 0, r.out);
-      has(r, /^REPORT T9: module unobserved_motion\.params\.step = 1$/m);
-      has(r, /^REPORT T9: module unobserved_motion\.params\.scope = "flagged"$/m);
-      has(r, /^REPORT T9: treasure\.case\.glass = 3$/m);
-      has(r, /^REPORT T9: centrepiece T9\.9\.size = 2$/m);
-      has(r, /^REPORT T9: centrepiece T9\.9\.modParams\.old_repair\.side = "E"$/m);
-      has(r, /^REPORT T9: 5 value\(s\) the pack gives$/m);
-      // And a species' own number, planted in S.9's.
-      r = lint("Packs.get('S9').species[0].count = 5;", ['--report', 'S9']);
-      has(r, /^REPORT S9: species S9\.1\.count = 5$/m); has(r, /^REPORT S9: centrepiece S9\.\d+\.size = 2$/m);
-      r = lint(null, ['--report', 'M11']);
-      has(r, /^REPORT M11: species M11\.3\.modParams\.old_repair\.side = "W"$/m);
-      r = lint(null, ['--report', 'Q1']);
-      assert.equal(r.status, 1); has(r, /--report Q1: no department pack has that accession/);
-    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  tmpTest('lint-registry --report ACC lists every number a pack holds, and every value it gives a module or a modifier', () => {
+    let r = lint(T9({ modules: [{ id: 'unobserved_motion', params: { step: 1, scope: 'flagged' } }, { id: 'alarm_network' }], treasure: { case: { glass: 3 } },
+      centrepiece: { id: 'T9.9', archetype: 'plodder', role: 'centrepiece', modifiers: [], trigger: null, size: 2, modParams: { old_repair: { side: 'E' } } } }), ['--report', 'T9']);
+    assert.equal(r.status, 0, r.out);
+    has(r, /^REPORT T9: module unobserved_motion\.params\.step = 1$/m);
+    has(r, /^REPORT T9: module unobserved_motion\.params\.scope = "flagged"$/m);
+    has(r, /^REPORT T9: treasure\.case\.glass = 3$/m);
+    has(r, /^REPORT T9: centrepiece T9\.9\.size = 2$/m);
+    has(r, /^REPORT T9: centrepiece T9\.9\.modParams\.old_repair\.side = "E"$/m);
+    has(r, /^REPORT T9: 5 value\(s\) the pack gives$/m);
+    // And a species' own number, planted in S.9's.
+    r = lint("Packs.get('S9').species[0].count = 5;", ['--report', 'S9']);
+    has(r, /^REPORT S9: species S9\.1\.count = 5$/m); has(r, /^REPORT S9: centrepiece S9\.\d+\.size = 2$/m);
+    r = lint(null, ['--report', 'M11']);
+    has(r, /^REPORT M11: species M11\.3\.modParams\.old_repair\.side = "W"$/m);
+    r = lint(null, ['--report', 'Q1']);
+    assert.equal(r.status, 1); has(r, /--report Q1: no department pack has that accession/);
   });
 };
