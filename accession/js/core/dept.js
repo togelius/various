@@ -57,22 +57,39 @@ const Dept = (() => {
   // A department visit (A10): the plan is made by Layout.generate, and each plan that passes
   // layout's checks is populated (build) and then checked by every registered validator
   // (Populate.validate); a rejection is a failed layout attempt, which reseeds up to 4 times
-  // and then falls back to the certified plan, populated the same way. options: Options.make's
-  // (rulesOff, without, invulnerable), and carry (above), which is not kept in the state.
-  function create(seed, acc, depth, options) {
+  // and then falls back to the certified plan, populated the same way. A plan its gallery
+  // list cannot populate (Populate.exhibits) is rejected as `population`, before the
+  // validators. options: Options.make's (rulesOff, without, invulnerable), and carry (above),
+  // which is not kept in the state.
+  const create = (seed, acc, depth, options) => generate(seed, acc, depth, options).state;
+
+  // Dept.generate(seed, acc, depth, options): Dept.create's department with how it was made,
+  // which the state does not keep: {state, attempt, fallback, tries, rejected, log, base}:
+  // attempt, the layout attempt taken (k from 0; the certified fallback is attempt 5);
+  // fallback, whether it was the fallback; tries, each failed attempt's failures in order
+  // (layout's checks', or the one rejection, {id, why, tiles}, population's or a
+  // validator's); rejected, the fallback's own rejection, which it is taken despite (null if
+  // it had none, or was not reached); log, the attempt's layout log with population's and the
+  // validators' lines after it; base, the attempt's stream key.
+  function generate(seed, acc, depth, options) {
     const pack = Packs.get(acc);
     if (!pack) throw new Error(`Dept.create: there is no department ${acc}`);
     const v = visitor(options ? options.carry : undefined, depth, pack);
     let state = null;
-    const accept = r => { state = build(seed, pack, depth, options, v, r); return Populate.validate(state, r.plan); };
-    Layout.generate(pack.programme, 0, seed, { acc, depth, accept });
-    return state;
+    const accept = r => {
+      const made = build(seed, pack, depth, options, v, r);
+      state = made.state;
+      return made.short ? { id: 'population', reason: made.short.reason, tiles: made.short.tiles } : Populate.validate(state, r.plan, r.log);
+    };
+    const out = Layout.generate(pack.programme, 0, seed, { acc, depth, accept });
+    return { state, attempt: out.attempt, fallback: out.fallback, tries: out.tries, rejected: out.rejected || null, log: out.log, base: out.base };
   }
 
   // One layout attempt's department, in A10's order: the state, with the plan and the rooms
   // you have walked (your first, dept.walked: a department visit's only); the cases
   // (Cases.place); the exhibits (Populate.exhibits); options.without marks its actors gone,
-  // then each archetype's init (Setup.settleActors); the Centrepiece (Centrepiece.place); your
+  // then each archetype's init (Setup.settleActors); the Centrepiece (Centrepiece.place: only
+  // for a pack with a gallery list, once its core is past ready false, plan A10); your
   // starting kit of the carry's tier (Kit.start) and the items the carry gives (Setup.carry);
   // the stand-in equipment and kits (Kit.standIn); the run's seals (Consumables.startRun);
   // the stand-in consumables (Consumables.standIn); the panels (Panels.place); the modules
@@ -80,6 +97,7 @@ const Dept = (() => {
   // health and the grade you came in with are the carry's, and so are the run's perks. The
   // three placement calls share one local holder, pop, so a room's `${base}/room/<key>/populate`
   // stream runs on from cases to items to consumables instead of starting again for each (§3.2).
+  // Returns {state, short}: short is null, or why the gallery list could not be placed here.
   function build(seed, pack, depth, options, v, r) {
     const plan = r.plan, nums = Layout.number(plan, depth), x = plan.entrance[0] + 1, y = plan.entrance[1];
     const tiles = plan.tiles.map(row => row.replace(/C/g, '.'));
@@ -93,9 +111,9 @@ const Dept = (() => {
     state.run.perks = v.perks.map(p => ({ id: p.id, rank: p.rank }));
     const pop = { seed, rng: {} };
     Cases.place(state, plan, r.base, pop);
-    Populate.exhibits(state, plan, pack, r.base);
+    const short = Populate.exhibits(state, plan, pack, r.base, r.log);
     Setup.settleActors(state, 1);
-    Centrepiece.place(state, plan, pack);
+    if (pack.galleries !== undefined && pack.centrepiece && Populate.ready(pack.centrepiece)) Centrepiece.place(state, plan, pack);
     Kit.start(state, 'balanced', v.tier);
     Setup.carry(state, carried(pack, v));
     Kit.standIn(state, r.base, pop);
@@ -104,7 +122,7 @@ const Dept = (() => {
     Panels.place(state, plan, pack);
     Modules.init(state, pack);
     Kit.settle(state);
-    return state;
+    return { state, short };
   }
 
   // The rooms you have stood in this visit, by id, in the order first entered (A3: absent
@@ -121,5 +139,5 @@ const Dept = (() => {
     return true;
   }
 
-  return { create, visitor, walked, walk };
+  return { create, generate, visitor, walked, walk };
 })();
