@@ -24,9 +24,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.throws(() => F.Registry.defineEvent('moved', { fields: {} }), /twice/);
     assert.throws(() => F.Registry.defineEvent('zz', { fields: { a: 'float' } }), /type/);
     // The seeded tables come in fragment load order (index.html): system, then waking, modes, …
-    same(R.order('ARCHETYPES'), ['unobserved_mover', 'patrol_guard', 'demonstrator', 'conservator_healer', 'completing_guardian', 'mp_ensemble', 'mp_tableau',
-      'plodder', 'night_watchman', 'darter', 'splitter', 'mote_swarm', 'kiter', 'axis_sniper', 'reflector', 'herald', 'tethered_warden', 'mimic_vitrine']);
-    same(R.order('TRIGGERS'), ['period', 'axis', 'tether', 'ally_hit', 'awake', 'touch_case']);
+    // M4's Wave 0 (W0a) moved the M4 placeholders out of reg/system.js into their owners'
+    // fragments (reg/mod-*.js, reg/arch-d.js, reg/cp-*.js), which load after M3's, so the M4
+    // archetypes and the period trigger now come after M3's.
+    same(R.order('ARCHETYPES'), ['plodder', 'night_watchman', 'darter', 'splitter', 'mote_swarm', 'kiter', 'axis_sniper', 'reflector', 'herald', 'tethered_warden', 'mimic_vitrine',
+      'unobserved_mover', 'patrol_guard', 'demonstrator', 'conservator_healer', 'completing_guardian', 'mp_ensemble', 'mp_tableau']);
+    same(R.order('TRIGGERS'), ['axis', 'tether', 'ally_hit', 'awake', 'touch_case', 'period']);
     assert.ok(!own(R.TRIGGERS, 'alarm'), 'the alarm is a module, not a trigger (§8.2)');
     // Every entry has the standard fields, as plain data.
     for (const t of R.TABLES) for (const id of R.order(t)) {
@@ -36,7 +39,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     assert.equal(new Set(R.EVENT_KINDS).size, R.EVENT_KINDS.length);
     same([...R.EVENT_KINDS].sort(), Object.keys(R.EVENTS).sort());
-    assert.equal(R.EVENT_KINDS.length, 39, '§4.3’s 32 kinds and the seven M3 adds (surface at the Wave 1 integration review)');
+    assert.equal(R.EVENT_KINDS.length, 40, '§4.3’s 32 kinds, the seven M3 adds (surface at the Wave 1 integration review) and M4’s phase');
     for (const k of ['waited', 'regenerated', 'status', 'dropped', 'healed', 'alerted']) assert.ok(R.EVENTS[k], k);
   });
 
@@ -286,11 +289,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const follow = Object.fromEntries(ids.map(w => [w, 'planted: promoted by the joined-up scenarios']));
     const ff = path.join(tmp, 'follow-ups.json');
     fs.writeFileSync(ff, JSON.stringify(follow));
-    r = lint(below, ['--strict', '--follow-ups', '--follow-file', ff]);
+    // (--strict=M3 is M3's acceptance; plain --strict also checks M4's entries.)
+    r = lint(below, ['--strict=M3', '--follow-ups', '--follow-file', ff]);
     assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, new RegExp(`${ids.length} open follow-up\\(s\\)`));
     delete follow[ids[0]]; follow['ARCHETYPES.patrol_guard'] = 'an M4 entry';
     fs.writeFileSync(ff, JSON.stringify(follow));
-    r = lint(below, ['--strict', '--follow-ups', '--follow-file', ff]);
+    r = lint(below, ['--strict=M3', '--follow-ups', '--follow-file', ff]);
     assert.equal(r.status, 1);
     assert.match(r.stdout, new RegExp(`--strict: ${ids[0].replace('.', '\\.')} is at ready`)); assert.match(r.stdout, /follow-ups: ARCHETYPES\.patrol_guard is not an M3 entry/);
     // And the tree itself is clean, with the readiness counts reported.

@@ -8,7 +8,8 @@
 //     harness reruns with the modifier switched off and that then fail, counted by running
 //     the scenario files its entry names; and a scenario that does not test its modifier
 //     fails its sweep;
-//   - readiness (§5.1): `node tools/lint-registry.js --strict --follow-ups` passes, so every
+//   - readiness (§5.1): `node tools/lint-registry.js --strict=M3 --follow-ups` (M3's entries;
+//     M4's are checked by --strict at M4's acceptance) passes, so every
 //     built: 'M3' entry is at ready true, with its tests and invariant, or has an open
 //     follow-up in test/behaviour/follow-ups.json; and every entry at true names a joined-up
 //     scenario file under test/behaviour/;
@@ -170,9 +171,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(run('MODIFIERS.tether').failure, /the registry has no MODIFIERS\.tether/);
   });
 
-  test('readiness: lint-registry --strict --follow-ups passes, every M3 entry at true names a joined-up scenario file, and each open follow-up names an entry below true', () => {
+  test('readiness: lint-registry --strict=M3 --follow-ups passes, every M3 entry at true names a joined-up scenario file, and each open follow-up names an entry below true', () => {
     const { spawnSync } = require('node:child_process');
-    const r = spawnSync(process.execPath, [path.join(root, 'tools/lint-registry.js'), '--strict', '--follow-ups'], { encoding: 'utf8' });
+    const r = spawnSync(process.execPath, [path.join(root, 'tools/lint-registry.js'), '--strict=M3', '--follow-ups'], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const follow = JSON.parse(fs.readFileSync(path.join(root, 'test/behaviour/follow-ups.json'), 'utf8'));
     let atTrue = 0;

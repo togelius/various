@@ -189,7 +189,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const X = loadCore(), P = X.Perks, calls = [];
     // Once the registry has its PERKS table, a perk added must be in it: the planted ones are.
     if (X.Registry.TABLES.includes('PERKS')) {
-      for (const id of ['planted_a', 'planted_b', 'planted_d']) X.Registry.define('PERKS', id, { built: 'M4' });
+      for (const id of ['planted_a', 'planted_b', 'planted_c', 'planted_d']) X.Registry.define('PERKS', id, { built: 'M4' });
       assert.throws(() => P.add('planted_e', {}), /not in Registry\.PERKS/);
     }
     P.add('planted_a', {

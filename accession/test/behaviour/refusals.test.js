@@ -34,10 +34,9 @@ module.exports = ({ test, assert, loadCore }) => {
   const curio = (uid, where) => ({ uid, kind: 'curio', where, prims: [{ id: 'acc', cls: 'S' }] });
   const shut = (x, y, glass, lock) => Cases.make({ x, y, room: null, glass, lock });
 
-  // Codes that no M3 action can give, with why: each is built: 'M4', not an M3 entry.
-  const UNREACHABLE = {
-    not_built: 'no action refuses with it: push, reserved in Actions.ORDER, has no handler, so step() refuses it unknown_action, and view refuses no_centrepiece until M4 builds viewing (§4.2); only m3-backbone\'s planted handler shows it',
-  };
+  // Codes that no M3 action can give, with why: each is built: 'M4', not an M3 entry. (M4
+  // removed the one there was, not_built, which no action gave.)
+  const UNREACHABLE = {};
 
   // Each case: build() → the state, ready (real actions in pre, played first, each must not
   // be refused); act(state) → the action refused with `code`.
