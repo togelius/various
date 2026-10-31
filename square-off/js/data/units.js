@@ -21,6 +21,8 @@
   };
 
   // cost is per recruit (a crowd recruit is a pair).
+  // Balance (sim-batch, 360 matches): Pack crowd Sway 6.5 -> 6 and heavy splash 4 -> 3.5, Sax Sway 8 -> 8.5.
+  // Pack had won 59% overall and 83% against the Noise; now every crew wins 45-57%.
   const units = {
     hustle: {
       // Balance (sim-batch, Sim C): hp 45->46, Sway 5->5.5, speed 5.0->5.4
@@ -36,7 +38,7 @@
     noise: {
       crowd: { name: 'Tambourine Kids', single: 'Tambourine Kid', cost: 40, hp: 42, sway: 6, speed: 5.4,
         perks: ['tambourine'], glyph: '♪', blurb: 'Allies within 6 m move 10% faster.' },
-      talker: { name: 'Sax Player', cost: 60, hp: 50, sway: 8, range: 11, speed: 4.2, targetSplash: 2.5,
+      talker: { name: 'Sax Player', cost: 60, hp: 50, sway: 8.5, range: 11, speed: 4.2, targetSplash: 2.5,
         perks: ['saxSplash'], glyph: '♫', blurb: 'Each riff splashes 2.5 m around the target.' },
       // Balance: Sway 10->9.5, splash 4->3.5
       heavy: { name: 'Bucket Drummer', cost: 95, hp: 220, sway: 9.5, splash: 3.5, speed: 3.4,
@@ -52,12 +54,12 @@
         perks: ['scrum'], glyph: '!', blurb: 'Scrum: first contact after a 6 m run knocks enemies back 3 m (12 s cooldown).' },
     },
     pack: {
-      // Balance: speed 6.4->5.8 (still the fastest), Sway 7->6.5
-      crowd: { name: 'Small-Dog Walkers', single: 'Small-Dog Walker', cost: 40, hp: 40, sway: 6.5, speed: 5.8,
+      // Balance: speed 6.4->5.8 (still the fastest), Sway 7->6.5->6
+      crowd: { name: 'Small-Dog Walkers', single: 'Small-Dog Walker', cost: 40, hp: 40, sway: 6, speed: 5.8,
         perks: ['animal'], glyph: 'woof', blurb: 'The fastest unit in the park. No lawn penalty.' },
       talker: { name: 'Ball-Launcher Dad', cost: 60, hp: 55, sway: 10, range: 12, speed: 4.2,
         perks: ['animal', 'fetch'], glyph: '!', blurb: 'Fetch!: every third hit pulls the target 3 m toward him (too much effort for a ■).' },
-      heavy: { name: 'Pro Dog Walker', cost: 100, hp: 240, sway: 9, splash: 4, speed: 3.4,
+      heavy: { name: 'Pro Dog Walker', cost: 100, hp: 240, sway: 9, splash: 3.5, speed: 3.4,
         perks: ['animal', 'leashSlow'], glyph: 'woof', blurb: 'Eight leashes. Hit enemies are slowed 25% for 2 s.' },
     },
     // Non-playable campaign opponent (M1). Neutral: takes x1.0 from everything.

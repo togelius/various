@@ -67,7 +67,9 @@
   // Home Spots: corner entrances, not capturable, 3 pads each.
   const homes = [
     { id: 'home_nw', name: 'Home: MacDougal & Waverly', corner: 'NW', x: -150, z: -66, r: 10, pads: [[-144.3, -64.2], [-154.5, -63.9], [-147.7, -71.6]] },
-    { id: 'home_se', name: 'Home: LaGuardia & W 4th', corner: 'SE', x: 126, z: 66, r: 10, pads: [[131.7, 67.8], [128.3, 60.4], [128.1, 71.6]] },
+    // SE sits out on the W 4th St corner (not inside the park gate): the Fountain is east of the park's
+    // middle, so from the gate SE won ~64% of AI-vs-AI games; out here it is ~50% (tools/sim-batch.js).
+    { id: 'home_se', name: 'Home: LaGuardia & W 4th', corner: 'SE', x: 134, z: 78, r: 10, pads: [[139.7, 79.8], [136.3, 72.4], [136.1, 83.6]] },
     { id: 'home_sw', name: 'Home: MacDougal & W 4th', corner: 'SW', x: -152, z: 66, r: 10, pads: [[-157.4, 68.6], [-149.7, 60.4], [-149.9, 71.6]] },
     { id: 'home_ne', name: 'Home: University Pl', corner: 'NE', x: 126, z: -64, r: 10, pads: [[131.7, -62.2], [120.6, -61.4], [128.3, -69.6]] },
   ];

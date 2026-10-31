@@ -298,7 +298,7 @@ Home Spots sit at the park's corner entrances. They can't be captured and each h
 | Spot | Position | Notes |
 |---|---|---|
 | NW, MacDougal & Waverly | (-150, -66) | |
-| SE, LaGuardia & W 4th (Bobst) | (126, 66) | |
+| SE, LaGuardia & W 4th (Bobst) | (134, 78) | Out on the corner, not at the gate: the Fountain is east of the park's middle, so a gate home won ~64% of AI games |
 | SW, MacDougal & W 4th | (-152, 66) | |
 | NE, University Pl & Washington Sq N | (126, -64) | Near the NYU Trolley Stop (144,-59) |
 

@@ -96,8 +96,15 @@ test('Mosh Pit recruits only crowds before 2:00; Turtle stays home until Night a
   assert.ok(core.includes('fountain'));
   const outside = turtleFar.filter((id) => !core.includes(id));
   assert.ok(outside.length <= turtleFar.length * 0.25, 'turtle mostly takes its core before Night: ' + JSON.stringify(outside));
-  const builds = (f) => m.log.filter((e) => e.name === 'build' && e.args[0] === f).length;
-  assert.ok(builds(1) >= builds(0), 'turtle builds at least as much as the mosh pit');
+  // Build counts over a few seeds: a fast Mosh win can end one match before the Turtle gets to build.
+  const builds = (mm, f) => mm.log.filter((e) => e.name === 'build' && e.args[0] === f).length;
+  let mosh = builds(m, 0), turtle = builds(m, 1);
+  for (const seed of [1, 2]) {
+    const mm = aiMatch(['violets', 'mosh'], ['noise', 'turtle'], { seed });
+    runTo(mm, 700);
+    mosh += builds(mm, 0); turtle += builds(mm, 1);
+  }
+  assert.ok(turtle >= mosh, `turtle builds at least as much as the mosh pit (${turtle} vs ${mosh})`);
 });
 
 test('defense: the AI sends help to a contested landmark it owns', () => {
