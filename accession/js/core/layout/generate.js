@@ -1,24 +1,28 @@
 // ACCESSION — layout generation, top level (design/layout.md §§2, 9, 10): embed the
-// programme, add loops, make a-spaces, repair, curate, validate; up to 4 reseeds, then a
-// certified fallback. Every step is logged in words, and every failed check names the
-// tiles at fault, so a failing plan explains itself.
+// programme (stamping the Intro), add loops, make a-spaces, repair, curate, validate; up to 4
+// reseeds, then a certified fallback. Every step is logged in words, and every failed check
+// names the tiles at fault, so a failing plan explains itself.
 'use strict';
 const Layout = (() => {
   const B = LBuild, T = B.T;
-  const PIN = 2;                 // the layout version: bump on any change that alters layouts
+  const PIN = 3;                 // the layout version: bump on any change that alters layouts
   const RESEEDS = 4;
-  // Certified fallbacks: one seed per programme, re-certified by test/m1.test.js.
-  const FALLBACK = { enfilade: 1, case_labyrinth: 1, sculpture_court: 1 };
+  // Certified fallbacks, re-certified by test/m1.test.js: a seed for each pack, whose fallback
+  // is its programme's with its own Intro stamp (layout version 3), and one for each programme,
+  // for plans made without a pack, with the fixture stamp. A fallback depends on its stamp, so
+  // a pack is certified as itself, never through its programme.
+  const FALLBACK = { enfilade: 1, case_labyrinth: 1, sculpture_court: 1, S9: 1, A4: 1, M11: 1 };
 
   const xy = (G, i) => { const x = i % G.W; return [x, (i - x) / G.W]; };
   const fail = (why, tiles) => ({ why, tiles: tiles || [] });
 
-  // Identity checks per programme (design/layout.md §13.2), as integer comparisons.
+  // Identity checks per programme (design/layout.md §13.2), as integer comparisons. The glass
+  // and narrow shares are the programme's, so they leave out the stamped Intro (LAnalyse).
   const IDENTITY = {
     enfilade: (L, A) => A.roomsToC < 3 ? `only ${A.roomsToC} rooms from the Intro to the Centrepiece hall (at least 3)`
-      : (100 * A.glass < 40 * A.blockers || 100 * A.glass > 85 * A.blockers) ? `glass is ${A.glass} of ${A.blockers} blockers (40–85%)` : null,
-    case_labyrinth: (L, A) => 4 * A.glass < 3 * A.blockers ? `glass is ${A.glass} of ${A.blockers} blockers (at least 75%)`
-      : 100 * A.narrow < 15 * A.floor ? `only ${A.narrow} of ${A.floor} floor tiles are narrow (at least 15%)`
+      : (100 * A.glass < 40 * A.blockers || 100 * A.glass > 85 * A.blockers) ? `glass is ${A.glass} of ${A.blockers} blockers outside the Intro (40–85%)` : null,
+    case_labyrinth: (L, A) => 4 * A.glass < 3 * A.blockers ? `glass is ${A.glass} of ${A.blockers} blockers outside the Intro (at least 75%)`
+      : 100 * A.narrow < 15 * A.narrowFloor ? `only ${A.narrow} of ${A.narrowFloor} floor tiles outside the Intro are narrow (at least 15%)`
       : L.meta.crossing < L.meta.tortMin ? `the maze is crossed too directly (${L.meta.crossing} against ${L.meta.tortMin} per thousand)` : null,
     sculpture_court: (L, A) => A.pillar < 8 ? `only ${A.pillar} pillar loops (at least 8)` : null,
   };
@@ -34,7 +38,9 @@ const Layout = (() => {
       return fail('not every room and exit can be reached from the entrance', tiles);
     }],
     ['LV3', (L, A) => A.optionalC ? null : fail('no exit can be reached without passing through the Centrepiece hall', L.meta.exits)],
-    ['LV4', (L, A) => A.introExits >= 2 && A.introOnCycle ? null
+    // The Intro: two or more rooms onward and on a loop of the room graph; then its stamp's
+    // (LStamp.lv4): it fits, every onward opening at walk INTRO_DEPTH or more, cut and near.
+    ['LV4', (L, A) => A.introExits >= 2 && A.introOnCycle ? LStamp.lv4(L)
       : fail(`the Intro has ${A.introExits} onward openings and ${A.introOnCycle ? 'is' : 'is not'} on a loop`, [L.meta.entrance])],
     ['LV5', (L, A) => A.allReached ? null : fail('a public room can only be reached through the staff layer')],
     ['LV8', (L, A) => {
@@ -102,14 +108,17 @@ const Layout = (() => {
     return A;
   }
 
-  // opts.plant(L) lets tests break a plan at a chosen stage ('afterAspace' or 'afterCurate').
+  // One attempt on the stream key base. The Intro takes the stamp LStamp.of(opts) gives
+  // (opts.stamp, else the pack opts.acc names, else the fixture), which the embedder writes
+  // before it makes any opening, and which draws nothing. opts.plant(L) lets tests break a plan
+  // at a chosen stage ('afterAspace' or 'afterCurate').
   function attempt(programme, size, seed, base, opts) {
     opts = opts || {};
     const P = LProgrammes.PROGRAMMES[programme];
     const K = P.knobs(B.stream(seed, base + '/knobs'), size);
     const L = B.newLayout();
     L.meta.programme = programme;
-    P.embed(L, K, B.stream(seed, base + '/embed'));
+    P.embed(L, K, B.stream(seed, base + '/embed'), LStamp.of(opts));
     B.addLoops(L, P.d, B.stream(seed, base + '/openings'), {
       allow: (a, b) => !a.tags.noLoops && !b.tags.noLoops && a.role !== 'staff' && b.role !== 'staff' && !((a.role === 'intro' && b.role === 'coda') || (a.role === 'coda' && b.role === 'intro')),
     });
@@ -133,12 +142,17 @@ const Layout = (() => {
     for (const r of L.rooms) if (r && !r.key) r.key = r.role === 'section' ? 's' + (++s) : r.role === 'study' ? 'study' + (++st) : r.role;
   }
 
-  // The certified fallback for a programme: always the same plan.
+  // The certified fallback: always the same plan for the same name, the pack opts.acc names if
+  // FALLBACK certifies it, else the programme; with the stamp the attempts take (opts.stamp, or
+  // the pack's, or the fixture).
   function fallback(programme, size, opts) {
-    return attempt(programme, size, FALLBACK[programme], `layout/fallback/${programme}@${PIN}/a0`, opts && { plant: opts.plantFallback });
+    opts = opts || {};
+    const name = typeof opts.acc === 'string' && Object.prototype.hasOwnProperty.call(FALLBACK, opts.acc) ? opts.acc : programme;
+    return attempt(programme, size, FALLBACK[name], `layout/fallback/${name}@${PIN}/a0`, { plant: opts.plantFallback, acc: opts.acc, stamp: opts.stamp });
   }
 
-  // Generate one department's plan. opts: { acc, depth } name the streams. opts.accept(result)
+  // Generate one department's plan. opts: { acc, depth } name the streams, and acc the pack
+  // whose Intro stamp the plan takes (opts.stamp, given, is taken instead). opts.accept(result)
   // (M4 plan A10), given, is asked of each plan that passes every check above, with the
   // result finish() makes: null accepts it; a rejection, {id, reason, tiles}, makes the
   // attempt fail as a check does (its failure, {id, why, tiles}, is in tries) and reseed. The
@@ -180,7 +194,7 @@ const Layout = (() => {
     return {
       plan: { programme: L.meta.programme, pin: PIN, w: G.W, h: G.H, tiles: G.rows(), rooms, roomOf, entrance: L.meta.entrance.slice(),
         exits: L.meta.exits.map(e => e.slice()), cpl: L.meta.cpl.slice(), lectern: L.meta.lectern ? L.meta.lectern.slice() : null,
-        viewTile: L.meta.viewTile ? L.meta.viewTile.slice() : null, ltour: A.tour, tourOrder: A.order.slice() },
+        viewTile: L.meta.viewTile ? L.meta.viewTile.slice() : null, ltour: A.tour, tourOrder: A.order.slice(), intro: LStamp.intro(L) },
       analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K, base: info.base,
     };
   }

@@ -50,13 +50,19 @@ const LBuild = (() => {
   }
   const centreOf = r => ({ x: (r.x0 + r.x1) >> 1, y: (r.y0 + r.y1) >> 1 });
 
+  // The wall tiles where rooms a and b could be opened into each other. An opening of the
+  // Intro lies INTRO_DEPTH or more columns east of its west wall (layout version 3): the
+  // entrance is in that wall, and a walk is never shorter than the columns it crosses, so every
+  // onward opening of the Intro is at walk INTRO_DEPTH or more from the entrance whatever made
+  // it (a link, addLoops, a repair or the staff band; BUILD.md §5.5).
   function wallCandidates(L, a, b) {
     const G = L.G, A = L.rooms[a], B = L.rooms[b], out = [];
     const x0 = Math.max(1, Math.min(A.x0, B.x0) - 1), x1 = Math.min(G.W - 2, Math.max(A.x1, B.x1) + 1);
     const y0 = Math.max(1, Math.min(A.y0, B.y0) - 1), y1 = Math.min(G.H - 2, Math.max(A.y1, B.y1) + 1);
+    const intro = A.role === 'intro' ? A : B.role === 'intro' ? B : null, east = intro ? intro.x0 - 1 + N.INTRO_DEPTH : 0;
     const ok = (x, y, r) => G.rid(x, y) === r && WALK[G.get(x, y)] === 1;
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      if (G.get(x, y) !== T.WALL) continue;
+      if (G.get(x, y) !== T.WALL || x < east) continue;
       if ((ok(x - 1, y, a) && ok(x + 1, y, b)) || (ok(x - 1, y, b) && ok(x + 1, y, a))) out.push({ x, y, dir: 'v' });
       else if ((ok(x, y - 1, a) && ok(x, y + 1, b)) || (ok(x, y - 1, b) && ok(x, y + 1, a))) out.push({ x, y, dir: 'h' });
     }
@@ -95,8 +101,10 @@ const LBuild = (() => {
     return e;
   }
 
-  // 8-way breadth-first distances on the working grid, diagonals not cutting corners.
-  function bfs(G, starts, mode, blockedRoom) {
+  // 8-way breadth-first distances on the working grid, diagonals not cutting corners. A tile of
+  // blockedRoom is not entered; a tile set in the mask `blocked` is a wall, which a diagonal
+  // does not cut past either (a start is always entered).
+  function bfs(G, starts, mode, blockedRoom, blocked) {
     const N = G.W * G.H, D = new Int32Array(N).fill(-1), q = new Int32Array(N), W = G.W;
     let h = 0, t = 0;
     for (const s of starts) if (D[s] < 0) { D[s] = 0; q[t++] = s; }
@@ -108,8 +116,8 @@ const LBuild = (() => {
         if (xx < 0 || yy < 0 || xx >= W || yy >= G.H) continue;
         const j = yy * W + xx;
         if (D[j] >= 0) continue;
-        if (!walk(G.t[j], mode) || (blockedRoom && G.room[j] === blockedRoom)) continue;
-        if (dx && dy && (!walk(G.t[y * W + xx], mode) || !walk(G.t[yy * W + x], mode))) continue;
+        if (!walk(G.t[j], mode) || (blockedRoom && G.room[j] === blockedRoom) || (blocked && blocked[j])) continue;
+        if (dx && dy && (!walk(G.t[y * W + xx], mode) || !walk(G.t[yy * W + x], mode) || (blocked && (blocked[y * W + xx] || blocked[yy * W + x])))) continue;
         D[j] = D[i] + 1; q[t++] = j;
       }
     }

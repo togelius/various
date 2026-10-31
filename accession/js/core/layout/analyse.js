@@ -192,10 +192,15 @@ const LAnalyse = (() => {
         if (ring.size < arenaMinRing) { arenaMinRing = ring.size; arenaBlock = comp.map(j => { const x = j % W; return [x, (j - x) / W]; }); }
       }
     }
+    // The programme's identity is measured outside a stamped room (the Intro at layout version
+    // 3), whose furniture is its pack's stamp, not the programme's (design/layout.md §13.2;
+    // BUILD.md §5.5): its tiles count toward neither the glass nor the narrow share. Pillar
+    // loops above count every hole, the stamp's included.
+    const stamped = i => G.room[i] > 0 && !!L.rooms[G.room[i]].tags.stamped;
     // Glass ratio: see-through blockers among the interior blockers next to public floor.
     let blockers = 0, glass = 0;
     for (let i = 0; i < N; i++) {
-      if (!B.BLOCK[G.t[i]] || G.t[i] === T.CPL) continue;
+      if (!B.BLOCK[G.t[i]] || G.t[i] === T.CPL || stamped(i)) continue;
       const x = i % W, y = (i - x) / W;
       let near = false;
       for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (G.in(x + dx, y + dy) && open[(y + dy) * W + x + dx]) { near = true; break; }
@@ -203,10 +208,12 @@ const LAnalyse = (() => {
       blockers++;
       if (B.GLASS[G.t[i]]) glass++;
     }
-    // Narrow share: floor tiles whose horizontal or vertical free run is at most 2.
-    let narrow = 0;
+    // Narrow share: floor tiles whose horizontal or vertical free run is at most 2, among the
+    // narrowFloor floor tiles outside a stamped room.
+    let narrow = 0, narrowFloor = 0;
     for (let i = 0; i < N; i++) {
-      if (!open[i]) continue;
+      if (!open[i] || stamped(i)) continue;
+      narrowFloor++;
       const x = i % W, y = (i - x) / W;
       let h = 1, v = 1;
       for (let k = 1; x + k < W && open[i + k]; k++) h++;
@@ -224,7 +231,7 @@ const LAnalyse = (() => {
       roomsToC = Dd[RG.idx.get(centreRoom.id)];
     }
     return {
-      blockers, glass, narrow, roomsToC,
+      blockers, glass, narrow, narrowFloor, roomsToC,
       W, H: G.H, floor: floorN, pillar, circuit, loops: pillar + circuit, gates, gatesN: gates.size,
       tour, order, vista, optionalC, allReached, exitsReached, dExit, rooms: RG.n, mu: RG.mu, arenaBlock,
       aShare: RG.n ? RG.types.a / RG.n : 0, introExits, introOnCycle, deadEnds, arenaMinRing, D, openMask: open, RG,

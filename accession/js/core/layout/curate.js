@@ -1,6 +1,8 @@
 // ACCESSION — curation, ported from prototypes/layout/proto.js: walkways reserved
 // between a room's openings, wall runs of cases, tactical seasoning, the Centrepiece
-// hall's lectern and furniture (design/layout.md §6).
+// hall's lectern and furniture (design/layout.md §6). A stamped room (the Intro, at layout
+// version 3) is not curated: its stamp is its furniture, so it has no cases, columns, fills or
+// lectern but the stamp's (BUILD.md §5.5).
 'use strict';
 const LCurate = (() => {
   const B = LBuild, T = B.T;
@@ -72,7 +74,7 @@ const LCurate = (() => {
     const noOpaque = new Set();
     if (L.meta.vistaRequired) { const [ex, ey] = L.meta.entrance, [cx, cy] = L.meta.cpl; for (const [x, y] of B.lineTiles(ex, ey, cx, cy)) noOpaque.add(y * W + x); }
     for (const r of L.rooms) {
-      if (!r || r.role === 'staff') continue;
+      if (!r || r.role === 'staff' || r.tags.stamped) continue;
       const rng = B.stream(seed, base + '/room/' + (r.key || r.role + r.id) + '/curate' + (perturbRoom === r.id ? '/perturbed' : ''));
       const tiles = roomTiles(L, r);
       const { res, ops } = reserveWalkways(L, r, !!L.meta.formal);
@@ -129,10 +131,6 @@ const LCurate = (() => {
           if (!bare.length) break;
           tryPut(bare[bare.length >> 1], rng.pm(500) ? T.COL : T.VIT);
         }
-      }
-      if (r.role === 'intro') {
-        const [ex, ey] = L.meta.entrance;
-        for (const [x, y] of [[ex + 2, ey - 2], [ex + 2, ey + 2]]) if (G.rid(x, y) === r.id && free(y * W + x)) { tryPut(y * W + x, T.LECT); break; }
       }
     }
   }

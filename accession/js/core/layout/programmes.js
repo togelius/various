@@ -1,6 +1,11 @@
 // ACCESSION — the slice's layout programmes, ported from prototypes/layout/proto.js:
 // the enfilade, and the quadrangle scaffold with its case-labyrinth and sculpture-court
-// fillers (design/layout.md §§4.0, 4.1, 4.4, 4.6). Size 0 is Cabinet.
+// fillers (design/layout.md §§4.0, 4.1, 4.4, 4.6). Size 0 is Cabinet. At layout version 3 the
+// Intro is INTRO_WIDTH floor columns wide, the width of the stamp that fills it (LStamp), in
+// every programme: it is no longer a knob (BUILD.md §5.5). Each embedder writes the stamp it is
+// given as soon as the Intro and its entrance are placed, before any opening is made, so every
+// opening into the Intro (a link, the staff band, a loop, a repair) faces the stamp's tiles,
+// and wallCandidates opens a wall only where both sides can be walked.
 'use strict';
 const LProgrammes = (() => {
   const B = LBuild, T = B.T;
@@ -11,9 +16,9 @@ const LProgrammes = (() => {
     for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) L.G.set(x + dx, y + dy, T.CPL);
   }
 
-  function embedEnfilade(L, K, rng) {
+  function embedEnfilade(L, K, rng, stamp) {
     const oy = K.staff ? 3 : 0;
-    const maxRow = 44 - K.introW - K.cW;
+    const maxRow = 50 - K.introW - K.cW;
     const wN = [];
     for (let i = 0; i < K.nN; i++) wN.push(rng.int(6, 9));
     const len = a => a.reduce((s, w) => s + w, 0) + a.length - 1;
@@ -42,6 +47,7 @@ const LProgrammes = (() => {
     const coda = B.addRect(L, 'coda', xe + 2, yS0, xe + 1 + K.cW, yS1);
     const axN = yN0 + (K.hN >> 1), axS = yS0 + (K.hS >> 1);
     L.G.set(0, axN, T.ENT); L.meta.entrance = [0, axN];
+    if (stamp) LStamp.write(L, stamp);
     B.connect(L, intro.id, N[0].id, { target: { x: null, y: axN } });
     for (let i = 0; i + 1 < N.length; i++) B.connect(L, N[i].id, N[i + 1].id, { target: { x: null, y: axN } });
     B.connect(L, N[N.length - 1].id, C.id, { target: { x: null, y: axN } });
@@ -62,7 +68,7 @@ const LProgrammes = (() => {
 
   // The quadrangle scaffold: Intro, a filled central space, the Centrepiece apse, and
   // bands of rooms north and south, the coda at the east end of the south band.
-  function embedHallScaffold(L, K, rng, fill) {
+  function embedHallScaffold(L, K, rng, fill, stamp) {
     const oy = K.staff ? 3 : 0, yTop = 1 + oy;
     const introX1 = K.introW, cx0 = introX1 + 2, cx1 = cx0 + K.cW - 1, ax0 = cx1 + 2, ax1 = ax0 + K.apseW - 1;
     const W = ax1 + 2;
@@ -89,6 +95,7 @@ const LProgrammes = (() => {
     }
     fill(L, central, K, rng, axis);
     L.G.set(0, axis, T.ENT); L.meta.entrance = [0, axis];
+    if (stamp) LStamp.write(L, stamp);
     B.connect(L, intro.id, central.id, { target: { x: null, y: axis } });
     if (win) {
       for (let y = axis - 1; y <= axis + 1; y++) L.G.set(cx1 + 1, y, T.VIT);
@@ -222,7 +229,7 @@ const LProgrammes = (() => {
       knobs(r, s) {
         const rows2 = s === 2 ? 1 : s === 1 ? (r.pm(400) ? 1 : 0) : 0;
         const nN = s === 0 ? 2 : s === 1 ? (rows2 ? 2 : 3) : r.int(3, 4);
-        const K = { rows2, nN, nS: rows2 ? nN : (s === 0 ? 1 : r.int(1, 2)), hN: r.int(7, 9 + s), introW: r.int(6, 8), cW: r.int(9, 11),
+        const K = { rows2, nN, nS: rows2 ? nN : (s === 0 ? 1 : r.int(1, 2)), hN: r.int(7, 9 + s), introW: N.INTRO_WIDTH, cW: r.int(9, 11),
           alignS: r.int(600, 1000), cross: r.int(0, 1 + s), cabinets: s === 0 ? 0 : r.int(0, s), exits: r.int(2, 3),
           staff: r.pm(700) ? 1 : 0, staffDoors: r.int(2, 3), hS: 0 };
         K.hS = K.rows2 ? K.hN - 1 + (K.hN & 1) : 5;
@@ -234,25 +241,25 @@ const LProgrammes = (() => {
       d: 20,
       knobs(r, s) {
         const nx = r.int(5 + s, 6 + s), ny = r.int(4, 4 + (s > 0 ? 1 : 0));
-        return { introW: r.int(6, 7), cW: 3 * nx - 1, cH: 3 * ny - 1, axis: 3 * (ny >> 1), apseW: r.int(7, 9), apseH: r.pick([7, 9]),
+        return { introW: N.INTRO_WIDTH, cW: 3 * nx - 1, cH: 3 * ny - 1, axis: 3 * (ny >> 1), apseW: r.int(7, 9), apseH: r.pick([7, 9]),
           bandH: r.int(5, 6), bandN: s === 0 ? 0 : s === 2 ? 1 : (r.pm(500) ? 1 : 0), access: r.pm(500) ? 'window' : 'axis',
           nBandS: s === 0 ? 1 : s === 1 ? 2 : 3, nBandN: s === 2 ? 3 : r.int(1, 2), bandLinks: r.int(200, 600),
           studies: s === 0 ? 0 : s === 1 ? 1 : r.int(1, 2), tortMin: r.int(1300, 1700), loopP: r.int(80, 300), clearings: r.int(0, 1),
           opaquePosts: r.int(0, 300), exits: r.int(2, 3), staff: r.pm(500) ? 1 : 0, staffDoors: 2 };
       },
-      embed: (L, K, r) => embedHallScaffold(L, K, r, fillLabyrinth),
+      embed: (L, K, r, stamp) => embedHallScaffold(L, K, r, fillLabyrinth, stamp),
     },
     sculpture_court: {
       d: 20,
       knobs(r, s) {
-        return { introW: r.int(6, 7), cW: r.int(16 + 3 * s, 20 + 3 * s), cH: r.pick([11, 13, 15, 17].slice(s, s + 2)), apseW: r.int(7, 9),
+        return { introW: N.INTRO_WIDTH, cW: r.int(16 + 3 * s, 20 + 3 * s), cH: r.pick([11, 13, 15, 17].slice(s, s + 2)), apseW: r.int(7, 9),
           apseH: r.pick([7, 9]), bandH: r.int(5, 6), bandN: s === 0 ? 0 : s === 2 ? 1 : (r.pm(500) ? 1 : 0), access: r.pm(500) ? 'window' : 'axis',
           nBandS: s === 0 ? 1 : s === 1 ? 2 : 3, nBandN: s === 2 ? 3 : r.int(1, 2), bandLinks: r.int(300, 700),
           studies: s === 0 ? 0 : s === 1 ? 1 : r.int(1, 2), loggia: r.pm(500) ? 1 : 0, pool: r.pm(600) ? 1 : 0, poolW: r.pick([3, 5]),
           spacing: r.int(3, 5), tries: r.int(30, 80), symmetry: r.pm(500) ? 1 : 0, lowShare: r.int(100, 400), exits: r.int(2, 3),
           staff: r.pm(500) ? 1 : 0, staffDoors: 2 };
       },
-      embed: (L, K, r) => embedHallScaffold(L, K, r, fillCourt),
+      embed: (L, K, r, stamp) => embedHallScaffold(L, K, r, fillCourt, stamp),
     },
   };
 
