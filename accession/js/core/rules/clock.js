@@ -59,13 +59,14 @@ const ClockRules = (() => {
   // to a tile no one can step onto, 1 + its nearest neighbour one can; for a 2×2 body its
   // nearest tile), as [{a, dist}], nearest first, ties in spawn order. A night-watch bell
   // wakes only sleepers it can reach: it leaves out exhibits in an intact case (Cases.encased),
-  // pipless ones (a mimic in its disguise) and those no walk from you reaches.
+  // pipless ones (a mimic in its disguise), a Centrepiece's pieces (which only pips and
+  // damage wake, M4) and those no walk from you reaches.
   function nearestSleepers(state, n) {
     const m = state.dept, you = state.actors[0], dist = Grid.distances(m, [[you.x, you.y]], m.w * m.h);
     const found = [];
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
-      if (a.gone || a.mode !== 'dormant' || Cases.encased(state, a) || Archetypes.pipless(state, a)) continue;
+      if (a.gone || a.mode !== 'dormant' || Cases.encased(state, a) || Archetypes.pipless(state, a) || Actors.centrepiece(a)) continue;
       let best = -1;
       for (const [x, y] of Actors.footprint(a)) { const d = Grid.reachDist(dist, m, x, y); if (d >= 0 && (best < 0 || d < best)) best = d; }
       if (best >= 0) found.push({ a, dist: best, i });
@@ -152,8 +153,30 @@ const ClockRules = (() => {
     },
   });
 
-  // W0d1 fills (M4's skeleton made it): bring the next clock stage n turns closer, with its cause.
-  function advance(state, n, cause, ev) {}
+  // ClockRules.advance(state, n, cause, ev) (§5.4, §8.4; M4's alarm, plan D1.7): bring the
+  // next clock stage n turns closer, never closer than the next turn boundary (the count
+  // there is count + 1), with its cause. In stage 0 the bell moves (B), and the night watch
+  // with it; in stage 1 the night watch moves (G); in stage 2 nothing is left to move. Each
+  // is told by a stage event with the cause given: stage bell_sooner or watch_sooner with n
+  // the turns it actually moved (0 when it was already due at the next boundary), or
+  // nothing_sooner (n 0) in the night watch. The cause's owner gives its sentence. With no
+  // clock (a room for tests) nothing happens and nothing is said. A sealed hall stops the
+  // count, not this.
+  function advance(state, n, cause, ev) {
+    if (!Number.isInteger(n) || n < 0) throw new Error(`ClockRules.advance: ${n} is not a number of turns`);
+    if (!cause || typeof cause.k !== 'string') throw new Error('ClockRules.advance: the clock moves for a cause');
+    const c = state.dept && state.dept.clock;
+    if (!c) return;
+    let stage = 'nothing_sooner', moved = 0;
+    if (c.stage === 0) {
+      const B = Math.max(c.count + 1, c.B - n);
+      moved = c.B - B; c.B = B; stage = 'bell_sooner';
+    } else if (c.stage === 1) {
+      const at = Math.max(c.count + 1, c.B + c.G - n);
+      moved = c.B + c.G - at; c.G = at - c.B; stage = 'watch_sooner';
+    }
+    Causes.emit(state, ev, 'stage', { stage, n: moved }, cause);
+  }
 
   return { boundary, nearestSleepers, entryTile, spawnWatchman, fell, watchmanAlive, advance };
 })();

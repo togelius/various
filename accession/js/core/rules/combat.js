@@ -31,8 +31,10 @@ const Combat = (() => {
 
   // Surprise (BUILD.md §8.1): an exhibit is caught unawares while asleep or stirring (mode
   // dormant), or awake and it has not seen you since it last woke (`sawYou`, Wake). Hunting,
-  // searching, returning and reinstalling exhibits never are, and neither are you.
-  const surprised = (att, def) => def.uid !== 'you' && (def.mode === 'dormant' || (def.mode === 'awake' && !def.sawYou));
+  // searching, returning and reinstalling exhibits never are, and neither are you. Given the
+  // state, a blow the perks you hold make a surprise is one too (Perks.surprise: Duck and
+  // Cover at rank 2); a blow is struck with the state, so its surprise always counts them.
+  const surprised = (att, def, state) => def.uid !== 'you' && (def.mode === 'dormant' || (def.mode === 'awake' && !def.sawYou) || (!!state && Perks.surprise(state, att, def)));
 
   // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
   // how many there are, their sum, and the least and most. The odds readout uses these.
@@ -195,7 +197,7 @@ const Combat = (() => {
     if (shot && how.item) cause.item = how.item;
     // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
     // it rolls its damage, and the hunt it starts is the encounter.
-    if (surprised(att, def)) {
+    if (surprised(att, def, state)) {
       const dmg = Actors.centrepiece(def) ? rng.int(dmin, dmax) : surpriseRaw(att, how);
       cause.surprise = 1;
       Object.assign(cause, { raw: dmg, pad: def.pad, how, from });
@@ -227,10 +229,11 @@ const Combat = (() => {
   //   3. `damaged`;
   //   4. an exhibit not already hunting wakes into a hunt (damage, with its distance);
   //   5. its group hears of it (Wake.allyHit);
-  //   6. at 0 health it is destroyed (Combat.die); otherwise Archetypes.onDamaged, then the
-  //      M4 low-health hook.
+  //   6. at 0 health it is destroyed (Combat.die); otherwise Archetypes.onDamaged, then
+  //      Health.onLow with the health it had before (the perks' low-health hook).
   function hurt(state, who, amount, cause, ev) {
     amount = Archetypes.adjustDamage(state, who, amount, cause);
+    const before = who.hp;
     who.hp -= amount;
     if (who.hp < 0) who.hp = 0;
     if (who.uid === 'you' && who.hp < 1 && state.options && state.options.invulnerable) { who.hp = 1; cause.saved = 1; }
@@ -243,7 +246,7 @@ const Combat = (() => {
     }
     Wake.allyHit(state, who, cause, ev);
     if (who.hp === 0) die(state, who, cause, ev);
-    else { Archetypes.onDamaged(state, who, amount, cause, ev); Health.onLow(state, who, ev); }
+    else { Archetypes.onDamaged(state, who, amount, cause, ev); Health.onLow(state, who, before, ev); }
   }
 
   // who is destroyed (§8.1): `died` with the killing cause; its pending mark, if any, is

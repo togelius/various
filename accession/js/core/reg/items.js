@@ -31,7 +31,12 @@
   R.define('ITEM_PRIMS', 'quiet', Object.assign({ row: 'QUIET_RING' }, rule('Quiet: your ring is {QUIET_RING} smaller while your last action was a move or an attack (a bump into an exhibit or a door is a move, so a blow counts however you strike it); two quiet items do no more than one.', { QUIET_RING: 'N:QUIET_RING' }, ['pip'])));
   R.define('ITEM_PRIMS', 'breaker', Object.assign({ row: 'BREAKER_BASHES' }, rule('Breaker: each swing at glass counts as {BREAKER_BASHES} more bash (two breaker items do no more than one).', { BREAKER_BASHES: 'N:BREAKER_BASHES' }, ['glass_cracked', 'glass_broke'])));
   R.define('ITEM_PRIMS', 'charges', Object.assign({ row: null }, rule('Charges: an instrument spends one charge each use, and gets them back over time, as its own clause says.', {}, ['used'])));
-  R.define('ITEM_PRIMS', 'observing', { built: 'M4', row: 'LAMP_OBSERVE_RANGE' });
+  // The Lamp's rule (§5.5; M4's Wave 0, W0d1): a curio, taken hooded, lit or hooded by
+  // use(uid) where you wear it (Kit.observing, Kit.ringDelta, Vision.observed). 'unit': its
+  // rules pass test/m4-backbone.test.js, with no pack placing the Lamp yet.
+  R.define('ITEM_PRIMS', 'observing', { built: 'M4', row: 'LAMP_OBSERVE_RANGE', icon: null, ready: 'unit', tests: ['m4-backbone.test.js'], inv: 'kit',
+    clause: 'Observing: worn as a curio, it is lit or hooded for {cost} ticks, and taking it off hoods it; while it is lit, every exhibit within {range} tiles of you counts as seen by you, even out of your sight, and your ring is {ring} larger.',
+    params: { cost: 'N:COST_USE', range: 'N:LAMP_OBSERVE_RANGE', ring: 'N:LAMP_RING' }, covers: ['used'] });
 
   // The instruments (§8.5); `row` holds charges, recharge turns and range. Each is used only
   // from your instrument slot, at a tile in your line of sight within its range.

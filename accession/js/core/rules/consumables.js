@@ -285,8 +285,9 @@ const Consumables = (() => {
   //   "Quiet, Please": Wake.quiet from your tile out to QUIET_RANGE walking tiles;
   //   Re-admission Ticket: you are put at the entrance (arrival), even while rooted, then
   //     every hunter but the Night Watchman loses you (Wake.lose), which calls off its
-  //     pending special; an unknown one with nowhere to put you is identified and does
-  //     nothing more (used's cause says nowhere), so its refusal never gives it away.
+  //     pending special, and then a sealed Centrepiece hall unseals (Hall.onTicket, M4); an
+  //     unknown one with nowhere to put you is identified and does nothing more (used's
+  //     cause says nowhere), so its refusal never gives it away.
   function readItem(state, uid, ev) {
     ensureSeals(state);
     const it = carried(state, uid), ck = it.ck, seal = sealOf(state, it), was = knownSeal(state, seal), you = state.actors[0], m = state.dept;
@@ -308,6 +309,7 @@ const Consumables = (() => {
       // A teleport, not a step: being rooted does not stop it.
       you.x = to[0]; you.y = to[1];
       Wake.lose(state, { k: 'ticket', by: 'you' }, ev);
+      Hall.onTicket(state, ev);
     }
     return paid(state);
   }
@@ -451,7 +453,7 @@ const Consumables = (() => {
     }
   }
 
-  // ---- The actions: throw(uid, x, y), read(x, y), choose(index) (§4.2) ----
+  // ---- The actions: throw(uid, x, y) (§4.2); the plaque's reader; the Card's choice ----
 
   // throw: candidates are every tile within THROW_RANGE + 1 of you for each Solution you
   // carry (so the edge of the range and the near tiles a first throw refuses are among them),
@@ -477,49 +479,18 @@ const Consumables = (() => {
     },
   });
 
-  // read(x, y): a label you can read, at no cost in time (§3.1: what it teaches is in the
-  // state and the replay). Candidates: your tile and its 8 neighbours, every plaque, and a
-  // bare read.
-  Actions.define('read', {
-    legal: state => plaques(state).filter(f => readRefusal(state, f.x, f.y) === null).map(f => ({ a: 'read', x: f.x, y: f.y })),
-    candidates(state) {
-      const you = state.actors[0], out = [{ a: 'read', x: you.x, y: you.y }];
-      for (let d = 0; d < 8; d++) out.push({ a: 'read', x: you.x + Grid.DX[d], y: you.y + Grid.DY[d] });
-      for (const f of plaques(state)) out.push({ a: 'read', x: f.x, y: f.y });
-      return out.concat([{ a: 'read' }]);
-    },
-    apply(state, action, ev) {
-      const code = readRefusal(state, action.x, action.y);
-      if (code) return code;
-      ensureSeals(state);
-      identify(state, sealFor(state, Cases.at(state, action.x, action.y).ck), { k: 'label', by: 'you' }, ev);
-      return 0;
-    },
-  });
-
-  // choose(index): the answer to the choice waiting (state.ui.pendingChoice {k, options}),
-  // handed to the function defined for its kind (Actions.defineChoice). It costs what that
-  // function says (a seal: nothing, the Card's reading was the cost); the choice is cleared
-  // unless the function asked a new one.
-  Actions.define('choose', {
-    legal(state) {
-      const p = state.ui && state.ui.pendingChoice;
-      if (!p || !Actions.choice(p.k) || !Array.isArray(p.options)) return [];
-      return p.options.map((o, index) => ({ a: 'choose', index }));
-    },
-    candidates(state) {
-      const p = state.ui && state.ui.pendingChoice, n = p && Array.isArray(p.options) ? p.options.length : 1, out = [];
-      for (let index = -1; index <= Math.max(n, 1); index++) out.push({ a: 'choose', index });
-      return out.concat([{ a: 'choose' }]);
-    },
-    apply(state, action, ev) {
-      const p = state.ui && state.ui.pendingChoice, fn = p ? Actions.choice(p.k) : null;
-      if (!p || !fn || !Array.isArray(p.options)) return 'choice_none';
-      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= p.options.length) return 'choice_bad';
-      const r = fn(state, action.index, ev);
-      if (typeof r !== 'string' && state.ui.pendingChoice === p) state.ui.pendingChoice = null;
-      return r;
-    },
+  // The identifying label's reader (BUILD.md §8.6; plan A4): read(x, y), defined with every
+  // fixture's reading in rules/fixtures.js, reads a plaque through it. It refuses as
+  // readRefusal does; otherwise reading costs no time (§3.1: what it teaches is in the state
+  // and the replay), shows the pack's label text, and identifies the kind (cause label).
+  Fixtures.addReader('plaque', (state, f) => {
+    const code = readRefusal(state, f.x, f.y);
+    if (code) return code;
+    const pack = state.dept && Packs.get(state.dept.acc), labels = pack && pack.consumables && pack.consumables.labels;
+    return {
+      text: labels && own(labels, f.ck) ? labels[f.ck] : null,
+      effects(st, ev) { ensureSeals(st); identify(st, sealFor(st, f.ck), { k: 'label', by: 'you' }, ev); },
+    };
   });
 
   // The Catalogue Card's choice: the seal at index is identified (cause card).

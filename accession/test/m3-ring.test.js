@@ -7,7 +7,10 @@
 // over the three departments' programmes × 10 seeds, with you on every 7th tile you can
 // stand on, after a wait, a move, a Heavy blow (150 ticks, so your next decision is
 // mid-turn) and a move onto shards, and a sleeper on every tile an exhibit can stand on
-// round you. Planted faults show that it bites.
+// round you. Planted faults show that it bites. With M4's two cheap-action perks (plan A6), a
+// boundary applies the largest ring of your actions since the last one, and the ring drawn at
+// every decision is the ring the next boundary would apply if it ran then: the last test
+// checks both against a ring worked out from the actions taken.
 module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore();
   const json = x => JSON.stringify(x);
@@ -20,9 +23,10 @@ module.exports = ({ test, assert, loadCore }) => {
   const DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
   // still: your last action that cost time was a wait (or rest, view, sit); radius from §8.2,
   // with the still radius given so that a planted fault can change it.
-  function oracle(map, yx, yy, still, stillR) {
+  // radius, if given, is the ring's radius as it stands (plan A6's test below works it out).
+  function oracle(map, yx, yy, still, stillR, radius) {
     const h = map.length, w = map[0].length, at = (x, y) => x < 0 || y < 0 || x >= w || y >= h ? '#' : map[y][x];
-    const r = Math.max(1, (still ? (stillR === undefined ? 2 : stillR) : 3) + (LOUD.has(at(yx, yy)) ? 2 : 0));
+    const r = radius !== undefined ? radius : Math.max(1, (still ? (stillR === undefined ? 2 : stillR) : 3) + (LOUD.has(at(yx, yy)) ? 2 : 0));
     const dist = new Map([[`${yx},${yy}`, 0]]), queue = [[yx, yy]];
     for (let q = 0; q < queue.length; q++) {
       const [x, y] = queue[q], d = dist.get(`${x},${y}`);
@@ -189,6 +193,68 @@ module.exports = ({ test, assert, loadCore }) => {
       if (verdict(t, 3)) off++;
     }
     assert.ok(waits >= 20 && off === waits, `RING_STILL 3 in the oracle was caught in ${off} of ${waits} waits`);
+  });
+
+  // Plan A6, with planted perks standing in for Close the Distance (a step made free) and
+  // Duck and Cover (an action made 50 ticks cheaper). The ring of each action is §8.2's,
+  // worked out here from what it was and where it left you: 2 after a wait, 3 after a move,
+  // +2 on a loud floor. Each boundary applies the largest ring of your actions since the one
+  // before (a boundary inside an action counting that action); the ring drawn at a decision
+  // is the largest ring of your actions since the last boundary, or the last action's ring
+  // where every action since was a full one. So at a decision after a free or cheaper
+  // action, the next boundary applies at least the ring drawn, and exactly it if you wait.
+  test('with free and cheaper actions, each boundary applies the largest ring since the last, and the ring drawn at every decision is the one the next boundary applies (plan A6)', () => {
+    const X = loadCore(), N = C.N, pick = X.Rng.stream({ seed: 6, rng: {} }, 'a6');
+    let mode = null;
+    if (X.Registry.TABLES.includes('PERKS')) X.Registry.define('PERKS', 'planted_a6', { built: 'M4' });
+    X.Perks.add('planted_a6', { adjust: (st, action, r) => { const m = mode; mode = null; return m === 'free' ? { r: 0, why: 'close_the_distance' } : m === 'duck' ? { r: r - N.PERK_DUCK_AND_COVER, why: 'duck_and_cover' } : null; } });
+    const seen = [], orig = X.Wake.boundary;
+    X.Wake.boundary = (st, ev) => { seen.push(X.Vision.field(st).r); return orig(st, ev); };
+    const counts = { decisions: 0, mid: 0, cheapAt: 0, boundaries: 0, raised: 0, loud: 0 };
+    try {
+      for (const { acc, seed, tiles } of MAPS.slice(0, 9)) {
+        // Shards on every 4th floor tile, so loud floors come into it.
+        const map = tiles.map(row => row.split(''));
+        let k = 0;
+        for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === '.' && k++ % 4 === 0) map[y][x] = 'x';
+        const rows = map.map(r => r.join('')), spots = [];
+        for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[0].length; x++) if (stand(rows, x, y)) spots.push([x, y]);
+        const s = X.Setup.room(seed, { acc: 'T0', depth: 1, map: rows, you: spots[Math.floor(spots.length / 2)] });
+        s.run.perks = [{ id: 'planted_a6', rank: 1 }];
+        const ringOf = (still, x, y) => (still ? 2 : 3) + (LOUD.has(rows[y][x]) ? 2 : 0);
+        let lastStill = s.actors[0].still, cheap = [];
+        for (let step = 0; step < 60; step++) {
+          const you = s.actors[0], now = ringOf(lastStill, you.x, you.y);
+          const drawn = cheap.length ? Math.max(now, ...cheap) : now;
+          const where = `${acc} seed ${seed}, decision ${step} at tick ${s.tick}, you at ${you.x},${you.y}`;
+          assert.equal(X.Vision.ringRadius(s), drawn, `${where}: the radius drawn`);
+          const cells = ringCells(X, s, X.ViewModel.derive(s, { events: [] })), want = oracle(rows, you.x, you.y, false, undefined, drawn);
+          assert.equal(json(sorted(cells)), json(sorted(want)), `${where}: the ring drawn`);
+          counts.decisions++; if (s.tick % 100) counts.mid++; if (cheap.length) counts.cheapAt++; if (LOUD.has(rows[you.y][you.x])) counts.loud++;
+          // The next action: a wait or a step, full, free (a step that changes your tile) or cheaper.
+          const moves = X.Step.legal(s).filter(a => a.a === 'move'), steps = moves.filter(a => { const c = rows[you.y + X.Grid.DY[a.dir]][you.x + X.Grid.DX[a.dir]]; return c !== '+' && c !== 'S'; });
+          const action = pick.int(0, 2) === 0 || !moves.length ? { a: 'wait' } : moves[pick.int(0, moves.length - 1)];
+          const roll = pick.int(0, 3);
+          mode = roll === 0 ? 'duck' : roll === 1 && action.a === 'move' && steps.includes(action) ? 'free' : null;
+          const was = mode, before = cheap.slice();
+          seen.length = 0;
+          X.Step.step(s, action);
+          const still = action.a === 'wait', mine = ringOf(still, s.actors[0].x, s.actors[0].y);
+          // The first boundary in the action applies the largest ring since the last one, this
+          // action's included; any later boundary in it, this action's ring.
+          seen.forEach((r, i) => assert.equal(r, i === 0 ? Math.max(mine, ...before) : mine, `${where}, then ${json(action)} (${was || 'full'}): boundary ${i + 1}`));
+          if (seen.length && before.length) {
+            assert.ok(seen[0] >= drawn, `${where}: the next boundary applies ${seen[0]}, less than the ${drawn} drawn`);
+            if (action.a === 'wait') assert.equal(seen[0], drawn, `${where}: waiting, the next boundary applies the ring drawn`);
+            if (seen[0] > mine) counts.raised++;
+          }
+          counts.boundaries += seen.length;
+          lastStill = still;
+          cheap = seen.length ? [] : was ? before.concat([mine]) : before;
+        }
+      }
+    } finally { X.Wake.boundary = orig; }
+    assert.ok(counts.decisions >= 500 && counts.mid > 50 && counts.cheapAt > 50 && counts.raised > 10 && counts.loud > 30, json(counts));
   });
 
   test('a 2×2 sleeper gains one ring pip when any one of its tiles is inside the ring, and none when none is', () => {

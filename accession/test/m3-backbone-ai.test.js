@@ -491,15 +491,20 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(ev.some(e => e.k === 'moved' && e.who === 'you'), 'you walked about beside them');
   });
 
-  // A stub's contract is its name and signature until its owner fills it; only the M4 hooks
-  // stay neutral through M3 (plan A17), each checked on its own line, by owner.
+  // A stub's contract is its name and signature until its owner fills it; the M4 hooks stay
+  // neutral while no perk is held and no module is on (plan A17), each checked on its own
+  // line, by owner. M4's Wave 0 (W0d1) routed them to the perks and the modules
+  // (test/m4-backbone.test.js drives them).
   test('the M4 hooks are present and neutral; the stubs Wave 1 fills are present, with their signatures; every archetype and modifier file is registered', () => {
     const X = loadCore(), s = X.TestRoom.create(1), ev = [], h = State.hash(s), a = s.actors[1];
-    // W1-WAKE-A's file: the chime (Wake.perform, Wake.resleep) and the Lamp (Vision.observed).
+    // W1-WAKE-A's file: the chime (Wake.perform, Wake.resleep). Vision.observed, with no Lamp
+    // lit, is your sight: a tile of the exhibit in your line of sight within SIGHT_PLAYER.
     X.Wake.perform(s, a, { k: 'period' }, ev); X.Wake.resleep(s, a, ev);
     assert.equal(State.hash(s), h, 'Wake.perform and Wake.resleep change nothing'); assert.equal(ev.length, 0);
-    assert.equal(X.Vision.observed(s, a), false, 'Vision.observed');
-    // W1-WAKE-B's file: the alarm's hold on returning, Single File, Vanishing Act.
+    const vis = X.Vision.visible(s);
+    for (const b of s.actors.slice(1)) assert.equal(X.Vision.observed(s, b), Actors.footprint(b).some(([x, y]) => vis[y * s.dept.w + x] === 1), `Vision.observed ${b.uid}`);
+    // W1-WAKE-B's file: the alarm's hold on returning, Single File, Vanishing Act. With no
+    // perk held and no module on, nothing changes: a call with no step is told nothing.
     X.AI.afterStep(s, a, ev);
     assert.equal(State.hash(s), h, 'AI.afterStep changes nothing'); assert.equal(ev.length, 0);
     assert.equal(X.AI.mayReturn(s, a), true, 'AI.mayReturn');

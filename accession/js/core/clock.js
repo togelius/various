@@ -41,8 +41,9 @@ const Clock = (() => {
   const stage = state => { const c = clock(state); return c ? c.stage : 0; };
   // Is a Centrepiece hall sealed (§8.4)? Never in M3.
   const sealed = state => { const c = clock(state); return !!c && c.pausedSince !== null && c.pausedSince !== undefined; };
-  // Do pips decay (§8.2)? Only before the bell. (M4 adds: and no alarm is running.)
-  const pipsDecay = state => stage(state) === 0;
+  // Do pips decay (§8.2)? Only before the bell, and while no alarm runs (§5.4: the modules
+  // say, Modules.pipsDecay).
+  const pipsDecay = state => stage(state) === 0 && Modules.pipsDecay(state);
   // Regeneration units a turn (§8.1): REGEN_BELL_MULT (2) open, 1 after the bell, 0 in the
   // night watch or while a hall is sealed; regeneration needs REGEN_BELL_MULT times your
   // interval, so after the bell the interval is multiplied by REGEN_BELL_MULT. A bench

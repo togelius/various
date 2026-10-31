@@ -19,7 +19,7 @@
 //   hunting       stim: the last turn it saw you (or began the hunt). It strikes you if it
 //                 can, walks toward you while it sees you, else to the tile where it last
 //                 knew you were; LOSE_TRACK_TURNS (AI.loseTrackTurns) out of sight →
-//                 searching (lost, out_of_sight).
+//                 searching (lost, out_of_sight; vanished when a perk made it fewer).
 //   searching     stim: its arrival at your last-known tile (or the turn it could get no
 //                 closer). SEARCH_TURNS there → returning (lost, searched), or, if it may
 //                 not go back, awake, wandering (alerted, searched).
@@ -78,12 +78,14 @@ const AI = (() => {
   }
 
   // AI.look(state, a, ev): if a sees you, an exhibit that is awake, searching, returning or
-  // reinstalling starts to hunt you (being seen, with the distance); then, hunting or not,
-  // it has seen you since it woke (sawYou), knows your tile (lastKnown), and was stirred now.
+  // reinstalling starts to hunt you (being seen, with the distance), unless its archetype says
+  // it does not hunt on sight (Archetypes.huntsOnSight: a station, M4); then, hunting or
+  // not, it has seen you since it woke (sawYou), knows your tile (lastKnown), and was stirred
+  // now.
   function look(state, a, ev) {
     if (!AI.sees(state, a)) return false;
     const you = state.actors[0];
-    if (a.mode !== 'hunting') Wake.setMode(state, a, 'hunting', { k: 'seen', dist: Actors.dist(a, you.x, you.y) }, ev);
+    if (a.mode !== 'hunting' && Archetypes.huntsOnSight(state, a)) Wake.setMode(state, a, 'hunting', { k: 'seen', dist: Actors.dist(a, you.x, you.y) }, ev);
     a.sawYou = true;
     a.lastKnown = [you.x, you.y];
     a.stim = state.turn;
@@ -219,7 +221,8 @@ const AI = (() => {
 
   // One step of a's whole footprint in a direction from `options`, the ties broken on its
   // own ai stream (§8.2), through Step.moveInto (a closed door on the way is opened, and a
-  // opens it from where it stands). Returns the cost, or null.
+  // opens it from where it stands); a step that changed its tile is followed by
+  // AI.afterStep. Returns the cost, or null.
   function stepAmong(state, a, options, ev) {
     if (!options.length) return null;
     const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
@@ -298,11 +301,15 @@ const AI = (() => {
   }
 
   // Hunting (§8.2): out of sight for loseTrackTurns, it searches; otherwise it strikes you if
-  // it can, walks toward you if it sees you, else toward your last-known tile.
+  // it can, walks toward you if it sees you, else toward your last-known tile. When a perk
+  // makes it search sooner than LOSE_TRACK_TURNS (Vanishing Act), it loses you with the cause
+  // vanished, not out_of_sight; either way, once it has begun to search, the perks you hold
+  // act on it (Perks.onLoseTrack: Vanishing Act's lost action at rank 2).
   function hunt(state, a, ev) {
     const you = state.actors[0], seen = AI.sees(state, a), lose = AI.loseTrackTurns(state, a);
     if (!seen && since(state, a) >= lose) {
-      Wake.setMode(state, a, 'searching', { k: 'out_of_sight', turns: since(state, a) }, ev);
+      Wake.setMode(state, a, 'searching', { k: lose < N.LOSE_TRACK_TURNS ? 'vanished' : 'out_of_sight', turns: since(state, a) }, ev);
+      Perks.onLoseTrack(state, a, ev);
       return search(state, a, ev);
     }
     if (Cases.encased(state, a)) return AI.wait(state, a, ev);
@@ -432,12 +439,21 @@ const AI = (() => {
     return dist;
   }
 
-  // Turns out of sight before a hunter searches (§8.2); M4's Vanishing Act shortens it.
-  const loseTrackTurns = (state, a) => N.LOSE_TRACK_TURNS;
-  // [M4] May an idle awake exhibit go back? The alarm says no ("awake exhibits do not return").
-  const mayReturn = (state, a) => true;
-  // [M4] After each exhibit step (Single File).
-  function afterStep(state, a, ev) {}
+  // Turns out of sight before a hunter searches (§8.2): LOSE_TRACK_TURNS, or fewer if a perk
+  // you hold says so (Perks.loseTrack: Vanishing Act).
+  const loseTrackTurns = (state, a) => Perks.loseTrack(state, a);
+  // May an idle awake exhibit go back? Not while the alarm runs ("awake exhibits do not
+  // return", §5.4; Modules.mayReturn).
+  const mayReturn = (state, a) => Modules.mayReturn(state, a);
+  // After exhibit a's step (every step that changed its tile: stepAmong's, a darter's step
+  // back): the perks you hold act on it (Perks.afterStep: Single File), given the tile it
+  // stepped from, which its last moved event in ev names. With no such event it did not
+  // step, and nothing is asked.
+  function afterStep(state, a, ev) {
+    let from = null;
+    for (let i = ev.length - 1; i >= 0 && !from; i--) if (ev[i].k === 'moved' && ev[i].who === a.uid) from = ev[i].from;
+    if (from) Perks.afterStep(state, a, [from[0], from[1]], ev);
+  }
 
   return { act, sees, look, wait, field, arrived, route, around, towards, away, strike, bodyDistances, anchorDistances, atHome, mayGoHome,
     byMode, wanderGoal, loseTrackTurns, mayReturn, afterStep };

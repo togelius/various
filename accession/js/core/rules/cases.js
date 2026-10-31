@@ -190,8 +190,12 @@ const Cases = (() => {
   const canBreak = (you, f) => !(you.weaponForm === 'light' && f.glass >= 2);
   // What one bash costs you: COST_BASH, or COST_BASH_HEAVY for a Heavy weapon's swing.
   const bashCost = (state, you) => Actors.cost(state, you, you.weaponForm === 'heavy' ? N.COST_BASH_HEAVY : N.COST_BASH, 'act');
-  // [M4: Light Fingers] What opening a case costs you.
-  const openCost = state => N.COST_OPEN_CASE;
+  // What opening a case costs you: COST_OPEN_CASE, as the perks you hold make it (Perks.openCost:
+  // Light Fingers), before Actors.cost doubles it while you are slowed.
+  const openCost = state => Perks.openCost(state, N.COST_OPEN_CASE);
+  // The highest case lock your grade opens: your grade, and the grades above it your perks
+  // open (Perks.lockBonus: Light Fingers at rank 2). Staff doors take your grade alone.
+  const lockGrade = state => gradeOf(state) + Perks.lockBonus(state);
 
   // Is the actor a standing in the case f, or at home in it?
   const inCase = (a, f) => Actors.covers(a, f.x, f.y);
@@ -280,8 +284,9 @@ const Cases = (() => {
   //      exhibit in it may leave, keeps its home there and can return; case_opened
   //      {by, x, y, glass, lock}, cause {k: 'grade', grade, lock}. A mimic's case was
   //      revealed by the touch, and nothing opens;
-  //   3. last, a soft noise from the case tile.
-  // It costs openCost (COST_OPEN_CASE).
+  //   3. last, a soft noise from the case tile, unless the perks you hold make your opening
+  //      quiet (Perks.openQuiet: Light Fingers). The touch is made either way.
+  // It costs openCost (COST_OPEN_CASE, as your perks make it).
   function open(state, who, f, ev) {
     touch(state, f, 'opened', who.uid, ev);
     if (!f.mimic) {
@@ -289,8 +294,9 @@ const Cases = (() => {
       Grid.set(state.dept, f.x, f.y, 'u');
       Causes.emit(state, ev, 'case_opened', { by: who.uid, x: f.x, y: f.y, glass: f.glass, lock: f.lock }, { k: 'grade', grade: gradeOf(state), lock: f.lock });
     }
-    Noise.emit(state, f.x, f.y, 'soft', { k: 'case_opened', by: who.uid }, ev);
-    return Actors.cost(state, who, openCost(state), 'act');
+    const yours = who.uid === 'you';
+    if (!(yours && Perks.openQuiet(state))) Noise.emit(state, f.x, f.y, 'soft', { k: 'case_opened', by: who.uid }, ev);
+    return Actors.cost(state, who, yours ? openCost(state) : N.COST_OPEN_CASE, 'act');
   }
 
   // Cases.bash(state, who, f, ev) → ticks: who bashes the intact case f, which the action has
@@ -377,12 +383,12 @@ const Cases = (() => {
   }
 
   // What you can do to the case f with your kit and grade now, wherever you stand: open it
-  // (its lock within your grade), break it (glass your weapon can break), and in how many of
-  // your swings.
+  // (its lock within your grade, with what your perks add: lockGrade), break it (glass your
+  // weapon can break), and in how many of your swings.
   function yourWay(state, f) {
     const you = state.actors[0], shut = f.st === 'shut', n = need(f.glass);
     const breakable = shut && canBreak(you, f);
-    return { canOpen: shut && gradeOf(state) >= f.lock, canBreak: breakable, blows: breakable ? Int.ceilDiv(n - f.hits, swing(you)) : null };
+    return { canOpen: shut && lockGrade(state) >= f.lock, canBreak: breakable, blows: breakable ? Int.ceilDiv(n - f.hits, swing(you)) : null };
   }
   // The item a case holds, for a picture: {uid, kind, icon} (icon its kind's), or null.
   function held(state, f) {
@@ -448,7 +454,8 @@ const Cases = (() => {
   // open(x, y) and bash(x, y) (§4.2): on an intact case beside you. A target is refused, in
   // this order: no intact case there (no_case: nothing, fixed glazing, a case already open
   // or broken, or a revealed mimic's); not beside you (out_of_reach); diagonally past a
-  // corner, as a blow is (corner); then, to open, its lock above your grade (case_locked),
+  // corner, as a blow is (corner); then, to open, its lock above your grade and what your
+  // perks add to it (case_locked; Perks.lockBonus),
   // and to bash, glass your weapon cannot break (glass_too_strong). A mimic in its disguise
   // is refused or allowed exactly as a real case with its glass and lock would be.
   function check(state, id, x, y) {
@@ -459,7 +466,7 @@ const Cases = (() => {
     const dx = x - you.x, dy = y - you.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return 'out_of_reach';
     if (dx !== 0 && dy !== 0 && !(Grid.walkable(m, x, you.y) && Grid.walkable(m, you.x, y))) return 'corner';
-    if (id === 'open' && gradeOf(state) < f.lock) return 'case_locked';
+    if (id === 'open' && lockGrade(state) < f.lock) return 'case_locked';
     if (id === 'bash' && !canBreak(you, f)) return 'glass_too_strong';
     return null;
   }
@@ -484,6 +491,6 @@ const Cases = (() => {
   });
 
   return { at, encased, make, lockRange, lockSpan, need, drawGlass, drawLock, drawLoan, draw, drawStaff, shardTile, roomKey, disguise, reveal,
-    place, staffGrade, enter, swing, canBreak, openCost, touch, release, spreadShards, open, bash, dissolve, reach, highlightOk,
+    place, staffGrade, enter, swing, canBreak, openCost, lockGrade, touch, release, spreadShards, open, bash, dissolve, reach, highlightOk,
     view, staffView, rules, describe, check };
 })();

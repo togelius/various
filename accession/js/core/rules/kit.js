@@ -110,13 +110,18 @@ const Kit = (() => {
   //   damage bonus to both ends of the range and the Padding bonus on top of the garment's
   //   own (every bonus is at least 1, so taking a garment off never raises your Padding);
   //   reach makes your blows Reach blows; quiet and breaker give QUIET_RING and
-  //   BREAKER_BASHES, once however many items have them; charges and observing (M4) change
-  //   no stat; weaponForm the weapon's form, reach for a Reach weapon or a reach primitive.
+  //   BREAKER_BASHES, once however many items have them; charges and observing change no
+  //   stat (a lit Lamp's are Kit.observing and Kit.ringDelta); weaponForm the weapon's form,
+  //   reach for a Reach weapon or a reach primitive.
+  // Your perks' Padding (Perks.padding: Elbow Room) is added last, so it is counted when you
+  // act, as the rest is (Kit.settle).
   function derive(state) {
     const grade = state.run ? state.run.grade : N.GRADE_START, kit = state.you && state.you.kit;
     if (!kit) return stats(null, null, grade, []);
     const others = [byUid(state, kit.curio[0]), byUid(state, kit.curio[1]), byUid(state, kit.instrument)].filter(Boolean);
-    return stats(byUid(state, kit.weapon), byUid(state, kit.garment), grade, others);
+    const out = stats(byUid(state, kit.weapon), byUid(state, kit.garment), grade, others);
+    out.pad += Perks.padding(state);
+    return out;
   }
   // A garment's own Padding at a grade (§8.1): tier + its form's a + its levels' Padding,
   // less SHORT_PAD a grade short, never below 0.
@@ -170,11 +175,12 @@ const Kit = (() => {
   // a door included, and any blow, so a blow counts the same however you strike it) and you
   // wear a quiet item. It is read from your settled stats, which change once an action's
   // ticks are done; an equip or unequip is neither, so the ring the view model draws is the
-  // one the last boundary used. No Lamp term in M3.
+  // one the last boundary used. While you wear a lit Lamp (Kit.observing), your ring is
+  // LAMP_RING larger (§5.5).
   const QUIET_ACTS = ['move', 'attack'];
   function ringDelta(state) {
     const you = state.actors[0];
-    return QUIET_ACTS.includes(you.lastAct) && you.quiet ? -you.quiet : 0;
+    return (QUIET_ACTS.includes(you.lastAct) && you.quiet ? -you.quiet : 0) + (observing(state) > 0 ? N.LAMP_RING : 0);
   }
 
   // ---- The tote (§8.5) ----
@@ -337,6 +343,7 @@ const Kit = (() => {
       const uid = slotUid(state, action.slot), it = byUid(state, uid);
       setSlot(state, action.slot, null);
       it.where = { at: 'tote' };
+      if (it.lit !== undefined) delete it.lit;   // a Lamp taken off is hooded (§5.5)
       state.you.tote.push(uid);
       Causes.emit(state, ev, 'equipped', { who: 'you', item: null, slot: action.slot, was: uid }, Object.assign({ k: 'unequip' }, desc(it)));
       return paid(state, equipCost(it.kind));
@@ -525,10 +532,12 @@ const Kit = (() => {
 
   // ---- use(uid, …) of an instrument or a kit (§4.2) ----
 
-  // Kit.useAction(state, action, ev): use(uid, x, y[, how]) of your instrument, or
-  // use(uid, on) of a Restoration kit in your tote (a kit takes no tile and no how).
+  // Kit.useAction(state, action, ev): use(uid, x, y[, how]) of your instrument, use(uid, on)
+  // of a Restoration kit in your tote (a kit takes no tile and no how), or use(uid) of a
+  // Lamp you wear, which lights or hoods it.
   function useAction(state, action, ev) {
     const it = itemOf(state, action);
+    if (it && it.kind === 'curio') return lampCode(state, it, action) || lamp(state, it, ev);
     if (it && it.kind === 'kit') {
       if (action.x !== undefined || action.y !== undefined || action.how !== undefined) return 'bad_use';
       return restore(state, it.uid, action.on, ev);
@@ -547,11 +556,13 @@ const Kit = (() => {
     const it = byUid(state, state.you.kit.instrument);
     return it && isInstrument(it.form) ? it : null;
   }
-  // Kit.useLegal(state): every use of your instrument at a tile it may be used at (row-major;
-  // for the pole push, pull and take in that order), then every Restoration kit in your
-  // tote on every item it can improve (what you wear in slot order, then your tote in order).
+  // Kit.useLegal(state): the Lamp you wear, lit or hooded (curio slots in order); every use
+  // of your instrument at a tile it may be used at (row-major; for the pole push, pull and
+  // take in that order); then every Restoration kit in your tote on every item it can
+  // improve (what you wear in slot order, then your tote in order).
   function useLegal(state) {
     const out = [], inst = instrument(state);
+    for (const uid of state.you.kit.curio) { const it = byUid(state, uid); if (it && lampCode(state, it, { a: 'use', uid }) === null) out.push({ a: 'use', uid }); }
     if (inst) for (const [x, y] of around(state, row(inst.form)[2])) {
       if (inst.form === 'pole') { for (const how of POLE) if (aimCode(state, inst, x, y, how, null) === null) out.push({ a: 'use', uid: inst.uid, x, y, how }); }
       else if (aimCode(state, inst, x, y, undefined, null) === null) out.push({ a: 'use', uid: inst.uid, x, y });
@@ -565,7 +576,8 @@ const Kit = (() => {
     return out;
   }
   // Kit.useCandidates(state): a superset of useLegal (§4.2), with refused shapes beside the
-  // legal ones: for every instrument and kit, a bare use and the targeted shape aimed nowhere
+  // legal ones: for every Lamp an aimed use (its bare use is the dispatcher's, step.js); for
+  // every instrument and kit, a bare use and the targeted shape aimed nowhere
   // (a tile off the board; an item that is not there); for your instrument, every tile it may
   // be used at, and the tiles straight out from you in the 8 directions to one beyond its
   // range and your own tile, each with every pole how and one it does not know (for the pole)
@@ -573,6 +585,7 @@ const Kit = (() => {
   function useCandidates(state) {
     const out = [];
     for (const i of state.items || []) {
+      if (observes(i)) out.push({ a: 'use', uid: i.uid, x: 0, y: 0 });
       if (i.kind === 'instrument') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, x: -1, y: -1 });
       else if (i.kind === 'kit') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, on: 'nothing' }, { a: 'use', uid: i.uid, on: 'you.w' });
     }
@@ -793,8 +806,42 @@ const Kit = (() => {
     return out;
   }
 
-  // W0d1 fills (M4's skeleton made it): the range a lit `observing` curio you wear observes within; 0.
-  function observing(state) { return 0; }
+  // ---- The Lamp: an `observing` curio (§5.5, §8.5) ----
+
+  // An item with the `observing` primitive: a curio that can be lit or hooded (the Day
+  // Curator's Lamp). It is hooded until lit: item.lit is absent while it is hooded, and true
+  // while it is lit (§4.1: a part is absent until a rule writes it). Only a Lamp you wear can
+  // be lit, and taking it off hoods it, so a Lamp is never lit anywhere else.
+  const observes = it => !!it && it.kind === 'curio' && (it.prims || []).some(p => p.id === 'observing');
+  const worn = it => it.where.at === 'kit' && (it.where.slot === 'curio0' || it.where.slot === 'curio1');
+  // Kit.observing(state) → the range within which a lit `observing` curio you wear makes
+  // exhibits observed (LAMP_OBSERVE_RANGE, its primitive's row), or 0: none is worn and lit.
+  // A lit Lamp in your tote or on the floor does nothing.
+  function observing(state) {
+    const kit = state && state.you && state.you.kit;
+    if (!kit) return 0;
+    let r = 0;
+    for (const uid of kit.curio) {
+      const it = byUid(state, uid);
+      if (observes(it) && it.lit === true) r = Math.max(r, N[Registry.ITEM_PRIMS.observing.row]);
+    }
+    return r;
+  }
+  // Why use(uid) of a curio is refused, or null: it must be an `observing` curio (no_use),
+  // used bare (bad_use) and worn (not_equipped).
+  function lampCode(state, it, action) {
+    if (!observes(it)) return 'no_use';
+    if (action.x !== undefined || action.y !== undefined || action.how !== undefined || action.on !== undefined) return 'bad_use';
+    return worn(it) ? null : 'not_equipped';
+  }
+  // Light or hood it, for COST_USE: used {how: 'light' | 'hood'}, cause use. Lit, the ring it
+  // adds and what it observes count from now: your ring is set by your action (§8.2).
+  function lamp(state, it, ev) {
+    const how = it.lit === true ? 'hood' : 'light';
+    if (how === 'light') it.lit = true; else delete it.lit;
+    Causes.emit(state, ev, 'used', { who: 'you', item: it.uid, how }, { k: 'use' });
+    return paid(state, N.COST_USE);
+  }
 
   return { SLOTS, item, start, needs, short, derive, stats, settle, ringDelta, slots, addToTote, shot, useInstrument, recharge, restore,
     useLegal, useAction, useCandidates, targets, nextUid, make, drawTier, standIn, view, describe, observing };

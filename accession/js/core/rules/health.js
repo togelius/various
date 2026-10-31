@@ -62,8 +62,9 @@ const Health = (() => {
     return amount;
   }
 
-  // [M4] After health falls and who survives (Second Wind); empty in M3.
-  function onLow(state, who, ev) {}
+  // Health.onLow(state, who, before, ev): who's health fell from `before` and who lived; the
+  // perks you hold act on it (Perks.onLow: Second Wind, which looks only at you).
+  function onLow(state, who, before, ev) { Perks.onLow(state, who, before, ev); }
 
   // wait and rest (§4.2): one turn, always legal (even while fixed, Status.blocks). Rest is a
   // wait under its own name, which the interface repeats; both keep you seated.

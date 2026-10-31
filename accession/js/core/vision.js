@@ -1,6 +1,7 @@
 // ACCESSION — what you can see and what your ring covers (BUILD.md §8.2). The ring has one
 // predicate, Vision.inRing, behind both the ring the board draws and the ring pip a sleeper
-// gains at the turn boundary (Wake.boundary), so the two cannot differ. Owned by W1-WAKE-A.
+// gains at the turn boundary (Wake.boundary), so the two cannot differ. Owned by W1-WAKE-A;
+// M4's Wave 0 (W0d1) added the free and discounted actions' ring (plan A6) and `observed`.
 'use strict';
 const Vision = (() => {
   // "Within r" is defined once, in grid.js (§8.2).
@@ -15,17 +16,26 @@ const Vision = (() => {
     return out;
   }
 
-  // Your ring's radius (§8.2): by your last action that cost time (still: wait, rest, view
-  // or sit), plus a loud floor under you, plus what your kit adds or takes (Kit.ringDelta:
-  // the Quiet primitive), never below RING_MIN. M4's Soft Soles perk takes its part here too;
-  // the ring drawn and the ring pip both read this one radius.
-  function ringRadius(state) {
+  // The ring of your last action that cost time (§8.2), from where you stand: RING_STILL after
+  // a wait, rest, view or sit, else RING_MOVING; plus RING_LOUD_FLOOR on a loud floor; plus
+  // what your kit adds or takes (Kit.ringDelta: Quiet, and LAMP_RING while a lit Lamp is
+  // worn) and what your perks do (Perks.ringDelta: Soft Soles); never below RING_MIN.
+  function actionRing(state) {
     const you = state.actors[0];
     let r = you.still ? N.RING_STILL : N.RING_MOVING;
     const t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)];
     if (t && t.loud) r += N.RING_LOUD_FLOOR;
-    r += Kit.ringDelta(state);
+    r += Kit.ringDelta(state) + Perks.ringDelta(state);
     return Math.max(N.RING_MIN, r);
+  }
+  // Your ring's radius (§8.2; plan A6): the ring the next turn boundary would apply if it ran
+  // now, which is the ring drawn. It is your last action's ring, or, when a free or
+  // discounted action ran since the last boundary, the largest ring among your actions since
+  // then (you.ringMax, which Step writes and the boundary clears), if that is larger. The
+  // ring drawn and the ring pip both read this one radius.
+  function ringRadius(state) {
+    const you = state.actors[0], r = actionRing(state);
+    return you.ringMax !== undefined && you.ringMax > r ? you.ringMax : r;
   }
 
   // What the ring is measured with: its radius, and the walking distances from your tile out
@@ -53,18 +63,28 @@ const Vision = (() => {
   const inRing = (state, x, y, f) => ringDist(state, x, y, f) >= 0;
 
   // The tiles your ring covers, for the view model: a Uint8Array, 1 where inRing holds.
-  // Drawn from your current tile, on the map as it is now, with the radius of your last
-  // action that cost time (§8.2). That is the ring the last turn boundary applied unless a
-  // tile or surface changed after it, which only exhibits acting between the boundary and a
-  // mid-turn decision of yours (after a 150-tick Heavy blow or bash) can do.
+  // Drawn from your current tile, on the map as it is now, with ringRadius (§8.2, plan A6):
+  // the ring the next boundary would apply if it ran now.
   function ring(state) {
     const m = state.dept, f = field(state), out = new Uint8Array(m.w * m.h);
     for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (inRing(state, x, y, f)) out[y * m.w + x] = 1;
     return out;
   }
 
-  // [M4] Is a observed, for unobserved_motion and the Lamp's `observing`? Never in M3.
-  const observed = (state, a) => false;
+  // Vision.observed(state, a) (§5.4; plan A8): is exhibit a observed? It is when any tile of
+  // its footprint is in your line of sight within SIGHT_PLAYER (as you see, Vision.visible),
+  // or, while you wear a lit Lamp, within its range of you (Kit.observing, a disc), even out
+  // of sight. "Unobserved" (unobserved_motion) is its negation. A gone actor is not observed.
+  function observed(state, a) {
+    if (!a || a.gone) return false;
+    const m = state.dept, you = state.actors[0], lamp = Kit.observing(state);
+    for (const [x, y] of Actors.footprint(a)) {
+      const dx = x - you.x, dy = y - you.y;
+      if (lamp > 0 && within(dx, dy, lamp)) return true;
+      if (within(dx, dy, N.SIGHT_PLAYER) && Grid.los(m, you.x, you.y, x, y)) return true;
+    }
+    return false;
+  }
 
   // Remembers what you can see now, in state.dept.seen: the map as you last saw it, one
   // character a tile in row-major order, ' ' where you have never seen the tile (BUILD.md
@@ -83,5 +103,5 @@ const Vision = (() => {
     if (changed || seen !== m.seen) m.seen = chars.join('');
   }
 
-  return { within, visible, ringRadius, field, ringDist, inRing, ring, observed, remember };
+  return { within, visible, actionRing, ringRadius, field, ringDist, inRing, ring, observed, remember };
 })();

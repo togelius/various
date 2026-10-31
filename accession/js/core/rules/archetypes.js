@@ -97,8 +97,39 @@ const Archetypes = (() => {
     for (const t of all.sort(rowMajor)) if (!out.length || rowMajor(out[out.length - 1], t) !== 0) out.push([t[0], t[1]]);
     return out;
   }
-  // W0d1 fills: the default wake region, the ring at RING_MOVING with line of sight; [] until then.
-  function defaultWakeRegion(state, a, turns) { return []; }
+  // The default wake region (plan A8): your ring at RING_MOVING, as §8.2's ring pip measures
+  // it (Vision.ringDist), with no loud floor, kit or perk counted: the tiles you could stand
+  // on (walkable, not a closed door, none of a's own) from which some tile of a's footprint
+  // that an exhibit can stand on (Grid.hold) is within RING_MOVING walking tiles (one beyond
+  // its nearest neighbour you could step onto, for a tile you cannot) and in line of sight.
+  // Standing there gives it 1 pip a turn, so it wakes once the pips it still needs are given:
+  // the region is empty unless a sleeps, can gain pips (not pipless) and `turns` is at least
+  // PIPS_TO_WAKE less its pips. Walking distance between tiles you can step onto is the same
+  // either way (§8.2's step rule is symmetric), so it is measured out from a's tiles.
+  function defaultWakeRegion(state, a, turns) {
+    const m = state && state.dept;
+    if (!m || !a || a.gone || a.mode !== 'dormant' || pipless(state, a)) return [];
+    if (!Number.isInteger(turns) || turns < Math.max(1, N.PIPS_TO_WAKE - (a.pips || 0))) return [];
+    const r = N.RING_MOVING, fp = Actors.footprint(a), on = new Uint8Array(m.w * m.h), out = [];
+    const mine = (x, y) => fp.some(t => t[0] === x && t[1] === y);
+    for (const [tx, ty] of fp) {
+      if (!Grid.inside(m, tx, ty) || !Grid.hold(m, tx, ty)) continue;
+      // From a tile you can step onto, the walk starts there; from one you cannot, at each
+      // neighbour you can step onto, one step further.
+      const own = Grid.walkable(m, tx, ty), starts = [];
+      if (own) starts.push([tx, ty]);
+      else for (let d = 0; d < 8; d++) { const x = tx + Grid.DX[d], y = ty + Grid.DY[d]; if (Grid.inside(m, x, y) && Grid.walkable(m, x, y)) starts.push([x, y]); }
+      if (!starts.length) continue;
+      const dist = Grid.distances(m, starts, own ? r : r - 1);
+      for (let y = Math.max(0, ty - r - 1); y <= Math.min(m.h - 1, ty + r + 1); y++) for (let x = Math.max(0, tx - r - 1); x <= Math.min(m.w - 1, tx + r + 1); x++) {
+        const i = y * m.w + x;
+        if (on[i] || dist[i] < 0 || !Grid.walkable(m, x, y) || Grid.closedDoor(m, x, y) || mine(x, y)) continue;
+        if (Grid.los(m, x, y, tx, ty)) on[i] = 1;
+      }
+    }
+    for (let i = 0; i < on.length; i++) if (on[i]) out.push([i % m.w, Int.idiv(i, m.w)]);
+    return out;
+  }
 
   return {
     HOOKS: HOOKS.slice(), add, addModifier, added, addedModifier,

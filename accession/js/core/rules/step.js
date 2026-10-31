@@ -68,11 +68,12 @@ const Step = (() => {
     apply: (state, action, ev) => moveInto(state, state.actors[0], action.dir, ev),
   });
 
-  // use(uid[, x, y][, on]) (§4.2): an instrument or a Restoration kit goes to the kit's rules,
-  // a consumable to the consumables'. Each owner lists its own candidates, its targeted uses
-  // (use(uid, x, y), use(uid, on)) among them, so that every use it makes legal is a candidate
-  // (Kit.useCandidates, Consumables.useCandidates); the dispatcher adds a bare use of every
-  // other item and of nothing, which it refuses itself.
+  // use(uid[, x, y][, on]) (§4.2): an instrument, a Restoration kit or a curio (the Lamp, lit
+  // or hooded) goes to the kit's rules, a consumable to the consumables'. Each owner lists its
+  // own candidates, its targeted uses (use(uid, x, y), use(uid, on)) among them, so that every
+  // use it makes legal is a candidate (Kit.useCandidates, Consumables.useCandidates); the
+  // dispatcher adds a bare use of every other item (a curio's among them) and of nothing, and
+  // refuses itself what no owner takes.
   const USED = ['instrument', 'kit', 'consumable'];
   const item = (state, uid) => { for (const i of state.items || []) if (i.uid === uid) return i; return null; };
   Actions.define('use', {
@@ -81,7 +82,7 @@ const Step = (() => {
       (state.items || []).filter(i => !USED.includes(i.kind)).map(i => ({ a: 'use', uid: i.uid })), [{ a: 'use', uid: 'nothing' }, { a: 'use' }]),
     apply(state, action, ev) {
       const it = item(state, action.uid);
-      if (it && (it.kind === 'instrument' || it.kind === 'kit')) return Kit.useAction(state, action, ev);
+      if (it && (it.kind === 'instrument' || it.kind === 'kit' || it.kind === 'curio')) return Kit.useAction(state, action, ev);
       if (it && it.kind === 'consumable') return Consumables.useAction(state, action, ev);
       return 'no_use';
     },
@@ -90,7 +91,11 @@ const Step = (() => {
   // The turn boundary (§8.1), in its fixed order. Each step is a named function of its
   // system, called here and nowhere else. The statuses' per-turn effects (a cough's noise,
   // restoring's healing) come after the wake checks, so that at a boundary, as within an
-  // action, noise comes after the ring, axis and tether (§8.2: hunting wins).
+  // action, noise comes after the ring, axis and tether (§8.2: hunting wins). Your ring is
+  // the one Vision.ringRadius gives, which takes in you.ringMax (the largest ring of your
+  // actions since the last boundary, written only when a free or discounted action ran,
+  // plan A6); the boundary applies it and then clears it, so the next boundary counts your
+  // actions from here.
   function boundary(state, ev) {
     Surfaces.tick(state, ev);                        // 1. surfaces
     Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers (expiry), then instruments' charges
@@ -98,9 +103,12 @@ const Step = (() => {
     Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether;
     Status.effects(state, ev);                       //    then the statuses' per-turn effects
     Wake.decay(state, ev);                           // 5. pip decay
-    ClockRules.boundary(state, ev);                  // 6. the clock stage
+    Hall.boundary(state, ev);                        // 6. the Centrepiece hall's seal (M4),
+    ClockRules.boundary(state, ev);                  //    then the clock stage
     Modules.alarmDecay(state, ev);                   // 7. alarm decay (M4)
     Modules.turn(state, ev);                         // 8. module turn rules (M4)
+    const you = state.actors[0];
+    if (you && you.ringMax !== undefined) delete you.ringMax;
   }
 
   // Run the world until it is your turn again. An exhibit's action is charged after it acts:
@@ -128,29 +136,57 @@ const Step = (() => {
     }
   }
 
+  // What an action of yours may cost (§8.1; plan A6), after the perks have had their say
+  // (Perks.adjust): r ticks, where raw is what its handler gave and why the perk that changed
+  // it (null if none did). 0 for an action that costs no time (Actions.free: read, choose,
+  // leave), or for a step that Close the Distance made free (a move that changed your tile);
+  // at least TICKS_PER_TURN − PERK_DUCK_AND_COVER for an action Duck and Cover discounted;
+  // otherwise at least TICKS_PER_TURN. Anything else stops step() with an error.
+  const CLOSE = 'close_the_distance', DUCK = 'duck_and_cover';
+  function floorOk(action, raw, r, why, moved) {
+    if (!Number.isInteger(r) || r < 0) return false;
+    if (r >= N.TICKS_PER_TURN) return true;
+    if (r === 0 && raw === 0) return Actions.free(action.a);
+    if (r === 0) return why === CLOSE && action.a === 'move' && moved;
+    return why === DUCK && r >= N.TICKS_PER_TURN - N.PERK_DUCK_AND_COVER;
+  }
+
   // One step (§4.2), refused before anything is spent if the visit is over, a choice is
-  // waiting, the action is unknown, a status forbids it, or its handler refuses it.
+  // waiting, the action is unknown, a status forbids it, a refuser refuses it
+  // (Actions.addRefuser), or its handler refuses it. Then the perks adjust its cost
+  // (Perks.adjust, for an action that costs time), the floor is checked, and the world runs
+  // until your next decision.
   function step(state, action) {
     if (state.over) return refuse(state, 'visit_over');
     if (state.ui && state.ui.pendingChoice && !(action && action.a === 'choose')) return refuse(state, 'choice_pending');
     const h = action && typeof action.a === 'string' ? Actions.get(action.a) : null;
     if (!h) return refuse(state, 'unknown_action');
     const you = state.actors[0];
-    const blocked = Status.blocks(state, you, action);
+    const blocked = Status.blocks(state, you, action) || Actions.refusal(state, action);
     if (blocked) return refuse(state, blocked);
-    const ev = [];
-    const r = h.apply(state, action, ev);
-    if (typeof r === 'string') {
-      if (ev.length) throw new Error(`Step: ${action.a} refused (${r}) after emitting events`);
-      return refuse(state, r);
+    const ev = [], x0 = you.x, y0 = you.y;
+    const raw = h.apply(state, action, ev);
+    if (typeof raw === 'string') {
+      if (ev.length) throw new Error(`Step: ${action.a} refused (${raw}) after emitting events`);
+      return refuse(state, raw);
     }
+    if (!Number.isInteger(raw) || raw < 0) throw new Error(`Step: ${action.a} cost ${raw} ticks`);
+    const moved = you.x !== x0 || you.y !== y0;
+    const adj = raw > 0 ? Perks.adjust(state, action, raw, ev) : { r: raw, why: null }, r = adj.r;
     // Every action of yours that costs time costs at least a turn (§8.1), so a turn boundary
-    // runs between any two of your decisions.
-    if (!Number.isInteger(r) || r < 0 || (r > 0 && r < N.TICKS_PER_TURN)) throw new Error(`Step: ${action.a} cost ${r} ticks`);
+    // runs between any two of your decisions, unless a perk made it free or cheaper (A6).
+    if (!floorOk(action, raw, r, adj.why, moved)) {
+      throw new Error(adj.why ? `Step: ${action.a} cost ${r} ticks (${raw} before ${adj.why})` : `Step: ${action.a} cost ${r} ticks`);
+    }
     you.next += r;
     Status.settle(state);
-    // Your ring is set by your last action that cost time (§8.2).
-    if (r > 0) { you.still = STILL.includes(action.a); you.lastAct = action.a; if (!SEATED.includes(action.a)) you.seated = false; }
+    // Your ring is set by your last action that cost time (§8.2), a step made free included;
+    // any action that costs time other than waiting, resting and sitting gets you up, and so
+    // does any change of tile.
+    if (raw > 0) { you.still = STILL.includes(action.a); you.lastAct = action.a; if (!SEATED.includes(action.a)) you.seated = false; }
+    if (moved) you.seated = false;
+    // A free or discounted action: the next boundary applies at least its ring (A6).
+    if (r < raw) you.ringMax = Math.max(you.ringMax === undefined ? 0 : you.ringMax, Vision.actionRing(state));
     advance(state, ev);
     // Your derived stats change once your action's ticks are done (§8.1).
     Kit.settle(state);
@@ -160,8 +196,9 @@ const Step = (() => {
     return ev;
   }
 
-  // Every legal action for you now (§4.2), in Actions.ORDER: step() refuses exactly the
-  // others. While a choice waits only its answers are legal.
+  // Every legal action for you now (§4.2), in Actions.ORDER, that no status forbids and no
+  // refuser refuses: step() refuses exactly the others. While a choice waits only its answers
+  // are legal.
   function legal(state) {
     if (state.over) return [];
     const you = state.actors[0], pending = !!(state.ui && state.ui.pendingChoice), out = [];
@@ -169,7 +206,7 @@ const Step = (() => {
       if (pending && id !== 'choose') continue;
       const h = Actions.get(id);
       if (!h) continue;
-      for (const act of h.legal(state)) if (!Status.blocks(state, you, act)) out.push(act);
+      for (const act of h.legal(state)) if (!Status.blocks(state, you, act) && !Actions.refusal(state, act)) out.push(act);
     }
     return out;
   }
