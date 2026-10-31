@@ -154,8 +154,9 @@ module.exports = C => {
     },
     {
       // Nothing strikes into or out of an intact case (§8.3): no blow or shot is made by or at
-      // an actor in one, and only a beam's special strikes one. A case only ever stops being
-      // intact, so an actor in one after the step was in it throughout.
+      // an actor in one, and only a beam's special strikes one (a shape that passes glass: the
+      // line, or a shape added with glass, Specials.passesGlass, §8.1). A case only ever stops
+      // being intact, so an actor in one after the step was in it throughout.
       id: 'combat_glass',
       check(pre, events, post) {
         const inCase = uid => { const a = byUid(post, uid); return !!a && Cases.encased(post, a); };
@@ -163,7 +164,7 @@ module.exports = C => {
           if (e.k === 'attacked' && (inCase(e.by) || inCase(e.at))) return `${e.by} attacked ${e.at} with glass between`;
           if (e.k === 'damaged' && ownerOf(e.cause) && inCase(e.who)) {
             const S = Registry.SPECIALS[e.cause.sp];
-            if (!S || S.shape !== 'line') return `${ownerOf(e.cause)}'s ${e.cause.sp} struck ${e.who} inside its case`;
+            if (!S || !Specials.passesGlass(S.shape)) return `${ownerOf(e.cause)}'s ${e.cause.sp} struck ${e.who} inside its case`;
           }
         }
         return null;
