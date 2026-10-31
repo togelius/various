@@ -60,6 +60,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(t.timedOut && !t.minimal, json(t));
     assert.ok(both(t.actions) && t.actions.length <= 40);
     assert.ok(calls < 10, `stopped after ${calls} tests`);
+    // The limit is CPU time: tests that wait without using the CPU, as a loaded machine makes
+    // a test wait, do not use it up, and the shrink ends whole however long they wait.
+    const nap = new Int32Array(new SharedArrayBuffer(4));
+    let naps = 0;
+    const sleepy = l => { naps++; Atomics.wait(nap, 0, 0, 4); return both(l); };
+    const w = Shrink.ddmin(list, sleepy, { ms: 25 });
+    assert.ok(!w.timedOut && w.minimal && json(w.actions) === json([3, 29]), json(w));
+    assert.ok(naps * 4 > 2 * 25, `only ${naps} tests of 4 ms each, so the wall clock would not have stopped it either`);
   });
 
   test('the state diff lists each changed JSON path in key order, with absent keys, and stops at its limit', () => {
