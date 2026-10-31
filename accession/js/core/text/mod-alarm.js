@@ -7,12 +7,14 @@
 'use strict';
 (() => {
   const isInt = Number.isInteger;
-  // Turns left of an alarm from the turn of its event, when the event gives both.
+  // What an alarm does for its turns, in §5.4's words: pips do not decay, awake exhibits do not
+  // return, and no new alarm can be raised (never "no exhibit sleeps": "Quiet, Please" is not
+  // a return). Turns left of an alarm from the turn of its event, when the event gives both.
   const left = e => isInt(e.until) && isInt(e.turn) && e.until > e.turn ? e.until - e.turn : null;
   const alarm = (e, w) => {
     const n = left(e);
     return n === null ? `${w.Name(e.by)} raised the alarm.`
-      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips and no exhibit goes back to sleep.`;
+      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips, no awake exhibit goes back to its place, and no other alarm can be raised.`;
   };
   Text.define('alarm', alarm);
   Text.defineCause('alarm', 'alarm_network', alarm);
@@ -26,13 +28,18 @@
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why[k]}.` : `${w.Name(e.who)} began hunting you: ${why[k]}.`);
   }
   // A call wakes many sleepers in one step: the log tells them in one line.
-  Text.defineGroup('woke', 'alarm', events => `The alarm woke ${Text.count(events.length, 'exhibit')}, and they set off to look where you were.`);
+  // (One made awake, with no `was`, did not wake, and is told alone.)
+  Text.defineGroup('woke', 'alarm', events => `The alarm woke ${Text.count(events.length, 'exhibit')}, and they set off to look where you were.`,
+    e => e.was == null ? null : '');
 
   const RULES = {
     alarm_shown: (e, w) => `${w.Name(e.who)} has seen you, and will raise the alarm next turn.`,
     call: (e, w) => `${w.Name(e.who)} raised the alarm${isInt(e.n) ? ': ' + Text.count(e.n, 'sleeping exhibit') + ' woke' : ''}.`,
     alarm_over: () => 'The alarm is over.',
   };
-  Text.defineCause('module', 'alarm_network', (e, w) => Object.prototype.hasOwnProperty.call(RULES, e.rule) && (e.who !== undefined || e.rule === 'alarm_over')
-    ? RULES[e.rule](e, w) : 'The alarm network acted.');
+  // A rule about a Wader (alarm_shown, call) whose event names none has no sentence, since it
+  // could be about one out of view (see text/mod-unobserved.js); alarm_over is about none.
+  const ABOUT = ['alarm_shown', 'call'];
+  Text.defineCause('module', 'alarm_network', (e, w) => ABOUT.includes(e.rule) && e.who === undefined ? null
+    : Object.prototype.hasOwnProperty.call(RULES, e.rule) ? RULES[e.rule](e, w) : 'The alarm network acted.');
 })();

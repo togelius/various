@@ -5,7 +5,7 @@
 (() => {
   // While a hall is sealed, the clock's count and regeneration stop (§8.4).
   const LIFT = {
-    quiet: () => `the Centrepiece has neither reached you nor dealt damage for ${N.SEAL_LIFT_TURNS} turns`,
+    quiet: () => `the Centrepiece has neither reached you nor dealt damage for ${Text.count(N.SEAL_LIFT_TURNS, 'turn')}`,
     ticket: () => 'a Re-admission Ticket was read',
     defeat: () => 'the Centrepiece fell',
     treasure: () => 'its guardian fell',

@@ -10,6 +10,7 @@
   R.define('MODULES', 'copies_weaken', { built: 'M4', sentence: 'When an original is broken, its spares lose heart.', keywords: ['spare', 'lose heart'] });
 
   // Its module event (reg/system.js): rule `weaken`, a spare whose original was destroyed
-  // losing heart (who).
-  R.defineCause('module', 'copies_weaken', { fields: {}, built: 'M4' });
+  // losing heart (who); its cause names the original (by), so that the log tells the spares
+  // of one original in one line, and those of two originals in two.
+  R.defineCause('module', 'copies_weaken', { fields: { by: 'uid?' }, built: 'M4' });
 })();

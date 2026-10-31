@@ -11,7 +11,9 @@
   Text.defineCause('woke', 'period', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${why}.` : `${w.Name(e.who)} woke: ${why}.`);
   Text.defineCause('hunting', 'period', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why}.` : `${w.Name(e.who)} began hunting you: ${why}.`);
   // A chime wakes every station in one step: the log tells them in one line.
-  Text.defineGroup('woke', 'period', events => `At the chime, ${Text.count(events.length, 'station')} woke to mark their lines.`);
+  // (One made awake, with no `was`, did not wake, and is told alone.)
+  Text.defineGroup('woke', 'period', events => `At the chime, ${Text.count(events.length, 'station')} woke to mark their lines.`,
+    e => e.was == null ? null : '');
 
   const RULES = {
     chime: e => isInt(e.turns) ? `The chime sounded: the stations’ lines strike in ${Text.count(e.turns, 'turn')}.` : 'The chime sounded.',
@@ -19,6 +21,9 @@
     blocked: (e, w) => `${w.Name(e.who)} did not mark its line: another mark already lies on it.`,
     settle: (e, w) => `${w.Name(e.who)} went back to sleep, with the pips it had.`,
   };
-  const known = e => Object.prototype.hasOwnProperty.call(RULES, e.rule) && (e.rule === 'chime' || e.who !== undefined);
-  Text.defineCause('module', 'hourly_demonstration', (e, w) => known(e) ? RULES[e.rule](e, w) : 'The chime’s rule acted.');
+  // A rule about a station (line, blocked, settle) whose event names none has no sentence,
+  // since it could be about one out of view (see text/mod-unobserved.js); the chime is heard.
+  const ABOUT = ['line', 'blocked', 'settle'];
+  Text.defineCause('module', 'hourly_demonstration', (e, w) => ABOUT.includes(e.rule) && e.who === undefined ? null
+    : Object.prototype.hasOwnProperty.call(RULES, e.rule) ? RULES[e.rule](e, w) : 'The chime’s rule acted.');
 })();

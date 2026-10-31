@@ -33,8 +33,9 @@ const Text = (() => {
   // every sleeper that can hear, a chime waking every station, an original's spares losing
   // heart), by that cause's owner. fn(events, w) → the sentence, given the events in the order
   // they came; key(e) → a string, the reason they share (by default they all share one), so
-  // that two reasons in one step are two sentences. A single such event is told by its own
-  // sentence (Text.event).
+  // that two reasons in one step are two sentences, or null for an event that is told alone,
+  // by its own sentence, since it does not mean what the group's sentence says. A single
+  // such event is told by its own sentence (Text.event).
   function defineGroup(k, causeK, fn, key) {
     if (!has(GROUPS, k)) GROUPS[k] = Object.create(null);
     once(GROUPS[k], causeK, `the group for ${k}.${causeK}`); isFn(fn, k + '.' + causeK + ' group');
@@ -108,7 +109,8 @@ const Text = (() => {
   // says that it woke. Of a kind with `again`, a sentence the step has already told word for
   // word is not told twice: the first says how many more. Events of a kind and cause with a
   // group (Text.defineGroup) that share their reason are told in one sentence, where the
-  // first of them came, when there are two or more of them.
+  // first of them came, when there are two or more of them (one whose key is not a string is
+  // told alone).
   function log(events, nameOf, visible) {
     const seen = uid => uid === undefined || uid === 'you' || typeof visible !== 'function' || !!visible(uid);
     const out = [], told = new Map(), byReason = new Map();
@@ -117,9 +119,9 @@ const Text = (() => {
       if (how === false || (how === 'seen' && !seen(e.who))) continue;
       if (e.k === 'woke' && e.mode === 'hunting' && events.slice(i + 1).some(f => f.k === 'hunting' && f.who === e.who)) continue;
       const c = e.cause && typeof e.cause.k === 'string' ? e.cause.k : null;
-      const g = c !== null && has(GROUPS, e.k) && has(GROUPS[e.k], c) ? GROUPS[e.k][c] : null;
-      if (g) {
-        const key = e.k + '\n' + c + '\n' + g.key(e), t = byReason.get(key);
+      const g = c !== null && has(GROUPS, e.k) && has(GROUPS[e.k], c) ? GROUPS[e.k][c] : null, gk = g ? g.key(e) : null;
+      if (typeof gk === 'string') {
+        const key = e.k + '\n' + c + '\n' + gk, t = byReason.get(key);
         if (t) { t.events.push(e); continue; }
         byReason.set(key, { at: out.length, g, events: [e] });
         out.push(null);

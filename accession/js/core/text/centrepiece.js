@@ -21,5 +21,7 @@
   Text.defineCause('phase', 'damaged', (e, w) => known(e) && e.phase >= 2
     ? `${now(e, w)}: its health fell past ${N.CP_PHASE_PCT[e.phase - 2]}% of its total.` : phase(e, w));
 
-  Text.defineCause('dropped', 'defeated', (e, w) => `${w.Name(e.who)} fell, and its Signature piece dropped where it stood.`);
+  // The piece drops on the Centrepiece's anchor tile (§8.7), which need not be where its last
+  // piece fell (an ensemble's), so the sentence does not say where.
+  Text.defineCause('dropped', 'defeated', (e, w) => `${w.Name(e.who)} fell, and the Centrepiece’s Signature piece dropped to the floor.`);
 })();

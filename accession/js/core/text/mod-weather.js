@@ -15,6 +15,8 @@
     release: () => 'Weather got out of the case.',
     rain_stop: (e, w) => `${w.Name(e.who)} stopped in the rain${isInt(e.turns) ? ', for ' + Text.count(e.turns, 'turn') : ''}.`,
   };
-  const known = e => Object.prototype.hasOwnProperty.call(RULES, e.rule) && (e.rule === 'release' || e.who !== undefined);
-  Text.defineCause('module', 'weather_cases', (e, w) => known(e) ? RULES[e.rule](e, w) : 'The weather acted.');
+  // rain_stop is about a clockwork exhibit: one whose event names none has no sentence, since
+  // it could be about one out of view (see text/mod-unobserved.js).
+  Text.defineCause('module', 'weather_cases', (e, w) => e.rule === 'rain_stop' && e.who === undefined ? null
+    : Object.prototype.hasOwnProperty.call(RULES, e.rule) ? RULES[e.rule](e, w) : 'The weather acted.');
 })();

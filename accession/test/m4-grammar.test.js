@@ -189,6 +189,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   }
   const ONE = /\b1 (turns|tiles|ticks|pips|views|exhibits|sleeping exhibits|stations|spares|limbs|galleries|bodies|pieces|charges|others|steps|actions)\b/;
   const RAW = /\b[a-z]+_[a-z0-9_]+\b|\b(S9|A4|M11)\b/;
+  // A module event about an exhibit that names none (no who) has no sentence, so the log, which
+  // tells an event about no exhibit whatever is in view, never gives away a rule acting out of
+  // view (a Grazer's stride), and a joined-up scenario's sentence check fails on it: every rule
+  // of unobserved_motion, and these rules of the others (by the cause, which picks the sentence).
+  const ABOUT = { alarm_network: ['alarm_shown', 'call'], copies_weaken: ['weaken'], hourly_demonstration: ['line', 'blocked', 'settle'], weather_cases: ['rain_stop'] };
+  const unsaid = e => e.k === 'module' && e.who === undefined && !!e.cause
+    && (e.cause.k === 'unobserved_motion' || (own(ABOUT, e.cause.k) && ABOUT[e.cause.k].includes(e.rule)));
 
   test('every M4 sentence is plain: a sentence, no "1 turns", no raw id, no arabic grade, whatever the counts and ids', () => {
     const bad = [];
@@ -198,6 +205,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const f of ['who', 'by']) if (ev[f] === 'x.1') ev[f] = who;
       const s = Text.event(ev, names), at = `${k}${c ? '.' + c : ''} ${json(ev)}: ${json(s)}`;
       n++;
+      if (unsaid(ev)) { if (s !== null || Text.log([ev], names).length) bad.push('a module event about no exhibit is told: ' + at); continue; }
       if (!clean(s) || !/^[A-Z“]/.test(s) || !/[.)]$/.test(s)) bad.push('not a clean sentence: ' + at);
       else if (ONE.test(s)) bad.push('"1 …s": ' + at);
       else if (RAW.test(s)) bad.push('a raw id: ' + at);
@@ -220,10 +228,24 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     // A chime's words (§5.4): "The module's sound is a chime, never 'the bell', which is the clock's."
     const chime = [];
-    for (const [k, c] of M4_PAIRS) if (c === 'period' || c === 'hourly_demonstration') for (const e of variants(k, c, 2)) chime.push(Text.event(e, NAMES));
+    for (const [k, c] of M4_PAIRS) if (c === 'period' || c === 'hourly_demonstration') for (const e of variants(k, c, 2)) if (!unsaid(e)) chime.push(Text.event(e, NAMES));
     chime.push(Text.log([1, 2, 3].map(i => ({ k: 'woke', turn: 3, who: 'x.' + i, was: 'dormant', mode: 'awake', cause: { k: 'period' } })), NAMES)[0]);
-    assert.ok(chime.length >= 15, `${chime.length} sentences`);
+    assert.ok(chime.length >= 12, `${chime.length} sentences`);
     for (const s of chime) { assert.doesNotMatch(s, /\bbell\b/i, s); assert.ok(clean(s), s); }
+  });
+
+  test('a sentence that states a number of record says "1 turn" when its row is 1, and the Signature piece\'s drop names no place', () => {
+    // Every M4 sentence that states a row's count, with that row at 1 (a planted copy of the core).
+    const X = loadCore(null, { numbers: { SEAL_LIFT_TURNS: 1, VIEW_TURNS: 1, PERK_SECOND_WIND_TURNS: 1, PERK_DUCK_AND_COVER: 1 } });
+    const said = [];
+    for (const [k, c] of M4_PAIRS) for (const e of variants(k, c, 1)) { const s = X.Text.event(e, NAMES); if (typeof s === 'string') said.push(s); }
+    const lift = X.Text.event({ k: 'stage', turn: 3, stage: 'unsealed', cause: { k: 'hall', why: 'quiet' } }, NAMES);
+    assert.equal(lift, 'The shutters opened: the Centrepiece has neither reached you nor dealt damage for 1 turn.');
+    for (const s of said) assert.doesNotMatch(s, ONE, s);
+    assert.ok(said.some(s => /1 of 1 turn\./.test(s)) && said.some(s => /over 1 turn\./.test(s)) && said.some(s => /costs 1 tick less/.test(s)));
+    // The piece drops on the Centrepiece's anchor tile (§8.7), not where an ensemble's last piece fell.
+    const drop = Text.event({ k: 'dropped', turn: 3, who: 'x.1', item: 'i.1', x: 4, y: 4, cause: { k: 'defeated', by: 'you' } }, NAMES);
+    assert.equal(drop, 'The Lantern-Crop Wader fell, and the Centrepiece’s Signature piece dropped to the floor.');
   });
 
   // ---- The log ----
@@ -233,12 +255,25 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const pip = { k: 'pip', turn: 3, who: 'x.1', pips: 1, delta: 1, cause: { k: 'ring', dist: 2, r: 3 } };
     const lines = Text.log([pip, woke('x.1', 'alarm'), woke('x.2', 'alarm'), { k: 'alarm', turn: 3, by: 'x.1', until: 33, cause: { k: 'alarm_network' } }, woke('x.3', 'alarm')], NAMES);
     assert.equal(json(lines), json([Text.event(pip, NAMES), 'The alarm woke 3 exhibits, and they set off to look where you were.',
-      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips and no exhibit goes back to sleep.']));
+      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no awake exhibit goes back to its place, and no other alarm can be raised.']));
     // One alone is told by its own sentence.
     assert.equal(json(Text.log([woke('x.1', 'alarm')], NAMES)), json([Text.event(woke('x.1', 'alarm'), NAMES)]));
     assert.equal(Text.log([woke('x.1', 'period'), woke('x.2', 'period')], NAMES)[0], 'At the chime, 2 stations woke to mark their lines.');
-    const weaken = uid => ({ k: 'module', turn: 3, id: 'copies_weaken', rule: 'weaken', who: uid, cause: { k: 'copies_weaken' } });
-    assert.equal(json(Text.log([weaken('x.1'), weaken('x.2')], NAMES)), json(['An original was destroyed, and 2 spares lost heart.']));
+    // An original's spares (cause.by, the original) in one line; two originals' in two; with no
+    // original named, a line true of any number of them; another rule of the module alone.
+    const weaken = (uid, by) => ({ k: 'module', turn: 3, id: 'copies_weaken', rule: 'weaken', who: uid, cause: by ? { k: 'copies_weaken', by } : { k: 'copies_weaken' } });
+    assert.equal(json(Text.log([weaken('x.1', 'o.1'), weaken('x.2', 'o.1')], NAMES)), json(['An original was destroyed, and 2 of its spares lost heart.']));
+    assert.equal(json(Text.log([weaken('x.1', 'o.1'), weaken('x.2', 'o.2'), weaken('x.3', 'o.1'), weaken('x.4', 'o.2')], NAMES)),
+      json(['An original was destroyed, and 2 of its spares lost heart.', 'An original was destroyed, and 2 of its spares lost heart.']));
+    assert.equal(json(Text.log([weaken('x.1'), weaken('x.2')], NAMES)), json(['2 spares lost heart, each because its original was destroyed.']));
+    const other = { k: 'module', turn: 3, id: 'copies_weaken', rule: 'planted_rule', who: 'x.2', cause: { k: 'copies_weaken', by: 'o.1' } };
+    assert.equal(Text.log([weaken('x.1', 'o.1'), other], NAMES).length, 2);
+    // One made awake (no was) did not wake: it is not counted among the alarm's or the chime's.
+    for (const c of ['alarm', 'period']) {
+      const made = Object.assign(woke('x.3', c), { was: null });
+      assert.equal(json(Text.log([woke('x.1', c), made, woke('x.2', c)], NAMES).map(l => / was already awake: /.test(l) ? 'alone' : l.replace(/\d/, 'N'))),
+        json([c === 'alarm' ? 'The alarm woke N exhibits, and they set off to look where you were.' : 'At the chime, N stations woke to mark their lines.', 'alone']), c);
+    }
     // A module event about an exhibit out of view is not told (an unobserved mover's stride
     // gives nothing away); one about no exhibit is (the chime).
     const stride = { k: 'module', turn: 3, id: 'unobserved_motion', rule: 'stride', who: 'x.2', n: 2, cause: { k: 'unobserved_motion' } };
@@ -246,8 +281,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const seen = uid => uid === 'x.1';
     assert.equal(json(Text.log([stride, chime], NAMES, seen)), json(['The chime sounded: the stations’ lines strike in 2 turns.']));
     assert.equal(json(Text.log([stride], NAMES, uid => uid === 'x.2')), json(['The Long-Necked Grazer moved 2 tiles while you could not see it.']));
+    // A stride that names no mover is never told, in view or not: it could be one you did not see.
+    const anon = Object.assign({}, stride); delete anon.who;
+    for (const vis of [undefined, () => true, () => false]) assert.equal(json(Text.log([anon, chime], NAMES, vis)), json(['The chime sounded: the stations’ lines strike in 2 turns.']));
     // Of the spares, only those in view are counted.
-    assert.equal(json(Text.log([weaken('x.1'), weaken('x.2'), weaken('x.3')], NAMES, uid => uid !== 'x.3')), json(['An original was destroyed, and 2 spares lost heart.']));
+    assert.equal(json(Text.log([weaken('x.1', 'o.1'), weaken('x.2', 'o.1'), weaken('x.3', 'o.1')], NAMES, uid => uid !== 'x.3')), json(['An original was destroyed, and 2 of its spares lost heart.']));
     // A fresh context: a group by key, in place of the first; twice and a non-function throw.
     const F = loadCore();
     F.Text.define('zz', (e, w) => `${w.Name(e.who)} did zz.`);
@@ -314,6 +352,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       m4('planted_wrong', 'unit', 'Moves two tiles a turn.', { phrases: { 'two tiles a turn': 'N:SPEED_SLOW_PCT' } }),
       m4('planted_stale', 'unit', 'Moves slowly.', { phrases: { 'half speed': 'N:SPEED_SLOW_PCT' } }),
       m4('planted_unknown', 'unit', 'Moves thrice.', { phrases: { thrice: 'N:UNOBSERVED_STEP' } }),
+      m4('planted_nonumber', 'unit', 'Moves a little.', { phrases: { 'a little': 'N:UNOBSERVED_STEP' } }),
+      // A number in words is a number, as a digit is: "twenty turns" is "20 turns".
+      m4('planted_words', 'unit', 'Stops for twenty turns, then twice, then for twenty-five.'),
+      m4('planted_one', 'unit', 'Drops one limb, restoring one; one-turn stops.'),
+      m4('planted_words_tied', 'unit', 'Grows a limb for every two galleries you have walked, up to four.', { phrases: { 'two galleries': 'N:GUARDIAN_PER_STAGE', 'up to four': 'N:GUARDIAN_STAGE_MAX' } }),
+      m4('planted_words_wrong', 'unit', 'Grows a limb for every two galleries you have walked.', { phrases: { 'two galleries': 'N:GUARDIAN_STAGE_MAX' } }),
+      m4('planted_words_pct', 'unit', 'Heals four.', { phrases: { four: 'N:GUARDIAN_LEAVE_HEAL_PCT' } }),
       m4('planted_noref', 'unit', 'Deals double damage.', { phrases: { 'double damage': 'N:NO_SUCH_ROW' } }),
       // An M3 entry's phrase is tied in lint-registry's own table, its fragment being frozen.
       "Registry.MODIFIERS.marble.clause = 'Moves at double damage.';",
@@ -326,7 +371,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, /MODIFIERS\.planted_untied: "two tiles a turn" states a number in words, but is tied to no row/);
     has(r, /MODIFIERS\.planted_wrong: "two tiles a turn" says 50%, but N:SPEED_SLOW_PCT is 200/);
     has(r, /MODIFIERS\.planted_stale: its phrase "half speed" is tied to N:SPEED_SLOW_PCT, but its template no longer says it/);
-    has(r, /MODIFIERS\.planted_unknown: its phrase "thrice" is not one of PHRASES/);
+    has(r, /MODIFIERS\.planted_unknown: "thrice" says 3, but N:UNOBSERVED_STEP is 2/);
+    has(r, /MODIFIERS\.planted_nonumber: its phrase "a little" is not one of PHRASES, and names no one number in words/);
+    for (const w of ['twenty', 'twice', 'twenty-five']) has(r, new RegExp(`MODIFIERS\\.planted_words: "${w}" states a number in words, but is tied to no row`));
+    has(r, /MODIFIERS\.planted_one: "one limb" states a number in words/); has(r, /MODIFIERS\.planted_one: "one turn" states a number in words/);
+    hasNot(r, /planted_one: "one"/); hasNot(r, /planted_words_tied/);
+    has(r, /MODIFIERS\.planted_words_wrong: "two galleries" says 2, but N:GUARDIAN_STAGE_MAX is 4/);
+    has(r, /MODIFIERS\.planted_words_pct: "four" cannot state GUARDIAN_LEAVE_HEAL_PCT, a share/);
     has(r, /MODIFIERS\.planted_noref: its phrase "double damage" is tied to "N:NO_SUCH_ROW", which is no whole number of record/);
     has(r, /MODIFIERS\.marble: its phrase "half speed" is tied to N:SPEED_SLOW_PCT, but its template no longer says it/);
     has(r, /MODIFIERS\.marble: "double damage" states a number in words, but is tied to no row/);
@@ -336,6 +387,22 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // A placeholder at ready false waits for its owner; under --strict=M4 it is linted.
     r = lint([m4('planted_waiting', false, 'Stops for 2 turns.')], ['--strict=M4']);
     has(r, /MODIFIERS\.planted_waiting: a digit outside \{\}/);
+    // But not where a player reads it at false. A module's panel sentence is read on its panel,
+    // its banner and in the log while the module is on, whatever its readiness (the real ones
+    // are at false); a clause at false is read on the line of every species population can place
+    // (its archetype M3's or past false): A.4's Countersigning Clerk shows clockwork's
+    // placeholder once its archetype, conservator_healer, is at 'unit'.
+    r = lint(["Registry.MODULES.copies_weaken.sentence = 'Every three turns, its spares lose heart.';",
+      "Registry.define('MODULES', 'planted_quiet', { built: 'M4', sentence: 'Every 3 turns, a bell.' });"]);
+    assert.equal(r.status, 1);
+    has(r, /MODULES\.copies_weaken: "three" states a number in words/); has(r, /MODULES\.planted_quiet: a digit outside \{\}/);
+    r = lint("Object.assign(Registry.ARCHETYPES.conservator_healer, { ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' });");
+    assert.equal(r.status, 1);
+    has(r, /MODIFIERS\.clockwork: a digit outside \{\} in "Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns\."/);
+    hasNot(r, /ARCHETYPES\.(demonstrator|unobserved_mover|patrol_guard)/);
+    // An M3 template keeps its words: a number in words is an M4 rule, as the digit rule is.
+    r = lint("Registry.MODIFIERS.marble.clause = 'Moves at half speed, twice as slow, one turn at a time.';");
+    hasNot(r, /MODIFIERS\.marble: "(twice|one turn)"/);
   });
 
   test('lint-registry fails a refusal at ready true that no refusals*.test.js file it names makes happen', () => {
@@ -343,12 +410,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     let r = lint([
       ...refusal('planted_unreached', ['behaviour/refusals.test.js']),
       ...refusal('planted_nofile', ['m4-grammar.test.js', 'behaviour/joined.test.js']),
+      // refusals.test.js names 'dummy' in quotes (its training dummy's sp), but has no case of it.
+      ...refusal('dummy', ['behaviour/refusals.test.js']),
       // A refusal at 'unit' is proved by its unit tests (no_centrepiece, m4-skeleton's).
       "Registry.define('REFUSALS', 'planted_unit', { built: 'M4', ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' }); Text.defineRefusal('planted_unit', () => 'Planted.');",
     ]);
     assert.equal(r.status, 1);
     has(r, /REFUSALS\.planted_unreached is at ready true, but no test\/behaviour\/refusals\*\.test\.js file it names makes it happen/);
     has(r, /REFUSALS\.planted_nofile is at ready true, but no test\/behaviour\/refusals\*\.test\.js file it names makes it happen/);
+    assert.match(fs.readFileSync(path.join(root, 'test/behaviour/refusals.test.js'), 'utf8'), /'dummy'/);
+    has(r, /REFUSALS\.dummy is at ready true, but no test\/behaviour\/refusals\*\.test\.js file it names makes it happen \(has a case with code: 'dummy'\)/);
     hasNot(r, /REFUSALS\.planted_unit is/);
     // 'corner' is made to happen in behaviour/refusals.test.js, which names it in quotes.
     hasNot(r, /REFUSALS\.corner/);
@@ -422,6 +493,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, /T9's Intro places S9\.1 \('B'\), which is no species of its pack/);
     has(r, /T9's Intro holds a weather case \('c'\), but teaches only unobserved_motion/);
     hasNot(r, /T9\.3 \('a'\)/);
+    // A legend entry in a shape the rule did not foresee is read all the same: a species named
+    // in any field, weather anywhere in it.
+    r = lint(T9({ intro: { map: ['#####', '#Xy.#', '#####'], legend: { X: { exhibit: { of: 'T9.5' } }, y: { case: { holds: null, weather: 'rain' } } } } }));
+    assert.equal(r.status, 1);
+    has(r, /T9's Intro places T9\.5 \('X'\), flagged with alarm_network/); has(r, /T9's Intro holds a weather case \('y'\)/);
     // More than three hostiles: two letters, one of them two to a tile.
     r = lint(T9({ intro: { map: ['#####', '#bab#', '#####'], legend: { a: { sp: 'T9.3', count: 2 }, b: { sp: 'T9.1' } } } }));
     assert.equal(r.status, 1); has(r, /T9's Intro places 4 exhibits; it holds at most 3/);

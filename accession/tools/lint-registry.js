@@ -27,14 +27,17 @@
 //   names it as a word;
 //   a refusal code at ready true (joined up, §5.1) is made to happen in no refusals file
 //   (under --strict, every refusal code of the milestones it checks): none of the
-//   test/behaviour/refusals*.test.js files its entry names in `tests` names it in quotes
-//   (M4 plan A4: each owner's refusals-<owner>.test.js makes its codes happen by a real
-//   action at depths 1–7, as behaviour/refusals.test.js does M3's);
-//   the word rules (M4 plan W0a; §5.3's "no vague words"), over the clause, and a module's
-//   panel sentence, of every entry past ready false (a placeholder at ready false is not yet
-//   a rule anyone reads; it waits for its owner):
+//   test/behaviour/refusals*.test.js files its entry names in `tests` has a case with that
+//   code (`code: 'sealed'`) (M4 plan A4: each owner's refusals-<owner>.test.js makes its
+//   codes happen by a real action at depths 1–7, as behaviour/refusals.test.js does M3's);
+//   the word rules (M4 plan W0a; §5.3's "no vague words"), over every template a player
+//   reads: the clause of every entry past ready false, every module's panel sentence (on its
+//   panels and in the log while the module is on, whatever its readiness), and every clause
+//   on the line of a species population can place (its archetype M3's or past ready false),
+//   whatever its own readiness (a placeholder no one reads waits for its owner):
 //     - a built: 'M4' template has a digit outside {} (a number is a parameter, so it is
-//       filled from its row and cannot drift from it);
+//       filled from its row and cannot drift from it), or a number in words no tied phrase
+//       says ("twenty turns", "twice", "one limb");
 //     - a template uses a phrase of PHRASES, which states a number in words ("two tiles a
 //       turn", "half speed", "two halves", "double damage"), without tying it to the row it
 //       states (the entry's own `phrases: {phrase: 'N:ROW'}`, or for an M3 entry, whose
@@ -209,14 +212,73 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
 }
 
 // The word rules (M4 plan W0a), over a template: an entry's clause, and a module's panel
-// sentence (§5.4: "the panel sentence, a template over params"). PHRASES states a number in
-// words; each is tied, entry by entry, to the row whose value it states: a row whose name
-// ends in _PCT must hold pct (a cost of 50% is two tiles a turn), any other n.
+// sentence (§5.4: "the panel sentence, a template over params"), wherever a player reads it:
+// an entry past ready false; every module's panel sentence, which a panel, its banner and a
+// module event's default sentence show while the module is on, whatever its readiness; and
+// every entry a species' Behaviour line shows once population can place the species (its
+// archetype is M3's or past ready false, M4 plan A10), whatever that entry's own readiness
+// (a clockwork modifier at false on an archetype at 'unit'). A placeholder no one reads
+// waits for its owner; --strict reads them all.
+const KIND_TABLE = { archetype: 'ARCHETYPES', special: 'SPECIALS', status: 'STATUSES', role: 'CLAUSES', modifier: 'MODIFIERS', wake: 'CLAUSES', trigger: 'TRIGGERS', module: 'MODULES' };
+const shown = new Set();
+for (const [, sp] of allSpecies) {
+  const a = R.ARCHETYPES[sp.archetype];
+  if (!a || (a.built !== 'M3' && a.ready === false)) continue;
+  let parts = [];
+  try { parts = Clauses.of(sp, { depth: 1 }); } catch (err) { continue; } // a line that cannot be filled fails above
+  for (const p of parts) {
+    const t = own(KIND_TABLE, p.kind) ? KIND_TABLE[p.kind] : R.TABLES.find(x => own(R[x], p.id));
+    if (t) shown.add(`${t}.${p.id}`);
+  }
+}
+const readable = (t, e, where) => linted(e) || t === 'MODULES' || shown.has(where);
+// PHRASES states a number in words; each is tied, entry by entry, to the row whose value it
+// states: a row whose name ends in _PCT must hold pct (a cost of 50% is two tiles a turn), any
+// other n.
 const PHRASES = {
   'two tiles a turn': { pct: 50, n: 2 },
   'half speed': { pct: 200 },
   'two halves': { pct: 50 },
   'double damage': { pct: 200, n: 2 },
+};
+// Any other number in words in an M4 template is a number as a digit is ("for twenty turns"
+// is "for 20 turns"), so it is tied to its row as a phrase is, the phrase stating the number
+// its number word names: a number word from two to a hundred ("twenty-five" too), "twice",
+// "double", "thrice" or "triple", or "one" before a rule noun ("one turn", "one limb";
+// "restoring one" names no number).
+const NUMBER_WORDS = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90, hundred: 100, twice: 2, double: 2, thrice: 3, triple: 3 };
+const ONE_NOUNS = ['turn', 'tile', 'step', 'pace', 'pip', 'limb', 'gallery', 'charge', 'blow', 'hit', 'action', 'piece', 'special', 'view', 'body',
+  'grade', 'rank', 'level', 'square', 'exhibit', 'time', 'room', 'phase', 'stage', 'summon', 'mark', 'line', 'chime', 'case', 'perk'];
+const UNITS_ = [ 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine' ];
+// The numbers a text says in words: [{at, end, word, n}], at their places in it.
+function numberWords(s) {
+  const out = [], low = s.toLowerCase(), re = /[a-z]+(?:-[a-z]+)?/g;
+  let m;
+  while ((m = re.exec(low)) !== null) {
+    const w = m[0], parts = w.split('-');
+    if (parts.length === 2 && own(NUMBER_WORDS, parts[0]) && NUMBER_WORDS[parts[0]] >= 20 && UNITS_.indexOf(parts[1]) >= 0) {
+      out.push({ at: m.index, end: m.index + w.length, word: w, n: NUMBER_WORDS[parts[0]] + UNITS_.indexOf(parts[1]) + 1 });
+      continue;
+    }
+    for (const [i, part] of parts.entries()) {
+      const at = m.index + parts.slice(0, i).join('-').length + (i ? 1 : 0);
+      if (own(NUMBER_WORDS, part)) out.push({ at, end: at + part.length, word: part, n: NUMBER_WORDS[part] });
+      else if (part === 'one') {
+        const next = /^[\s-]+([a-z]+)/.exec(low.slice(at + 3)), noun = next ? next[1] : '';
+        const sing = noun.endsWith('ies') ? noun.slice(0, -3) + 'y' : noun.endsWith('s') ? noun.slice(0, -1) : noun;
+        if (ONE_NOUNS.includes(noun) || ONE_NOUNS.includes(sing)) out.push({ at, end: at + 3 + next[0].length, word: `one ${noun}`, n: 1 });
+      }
+    }
+  }
+  return out;
+}
+// What a tied phrase says: PHRASES' entry, or the one number its words name.
+const statesOf = phrase => {
+  if (own(PHRASES, phrase)) return PHRASES[phrase];
+  const nw = numberWords(phrase);
+  return nw.length === 1 ? { n: nw[0].n } : null;
 };
 // The M3 entries' ties, kept here since their fragments are frozen; an M4 entry gives its
 // own, as `phrases`, beside its clause.
@@ -230,23 +292,31 @@ const M3_PHRASES = {
 };
 const ROW = /^N:([A-Z][A-Z0-9_]*)(\[(\d+)\])?$/;
 const said_ = (template, phrase) => template.toLowerCase().includes(phrase);
+// Where a phrase stands in a text: [[at, end]] for each time it is said.
+const spans = (s, phrase) => { const out = [], low = s.toLowerCase(); for (let i = low.indexOf(phrase); i >= 0; i = low.indexOf(phrase, i + 1)) out.push([i, i + phrase.length]); return out; };
 for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
   if (t === 'MODULES' && e.keywords !== undefined && !(Array.isArray(e.keywords) && e.keywords.every(k => typeof k === 'string' && /^[a-z][a-z ’'-]*[a-z]$/.test(k))))
     bad(`${where}: its keywords ${JSON.stringify(e.keywords)} are not a list of lower-case words`);
   const templates = [e.clause, t === 'MODULES' ? e.sentence : undefined].filter(x => typeof x === 'string');
-  if (!templates.length || !linted(e)) continue;
+  if (!templates.length || !readable(t, e, where)) continue;
   const text = templates.join(' '), bare = text.replace(/\{[^}]*\}/g, '');
   if (e.built === 'M4' && /[0-9]/.test(bare)) bad(`${where}: a digit outside {} in "${text}" (a number is a parameter, filled from its row)`);
   const ties = Object.assign({}, own(M3_PHRASES, where) ? M3_PHRASES[where] : {}, e.phrases && typeof e.phrases === 'object' ? e.phrases : {});
   for (const phrase of keys(PHRASES)) if (said_(text, phrase) && !own(ties, phrase)) bad(`${where}: "${phrase}" states a number in words, but is tied to no row (\`phrases: {'${phrase}': 'N:ROW'}\`)`);
+  if (e.built === 'M4') {
+    const covered = [...keys(PHRASES), ...keys(ties)].flatMap(p => spans(bare, p));
+    for (const w of numberWords(bare)) if (!covered.some(([a, b]) => w.at >= a && w.end <= b))
+      bad(`${where}: "${w.word}" states a number in words, but is tied to no row (\`phrases: {'<the phrase that says it>': 'N:ROW'}\`)`);
+  }
   for (const [phrase, ref] of Object.entries(ties)) {
-    if (!own(PHRASES, phrase)) { bad(`${where}: its phrase "${phrase}" is not one of PHRASES`); continue; }
+    const says = statesOf(phrase);
+    if (!says) { bad(`${where}: its phrase "${phrase}" is not one of PHRASES, and names no one number in words`); continue; }
     if (!said_(text, phrase)) { bad(`${where}: its phrase "${phrase}" is tied to ${ref}, but its template no longer says it`); continue; }
     const m = typeof ref === 'string' ? ROW.exec(ref) : null;
     const v = m && own(N, m[1]) ? (m[3] !== undefined ? (Array.isArray(N[m[1]]) ? N[m[1]][Number(m[3])] : undefined) : N[m[1]]) : undefined;
     if (!Number.isInteger(v)) { bad(`${where}: its phrase "${phrase}" is tied to ${JSON.stringify(ref)}, which is no whole number of record`); continue; }
-    const want = m[1].endsWith('_PCT') ? PHRASES[phrase].pct : PHRASES[phrase].n;
+    const want = m[1].endsWith('_PCT') ? says.pct : says.n;
     if (want === undefined) bad(`${where}: "${phrase}" cannot state ${m[1]}, ${m[1].endsWith('_PCT') ? 'a share' : 'a count'}`);
     else if (v !== want) bad(`${where}: "${phrase}" says ${want}${m[1].endsWith('_PCT') ? '%' : ''}, but ${ref} is ${v}`);
   }
@@ -258,8 +328,10 @@ for (const code of R.order('REFUSALS')) {
   const e = R.REFUSALS[code];
   if (e.ready !== true && !strictFor(e)) continue;
   const files = (e.tests || []).filter(f => /^behaviour\/refusals[^/]*\.test\.js$/.test(f)).map(f => path.join(root, 'test', f));
-  const q = new RegExp(`['"\`]${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
-  if (!files.some(f => fs.existsSync(f) && q.test(fs.readFileSync(f, 'utf8')))) bad(`REFUSALS.${code} is at ready ${JSON.stringify(e.ready)}, but no test/behaviour/refusals*.test.js file it names makes it happen (names it in quotes)`);
+  // A case of the file names its code (`code: 'sealed'`, as refusals.test.js's cases do); a
+  // code named only in a comment or a list of codes no action gives is not made to happen.
+  const q = new RegExp(`\\bcode:\\s*['"\`]${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
+  if (!files.some(f => fs.existsSync(f) && q.test(fs.readFileSync(f, 'utf8')))) bad(`REFUSALS.${code} is at ready ${JSON.stringify(e.ready)}, but no test/behaviour/refusals*.test.js file it names makes it happen (has a case with code: '${code}')`);
 }
 
 // Flags: a species is flagged only with modules its own department holds.
@@ -292,14 +364,20 @@ for (const p of packs) {
   for (const ch of keys(legend)) {
     const L = legend[ch], n = rows.reduce((k, r) => k + r.split(ch).length - 1, 0);
     if (!n || !L || typeof L !== 'object') continue;
-    if ((L.k === 'case' || L.case !== undefined) && L.weather && sig !== 'weather_cases') bad(`${p.acc}'s Intro holds a weather case ('${ch}'), but teaches only ${sig || 'no module'}`);
-    if (typeof L.sp !== 'string') continue;
-    const sp = p.species.find(x => x.id === L.sp);
-    if (!sp) { bad(`${p.acc}'s Intro places ${L.sp} ('${ch}'), which is no species of its pack`); continue; }
-    hostiles += n * (Number.isInteger(L.count) && L.count > 0 ? L.count : 1);
-    const flags = Array.isArray(sp.flags) ? sp.flags : [];
-    for (const f of flags) if (f !== sig) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), flagged with ${f}, but teaches only ${sig || 'no module'}`);
-    if (!INTRO_ROLES.includes(sp.role) && !(sig && flags.includes(sig))) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), a ${sp.role}: only ${INTRO_ROLES.join(' and ')} or the signature's teaching instance (flagged with ${sig || 'it'}) belong there`);
+    // Read whatever shape the entry takes, so that a shape this rule did not foresee cannot
+    // slip a weather case or an exhibit past it: weather anywhere in it, and every species id
+    // anywhere in it (its `sp`, or any other field that names one).
+    const weather = x => !!x && typeof x === 'object' && (!!x.weather || keys(x).some(k => weather(x[k])));
+    if (weather(L) && sig !== 'weather_cases') bad(`${p.acc}'s Intro holds a weather case ('${ch}'), but teaches only ${sig || 'no module'}`);
+    const named = [...new Set([...(typeof L.sp === 'string' ? [L.sp] : []), ...strings(L).filter(x => ids.has(x))])];
+    for (const spId of named) {
+      const sp = p.species.find(x => x.id === spId);
+      if (!sp) { bad(`${p.acc}'s Intro places ${spId} ('${ch}'), which is no species of its pack`); continue; }
+      hostiles += n * (Number.isInteger(L.count) && L.count > 0 ? L.count : 1);
+      const flags = Array.isArray(sp.flags) ? sp.flags : [];
+      for (const f of flags) if (f !== sig) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), flagged with ${f}, but teaches only ${sig || 'no module'}`);
+      if (!INTRO_ROLES.includes(sp.role) && !(sig && flags.includes(sig))) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), a ${sp.role}: only ${INTRO_ROLES.join(' and ')} or the signature's teaching instance (flagged with ${sig || 'it'}) belong there`);
+    }
   }
   if (hostiles > INTRO_HOSTILES) bad(`${p.acc}'s Intro places ${hostiles} exhibits; it holds at most ${INTRO_HOSTILES}`);
 }
