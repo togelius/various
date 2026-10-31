@@ -434,6 +434,14 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.throws(() => X.Clauses.phaseParts(cp, 0, { depth: 4 }), /has no phase 0/);
   });
 
+  test('a Centrepiece\'s phase part from CLAUSES is a part of kind clause, which the scenario harness takes for \'CLAUSES.<id>\', so its scenario sweeps the Centrepiece', () => {
+    const H = require(path.join(root, 'test/behaviour/_harness.js')), X = loadCore();
+    X.Registry.define('CLAUSES', 'planted_quick', { built: 'M4', clause: 'its specials come every {n} actions', params: { n: 'N:CP_SPECIAL_EVERY[1]' }, covers: [] });
+    X.Packs.get('M11').centrepiece.phases = [{}, {}, { parts: ['CLAUSES.planted_quick'] }];
+    assert.equal(json(X.Clauses.of(X.Packs.get('M11').centrepiece, { depth: 2 }).filter(p => p.id === 'planted_quick').map(p => [p.kind, p.phase])), json([['clause', 3]]));
+    assert.equal(json(H.species(X, 'CLAUSES.planted_quick', { m4: true }).map(g => `${g.sp.id}@${g.depth}`)), json(H.DEPTHS.map(d => `M11.11@${d}`)));
+  });
+
   test('Clauses.sentence: a module\'s panel sentence, its parameters filled at the depth, mod: from the pack\'s params; the five slice modules\' as written', () => {
     for (const id of ['unobserved_motion', 'alarm_network', 'copies_weaken', 'hourly_demonstration', 'weather_cases']) assert.equal(C.Clauses.sentence(id, { depth: 3 }), C.Registry.MODULES[id].sentence);
     const X = loadCore();
