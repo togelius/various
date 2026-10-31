@@ -169,7 +169,7 @@ function helpers() {
 }
 
 async function run(W, H) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?dept=M11&seed=3' });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?orient=0&dept=M11&seed=3' });
   const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await page.evaluate(helpers); };
   await ready();
   const settle = () => page.waitForFunction(() => !window.ACCESSION.busy() && document.querySelectorAll('#board canvas').length > 0);

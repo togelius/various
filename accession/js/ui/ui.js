@@ -108,6 +108,7 @@ const UI = (() => {
     });
     els.end.addEventListener('click', e => {
       if (e.target.closest('[data-another]')) handlers.another();
+      else if (e.target.closest('[data-end-more]')) handlers.endMore(e.target.closest('[data-end-more]').dataset.endMore);
       else if (e.target.closest('[data-close]')) toggle('end', false);
       else if (e.target.closest('[data-how]')) toggle('how', true);
     });
@@ -395,10 +396,12 @@ const UI = (() => {
 
   // The end of a visit: the recap of a death, or the sentence of leaving, with "Another
   // visit", which takes the focus. A screen reader hears it as a dialog named by its title and
-  // described by its sentences. e = {title, lines}.
+  // described by its sentences. e = {title, lines, yes?, more?}: yes names the first button
+  // (else "Another visit"); more adds buttons [{id, text}] after it (the Orientation's).
   function end(e) {
+    const more = (e.more || []).map(m => ` <button class="btn" data-end-more="${esc(m.id)}">${esc(m.text)}</button>`).join('');
     els.end.innerHTML = head(e.title, true) + `<div class="recap" id="end-why">${e.lines.map(l => `<p>${esc(l)}</p>`).join('')}</div>
-      <div class="acts"><button class="btn another" data-another${keyAttrs('Enter')}>Another visit</button></div>`;
+      <div class="acts"><button class="btn another" data-another${keyAttrs('Enter')}>${esc(e.yes || 'Another visit')}</button>${more}</div>`;
     els.end.querySelector('.ohead h2').id = 'end-title';
     for (const [k, v] of [['role', 'dialog'], ['aria-labelledby', 'end-title'], ['aria-describedby', 'end-why']]) els.end.setAttribute(k, v);
     toggle('end', true);

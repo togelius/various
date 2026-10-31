@@ -28,7 +28,7 @@ const bad = s => problems.push(s);
 const SIZES = [[390, 844], [1280, 800]];
 
 for (const [W, Hh] of SIZES) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: 2, query: '?dept=S9&seed=5' });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: 2, query: '?orient=0&dept=S9&seed=5' });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   const settle = () => page.waitForFunction(() => !window.ACCESSION.busy() && document.querySelectorAll('#board canvas').length > 0);
   // A player can click only what is on screen: anything hidden or below the fold fails.
@@ -380,7 +380,7 @@ function helpers() {
 
 async function playM3(sizes, lines, bad) {
   for (const [W, Hh] of sizes) {
-    const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: 1, query: '?dept=M11&seed=3' });
+    const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: 1, query: '?orient=0&dept=M11&seed=3' });
     const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await page.evaluate(helpers); };
     await ready();
     const settle = () => page.waitForFunction(() => !window.ACCESSION.busy() && document.querySelectorAll('#board canvas').length > 0);
@@ -942,7 +942,7 @@ async function touchM3(lines, bad) {
   if (!pw) { console.log('SKIPPED: Playwright not found'); process.exit(77); }
   const browser = await pw.chromium.launch({ args: muted() });
   const probe = await browser.newPage();
-  await probe.goto(fileUrl('dist/accession.html') + '?dept=M11&seed=3');
+  await probe.goto(fileUrl('dist/accession.html') + '?orient=0&dept=M11&seed=3');
   await probe.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   const views = await probe.evaluate(() => window.ACCESSION.views.list().map(v => v.id));
   await probe.close();
@@ -952,7 +952,7 @@ async function touchM3(lines, bad) {
     const page = await ctx.newPage(), errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-    await page.goto(fileUrl('dist/accession.html') + `?dept=M11&seed=3&board=${view}`);
+    await page.goto(fileUrl('dist/accession.html') + `?orient=0&dept=M11&seed=3&board=${view}`);
     await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
     await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
     await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
@@ -1018,7 +1018,7 @@ async function touchM3(lines, bad) {
 // with a finger, here with left clicks alone on what is on screen; the page must see no key.
 async function scenesByMouse(lines, bad) {
   const W = 1280, H = 800;
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?dept=M11&seed=3' });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?orient=0&dept=M11&seed=3' });
   const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await install(page); };
   await ready();
   const views = await page.evaluate(() => window.ACCESSION.views.list());

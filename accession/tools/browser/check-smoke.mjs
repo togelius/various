@@ -6,7 +6,7 @@
 import { open, root } from './lib.mjs';
 import path from 'node:path';
 const shot = process.argv.includes('--shot');
-const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 2 });
+const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 2, query: '?orient=0' });
 await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
 // The board must really draw: many colours on the canvas, and your tile not blank.
 const drawn = await page.evaluate(() => {

@@ -210,7 +210,7 @@ const stageCrowd = page => page.evaluate(() => {
 
 for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   const t0 = Date.now();
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: sc.dpr, query: `?dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: Hh }, dpr: sc.dpr, query: `?orient=0&dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   const load = await page.evaluate(async () => { const t = performance.now(); await window.ACCESSION.renderer.ready.catch(() => {}); return performance.now() - t; });
   const tag = `${sc.dept} (${sc.prog}) ${W}×${Hh}`;

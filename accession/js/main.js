@@ -36,6 +36,7 @@ const Main = (() => {
   const history = [], HISTORY = 6, banners = new Set();
 
   function newVisit() {
+    if (Coach.active()) return Orientation.create();
     if (params.get('room') === 'test') return TestRoom.create(seed);
     const acc = (params.get('dept') || 'S9').toUpperCase(), depth = Number(params.get('depth')) || 1;
     return Dept.create(seed, Packs.get(acc) ? acc : 'S9', depth);
@@ -58,6 +59,7 @@ const Main = (() => {
     closedLabel() { draw(); },
     confirmed(yes) { answer(yes); },
     another() { anotherVisit(); },
+    endMore(id) { if (id === 'practice') begin(seed, true); },
     setting(key, value) {
       stop();
       if (key === 'zoom') { setZoom(Number(value)); return; }
@@ -393,9 +395,12 @@ const Main = (() => {
   // story); leaving, the sentence of the `left` event. Both offer "Another visit".
   function finish(ev, nameOf) {
     stop(); UI.closeLabel(); ui.selection = null;
+    // Leaving the Orientation starts the first visit; a death there offers it again too.
+    if (Coach.active() && state.over.k === 'left') { begin(seed, false); return; }
     if (state.over.k === 'died') {
       const r = Text.recap(state, nameOf);
       ended = { title: 'You were defeated', lines: r && r.lines.length ? r.lines : [history[history.length - 1] || 'You fell.'] };
+      if (Coach.active()) Object.assign(ended, { yes: 'Start the visit', more: [{ id: 'practice', text: 'Practice again' }] });
     } else {
       const e = ev.find(q => q.k === 'left'), s = e ? Text.event(e, nameOf) : null;
       ended = { title: 'The visit is over', lines: [s || 'You left the department.'] };
@@ -403,16 +408,22 @@ const Main = (() => {
     UI.end(ended);
   }
   // Another visit: the same department at the same depth, with the next seed (M5's run
-  // replaces this with the next department).
-  function anotherVisit() {
+  // replaces this with the next department); after the Orientation, the first visit, on the
+  // seed it was waiting with.
+  function anotherVisit() { begin(Coach.active() ? seed : seed + 1, false); }
+  // A visit on seed s, or (practice) the Orientation, the visit then waiting on s. Ending the
+  // Orientation for a visit (it was finished or skipped) means it is not offered again.
+  function begin(s, practice) {
     stop(); asking = null; UI.closeConfirm(); UI.closeOverlays(); UI.closeLabel();
-    seed += 1; state = newVisit();
+    if (practice) Coach.begin(); else Coach.end(true);
+    seed = s; state = newVisit();
     ui = blank(); preview = null; ended = null; last = []; shown = null; stopWhy = null; overLogged = false;
     history.length = 0; banners.clear(); known.clear(); Bag.close();
     say(welcome());
     draw();
   }
-  const welcome = () => `Room ${state.dept.rooms ? state.dept.rooms.find(r => r.role === 'intro').number : ''}. Tap a tile to walk; tap an exhibit, a case or yourself to read its label.`;
+  const welcome = () => Coach.active() ? 'A practice room, the same every time, played by the real rules.'
+    : `Room ${state.dept.rooms ? state.dept.rooms.find(r => r.role === 'intro').number : ''}. Tap a tile to walk; tap an exhibit, a case or yourself to read its label.`;
 
   // ---- Drawing ----
 
@@ -424,7 +435,10 @@ const Main = (() => {
     // The selected tile is the previewed walk's, else the selected thing's (an exhibit and you
     // carry the selection themselves).
     ui.selectedTile = preview || tileOf(ui.selection);
-    const vm = ViewModel.derive(state, ui);
+    // In the Orientation, the coach looks at what is drawn (and its pointer follows its step).
+    ui.coach = Coach.point();
+    let vm = ViewModel.derive(state, ui);
+    if (Coach.see(vm, last)) { ui.coach = Coach.point(); vm = ViewModel.derive(state, ui); }
     remember(vm);
     // While a label is open the camera centres between you and what it names in the part of
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
@@ -580,6 +594,9 @@ const Main = (() => {
     if (uid) select(uid, true); else { say('Nothing in sight to read.'); draw(); }
   }
 
+  // The Orientation's coach (js/ui/coach.js): on the first visit only, unless ?orient says.
+  Coach.attach(document.getElementById('top'), document.getElementById('how'), { skip: () => begin(seed, false), practice: () => begin(seed, true) });
+  if (Coach.first(params)) Coach.begin();
   state = newVisit();
   makeView();
   applySettings();

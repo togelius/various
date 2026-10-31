@@ -416,7 +416,7 @@ async function alone(page, d, tag, W, did, once) {
 
 const t0 = Date.now();
 for (const [W, H] of SIZES) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?dept=M11&seed=3' });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: W, height: H }, dpr: 1, query: '?orient=0&dept=M11&seed=3' });
   const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await install(page); };
   await ready();
   const views = await page.evaluate(() => window.ACCESSION.views.list());

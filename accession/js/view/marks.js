@@ -1,7 +1,8 @@
 // ACCESSION — the overlays both board views share (BUILD.md §6.2), in this order: surfaces,
 // your ring, calls, noise rings and a thrown Solution's area, the moved-from cue, the path
 // preview, telegraph fills, what stands or lies on a tile (case glyphs, staff-door grades,
-// labels, items), actors, each actor's marks (its bar, its glyph row, its hit cue, the cue of
+// labels, items), the Orientation's frame round what its step asks you to use, actors, each
+// actor's marks (its bar, its glyph row, its hit cue, the cue of
 // its special gone off, its selection), the aim, glass just broken, a selected tile, edge
 // arrows, and the telegraph numbers last. Each view supplies rectOf(x, y), a tile's rectangle
 // in canvas CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look
@@ -16,7 +17,8 @@
 // COLOURS, and every mark's meaning is in its shape too: a telegraph is a filled, outlined
 // tile with its number; a call a dashed outline round the tiles it reaches; a noise ring a
 // faint fill whose edge is dotted (soft), dashed (loud) or solid and double (crash); a
-// Solution's area a dotted square; the aim four inward ticks; a case's lock a padlock with
+// Solution's area a dotted square; the aim four inward ticks; the Orientation's pointer a
+// round-cornered frame just outside what it points at; a case's lock a padlock with
 // one bar per grade; cracks jagged lines, one per blow taken; a surface hatching with its
 // pictogram. White and black are used only for outlines, cues and numbers.
 //
@@ -30,7 +32,7 @@ const Marks = (() => {
   const COLOURS = {
     ring: 'player', path: 'player', area: 'player', aim: 'player', you: 'player',
     telegraph: 'hazard', call: 'hazard', surface: 'hazard', special: 'hazard',
-    noise: 'readable', lock: 'readable', cracks: 'readable', selection: 'readable',
+    noise: 'readable', lock: 'readable', cracks: 'readable', selection: 'readable', coach: 'readable',
     hostile: 'hostile', edge: 'hostile',
   };
   const col = k => S()[COLOURS[k]];
@@ -256,6 +258,19 @@ const Marks = (() => {
       });
     }
 
+    // What the Orientation's step asks you to use (vm.marks' coach): a round-cornered frame just
+    // outside its square, beneath the actors, so it covers no actor and no glyph row, and stays
+    // still (it never moves, whatever the motion setting).
+    for (const m of ofKind('coach')) {
+      const a = rectOf(m.x, m.y), b = rectOf(m.x + (m.size || 1) - 1, m.y + (m.size || 1) - 1);
+      const p = Math.max(3, Math.floor(tile / 8)), q = { x: a.x - p, y: a.y - p, w: b.x + b.w - a.x + 2 * p, h: b.y + b.h - a.y + 2 * p };
+      if (off(q)) continue;
+      add('mark', 'coach:' + m.x + ',' + m.y, m.x, m.y, a, ctx => {
+        ctx.strokeStyle = '#000000'; ctx.lineWidth = 4; frame(ctx, q, 2 * p);
+        ctx.strokeStyle = col('coach'); ctx.lineWidth = 2; frame(ctx, q, 2 * p);
+      });
+    }
+
     // Actors, back to front: northern ones first, so a nearer one is drawn over a farther one.
     const placed = order(vm.actors).map(a => ({ a, r: actorRect(a) }));
     for (const { a, r } of placed) {
@@ -425,6 +440,15 @@ const Marks = (() => {
       });
     }
     return out;
+  }
+
+  // A frame round r with corners rounded to radius k.
+  function frame(ctx, r, k) {
+    const x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
+    ctx.beginPath();
+    ctx.moveTo(x0 + k, y0);
+    ctx.arcTo(x1, y0, x1, y1, k); ctx.arcTo(x1, y1, x0, y1, k); ctx.arcTo(x0, y1, x0, y0, k); ctx.arcTo(x0, y0, x1, y0, k);
+    ctx.closePath(); ctx.stroke();
   }
 
   // Four short ticks pointing in from the middle of each edge of r.

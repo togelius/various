@@ -110,7 +110,7 @@ for (const [W, H, phone] of SIZES) {
   const page = await ctx.newPage(), errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(fileUrl('dist/accession.html') + '?dept=M11&seed=3');
+  await page.goto(fileUrl('dist/accession.html') + '?orient=0&dept=M11&seed=3');
   const ready = async () => { await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await install(page); };
   await ready();
   const views = await page.evaluate(() => window.ACCESSION.views.list());

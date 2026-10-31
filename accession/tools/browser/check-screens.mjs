@@ -30,7 +30,7 @@ async function settle(page) {
 
 for (const [w, h] of SIZES) {
   for (const sc of SCENES) {
-    const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 1, query: `?dept=${sc.dept}&seed=${sc.seed}` });
+    const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 1, query: `?orient=0&dept=${sc.dept}&seed=${sc.seed}` });
     await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
     await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
     // Walk until an exhibit is within 4 tiles, so the board has a hostile to check.
@@ -156,14 +156,14 @@ for (const [w, h] of SIZES) {
 // bust at (4,17) is in sight 12 rows south. Its label open, you and it cannot both fit above
 // the sheet: you stay in view and it is on the board or marked at its edge.
 const registered = await (async () => {
-  const { browser, page } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: '?dept=A4&seed=7' });
+  const { browser, page } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: '?orient=0&dept=A4&seed=7' });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   const v = await page.evaluate(() => window.ACCESSION.views.list().map(x => x.id));
   await browser.close();
   return v;
 })();
 for (const view of registered) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?dept=A4&seed=7&board=${view}` });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?orient=0&dept=A4&seed=7&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
@@ -194,7 +194,7 @@ for (const view of registered) {
 // placed it, and you are placed on the tile north of it (one you could walk to) rather than
 // walked there, since a walk wakes the sleepers it passes (§8.2).
 for (const view of registered) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 1280, height: 800 }, dpr: 1, query: `?dept=S9&seed=5&board=${view}` });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 1280, height: 800 }, dpr: 1, query: `?orient=0&dept=S9&seed=5&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
@@ -228,7 +228,7 @@ for (const view of registered) {
 // whole and clear of the dial, and the badge prints the grade's full name wherever it fits
 // (always from 390 px).
 {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 400, height: 800 }, dpr: 2, query: '?dept=S9&seed=5' });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 400, height: 800 }, dpr: 2, query: '?orient=0&dept=S9&seed=5' });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   let checked = 0;
   for (const size of ['1', '1.15', '1.3']) {
@@ -254,7 +254,7 @@ for (const view of registered) {
 // before leaving and before breaking glass; the bell's banner in the strip; and the recap of
 // a death. At text sizes 1 and 1.3, nothing scrolls sideways and no target is under 44 px.
 for (const [w, h] of SIZES) for (const view of registered) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 1, query: `?dept=M11&seed=3&board=${view}` });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 1, query: `?orient=0&dept=M11&seed=3&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));

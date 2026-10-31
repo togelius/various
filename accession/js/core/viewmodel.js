@@ -12,7 +12,9 @@
 //   path          the path preview, [[x, y]…];  selection  an actor's uid;  selectedTile {x, y};
 //   aim           {x, y, uid?, size?}: the tile you are aiming at, and the item you aim (a
 //                 Solution's square is drawn round it, its own size once its kind is known,
-//                 the largest Solution's while it is not); size, given, sets that square.
+//                 the largest Solution's while it is not); size, given, sets that square;
+//   coach         {uid} or {x, y}: what the Orientation's step asks you to use (js/ui/coach.js),
+//                 an exhibit or a tile, marked while you see it.
 // vm:
 //   dept, w, h, turn, over
 //   tiles         the map's rows as you know them: a tile in view as it is now, a remembered
@@ -25,7 +27,8 @@
 //   marks         unique by kind:x,y — {kind: 'telegraph', x, y, dmg, by} and {kind: 'call', x,
 //                 y, by} on visible tiles (Specials.marks); {kind: 'noise', x, y, cls} on visible
 //                 or remembered tiles, the loudest class where two noises of the step reach
-//                 one; {kind: 'area', x, y} and {kind: 'aim', x, y} from ui.aim
+//                 one; {kind: 'area', x, y} and {kind: 'aim', x, y} from ui.aim; {kind:
+//                 'coach', x, y, size} from ui.coach, on the exhibit you see or the tile in view
 //   cues          {movedFrom: [{uid, x, y}], hit: [uid], broke: [{x, y}], special: [uid]}
 //   cases, staff, items, plaques, surfaces   what stands or lies on visible tiles
 //   you           {x, y, hp, maxHp, grade, statuses, kit, tote, consumables, charges, seated,
@@ -139,6 +142,13 @@ const ViewModel = (() => {
       }
       if (known(aim.x, aim.y)) mark({ kind: 'aim', x: aim.x, y: aim.y });
     }
+    // What the Orientation's step asks you to use: an exhibit while you see it, or a tile in
+    // view (§7.2). It shows only what sight gives, as everything here does.
+    const coach = ui.coach;
+    if (coach && typeof coach.uid === 'string') {
+      const a = actors.find(q => q.uid === coach.uid && q.uid !== 'you');
+      if (a) mark({ kind: 'coach', x: a.x, y: a.y, size: a.size });
+    } else if (coach && visible(coach.x, coach.y)) mark({ kind: 'coach', x: coach.x, y: coach.y, size: 1 });
 
     // One-turn cues (§6.1), from the same events: the tile each listed actor moved from
     // (the first such tile in view, if it made several moves; none from a tile out of view,

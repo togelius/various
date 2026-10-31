@@ -1,0 +1,19 @@
+/* ACCESSION — the Orientation's coach (BUILD.md §7.2): a line of its own at the foot of the top
+   bar, on a phone and a laptop alike, so it never lies over the board and the label sheet
+   never covers it: the step count, the step's sentence (wrapping, never cut short) and Skip,
+   a 44-px button. A new step's sentence flashes once, and not at all with reduced motion. */
+#coach { order: 10; flex: 1 1 100%; min-width: 0; display: flex; align-items: center; gap: 8px; margin-top: 2px; padding-top: 4px; border-top: 1px solid var(--line); }
+#coach[hidden] { display: none; }
+.coach-n { flex: none; font-size: 0.72em; line-height: 1.2; color: var(--ink); border: 1px solid var(--readable); border-radius: 10px; padding: 1px 7px;
+  white-space: nowrap; font-variant-numeric: tabular-nums; }
+.coach-say { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 0.9em; line-height: 1.3; overflow-wrap: anywhere; border-radius: 4px; }
+.coach-skip { flex: none; }
+@keyframes coach-new { from { background: var(--panel2); } to { background: transparent; } }
+#coach.new .coach-say { animation: coach-new 0.9s ease-out; }
+:root[data-motion="reduce"] #coach.new .coach-say { animation: none; }
+@media (prefers-reduced-motion: reduce) { #coach.new .coach-say { animation: none; } }
+/* "How the museum works" holds Practice room beside its Close (js/ui/coach.js): where the
+   title and both buttons do not fit on one line, the buttons go under the title, at the right,
+   rather than squeezing it. */
+#how .ohead { flex-wrap: wrap; row-gap: 6px; }
+#how .ohead-btns { margin-left: auto; }

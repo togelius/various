@@ -240,7 +240,8 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
   test('the display list is drawn in §6.2\'s order', () => {
     const v = flat({
       ring: (() => { const r = new Uint8Array(400); r[2 * 20 + 2] = 1; return r; })(),
-      marks: [{ kind: 'call', x: 6, y: 6, by: 'h' }, { kind: 'noise', x: 6, y: 7, cls: 'loud' }, { kind: 'area', x: 8, y: 8 }, { kind: 'aim', x: 8, y: 8 }, { kind: 'telegraph', x: 3, y: 3, dmg: 4, by: 'a' }],
+      marks: [{ kind: 'call', x: 6, y: 6, by: 'h' }, { kind: 'noise', x: 6, y: 7, cls: 'loud' }, { kind: 'area', x: 8, y: 8 }, { kind: 'aim', x: 8, y: 8 }, { kind: 'telegraph', x: 3, y: 3, dmg: 4, by: 'a' },
+        { kind: 'coach', x: 3, y: 3, size: 1 }],
       path: [[2, 3]], selection: 'a', selectedTile: { x: 9, y: 9 },
       actors: [actor('you', 2, 2), actor('a', 3, 3, { encased: true, telegraphing: 'line' }), actor('far', 19, 19)],
       cues: { movedFrom: [{ uid: 'a', x: 4, y: 4 }], hit: ['a'], broke: [{ x: 7, y: 2 }], special: ['a'] },
@@ -263,6 +264,7 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
       if (id === 'lock:9,2') return 'staff-door grades';
       if (id.startsWith('plaque:')) return 'labels';
       if (id.startsWith('item:')) return 'items';
+      if (id.startsWith('coach:')) return 'coach frame';
       if (d.kind === 'actor') return 'actors';
       if (/^(hostile:|you-bar$|state:|encased:|telegraphing:|hit:|special:)/.test(id) || (id === 'selection' && d.x === 3)) return 'each actor\'s marks';
       if (id.startsWith('aim:')) return 'aim';
@@ -273,7 +275,7 @@ module.exports = ({ test, assert, root, fs, path, loadCore }) => {
     };
     const seq = [];
     items.forEach((d, i) => { const k = group(d, i); if (seq[seq.length - 1] !== k) seq.push(k); });
-    same(seq, ['surfaces', 'ring', 'calls', 'noise', 'area', 'moved-from cue', 'path', 'telegraph fills', 'case glyphs', 'staff-door grades', 'labels', 'items', 'actors',
+    same(seq, ['surfaces', 'ring', 'calls', 'noise', 'area', 'moved-from cue', 'path', 'telegraph fills', 'case glyphs', 'staff-door grades', 'labels', 'items', 'coach frame', 'actors',
       'each actor\'s marks', 'aim', 'broken glass', 'selected tile', 'edge arrows', 'telegraph numbers']);
     // Within one actor's marks: its bar, its glyph row, its hit cue, its special's cue, its selection.
     const mine = items.filter(d => d.group === 'a' && d.kind !== 'actor').map(d => d.id);
