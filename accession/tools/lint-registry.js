@@ -12,8 +12,11 @@
 //   marks saved on any cause, old_repair side on a blow, shot or beam); a refusal code has
 //   no sentence, or a sentence no code;
 //   a clause template names a parameter it does not define, or a special or status its
-//   entry does not name; a parameter reference cannot be read; a clause covers an unknown
-//   event kind; a pack species' Behaviour line cannot be filled at some depth 1–7;
+//   entry does not name; a module slot ({module:<id>|<fallback>}, §5.3) names no module or
+//   does not parse (its fallback's words are linted as the clause's); a module's panel
+//   sentence names a parameter its entry does not define; a parameter reference cannot be
+//   read; a clause covers an unknown event kind; a pack species' Behaviour line cannot be
+//   filled at some depth 1–7;
 //   an entry at ready 'unit' or above names no tests, a test file that does not exist, or
 //   no invariant file that exists (test/behaviour/<inv>.inv.js); an entry at ready true
 //   names no scenario file under test/behaviour/ (true means its joined-up scenarios pass);
@@ -173,7 +176,20 @@ if (followUps) for (const [where, why] of Object.entries(follow)) {
 }
 
 // Clause templates (§5.3).
-const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*|lock:GLASS\[\d+\])$/;
+const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|cp:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*|lock:GLASS\[\d+\])$/;
+// A clause as it reads with every module slot ({module:<id>|<fallback>}, Clauses.slots) at its
+// fallback: the words a player reads with the module off, which the word rules read, and
+// whose holes are its own. A slot naming no module, or one that does not parse, fails.
+const UNSLOTTED = new Map();
+function unslotted(where, template) {
+  if (UNSLOTTED.has(where)) return UNSLOTTED.get(where);
+  UNSLOTTED.set(where, template);
+  try {
+    for (const s of Clauses.slots(template)) if (!R.MODULES[s.id]) bad(`${where}: its slot names ${s.id}, which is no module`);
+    UNSLOTTED.set(where, Clauses.unslot(template, () => false));
+  } catch (err) { bad(`${where}: ${err.message}`); }
+  return UNSLOTTED.get(where);
+}
 const sentence = { ARCHETYPES: true, MODIFIERS: true, CLAUSES: true, SPECIALS: false, STATUSES: false };
 for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
@@ -189,10 +205,16 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
     if (open === null) bad(`--strict: ${where} is at ready ${JSON.stringify(e.ready)}, with ${e.tests.length} test(s) and invariant ${e.inv}`);
     else held.push(`${where} (${e.ready}): ${open}`);
   }
-  if (e.clause === undefined) continue;
+  // A module's panel sentence is a template over the same params as its clause (§5.4).
+  const told = t === 'MODULES' && typeof e.sentence === 'string' ? e.sentence : '';
+  if (e.clause === undefined) {
+    for (const m of told.matchAll(/\{([^}]*)\}/g)) if (!own(e.params, m[1])) bad(`${where}: {${m[1]}} in its sentence has no parameter`);
+    continue;
+  }
   for (const [name, ref] of Object.entries(e.params)) if (typeof ref !== 'string' || !REF.test(ref)) bad(`${where}: the parameter ${name} has the reference ${JSON.stringify(ref)}`);
   for (const k of e.covers) if (!R.EVENTS[k]) bad(`${where} covers ${k}, which is not an event kind`);
-  const holes = [...e.clause.matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
+  const clause = unslotted(where, e.clause);
+  const holes = [...(clause + ' ' + told).matchAll(/\{([^}]*)\}/g)].map(m => m[1]);
   for (const h of holes) {
     if (h === 'special') { if (!e.special) bad(`${where}: {special} in a clause whose entry names no special`); continue; }
     const st = /^status:(.+)$/.exec(h);
@@ -207,8 +229,8 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   // Archetype, modifier and wake clauses are sentences; a special's or status's clause is
   // set inside its archetype's; a trigger's continues the wake clause unless it replaces it.
   const full = t === 'TRIGGERS' ? !!e.replacesWake : sentence[t];
-  if (full === true && !/^[A-Z].*\.$/.test(e.clause)) bad(`${where}: its clause should be a sentence: "${e.clause}"`);
-  if (full === false && (/\.$/.test(e.clause) || /^[A-Z]/.test(e.clause))) bad(`${where}: its clause should continue another: "${e.clause}"`);
+  if (full === true && !/^[A-Z].*\.$/.test(clause)) bad(`${where}: its clause should be a sentence: "${e.clause}"`);
+  if (full === false && (/\.$/.test(clause) || /^[A-Z]/.test(clause))) bad(`${where}: its clause should continue another: "${e.clause}"`);
 }
 
 // The word rules (M4 plan W0a), over a template: an entry's clause, and a module's panel
@@ -219,7 +241,7 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
 // archetype is M3's or past ready false, M4 plan A10), whatever that entry's own readiness
 // (a clockwork modifier at false on an archetype at 'unit'). A placeholder no one reads
 // waits for its owner; --strict reads them all.
-const KIND_TABLE = { archetype: 'ARCHETYPES', special: 'SPECIALS', status: 'STATUSES', role: 'CLAUSES', modifier: 'MODIFIERS', wake: 'CLAUSES', trigger: 'TRIGGERS', module: 'MODULES' };
+const KIND_TABLE = { archetype: 'ARCHETYPES', special: 'SPECIALS', status: 'STATUSES', role: 'CLAUSES', modifier: 'MODIFIERS', wake: 'CLAUSES', trigger: 'TRIGGERS', module: 'MODULES', clause: 'CLAUSES' };
 const shown = new Set();
 for (const [, sp] of allSpecies) {
   const a = R.ARCHETYPES[sp.archetype];
@@ -298,7 +320,7 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
   if (t === 'MODULES' && e.keywords !== undefined && !(Array.isArray(e.keywords) && e.keywords.every(k => typeof k === 'string' && /^[a-z][a-z ’'-]*[a-z]$/.test(k))))
     bad(`${where}: its keywords ${JSON.stringify(e.keywords)} are not a list of lower-case words`);
-  const templates = [e.clause, t === 'MODULES' ? e.sentence : undefined].filter(x => typeof x === 'string');
+  const templates = [typeof e.clause === 'string' ? unslotted(where, e.clause) : undefined, t === 'MODULES' ? e.sentence : undefined].filter(x => typeof x === 'string');
   if (!templates.length || !readable(t, e, where)) continue;
   const text = templates.join(' '), bare = text.replace(/\{[^}]*\}/g, '');
   if (e.built === 'M4' && /[0-9]/.test(bare)) bad(`${where}: a digit outside {} in "${text}" (a number is a parameter, filled from its row)`);
