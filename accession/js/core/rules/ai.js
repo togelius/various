@@ -46,16 +46,18 @@ const AI = (() => {
 
   // An exhibit's turn, in order (§8.1):
   //   0. it counts the action (acts: its actions since it last woke, this one included);
-  //   1. fixed: it waits (a pending mark was already called off when the status was put
-  //      on, Status.apply; the cancel here is a guard that finds nothing to call off);
+  //   1. a status whose bearer only waits (Status.skips: fixed, and any status defined with
+  //      skipsAction): it waits (a fixed exhibit's pending mark was already called off when
+  //      the status was put on, Status.apply; the cancel here is a guard that finds nothing
+  //      to call off);
   //   2. it looks for you (AI.look);
   //   3. a pending mark resolves (Specials.resolve);
   //   4. its archetype or a modifier acts (Archetypes.act), unless that gives null;
   //   5. otherwise it acts by its mode (AI.byMode).
   function act(state, a, ev) {
     a.acts++;
-    if (Status.has(a, 'fixed')) {
-      if (a.telegraph) Specials.cancel(state, a, 'fixed', ev);
+    if (Status.skips(state, a)) {
+      if (a.telegraph && Status.has(a, 'fixed')) Specials.cancel(state, a, 'fixed', ev);
       return AI.wait(state, a, ev);
     }
     AI.look(state, a, ev);

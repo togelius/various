@@ -38,6 +38,11 @@ module.exports = ({ test, assert, root, path }) => {
   test('criterion 6: at every death in the arenas\' naive runs and in wander\'s department runs, Text.recap equals Recap.fromLog: killers set out awake, Night Watchmen, split halves and department wakings', () => {
     const runs = [];
     for (const id of Battery.arenas(C).ran) for (const seed of [1, 2, 3, 4]) runs.push(named({ kind: 'arena', arena: id, policy: 'naive', seed }));
+    // Seeds 2 and 3: with M4's median visitor (grade II at depth 2), wander in M.11 at depth 2,
+    // seed 1, opens the grade II staff door into the staff corridor, a refuge exhibits cannot
+    // enter (§8.2), and then walks to and fro beside the corridor's grade III door, which it
+    // cannot open, until the 1,000-turn cap, with the Night Watchman waiting outside (§8.4).
+    // No rule fails there; wander's runs reach the cap at depth 1 too (S.9 seeds 4 and 9).
     for (const p of C.Packs.list()) for (const depth of [2, 6]) for (const seed of [2, 3]) runs.push(named({ kind: 'wander', dept: p.acc, depth, seed }));
     const r = Battery.run(runs);
     assert.ok(r.pass, `${r.violations} violations: ${r.problems.slice(0, 5).map(p => p.text).join('\n')}`);

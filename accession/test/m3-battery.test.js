@@ -271,6 +271,8 @@ module.exports = ({ test, assert, root, fs, path }) => {
 
   test('the battery\'s monkey plays as Monkey.run does: the same actions, visits and final state', () => {
     const C = Battery.context();
+    // A4 seed 3: a seed whose first visit ends within 300 actions, so the restart is compared
+    // (with M4's median visitor, grade III at depth 3, seed 2's first visit outlasts them).
     for (const d of [named({ kind: 'monkey', room: 'T0', seed: 20261023, actions: 400 }), named({ kind: 'monkey', dept: 'A4', depth: 3, seed: 3, actions: 300 })]) {
       const r = Battery.run([d]).results[0];
       let last = null, ends = 0;

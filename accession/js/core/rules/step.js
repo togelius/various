@@ -155,6 +155,8 @@ const Step = (() => {
     // Your derived stats change once your action's ticks are done (§8.1).
     Kit.settle(state);
     Vision.remember(state);
+    // The room you stand in is walked (dept.walked, a department visit's only, M4 plan A3).
+    Dept.walk(state);
     return ev;
   }
 
