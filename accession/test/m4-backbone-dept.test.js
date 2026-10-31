@@ -192,6 +192,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const spy = (ns, fn) => { const real = X[ns][fn]; X[ns][fn] = (...a) => { calls.push(`${ns}.${fn}`); return real(...a); }; };
     for (const [ns, fn] of [['Cases', 'place'], ['Populate', 'exhibits'], ['Setup', 'settleActors'], ['Centrepiece', 'place'], ['Kit', 'start'], ['Setup', 'carry'],
       ['Kit', 'standIn'], ['Consumables', 'startRun'], ['Consumables', 'standIn'], ['Panels', 'place'], ['Modules', 'init'], ['Kit', 'settle'], ['Populate', 'validate']]) spy(ns, fn);
+    // The Centrepiece is placed only from a gallery list, once its core is ready (D-POP).
+    X.Packs.get('A4').galleries = [];
+    X.Registry.ARCHETYPES.mp_ensemble.ready = 'unit';
     X.Dept.create(2, 'A4', 2);
     eq(calls, ['Cases.place', 'Populate.exhibits', 'Setup.settleActors', 'Centrepiece.place', 'Kit.start', 'Setup.carry', 'Kit.standIn',
       'Consumables.startRun', 'Consumables.standIn', 'Panels.place', 'Modules.init', 'Kit.settle', 'Populate.validate']);
