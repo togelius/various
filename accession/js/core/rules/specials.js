@@ -447,7 +447,8 @@ const Specials = (() => {
   //   - an action with a consumable whose kind you have not identified (Consumables.known)
   //     is judged as if it left you where you are and called nothing off, so the answer
   //     does not tell you what the consumable is. Only its cost is the action's own.
-  // A refused action, or one that takes no time, has no threat.
+  // A refused action (by a status or a rule's refuser, as step() refuses it), or one that
+  // takes no time, has no threat.
   function unforeseen(state, action) {
     if (typeof action.uid !== 'string' || !Array.isArray(state.items)) return false;
     const it = state.items.find(i => i.uid === action.uid);
@@ -463,7 +464,7 @@ const Specials = (() => {
     if (state.over || !action || typeof action.a !== 'string') return null;
     if (state.ui && state.ui.pendingChoice && action.a !== 'choose') return null;
     const h = Actions.get(action.a), you = state.actors[0];
-    if (!h || Status.blocks(state, you, action)) return null;
+    if (!h || Status.blocks(state, you, action) || Actions.refusal(state, action)) return null;
     const copy = State.clone(state), made = [], raw = h.apply(copy, action, made);
     if (typeof raw === 'string' || !Number.isInteger(raw) || raw <= 0) return null;
     const r = Perks.adjust(copy, action, raw, made).r;

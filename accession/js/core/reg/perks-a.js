@@ -12,6 +12,7 @@
   R.define('PERKS', 'light_fingers', perk('Light Fingers', 'guarded'));
 
   // Vanishing Act (§8.7): a hunter that loses sight of you searches at once, not after
-  // LOSE_TRACK_TURNS (rules/perks.js, Perks.onLoseTrack).
-  R.defineCause('lost', 'vanished', { fields: {}, built: 'M4' });
+  // LOSE_TRACK_TURNS (rules/perks.js, Perks.onLoseTrack); turns, as out_of_sight's, are the
+  // turns it had been out of sight (rules/ai.js).
+  R.defineCause('lost', 'vanished', { fields: { turns: 'int' }, built: 'M4' });
 })();

@@ -550,7 +550,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     X.Modules.onEvent(s, { k: 'waited', turn: 0, tick: 0, who: 'you', how: 'wait' }, ev); X.Modules.alarmDecay(s, ev); X.Modules.turn(s, ev);
     assert.equal(State.hash(s), h, 'Modules: onEvent, alarmDecay and turn change nothing'); assert.equal(ev.length, 0);
     // W1-COMBAT's file: Health.onLow (Second Wind).
-    X.Health.onLow(s, s.actors[0], ev);
+    X.Health.onLow(s, s.actors[0], s.actors[0].hp, ev);
     assert.equal(State.hash(s), h, 'Health.onLow changes nothing'); assert.equal(ev.length, 0);
     // Wave 1 stubs and refinable impls: present and named; the number of arguments is checked
     // where the review set a signature that parallel packages call (null: not checked).

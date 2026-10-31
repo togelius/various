@@ -192,6 +192,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // it"): refused, the wait and the rest are not offered on your own label.
     const offered = X.Labels.you(s).actions.map(a => a.id);
     assert.ok(!offered.includes('wait') && !offered.includes('rest'), json(offered));
+    // Nor is a refused action forecast as if it ran (Specials.threat): a hunter's ring marked
+    // round you threatens a wait, until a refuser refuses the wait.
+    const Z = loadCore();
+    const w = room(Z, { exhibits: [ex([3, 3], { arch: 'tethered_warden', mode: 'hunting', sawYou: true, lastKnown: [2, 3], stats: { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 5, dmax: 5 } })] });
+    Z.Specials.mark(w, w.actors[1], 'ring', Z.Specials.tiles(w, w.actors[1], 'ring'), []);
+    assert.ok(Z.Specials.threat(w, { a: 'wait' }), 'the ring threatens a wait');
+    Z.Actions.addRefuser((st, action) => (action.a === 'wait' ? 'planted_no' : null));
+    assert.equal(Z.Specials.threat(w, { a: 'wait' }), null, 'a refused wait has no threat');
     // A refuser that gives anything but a code (or null) is a fault.
     const Y = loadCore();
     Y.Actions.addRefuser(() => 7);
@@ -261,7 +269,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const s = room(X, { map, you: [1, 2], exhibits: [ex([7, 2], { mode: 'hunting', lastKnown: [7, 2], stim: 0, sawYou: true })] });
       s.run.perks = perks;
       const lost = [];
-      for (let k = 0; k < 12 && !lost.length; k++) for (const e of X.Step.step(s, { a: 'wait' })) if (e.k === 'lost') lost.push([e.turn, e.to, e.cause.k, e.cause.turns]);
+      for (let k = 0; k < 12 && !lost.length; k++) for (const e of checked(X.Step.step(s, { a: 'wait' }))) if (e.k === 'lost') lost.push([e.turn, e.to, e.cause.k, e.cause.turns]);
       return lost;
     };
     assert.equal(json(play([{ id: 'planted_vanish', rank: 1 }])), json([[2, 'searching', 'vanished', 2]]));
