@@ -201,8 +201,9 @@ module.exports = ({ test, assert, loadCore }) => {
   // +2 on a loud floor. Each boundary applies the largest ring of your actions since the one
   // before (a boundary inside an action counting that action); the ring drawn at a decision
   // is the largest ring of your actions since the last boundary, or the last action's ring
-  // where every action since was a full one. So at a decision after a free or cheaper
-  // action, the next boundary applies at least the ring drawn, and exactly it if you wait.
+  // where every action since was a full one. So at a decision with a free or cheaper action
+  // since the last boundary (none has run in it or after it), the next boundary applies at
+  // least the ring drawn, and exactly it if you wait.
   test('with free and cheaper actions, each boundary applies the largest ring since the last, and the ring drawn at every decision is the one the next boundary applies (plan A6)', () => {
     const X = loadCore(), N = C.N, pick = X.Rng.stream({ seed: 6, rng: {} }, 'a6');
     let mode = null;

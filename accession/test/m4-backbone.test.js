@@ -16,7 +16,7 @@
 //   - the A8 hooks: huntsOnSight, and wakeRegion's default against an oracle.
 // The expected figures are worked out here from BUILD.md and the plan, never from the code.
 'use strict';
-module.exports = ({ test, assert, loadCore }) => {
+module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
   const json = x => JSON.stringify(x);
   const N = C.N;
@@ -126,6 +126,19 @@ module.exports = ({ test, assert, loadCore }) => {
     s = ringRoom(X); hold(s, 'planted_ring');
     X.Step.step(s, { a: 'move', dir: 2 });
     assert.equal(s.actors[0].ringMax, undefined);
+    // A cheaper action that reaches a boundary is applied there, and owes nothing after
+    // (BUILD §8.2, Which turn): a cheaper wait (0 to 50), then a cheaper step east (50 to 100),
+    // whose boundary at 100 applies the step's 3. At 100 the ring drawn is the step's 3, but
+    // nothing is owed, so a wait's boundary at 200 applies its own 2, less than drawn.
+    s = ringRoom(X); hold(s, 'planted_ring'); seen.length = 0;
+    once = (action, r) => ({ r: r - N.PERK_DUCK_AND_COVER, why: 'duck_and_cover' });
+    X.Step.step(s, { a: 'wait' });
+    assert.equal(json([s.tick, s.actors[0].ringMax, X.Vision.ringRadius(s)]), json([50, N.RING_STILL, N.RING_STILL]));
+    once = (action, r) => ({ r: r - N.PERK_DUCK_AND_COVER, why: 'duck_and_cover' });
+    X.Step.step(s, { a: 'move', dir: 2 });
+    assert.equal(json([s.tick, s.actors[0].ringMax, X.Vision.ringRadius(s), seen]), json([100, undefined, N.RING_MOVING, [[100, N.RING_MOVING]]]));
+    X.Step.step(s, { a: 'wait' });
+    assert.equal(json(seen), json([[100, N.RING_MOVING], [200, N.RING_STILL]]));
   });
 
   test('any change of tile unseats you, a free step included; a free step still sets your ring', () => {
@@ -144,6 +157,14 @@ module.exports = ({ test, assert, loadCore }) => {
     t.items.push(X.Kit.item({ uid: 'tk', kind: 'consumable', where: { at: 'tote' }, ck: 'ticket', n: 1 })); t.you.tote.push('tk');
     X.Step.step(t, { a: 'use', uid: 'tk' });
     assert.equal(json([t.actors[0].x, t.actors[0].seated]), json([5, false]));
+    // An action that costs no time and changes your tile (a planted reader that moves you)
+    // unseats you too, though it sets no ring.
+    X.Fixtures.addReader('planted_door', (st, f) => ({ text: null, effects: st2 => { st2.actors[0].x = 4; } }));
+    const u = room(X, { map, you: [2, 1], fixtures: [{ k: 'planted_door', x: 3, y: 1 }] });
+    X.Step.step(u, { a: 'sit' });
+    const still = u.actors[0].still;
+    X.Step.step(u, { a: 'read', x: 3, y: 1 });
+    assert.equal(json([u.actors[0].x, u.actors[0].seated, u.actors[0].still, u.tick]), json([4, false, still, 100]));
   });
 
   // ---- Refusers, free actions, choose ----
@@ -167,6 +188,10 @@ module.exports = ({ test, assert, loadCore }) => {
     X.Actions.addRefuser((st, action) => (action.a === 'move' ? 'planted_move' : null));
     assert.equal(X.Step.step(f, { a: 'move', dir: 2 })[0].reason, 'fixed');
     assert.equal(X.Step.step(room(X, {}), { a: 'move', dir: 2 })[0].reason, 'planted_move');
+    // A label offers only what step() would take (Labels: "exactly when Step.legal would list
+    // it"): refused, the wait and the rest are not offered on your own label.
+    const offered = X.Labels.you(s).actions.map(a => a.id);
+    assert.ok(!offered.includes('wait') && !offered.includes('rest'), json(offered));
     // A refuser that gives anything but a code (or null) is a fault.
     const Y = loadCore();
     Y.Actions.addRefuser(() => 7);
@@ -292,6 +317,10 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(X.Cases.describe(s0, s0.dept.fixtures[0]).canOpen, false);
     const s1 = make(true);
     assert.equal(X.Cases.describe(s1, s1.dept.fixtures[0]).canOpen, true);
+    // Its label says what opens it: not your grade alone.
+    assert.equal(json([X.Labels.ofCase(s0, s0.dept.fixtures[0]).odds[0], X.Labels.ofCase(s1, s1.dept.fixtures[0]).odds[0]]),
+      json(['Its lock needs Grade II; you are Grade I.', 'Your perks open its lock (Grade II), above your grade (Grade I).']));
+    assert.ok(X.Labels.ofCase(s1, s1.dept.fixtures[0]).actions.some(a => a.id === 'open'));
     const ev = X.Step.step(s1, { a: 'open', x: 3, y: 2 });
     assert.equal(json([ev.some(e => e.k === 'case_opened'), ev.some(e => e.k === 'noise'), s1.actors[0].next]), json([true, false, N.COST_OPEN_CASE - 100]));
     // The staff door's grade II is still above your grade I.
@@ -409,6 +438,12 @@ module.exports = ({ test, assert, loadCore }) => {
     const u = room(X, { items: [lamp({ at: 'kit', slot: 'curio0' })], youStatuses: [{ id: 'slowed', turns: 5 }] });
     X.Step.step(u, { a: 'use', uid: 'lamp' });
     assert.equal(u.actors[0].next, 2 * N.COST_USE);
+    // Its reach is a disc ("within r", §8.2), as sight's is, not a square: behind a wall, 4
+    // east and 2 south is within 4, 4 east and 3 south is not.
+    const DISC = ['##########', '#...#....#', '#...#....#', '#...#....#', '#...#....#', '#...#....#', '##########'];
+    const v = room(X, { map: DISC, you: [1, 1], exhibits: [ex([5, 3]), ex([5, 4])], items: [lamp({ at: 'kit', slot: 'curio0' })] });
+    X.Step.step(v, { a: 'use', uid: 'lamp' });
+    assert.equal(json(v.actors.slice(1).map(e => [X.Vision.observed(v, e), near(e.x - 1, e.y - 1, N.LAMP_OBSERVE_RANGE)])), json([[true, true], [false, false]]));
     // Its Behaviour line states the rule with its numbers.
     assert.match(X.Kit.describe(t, 'lamp').line, /^Observing: worn as a curio, it is lit or hooded for 100 ticks, and taking it off hoods it; while it is lit, every exhibit within 4 tiles of you counts as seen by you, even out of your sight, and your ring is 1 larger\.$/);
   });
@@ -467,9 +502,17 @@ module.exports = ({ test, assert, loadCore }) => {
     const before = h.actors[2].pips;
     const tiles = X.Specials.tiles(h, h.actors[1], 'call');
     assert.ok(tiles.some(([x, y]) => x === 5 && y === 2) && tiles.some(([x, y]) => x === 5 && y === 5), 'both stand on marked tiles');
+    // Every Behaviour-line invariant holds through it: the herald's clause says "never a
+    // Centrepiece", and its invariant judges the call by the clause.
+    const Inv = require(path.join(root, 'tools/invariants.js')), check = Inv.checker(X, Inv.select(X, 'all'));
     let woke = [];
-    for (let k = 0; k < 3; k++) woke = woke.concat(X.Step.step(h, { a: 'wait' }).filter(e => e.k === 'woke').map(e => [e.who, e.cause.k]));
+    for (let k = 0; k < 3; k++) {
+      const pre = X.State.clone(h), ev = X.Step.step(h, { a: 'wait' });
+      assert.equal(json(check(pre, { a: 'wait' }, ev, h).map(v => v.text)), '[]');
+      woke = woke.concat(ev.filter(e => e.k === 'woke').map(e => [e.who, e.cause.k]));
+    }
     assert.equal(json(woke), json([['T0.1.room.3', 'herald']]));
+    assert.match(X.Registry.SPECIALS.call.clause, /that can hear \(never a Centrepiece\)/);
     assert.equal(json([h.actors[2].mode, h.actors[2].pips]), json(['dormant', before]));
     // Damage still wakes it, hunting.
     X.Combat.hurt(h, h.actors[2], 1, { k: 'attack', by: 'you', at: h.actors[2].uid, chance: 75, roll: 1, raw: 1, pad: 0, how: { kind: 'melee' }, from: [4, 2] }, []);
@@ -546,8 +589,49 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(X.Archetypes.wakeRegion(s, s.actors[2], 3)), '[]');
     s.actors[1].gone = 1;
     assert.equal(json(X.Archetypes.wakeRegion(s, s.actors[1], 3)), '[]');
+    // A closed door 2 tiles from it is within the ring and in its sight, but no tile to stand
+    // on (a step into it opens it and leaves you where you were); it also blocks sight, so the
+    // tiles beyond it are out.
+    const d = room(X, { map: ['#########', '#...+...#', '#########'], you: [1, 1], exhibits: [ex([6, 1])] });
+    const dr = X.Archetypes.wakeRegion(d, d.actors[1], 3);
+    assert.equal(json(dr), json(region(d.dept.tiles, d.actors[1], N.RING_MOVING)));
+    assert.equal(json(dr), json([[5, 1], [7, 1]]));
     // A 2×2 body is reached by any of its tiles.
     const t = room(X, { exhibits: [ex([6, 2], { size: 2 })] });
     assert.equal(json(X.Archetypes.wakeRegion(t, t.actors[1], 3)), json(region(t.dept.tiles, t.actors[1], N.RING_MOVING)));
+  });
+  // What waking does (§8.2), played: you on a tile with your ring at RING_MOVING (your last
+  // action a use, so no Quiet), at turn boundaries, with the ring pip and pip decay as the
+  // boundary runs them. A sleeper wakes at the boundary that gives it the pips it still needs
+  // exactly when you stand in its region for that many turns, and from no other tile near it.
+  test('wakeRegion\'s default is where waking happens: standing in it with a moving ring wakes it at the turn it says, and nowhere else near it', () => {
+    let inside = 0, outside = 0;
+    for (const acc of ['S9', 'A4', 'M11']) for (const seed of [1, 2]) {
+      const base = C.Dept.create(seed, acc, 4), m = base.dept;
+      base.actors.slice(1).forEach((a, i) => {
+        if (a.mode !== 'dormant' || C.Archetypes.pipless(base, a) || a.trigger === 'axis' || a.trigger === 'tether') return;
+        for (const pips of [0, N.PIPS_TO_WAKE - 1]) {
+          const need = N.PIPS_TO_WAKE - pips, region = C.Archetypes.wakeRegion(Object.assign(C.State.clone(base), {}), Object.assign({}, a, { pips }), need);
+          const key = t => t[0] + ',' + t[1], set = new Set(region.map(key));
+          assert.equal(json(C.Archetypes.wakeRegion(base, Object.assign({}, a, { pips }), need - 1)), '[]');
+          const near = [];
+          for (const [x, y] of foot(a)) for (let dy = -N.RING_MOVING - 2; dy <= N.RING_MOVING + 2; dy++) for (let dx = -N.RING_MOVING - 2; dx <= N.RING_MOVING + 2; dx++) {
+            const t = [x + dx, y + dy];
+            if (C.Grid.inside(m, t[0], t[1]) && C.Grid.walkable(m, t[0], t[1]) && !C.Grid.closedDoor(m, t[0], t[1]) && !foot(a).some(f => key(f) === key(t)) && !near.some(n => key(n) === key(t))) near.push(t);
+          }
+          near.forEach((t, k) => {
+            if (k % 3) return;
+            const s = C.State.clone(base), b = s.actors[i + 1], you = s.actors[0], ev = [];
+            [you.x, you.y] = t; you.still = false; you.lastAct = 'use'; b.pips = pips; b.stim = s.turn;
+            let at = null;
+            for (let n = 1; n <= need && at === null; n++) { s.turn++; C.Wake.boundary(s, ev); C.Wake.decay(s, ev); if (b.mode !== 'dormant') at = n; }
+            const where = `${acc} seed ${seed}: ${a.uid} (${a.arch}) at ${pips} pips, you at ${key(t)}`;
+            if (set.has(key(t))) { inside++; assert.equal(at, need, `${where}: in its region, it wakes at turn ${need}`); }
+            else { outside++; assert.equal(at, null, `${where}: outside its region, it sleeps`); }
+          });
+        }
+      });
+    }
+    assert.ok(inside > 300 && outside > 300, `${inside} tiles inside, ${outside} outside`);
   });
 };

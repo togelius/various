@@ -102,10 +102,13 @@ const Archetypes = (() => {
   // on (walkable, not a closed door, none of a's own) from which some tile of a's footprint
   // that an exhibit can stand on (Grid.hold) is within RING_MOVING walking tiles (one beyond
   // its nearest neighbour you could step onto, for a tile you cannot) and in line of sight.
-  // Standing there gives it 1 pip a turn, so it wakes once the pips it still needs are given:
-  // the region is empty unless a sleeps, can gain pips (not pipless) and `turns` is at least
-  // PIPS_TO_WAKE less its pips. Walking distance between tiles you can step onto is the same
-  // either way (§8.2's step rule is symmetric), so it is measured out from a's tiles.
+  // Being there at a turn boundary with that ring (a moving one: standing still, your ring is
+  // RING_STILL; on a loud floor or with a lit Lamp, larger) gives it 1 ring pip (Wake.boundary),
+  // and a pip a turn holds off its decay, so it wakes at the boundary that gives the pips it
+  // still needs: the region is empty unless a sleeps, can gain pips (not pipless) and `turns`
+  // is at least PIPS_TO_WAKE less its pips. Walking distance between tiles you can step onto
+  // is the same either way (§8.2's step rule is symmetric), so it is measured out from a's
+  // tiles.
   function defaultWakeRegion(state, a, turns) {
     const m = state && state.dept;
     if (!m || !a || a.gone || a.mode !== 'dormant' || pipless(state, a)) return [];
