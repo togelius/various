@@ -130,7 +130,8 @@ const Clauses = (() => {
   // 'TABLE.id' refs to registry entries whose clauses join its line from that phase on
   // (§5.5's "what changes"); a part of phase 1 holds from the start. A clause of a phase
   // part continues "From phase 2: …", as a special's continues its archetype's: lower case,
-  // no full stop.
+  // no full stop, in both of its slots' forms (lint-registry reads each phase part so, and
+  // a CLAUSES entry written as one is not a sentence of its own).
   // (A module's words come into a phase through a slot in a phase part's clause, so they go
   // with the module.)
   const PHASE_KINDS = { ARCHETYPES: 'archetype', SPECIALS: 'special', STATUSES: 'status', MODIFIERS: 'modifier', TRIGGERS: 'trigger', CLAUSES: 'clause' };
@@ -210,6 +211,9 @@ const Clauses = (() => {
     phasesOf(sp).forEach((list, i) => {
       for (const { table, id, e } of list) {
         const got = whole(PHASE_KINDS[table], id, e, null, true);
+        // A phase part that says nothing (a slot with an empty fallback, its module off) adds
+        // no rule: it is not on the line, so no "From phase k: ." and no rest for the label.
+        if (!got[0].text) continue;
         for (const p of got) p.phase = i + 1;
         tail.push(...got);
       }

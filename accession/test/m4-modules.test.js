@@ -9,7 +9,9 @@
 //   - each effect of the closed table through the core rule that owns it, joined up where it
 //     is a rule of play (the clock through W0d1's ClockRules.advance, the special through
 //     W0d2's Specials.addShape and its due lines, with every invariant on and a clone checked);
-//     an effect that cannot act throws rather than leave its event to claim it;
+//     an effect that cannot act throws rather than leave its event to claim it; a module's
+//     special is a due line its threat warns of, a move opens a closed door as its step, a
+//     wake never takes a Centrepiece's piece, no rule acts on you, nor on your death or leaving;
 //   - re-entry: an event a rule makes reaches other rules, to two deep; the third throws;
 //   - streams: a module draws on module/<id>/<acc>/d<depth> only, and switching another off
 //     moves nothing of its draws;
@@ -61,7 +63,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       [{ rules: [Object.assign({}, ok, { do: [{ k: 'status', id: 'slowed', turns: 2, who: 1 }] })] }, /the status effect has no part who/],
       [{ rules: [Object.assign({}, ok, { do: [{ k: 'status', id: 'slowed' }] })] }, /the status effect needs turns/],
       [{ rules: [Object.assign({}, ok, { do: [{ k: 'status', id: 'planted', turns: 2 }] })] }, /there is no status planted/],
-      [{ rules: [Object.assign({}, ok, { do: [{ k: 'special', sp: 'planted' }] })] }, /there is no special planted/],
+      [{ rules: [Object.assign({}, ok, { do: [{ k: 'special', sp: 'planted', due: 300 }] })], bespoke: ['threat'], threat: () => [] }, /there is no special planted/],
+      // A module's special is a due line, warned of through its threat: without either, refused.
+      [{ rules: [Object.assign({}, ok, { do: [{ k: 'special', sp: 'line' }] })], bespoke: ['threat'], threat: () => [] }, /the special effect needs due/],
+      [{ rules: [Object.assign({}, ok, { do: [{ k: 'special', sp: 'line', due: 300 }] })] }, /r marks a special, a due line, so it must give threat/],
       [{ rules: [Object.assign({}, ok, { do: [{ k: 'surface', kind: 'planted', size: 1, turns: 1 }] })] }, /there is no surface planted/],
       [{ rules: [Object.assign({}, ok, { do: [{ k: 'wake', mode: 'searching', cause: { k: 'alarm' } }] })] }, /a wake is into awake or hunting/],
       [{ rules: [Object.assign({}, ok, { do: [flag('since', 1)] })] }, /not one a module may set/],
@@ -79,6 +84,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       [{ rules: [Object.assign({}, ok, { telegraph: { turns: 1, shown: 'planted' } })] }, /neither one of its rules nor a special/],
       [{ rules: [ok], pipsDecay: () => true }, /bespoke list must name it/],
       [{ rules: [ok], bespoke: 'pipsDecay' }, /not a list of names/],
+      // The bespoke list is the validation log's: it names no hook the module does not give.
+      [{ rules: [ok], bespoke: ['mayReturn'] }, /names mayReturn, which it does not give/],
       [{ rules: [ok], sentence: 'A planted rule.' }, /is its registry entry's/],
       [{ rules: [ok], params: {} }, /is its registry entry's/],
       [{ rules: [ok], reach: 3 }, /unknown part reach/],
@@ -275,6 +282,66 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const u = Y.Setup.room(1, { acc: 'T0', depth: 1, map: ['#####', '#...#', '#####'], you: [1, 1], exhibits: [{ sp: 'dummy', at: [3, 1], mode: 'awake', stats: BODY, next: 100000 }] });
     Y.Modules.init(u, pack('planted_move'));
     assert.throws(() => Y.Step.step(u, wait), /goal \[10,1\] is not a tile|has no step toward/);
+  });
+
+  test('the move effect at a closed door: opening it is the step, as any exhibit\'s (§8.2), and the next walks through; every invariant on', () => {
+    const X = loadCore();
+    plant(X, 'planted_move', { rules: [{ rule: 'drift', on: 'turn', who: s => s.actors.slice(1), do: [{ k: 'move', to: [9, 1] }] }] });
+    const s = X.Setup.room(1, { acc: 'T0', depth: 1, map: ['###########', '#....+....#', '###########'], you: [1, 1], exhibits: [{ sp: 'dummy', at: [4, 1], mode: 'awake', stats: BODY, next: 100000 }] });
+    X.Modules.init(s, pack('planted_move'));
+    const r = H.play(X, s, [wait, wait, wait], { inv: 'all', clone: true });
+    assert.equal(json(violations(r)), '[]');
+    const a = s.actors[1], did = r.steps.map(st => st.events.filter(e => (e.k === 'opened' || e.k === 'moved') && e.who === a.uid).map(e => e.k === 'opened' ? `opened ${e.x},${e.y}` : `moved to ${e.to}`));
+    assert.equal(json(did), json([['opened 5,1'], ['moved to 5,1'], ['moved to 6,1']]));
+    assert.ok(r.steps[0].events.some(e => e.k === 'noise' && e.x === 5 && e.y === 1), 'the door\'s soft noise');
+    assert.equal(a.next, 100000, 'and its own time is untouched');
+  });
+
+  test('a module cannot pass over the core\'s rules: a Centrepiece\'s piece is never woken by it (pips and damage only), you are no target of its rules, and nothing acts on your death or your leaving', () => {
+    // The wake effect on a Centrepiece's piece cannot act: it throws, as for one not asleep.
+    const X = loadCore();
+    plant(X, 'planted_alarm', { rules: [{ rule: 'call', on: 'waited', who: s => s.actors.slice(1), do: [{ k: 'wake', mode: 'awake', cause: { k: 'alarm' } }] }] });
+    const s = room(X, [{ sp: 'dummy', at: [8, 3], mode: 'dormant', stats: BODY, role: 'centrepiece' }]);
+    X.Modules.init(s, pack('planted_alarm'));
+    assert.ok(X.Actors.centrepiece(s.actors[1]));
+    assert.throws(() => X.Step.step(s, wait), /is a Centrepiece's piece, which wakes from pips and damage only/);
+    // A rule whose who gives you: refused (a module's rules act on exhibits).
+    for (const k of [{ k: 'status', id: 'slowed', turns: 2 }, { k: 'tier', pct: 33, acc: 0 }]) {
+      const Y = loadCore();
+      plant(Y, 'planted_you', { rules: [{ rule: 'r', on: 'waited', who: st => [st.actors[0]], do: [k] }] });
+      const u = room(Y, []);
+      Y.Modules.init(u, pack('planted_you'));
+      const before = json([u.actors[0].maxHp, u.actors[0].statuses]);
+      assert.throws(() => Y.Step.step(u, wait), /who gave you, not an exhibit present/, k.k);
+      assert.equal(json([u.actors[0].maxHp, u.actors[0].statuses]), before, `${k.k}: you are untouched`);
+    }
+    // On your death: the blow that leaves you no health and your died reach no rule; an
+    // exhibit's death does.
+    const run = (killYou, mod) => {
+      const Z = loadCore();
+      plant(Z, 'planted_mourn', { rules: [
+        { rule: 'hurt', on: 'damaged', do: [flag('hurt', (state, e) => e.who)] },
+        { rule: 'mourn', on: 'died', who: st => st.actors.slice(1).filter(b => !b.gone && b.mode === 'dormant'), do: [{ k: 'wake', mode: 'awake', cause: { k: 'alarm' } }] }] });
+      const z = Z.Setup.room(1, { acc: 'T0', depth: 3, map: OPEN, you: [3, 2], exhibits: [
+        { sp: 'dummy', at: [4, 2], mode: 'hunting', stats: { hp: 1, acc: 99, eva: 0, pad: 0, dmin: 50, dmax: 50 }, next: 50 },
+        { sp: 'dummy', at: [9, 4], mode: 'dormant', stats: BODY }] });
+      z.actors[0].hp = killYou ? 5 : 999;
+      if (!killYou) z.actors[0].acc = 400;
+      Z.Modules.init(z, pack(mod || 'planted_mourn'));
+      return { z, ev: killYou ? Z.Step.step(z, wait) : Z.Step.step(z, { a: 'attack', uid: z.actors[1].uid }) };
+    };
+    const dead = run(true);
+    assert.equal(json([dead.z.over.k, mods(dead.ev), dead.z.actors[2].mode]), json(['died', [], 'dormant']));
+    assert.equal(dead.z.dept.modules[0].hurt, undefined, 'the fatal blow reached no rule');
+    const won = run(false);
+    assert.equal(json([won.z.over, mods(won.ev).slice(-1), won.z.actors[2].mode]), json([null, [`planted_mourn.mourn@${won.z.actors[2].uid}`], 'awake']));
+    // Your leaving reaches no rule.
+    const L = loadCore();
+    plant(L, 'planted_left', { rules: [{ rule: 'gone', on: 'left', do: [flag('n', 1)] }] });
+    const l = L.Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 3], exits: [[2, 3]], exhibits: [] });
+    L.Modules.init(l, pack('planted_left'));
+    const lev = L.Step.step(l, { a: 'leave', i: 0 });
+    assert.equal(json([l.over.k, mods(lev), L.Modules.of(l, 'planted_left').n]), json(['left', [], undefined]));
   });
 
   test('the clock effect, through W0d1\'s ClockRules.advance: the bell comes n turns sooner, with the module\'s cause, at stages 0, 1 and 2', () => {

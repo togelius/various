@@ -10,11 +10,16 @@
 //     rows for the measured lines, the closest calls among them. A planted long line fails;
 //   - the module slot, {module:<id>|<fallback>}, in both its forms, and a module's part on the
 //     line of a species flagged with it, gone with its module (Q3: a rule a module gives is
-//     written once, in its part, so no line says it while the module is off);
+//     written once, in its part, so no line says it while the module is off), and from a
+//     label in a visit that does not run it (Modules.active);
 //   - `cp:` parameters; a Centrepiece's phases, its whole line and its strip by phase (Q10);
 //     a module's panel sentence (Clauses.sentence);
-//   - lint-registry's reading of slots, `cp:` and module sentences, on planted faults.
-// Re-measure (after `python3 tools/build-single.py`, if the strip's CSS or font changed):
+//   - lint-registry's reading of slots in both forms (fallback and module on), `cp:`, module
+//     sentences and clauses, and phase parts, on planted faults.
+// The metrics hold only while Chromium lays the strip out in the font they were measured in:
+// tools/browser/check-lines.mjs measures them again at every check-all (measure and compare,
+// exported below) and fails on any difference, such as another font standing in for
+// system-ui. To measure again (after `python3 tools/build-single.py`):
 //   node test/m4-lines.test.js --measure     compares a fresh measure with METRICS
 //   node test/m4-lines.test.js --write       and writes it into this file
 'use strict';
@@ -337,9 +342,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const Y = loadCore(), unbuilt = planted(Y, { define: false });
     assert.equal(Y.Clauses.of(unbuilt, { depth: 3 })[0].text, fallback, 'its rules not yet defined');
     // An empty fallback, and placeholders inside a fallback.
-    const Z = loadCore(), z = planted(Z, { clause: 'Keeps to its post{module:planted_mod|, and strikes for {dmg}}.' });
+    const Z = loadCore(), z = planted(Z, { clause: 'Keeps to its post{module:planted_mod|, and strikes for {dmg}}.', entry: { clause: ', and moves only while you cannot see it, {n} tiles a turn' } });
     assert.equal(Z.Clauses.of(z, { depth: 3, rulesOff: ['planted_mod'] })[0].text, `Keeps to its post, and strikes for ${dmg}.`);
-    assert.equal(Z.Clauses.of(z, { depth: 3 })[0].text, `Keeps to its postMoves only while you cannot see it, ${step} tiles a turn.`, 'the module\'s words go where the slot is');
+    assert.equal(Z.Clauses.of(z, { depth: 3 })[0].text, `Keeps to its post, and moves only while you cannot see it, ${step} tiles a turn.`, 'the module\'s words go where the slot is');
   });
 
   test('a module\'s part with no slot for it is a sentence of its own after the modifiers, gone with its module; and what a slot or a part cannot be throws', () => {
@@ -365,6 +370,21 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     }
     assert.equal(json(C.Clauses.slots('A {module:a_b|x {dmg} y}, {module:c|}.')), json([{ id: 'a_b', fallback: 'x {dmg} y', at: 2, end: 24 }, { id: 'c', fallback: '', at: 26, end: 37 }]));
     assert.equal(C.Clauses.unslot('A {module:a_b|x {dmg} y}, {module:c|}.', id => id === 'c'), 'A x {dmg} y, {module:c}.');
+  });
+
+  test('an exhibit\'s label says its module\'s rule only where its visit runs the module (Modules.active): not in a room without it, as a test room or the Orientation, nor with it switched off', () => {
+    const X = loadCore(), M = X.Registry.MODULES.unobserved_motion;
+    Object.assign(M, { clause: 'Moves only while you cannot see it.', params: {}, covers: [] });
+    X.Modules.define('unobserved_motion', {});
+    const rule = 'Moves only while you cannot see it.', ex = [{ sp: 'S9.1', at: [6, 3], mode: 'dormant', stats: { hp: 40, acc: 3, eva: 0, pad: 0, dmin: 4, dmax: 9 } }];
+    const said = s => X.Labels.of(s, s.actors[1].uid).behaviour.includes(rule);
+    const MAP = ['############', '#..........#', '#..........#', '#..........#', '############'];
+    const bare = X.Setup.room(1, { acc: 'S9', depth: 2, map: MAP, you: [2, 2], exhibits: ex });
+    const runs = X.Setup.room(1, { acc: 'S9', depth: 2, map: MAP, you: [2, 2], exhibits: ex });
+    X.Modules.init(runs, X.Packs.get('S9'));
+    const off = X.Setup.room(1, { acc: 'S9', depth: 2, map: MAP, you: [2, 2], exhibits: ex }, { rulesOff: ['unobserved_motion'] });
+    X.Modules.init(off, X.Packs.get('S9'));
+    assert.equal(json([said(bare), said(runs), said(off), X.Modules.active(runs), X.Modules.active(bare)]), json([false, true, false, ['unobserved_motion'], []]));
   });
 
   // ---- cp:, phases, the strip, the panel sentence ----
@@ -397,6 +417,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // A phase with nothing to add leaves nothing for the label.
     const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }, {}] });
     assert.equal(X.Clauses.strip(two, { depth: 4, phase: 2 }), X.Clauses.line(two, { depth: 4 }));
+    // Nor does a phase whose part is a module's alone, with that module off: its slot's
+    // fallback is empty, so the part says nothing and is not on the line (no "From phase 2: ."
+    // and no rest claimed for the label); on, it is the module's part, from phase 2.
+    const M = loadCore(), msp = planted(M, { entry: { clause: 'calls the court awake' } });
+    M.Registry.define('CLAUSES', 'planted_alarm_part', { built: 'M4', clause: '{module:planted_mod|}', params: {}, covers: [] });
+    const mcp = Object.assign({}, M.Packs.get('M11').centrepiece, { flags: msp.flags, phases: [{}, { parts: ['CLAUSES.planted_alarm_part'] }] });
+    const whole = M.Clauses.line(mcp, { depth: 4, rulesOff: ['planted_mod'] });
+    assert.equal(json([whole.includes('From phase'), M.Clauses.strip(mcp, { depth: 4, phase: 1, rulesOff: ['planted_mod'] }) === whole]), json([false, true]));
+    assert.ok(M.Clauses.line(mcp, { depth: 4 }).includes(' From phase 2: calls the court awake. '), M.Clauses.line(mcp, { depth: 4 }));
+    assert.ok(M.Clauses.strip(mcp, { depth: 4, phase: 1 }).endsWith(' Phase 1 of 2: its label has the rest.'));
     for (const [phases, why] of [['x', /phases are not a list/], [[7], /phase 1 is not a record/], [[{ parts: ['planted_summon'] }], /is not 'TABLE\.id'/],
       [[{ parts: ['SPECIALS.none'] }], /SPECIALS has no none/], [[{ parts: ['GLASS.planted'] }], /is not 'TABLE\.id'/], [[{ parts: ['MODULES.alarm_network'] }], /is not 'TABLE\.id'/]])
       assert.throws(() => X.Clauses.line(Object.assign({}, cp, { phases }), { depth: 4 }), why, json(phases));
@@ -425,9 +455,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         const r = spawnSync(process.execPath, [path.join(root, 'tools/lint-registry.js'), '--load', f], { encoding: 'utf8' });
         return { status: r.status, out: r.stdout + r.stderr };
       };
-      const arch = (id, clause, more) => `Registry.define('ARCHETYPES', '${id}', Object.assign({ built: 'M4', ready: 'unit', clause: ${json(clause)}, params: {}, covers: [], tests: ['m4-lines.test.js'], inv: 'system' }, ${json(more || {})}));`;
-      const good = lint([arch('planted_good', '{module:unobserved_motion|Walks steadily} and strikes for {g}.', { params: { g: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT' } })]);
-      assert.doesNotMatch(good.out, /planted_good/);
+      const entry = (t, id, clause, more) => `Registry.define('${t}', '${id}', Object.assign({ built: 'M4', ready: 'unit', clause: ${json(clause)}, params: {}, covers: [], tests: ['m4-lines.test.js'], inv: 'system' }, ${json(more || {})}));`;
+      const arch = (id, clause, more) => entry('ARCHETYPES', id, clause, more);
+      const mod = (id, clause) => `Registry.define('MODULES', '${id}', { built: 'M4', sentence: 'A planted module.', clause: ${json(clause)}, params: {}, covers: [] });`;
+      // Good in both forms: a slot whose module's clause reads well where it goes, and a phase
+      // part that continues "From phase 2: …".
+      const good = lint([arch('planted_good', '{module:unobserved_motion|Walks steadily} and strikes for {g}.', { params: { g: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT' } }),
+        mod('planted_lm4', 'Moves only while you cannot see it'), arch('planted_fine', '{module:planted_lm4|Walks a tile at a time} and strikes from beside you.'),
+        entry('CLAUSES', 'planted_phase_fine', 'it calls a body out of its frame'), "Packs.get('M11').centrepiece.phases = [{}, { parts: ['CLAUSES.planted_phase_fine'] }];"]);
+      assert.doesNotMatch(good.out, /planted_good|planted_fine|planted_lm4|planted_phase_fine/);
       const r = lint([
         arch('planted_nomod', '{module:planted_none|Walks} slowly.'),
         arch('planted_open', '{module:unobserved_motion|Walks slowly.'),
@@ -435,11 +471,24 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         arch('planted_words', '{module:unobserved_motion|Walks one tile at a time}.'),
         arch('planted_shape', '{module:unobserved_motion|walks}.'),
         "Registry.define('MODULES', 'planted_sent', { built: 'M4', sentence: 'Every {p} turns, a chime.' });",
+        // The form with each module on: words run together, a lower-case start, a module's own
+        // sentence that is none, a slot in a module's clause; and a phase part that is a sentence.
+        mod('planted_lm', 'Moves only while unseen'), arch('planted_glue', 'Keeps to its post{module:planted_lm|, and walks}.'),
+        mod('planted_lm2', 'moves only while unseen'), arch('planted_low', '{module:planted_lm2|Walks a tile at a time}.'),
+        mod('planted_lm3', '{module:planted_lm|Walks}.'), "Packs.species('S9', 'S9.3').flags = ['planted_lm2'];",
+        entry('CLAUSES', 'planted_phase_ok', 'it calls a body out of its frame'), entry('CLAUSES', 'planted_phase_bad', 'It strikes every tile round it.'),
+        "Packs.get('M11').centrepiece.phases = [{}, { parts: ['CLAUSES.planted_phase_ok', 'CLAUSES.planted_phase_bad'] }];",
       ]);
       assert.equal(r.status, 1);
       for (const want of [/ARCHETYPES\.planted_nomod: its slot names planted_none, which is no module/, /ARCHETYPES\.planted_open: Clauses: the slot for unobserved_motion is never closed/,
-        /ARCHETYPES\.planted_digit: a digit outside \{\}/, /ARCHETYPES\.planted_words: "one tile" states a number in words/, /ARCHETYPES\.planted_shape: its clause should be a sentence/, /MODULES\.planted_sent: \{p\} in its sentence has no parameter/])
+        /ARCHETYPES\.planted_digit: a digit outside \{\}/, /ARCHETYPES\.planted_words: "one tile" states a number in words/, /ARCHETYPES\.planted_shape: its clause should be a sentence/, /MODULES\.planted_sent: \{p\} in its sentence has no parameter/,
+        /ARCHETYPES\.planted_glue: its slot's words do not join the clause with its module on: "Keeps to its postMoves only while unseen\."/,
+        /ARCHETYPES\.planted_low: its clause should be a sentence with its module on: "moves only while unseen\."/,
+        /MODULES\.planted_lm3: a module's clause holds a module slot/,
+        /MODULES\.planted_lm2: its clause is a sentence of its own on S9\.3's line \(no clause of it has a slot for planted_lm2\)/,
+        /CLAUSES\.planted_phase_bad: its clause should continue "From phase k: …" \(M11\.11's phase 2\): "It strikes every tile round it\."/])
         assert.match(r.out, want);
+      assert.doesNotMatch(r.out, /planted_phase_ok|ARCHETYPES\.planted_glue: its clause should be a sentence:/);
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
 };
@@ -485,16 +534,26 @@ async function measure(root) {
     }, { chars: [...METRICS.chars], texts });
   } finally { await browser.close(); }
 }
+// What a fresh measure (measure) says that METRICS does not, one sentence each: none while
+// the model holds.
+function compare(m) {
+  const problems = [];
+  if (m.width !== METRICS.width) problems.push(`width ${m.width}, not ${METRICS.width}`);
+  if (m.lineHeight !== METRICS.lineHeight) problems.push(`row ${m.lineHeight} px, not ${METRICS.lineHeight}`);
+  if (m.budget !== METRICS.budgetRows) problems.push(`budget ${m.budget} rows, not ${METRICS.budgetRows}`);
+  [...METRICS.chars].forEach((c, i) => { if (m.adv[c] !== METRICS.adv[i]) problems.push(`${JSON.stringify(c)}: advance ${m.adv[c]}, not ${METRICS.adv[i]}`); });
+  const pairs = new Set([...KERN.keys(), ...Object.keys(m.kern)]);
+  for (const p of pairs) if ((m.kern[p] || 0) !== (KERN.get(p) || 0)) problems.push(`${JSON.stringify(p)}: kerning ${m.kern[p] || 0}, not ${KERN.get(p) || 0}`);
+  METRICS.calibration.forEach(([want, t], i) => { if (m.rows[i] !== want) problems.push(`calibration ${i}: ${m.rows[i]} rows in Chromium, not ${want}`); if (rows(t) !== m.rows[i]) problems.push(`calibration ${i}: the model gives ${rows(t)} rows, Chromium ${m.rows[i]}`); });
+  return problems;
+}
+module.exports.measure = measure;
+module.exports.compare = compare;
+module.exports.METRICS = METRICS;
 if (require.main === module) {
   (async () => {
     const path = require('node:path'), fs = require('node:fs'), root = path.join(__dirname, '..');
-    const m = await measure(root), file = __filename, problems = [];
-    if (m.width !== METRICS.width) problems.push(`width ${m.width}, not ${METRICS.width}`);
-    if (m.budget !== METRICS.budgetRows) problems.push(`budget ${m.budget} rows, not ${METRICS.budgetRows}`);
-    [...METRICS.chars].forEach((c, i) => { if (m.adv[c] !== METRICS.adv[i]) problems.push(`${JSON.stringify(c)}: advance ${m.adv[c]}, not ${METRICS.adv[i]}`); });
-    const pairs = new Set([...KERN.keys(), ...Object.keys(m.kern)]);
-    for (const p of pairs) if ((m.kern[p] || 0) !== (KERN.get(p) || 0)) problems.push(`${JSON.stringify(p)}: kerning ${m.kern[p] || 0}, not ${KERN.get(p) || 0}`);
-    METRICS.calibration.forEach(([want, t], i) => { if (m.rows[i] !== want) problems.push(`calibration ${i}: ${m.rows[i]} rows in Chromium, not ${want}`); if (rows(t) !== m.rows[i]) problems.push(`calibration ${i}: the model gives ${rows(t)} rows, Chromium ${m.rows[i]}`); });
+    const m = await measure(root), file = __filename, problems = compare(m);
     console.log(`measured: ${m.font}, width ${m.width} px, row ${m.lineHeight} px, budget ${m.budget} rows; ${problems.length ? problems.length + ' differences:\n  ' + problems.slice(0, 40).join('\n  ') : 'METRICS agrees'}`);
     if (process.argv.includes('--write') && problems.length) {
       const src = fs.readFileSync(file, 'utf8'), a = src.indexOf('// BEGIN METRICS'), z = src.indexOf('// END METRICS');

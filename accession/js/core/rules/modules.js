@@ -15,7 +15,8 @@
 //     every, at  a period's length (a whole number ≥ 1) and its place in it (0 ≤ at < every,
 //                0 if not given); either may be fn(state, m, a), read for each target
 //     who        fn(state, e, m) → [actor…]: the exhibits the rule acts on, in the order
-//                given; none given, it acts once, on no exhibit
+//                given (never you: a module's rule acts on exhibits); none given, it acts
+//                once, on no exhibit
 //     when       fn(state, e, m, a) → bool: asked for each target, just before it acts
 //                (so a rule's own earlier targets can change the answer)
 //     do         a list from the closed effect table (EFFECTS, below); any other throws here
@@ -29,7 +30,8 @@
 //                          the module is switched off (switched off, it makes its draws and
 //                          discards them, so population is the same, plan A10)
 //   bespoke: [name…]       the hand-written parts, for the validation log (Modules.bespoke);
-//                          each hook below that a module gives must be named in it:
+//                          each hook below that a module gives must be named in it, and a
+//                          hook's name in it must be one the module gives:
 //   turn(state, ev, m)                 at each boundary (step 8), after its rules
 //   alarmDecay(state, ev, m)           at each boundary (step 7)
 //   pipsDecay(state, m) → bool         may pips decay now (false: not while its alarm runs)
@@ -52,7 +54,8 @@
 //     the rule that made it; a rule acting three deep (a rule acting on an event of a rule
 //     acting on an event of a rule) throws, naming the chain;
 //   - a module draws only on its own stream, module/<id>/<acc>/d<depth> (Modules.rng);
-//   - once the visit is over (state.over), no module acts.
+//   - once the visit is over (state.over), no module acts, nor on the event that ends it
+//     (your death: from the blow that leaves you no health; your leaving).
 //
 // The hooks the core asks, each called from its one place:
 //   Modules.onEvent(state, e, ev)   by Causes.emit, after e is pushed and recorded
@@ -94,7 +97,7 @@ const Modules = (() => {
     flag: ['name', 'value'],
   };
   const EFFECTS = ['status', 'surface', 'wake', 'pips', 'move', 'special', 'alarm', 'clock', 'tier', 'flag'];
-  const NEEDS = { status: ['id', 'turns'], surface: ['kind', 'size', 'turns'], wake: ['mode', 'cause'], pips: ['n', 'cause'], move: ['to'], special: ['sp'],
+  const NEEDS = { status: ['id', 'turns'], surface: ['kind', 'size', 'turns'], wake: ['mode', 'cause'], pips: ['n', 'cause'], move: ['to'], special: ['sp', 'due'],
     alarm: ['turns'], clock: ['n'], tier: ['pct', 'acc'], flag: ['name', 'value'] };
   // The effects that act on the rule's target, an exhibit (surface does when it gives no `at`).
   const ON_TARGET = ['status', 'wake', 'pips', 'move', 'special', 'alarm', 'tier'];
@@ -159,10 +162,14 @@ const Modules = (() => {
     if (!Array.isArray(bespoke) || bespoke.some(b => typeof b !== 'string' || !b.length)) throw new Error(`Modules.define: ${id}'s bespoke is not a list of names`);
     if (def.init !== undefined && !isFn(def.init)) throw new Error(`Modules.define: ${id}'s init is not a function`);
     for (const h of HOOKS) {
-      if (def[h] === undefined) continue;
+      if (def[h] === undefined) { if (bespoke.includes(h)) throw new Error(`Modules.define: ${id}'s bespoke list names ${h}, which it does not give`); continue; }
       if (!isFn(def[h])) throw new Error(`Modules.define: ${id}'s ${h} is not a function`);
       if (!bespoke.includes(h)) throw new Error(`Modules.define: ${id}'s ${h} is written by hand, so its bespoke list must name it (the validation log, §5.4)`);
     }
+    // A module's special is a due line (§8.1), and only its threat lets Specials.threat warn of
+    // one it will mark before your next decision (no unseen special): so it must give threat.
+    const marks = rules.filter(r => r.do.some(f => f.k === 'special')).map(r => r.rule);
+    if (marks.length && !def.threat) throw new Error(`Modules.define: ${id}'s ${marks.join(', ')} mark${marks.length > 1 ? '' : 's'} a special, a due line, so it must give threat, which warns of its lines before they go off (§8.1: no unseen special)`);
     DEFS[id] = { id, rules: rules.slice(), bespoke: bespoke.slice(), init: def.init || null };
     for (const h of HOOKS) DEFS[id][h] = def[h] || null;
     ORDER.push(id);
@@ -244,7 +251,7 @@ const Modules = (() => {
     if (!r.who) return [null];
     const got = r.who(state, e, m);
     if (!Array.isArray(got)) throw new Error(`Modules: ${m.id}.${r.rule}'s who gave ${JSON.stringify(got)}, not a list of exhibits`);
-    for (const a of got) if (!a || typeof a.uid !== 'string' || !state.actors.includes(a) || a.gone) throw new Error(`Modules: ${m.id}.${r.rule}'s who gave ${a && a.uid}, not an exhibit present`);
+    for (const a of got) if (!a || typeof a.uid !== 'string' || a.uid === 'you' || !state.actors.includes(a) || a.gone) throw new Error(`Modules: ${m.id}.${r.rule}'s who gave ${a && a.uid}, not an exhibit present`);
     return got;
   }
   function inPeriod(state, m, r, a) {
@@ -307,11 +314,13 @@ const Modules = (() => {
       Surfaces.add(state, part(x, 'kind'), at[0], at[1], int(x, 'size', 1), int(x, 'turns', 1), x.a ? x.a.uid : null, ev, causeOf(x));
     },
     // wake: a sleeping exhibit wakes into `mode`, with `cause` (a wake cause, §8.2), set off
-    // toward `target` if given (Wake.wake). One not asleep, or a pipless one that this cause
-    // does not wake, throws.
+    // toward `target` if given (Wake.wake). One not asleep, a pipless one that this cause
+    // does not wake, or a Centrepiece's piece (which wakes from pips and damage only, §8.2:
+    // the alarm passes over it), throws.
     wake(state, x, ev) {
       const a = x.a, target = x.f.target === undefined ? undefined : part(x, 'target');
       if (a.mode !== 'dormant') throw new Error(`${where(x)}: ${a.uid} is not asleep (${a.mode})`);
+      if (Actors.centrepiece(a)) throw new Error(`${where(x)}: ${a.uid} is a Centrepiece's piece, which wakes from pips and damage only (§8.2)`);
       if (target !== undefined && !isTile(target)) throw new Error(`${where(x)}: its target ${JSON.stringify(target)} is not a tile`);
       if (!Wake.wake(state, a, x.f.mode, causeOf(x), ev, target === undefined ? {} : { target })) throw new Error(`${where(x)}: this cause does not wake ${a.uid}`);
     },
@@ -326,27 +335,33 @@ const Modules = (() => {
     },
     // move: a takes one step toward `to` (a tile) along a shortest walk, onto it, beside it or
     // to its anchor (`how`, onto if not given), as an exhibit steps (AI.route, Step.moveInto,
-    // then AI.afterStep); ties between equal steps on the module's own stream. The step costs
-    // a nothing: it is the rule's. With no step to take, it throws.
+    // then AI.afterStep); ties between equal steps on the module's own stream. A closed door
+    // on the way is that step, as for any exhibit (§8.2): a opens it and stays where it is.
+    // The step costs a nothing: it is the rule's. With no step to take, it throws.
     move(state, x, ev) {
       const a = x.a, to = part(x, 'to');
       if (!isTile(to)) throw new Error(`${where(x)}: its goal ${JSON.stringify(to)} is not a tile`);
       const way = AI.route(state, a, to, x.f.how || 'onto');
       if (!way.options.length) throw new Error(`${where(x)}: ${a.uid} has no step toward ${JSON.stringify(to)}`);
-      const d = way.options.length === 1 ? way.options[0] : rng(state, x.m.id).pick(way.options), x0 = a.x, y0 = a.y;
-      const r = Step.moveInto(state, a, d, ev);
-      if (typeof r !== 'number' || (a.x === x0 && a.y === y0)) throw new Error(`${where(x)}: ${a.uid}'s step failed (${r})`);
-      AI.afterStep(state, a, ev);
+      const d = way.options.length === 1 ? way.options[0] : rng(state, x.m.id).pick(way.options), x0 = a.x, y0 = a.y, n0 = ev.length;
+      const r = Step.moveInto(state, a, d, ev), stepped = a.x !== x0 || a.y !== y0;
+      const opened = !stepped && ev.slice(n0).some(e => e.k === 'opened' && e.who === a.uid);
+      if (typeof r !== 'number' || (!stepped && !opened)) throw new Error(`${where(x)}: ${a.uid}'s step failed (${r})`);
+      if (stepped) AI.afterStep(state, a, ev);
     },
     // special: a marks special `sp` on `tiles` (its shape's, Specials.tiles, if not given), due
-    // at the boundary tick `due` if given (a due line, §8.1), else resolved at a's next action
-    // (Specials.mark, which refuses what canMark does not allow). The mark costs a nothing.
+    // at the boundary tick `due` (a due line, §8.1; Specials.mark, which refuses what canMark
+    // does not allow, and a due that is not a boundary after now). A module's mark is always
+    // a due line: one resolved at its owner's next action would be held past your next
+    // decision only if made in that owner's own action, and a rule acts in yours or at a
+    // boundary, so it could go off unseen. Its module's threat warns of it (define requires
+    // one). The mark costs a nothing.
     special(state, x, ev) {
-      const a = x.a, sp = part(x, 'sp');
+      const a = x.a, sp = part(x, 'sp'), due = part(x, 'due');
       if (!own(Registry.SPECIALS, sp)) throw new Error(`${where(x)}: there is no special ${sp}`);
+      if (!Number.isInteger(due)) throw new Error(`${where(x)}: its due ${JSON.stringify(due)} is not a boundary's tick (a module's mark is a due line)`);
       const tiles = x.f.tiles === undefined ? Specials.tiles(state, a, Registry.SPECIALS[sp].shape) : part(x, 'tiles');
-      const due = x.f.due === undefined ? null : part(x, 'due');
-      Specials.mark(state, a, sp, tiles, ev, due === null ? undefined : { due });
+      Specials.mark(state, a, sp, tiles, ev, { due });
     },
     // alarm: a raises the module's alarm for `turns` turns: m.alarm = {by, since, until}, and
     // the alarm event {by, until} (§4.3), its cause the module. What an alarm does while it
@@ -387,10 +402,13 @@ const Modules = (() => {
   const live = state => entries(state).filter(m => isOn(state, m)).map(m => ({ m, d: DEFS[m.id] }));
 
   // Causes.emit, after every event: each rule of each module on that acts on its kind. A
-  // module event goes to no module (re-entry, §5.4), and once the visit is over none acts.
+  // module event goes to no module (re-entry, §5.4), and once the visit is over none acts,
+  // nor on the event that ends it: your leaving, and your death, which Combat sets as over
+  // only after the blow that leaves you no health (damaged) and your died have been emitted.
+  const ending = (state, e) => e.k === 'left' || (state.actors.length > 0 && (state.actors[0].gone || state.actors[0].hp <= 0));
   function onEvent(state, e, ev) {
     const list = entries(state);
-    if (!list.length || e.k === 'module' || state.over) return;
+    if (!list.length || e.k === 'module' || state.over || ending(state, e)) return;
     for (const { m, d } of live(state)) for (const r of d.rules) {
       if (state.over) return;
       if (r.on === e.k) run(state, m, r, e, ev);
