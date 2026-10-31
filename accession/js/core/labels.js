@@ -215,8 +215,10 @@ const Labels = (() => {
   }
 
   // The Behaviour line (§5.3), with its numbers at the department's depth, leaving out the
-  // clauses of rules switched off for this visit.
-  const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [] });
+  // clauses of rules switched off for this visit, and the part of any module the visit does
+  // not run (Modules.active: a room with no modules, as a test room or the Orientation, says
+  // what the exhibit does without them).
+  const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [], modules: Modules.active(state) });
 
   // The Attack button says what the blow you would make now does (§7.1): a surprise blow hits
   // for certain (§8.1), so it shows no chance; a Reach blow says so.

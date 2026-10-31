@@ -190,6 +190,29 @@ function unslotted(where, template) {
   } catch (err) { bad(`${where}: ${err.message}`); }
   return UNSLOTTED.get(where);
 }
+// The same clause with every slot holding its module's clause, as a line sets it where the
+// module is on (null while a slot's module has no clause yet): the other form a player reads.
+function slotted(template) {
+  let out = '', from = 0;
+  for (const s of Clauses.slots(template)) {
+    const M = R.MODULES[s.id];
+    if (!M || typeof M.clause !== 'string') return null;
+    out += template.slice(from, s.at) + M.clause;
+    from = s.end;
+  }
+  return out + template.slice(from);
+}
+const slotsOf = template => { try { return Clauses.slots(template); } catch (err) { return []; } };
+// A Centrepiece's phase parts (§5.3, Q10), 'TABLE.id' → where they are named: each continues
+// "From phase k: …" on its line (Clauses.join), so its clause is read as a continuation.
+const PHASE_PARTS = new Map();
+for (const [, sp] of allSpecies) if (Array.isArray(sp.phases)) sp.phases.forEach((ph, i) => {
+  for (const ref of ph && Array.isArray(ph.parts) ? ph.parts : []) {
+    if (typeof ref !== 'string') continue;
+    if (!PHASE_PARTS.has(ref)) PHASE_PARTS.set(ref, []);
+    PHASE_PARTS.get(ref).push(`${sp.id}'s phase ${i + 1}`);
+  }
+});
 const sentence = { ARCHETYPES: true, MODIFIERS: true, CLAUSES: true, SPECIALS: false, STATUSES: false };
 for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
@@ -227,10 +250,35 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   for (const s of e.inflicts || []) { if (!R.STATUSES[s]) bad(`${where} inflicts the unknown status ${s}`); else if (!holes.includes('status:' + s)) bad(`${where} inflicts ${s} but has no {status:${s}} in its clause`); }
   if (e.wake && !R.CLAUSES[e.wake]) bad(`${where} has the unknown wake clause ${e.wake}`);
   // Archetype, modifier and wake clauses are sentences; a special's or status's clause is
-  // set inside its archetype's; a trigger's continues the wake clause unless it replaces it.
-  const full = t === 'TRIGGERS' ? !!e.replacesWake : sentence[t];
-  if (full === true && !/^[A-Z].*\.$/.test(clause)) bad(`${where}: its clause should be a sentence: "${e.clause}"`);
-  if (full === false && (/\.$/.test(clause) || /^[A-Z]/.test(clause))) bad(`${where}: its clause should continue another: "${e.clause}"`);
+  // set inside its archetype's; a trigger's continues the wake clause unless it replaces it;
+  // a Centrepiece's phase part continues "From phase k: …", whatever its table. A clause with
+  // module slots is read in both its forms: at its fallbacks (module off), and with each
+  // module's clause in its slot (module on), where the words must also join: no word run
+  // into the next, no full stop inside a sentence, no space before a stop or a comma.
+  const phase = PHASE_PARTS.get(where);
+  const full = phase ? false : t === 'TRIGGERS' ? !!e.replacesWake : sentence[t];
+  const slots = slotsOf(e.clause), forms = [['', clause]];
+  if (slots.length && t === 'MODULES') bad(`${where}: a module's clause holds a module slot: "${e.clause}"`);
+  else if (slots.length && slotted(e.clause) !== null) forms.push([' with its module on', slotted(e.clause)]);
+  for (const [how, text] of forms) {
+    if (full === true && !/^[A-Z].*\.$/.test(text)) bad(`${where}: its clause should be a sentence${how}: "${text}"`);
+    if (full === false && (/\.$/.test(text) || /^[A-Z]/.test(text))) bad(`${where}: its clause should continue ${phase ? `"From phase k: …" (${phase.join(', ')})` : 'another'}${how}: "${text}"`);
+    if (slots.length && /[a-z0-9}][A-Z]|\.\s*[a-z,;:]|\s[.,;:]|\s\s/.test(text)) bad(`${where}: its slot's words do not join the clause${how}: "${text}"`);
+  }
+}
+// A module's clause on the line of a species flagged with it: set in a slot of one of the
+// species' clauses (read with them, above), or else a sentence of its own (Clauses.of).
+for (const [, sp] of allSpecies) for (const id of Array.isArray(sp.flags) ? sp.flags : []) {
+  const M = R.MODULES[id], a = R.ARCHETYPES[sp.archetype];
+  if (!M || typeof M.clause !== 'string' || !a) continue;
+  const tr = sp.trigger ? R.TRIGGERS[sp.trigger] : null, entries = [a, R.CLAUSES['role_' + sp.role], tr, tr && tr.replacesWake ? null : R.CLAUSES[a.wake || 'wake']];
+  for (const m of sp.modifiers || []) entries.push(R.MODIFIERS[m]);
+  for (const ph of Array.isArray(sp.phases) ? sp.phases : []) for (const ref of ph && Array.isArray(ph.parts) ? ph.parts : []) {
+    const r = typeof ref === 'string' ? /^([A-Z][A-Z_]*)\.(.+)$/.exec(ref) : null;
+    if (r && R[r[1]] && own(R[r[1]], r[2])) entries.push(R[r[1]][r[2]]);
+  }
+  const inSlot = entries.some(e => e && typeof e.clause === 'string' && slotsOf(e.clause).some(s => s.id === id));
+  if (!inSlot && !/^[A-Z].*\.$/.test(M.clause)) bad(`MODULES.${id}: its clause is a sentence of its own on ${sp.id}'s line (no clause of it has a slot for ${id}), so it should be a sentence: "${M.clause}"`);
 }
 
 // The word rules (M4 plan W0a), over a template: an entry's clause, and a module's panel
