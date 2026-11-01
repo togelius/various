@@ -340,7 +340,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const which of [['--strict'], ['--strict=M4']]) {
         r = lint(null, which);
         assert.equal(r.status, 1, which[0]);
-        has(r, /--strict: ARCHETYPES\.unobserved_mover is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
+        has(r, /--strict: ARCHETYPES\.demonstrator is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
         has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
       }
@@ -489,14 +489,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   // A planted department, T.9, holding S.9's two modules (unobserved_motion its signature, as
-  // its first) and one species of each kind the Intro rule tells apart (T9.5 a Wader, whose
-  // archetype's clause holds alarm_network's slot, as a species flagged with it must).
+  // its first) and one species of each kind the Intro rule tells apart (T9.3 a Grazer and T9.5
+  // a Wader, whose archetypes' clauses hold their modules' slots, as a species flagged with a
+  // module must, now that both modules are built).
   const T9 = more => `Packs.add(${json(Object.assign({ acc: 'T9', number: 'T.9', title: 'Planted', family: 'Planted', palette: 'S9', programme: 'enfilade',
     claim: { primary: 'guarded', secondary: null }, modules: [{ id: 'unobserved_motion' }, { id: 'alarm_network' }], items: [], consumables: { names: [], labels: {} },
     species: [
       { id: 'T9.1', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null },
       { id: 'T9.2', archetype: 'darter', role: 'skirmisher', modifiers: [], trigger: null },
-      { id: 'T9.3', archetype: 'plodder', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
+      { id: 'T9.3', archetype: 'unobserved_mover', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
       { id: 'T9.4', archetype: 'plodder', role: 'warden', modifiers: [], trigger: null },
       { id: 'T9.5', archetype: 'patrol_guard', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
       { id: 'T9.6', archetype: 'patrol_guard', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion', 'alarm_network'] },

@@ -100,7 +100,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([M.defined(), M.defined('planted_m'), M.defined('planted_none')]), json([real.concat(['planted_m']), true, false]));
     assert.equal(json(M.bespoke()), json(realBespoke.concat([{ id: 'planted_m', bespoke: ['pipsDecay', 'the gate'] }])));
     assert.equal(json(M.form('planted_m')), json({ rules: [{ rule: 'r', on: 'waited', do: ['flag'], telegraph: null }, { rule: 'shown', on: 'waited', do: ['flag'], telegraph: { turns: 1, shown: 'r' } }], bespoke: ['pipsDecay', 'the gate'] }));
-    assert.equal(M.form('unobserved_motion'), null);
+    assert.equal(M.form('planted_none'), null);
     assert.equal(json(M.EFFECTS), json(['status', 'surface', 'wake', 'pips', 'move', 'special', 'alarm', 'clock', 'tier', 'flag']), 'the closed table of §5.4');
   });
 
@@ -132,12 +132,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const d = C.Dept.create(4, acc, 3), want = C.Packs.get(acc).modules.filter(m => C.Modules.defined(m.id)).map(m => ({ id: m.id, role: m.role, on: true, since: 0, params: m.params || {} }));
       assert.equal(json(d.dept.modules), json(want), acc);
     }
-    const X = loadCore(), inits = [];
-    for (const id of ['alarm_network', 'unobserved_motion']) if (!X.Modules.defined(id)) X.Modules.define(id, { init: (state, p, m) => inits.push([m.id, m.on]) });
+    // Each layout attempt's modules are made (Dept.create's Modules.init, watched), in pack
+    // order, each off where rulesOff names it.
+    const X = loadCore(), inits = [], init = X.Modules.init;
+    X.Modules.init = (state, p) => { init(state, p); inits.push(state.dept.modules.map(m => [m.id, m.on])); };
     const d = X.Dept.create(4, 'S9', 3), o = X.Dept.create(4, 'S9', 3, { rulesOff: ['alarm_network'] });
     assert.equal(json(d.dept.modules), json([{ id: 'unobserved_motion', role: 'signature', on: true, since: 0, params: {} }, { id: 'alarm_network', role: 'secondary', on: true, since: 0, params: {} }]));
     assert.equal(json(o.dept.modules.map(m => [m.id, m.on])), json([['unobserved_motion', true], ['alarm_network', false]]));
-    assert.ok(inits.length >= 2, 'each attempt\'s modules are made');
+    assert.ok(inits.length >= 2 && json(inits[inits.length - 1]) === json([['unobserved_motion', true], ['alarm_network', false]]), 'each attempt\'s modules are made');
     // flagged: on, and the actor's species flagged with it (S9.1, the Grazer, with unobserved_motion).
     const s = X.Setup.room(1, { acc: 'S9', depth: 2, map: OPEN, you: [2, 3], exhibits: [{ sp: 'S9.1', at: [6, 3], mode: 'dormant', stats: BODY }, { sp: 'S9.3', at: [8, 3], mode: 'dormant', stats: BODY }] });
     assert.equal(X.Modules.flagged(s, s.actors[1], 'unobserved_motion'), false, 'not in the visit');

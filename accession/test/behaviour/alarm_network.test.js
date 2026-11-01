@@ -352,7 +352,8 @@ module.exports = ({ test, assert, loadCore }) => {
     let alarms = 0, patrols = 0, calls = 0;
     for (let seed = 1; seed <= 8; seed++) {
       const depth = 1 + ((seed - 1) % 7), s = X.Dept.create(seed, 'S9', depth);
-      assert.equal(json(s.dept.modules.map(m => [m.id, m.on])), json([[ID, true]]));
+      // S.9's modules, in pack order: unobserved_motion (MOD-UNOBSERVED) and this one.
+      assert.equal(json(s.dept.modules.map(m => [m.id, m.on])), json([['unobserved_motion', true], [ID, true]]));
       for (const a of s.actors.filter(b => b.arch === 'patrol_guard')) {
         if (!a.route) continue;
         patrols++;

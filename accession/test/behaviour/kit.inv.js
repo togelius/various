@@ -126,6 +126,13 @@ module.exports = (C) => {
           if (!after || after.where.at !== 'gone') return `the Restoration kit ${e.item} was not used up`;
           continue;
         }
+        // The Lamp (an `observing` curio, M4) has no charges: lighting it leaves it lit, hooding
+        // it leaves it hooded (lit absent, M4 plan A3), and nothing else of it changes.
+        if (e.how === 'light' || e.how === 'hood') {
+          const want = e.how === 'light' ? true : undefined, rest = it => { const o = Object.assign({}, it); delete o.lit; return C.State.canon(o); };
+          if (!before || !after || after.lit !== want || rest(after) !== rest(before)) return `${e.item} was ${e.how === 'light' ? 'lit' : 'hooded'}, but it is ${json(after)}`;
+          continue;
+        }
         const back = before && isInt(before.rechargeAt) && before.rechargeAt <= post.turn ? 1 : 0;
         if (!before || !after || before.charges < 1 || after.charges !== before.charges - 1 + back) return `${e.item} went from ${before && before.charges} to ${after && after.charges} charges in one use${back ? ', one coming back' : ''}`;
         if (e.how === 'fork' && !events.some(n => n.k === 'noise' && n.cls === 'soft' && n.x === c.x && n.y === c.y && n.cause && n.cause.k === 'fork' && n.cause.by === 'you')) return `the fork at ${c.x},${c.y} made no soft noise of yours there`;
@@ -139,12 +146,15 @@ module.exports = (C) => {
 
     // Quiet (§8.5): your ring is QUIET_RING smaller while your last action was a move or an
     // attack (a bump is a move, so a blow counts however it is struck) and you wear an item
-    // with the quiet primitive (once, however many), and the kit changes it in no other way.
+    // with the quiet primitive (once, however many); and LAMP_RING larger while you wear a lit
+    // Lamp (§5.5); the kit changes it in no other way.
     { id: 'kit.quiet', check(pre, events, post) {
       const you = post.actors[0], worn = [post.you.kit.weapon, post.you.kit.garment, post.you.kit.curio[0], post.you.kit.curio[1], post.you.kit.instrument]
         .map(u => byUid(post, u)).filter(Boolean);
       const quiet = worn.some(it => (it.prims || []).some(p => p.id === 'quiet'));
-      const want = quiet && (you.lastAct === 'move' || you.lastAct === 'attack') ? -N.QUIET_RING : 0, got = Kit.ringDelta(post);
+      // And a lit Lamp worn (an `observing` curio, M4, §5.5) makes it LAMP_RING larger.
+      const lit = [post.you.kit.curio[0], post.you.kit.curio[1]].map(u => byUid(post, u)).some(it => it && it.lit === true && (it.prims || []).some(p => p.id === 'observing'));
+      const want = (quiet && (you.lastAct === 'move' || you.lastAct === 'attack') ? -N.QUIET_RING : 0) + (lit ? N.LAMP_RING : 0), got = Kit.ringDelta(post);
       return got === want ? null : `the kit changes your ring by ${got}, not ${want}`;
     } },
 

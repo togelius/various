@@ -373,10 +373,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   test('an exhibit\'s label says its module\'s rule only where its visit runs the module (Modules.active): not in a room without it, as a test room or the Orientation, nor with it switched off', () => {
-    const X = loadCore(), M = X.Registry.MODULES.unobserved_motion;
-    Object.assign(M, { clause: 'Moves only while you cannot see it.', params: {}, covers: [] });
-    X.Modules.define('unobserved_motion', {});
-    const rule = 'Moves only while you cannot see it.', ex = [{ sp: 'S9.1', at: [6, 3], mode: 'dormant', stats: { hp: 40, acc: 3, eva: 0, pad: 0, dmin: 4, dmax: 9 } }];
+    // The Grazer's line (unobserved_motion, built by MOD-UNOBSERVED): the module's part in its
+    // archetype's slot where the visit runs the module, the fallback ("Walks a tile at a time")
+    // where it does not.
+    const X = loadCore();
+    const rule = 'but only while you cannot see it', ex = [{ sp: 'S9.1', at: [6, 3], mode: 'dormant', stats: { hp: 40, acc: 3, eva: 0, pad: 0, dmin: 4, dmax: 9 } }];
     const said = s => X.Labels.of(s, s.actors[1].uid).behaviour.includes(rule);
     const MAP = ['############', '#..........#', '#..........#', '#..........#', '############'];
     const bare = X.Setup.room(1, { acc: 'S9', depth: 2, map: MAP, you: [2, 2], exhibits: ex });

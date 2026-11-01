@@ -344,7 +344,11 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const acc of ACCS) {
       const pack = X.Packs.get(acc), out = X.Dept.generate(2, acc, 3);
       const held = pack.species.filter(m4).map(sp => sp.id);
-      assert.ok(held.length >= 1, acc);
+      // S.9's species are all built now (its modules' archetypes: the Wader, MOD-ALARM's, and
+      // the Grazer, MOD-UNOBSERVED's), so its gallery list places its Grazers; A.4 and M.11
+      // still hold species that wait.
+      if (acc === 'S9') assert.ok(!held.length && exhibitsOf(out.state).some(a => a.sp === 'S9.1'), `${acc}: ${json(held)}`);
+      else assert.ok(held.length >= 1, acc);
       for (const a of exhibitsOf(out.state)) assert.ok(!held.includes(a.sp), `${acc}: ${a.sp} is not ready`);
       for (const id of held) if (pack.galleries.some(g => g.contents.some(e => e.sp === id))) assert.ok(out.log.some(l => l.check === 'population' && l.op.startsWith(`${id} (`) && l.op.endsWith('is not placed: its archetype, a modifier or its trigger is not ready')), `${acc}: ${id} logged`);
       assert.ok(exhibitsOf(out.state).length > 0, `${acc}: the ready ones are placed`);
