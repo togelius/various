@@ -87,6 +87,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       // The log tells the chime, and the mark as its line.
       const log = Text.log(r.steps[9].events, Labels.nameOf(r.state));
       if (!log.includes(`The chime sounded: any line marked at it strikes in ${Text.count(W, 'turn')}.`)) return `the log at the chime: ${json(log)}`;
+      // In the order they come: it woke for the chime (step 4), then the chime sounded (step 8).
+      const iw = log.indexOf('The Semaphore Station, Two-Armed woke for the chime.'), ic = log.indexOf(`The chime sounded: any line marked at it strikes in ${Text.count(W, 'turn')}.`);
+      if (iw < 0 || iw > ic) return `the log at the chime does not say it woke for the chime before the chime sounded: ${json(log)}`;
       if (!log.some(l => / marks 12 tiles for its line: \d+ before your Padding, in 2 turns\.$/.test(l))) return `the log at the chime: ${json(log)}`;
       if (!r.clause || !r.clause.includes(`every ${params.DEMO_PERIOD} turns`)) return `the line does not give its period: "${r.clause}"`;
       return null;
@@ -317,6 +320,65 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(struck >= 4, `the dish stepped into the line and sent it back onto you in ${struck} runs`);
   });
 
+  test('the forecast warns behind a station only while a reflector could be in its way by the chime: a fast dish two tiles off its line walks in and sends it back onto you, warned; one four tiles off cannot, and you are neither warned nor struck', () => {
+    let warned = 0;
+    for (const depth of [1, 4, 7]) for (const [y, near] of [[3, true], [5, false]]) {
+      // The station at (3,1), east; you behind it at (1,1), equipping the turn before its chime
+      // (decision at tick 900, the chime's boundary at 1000: two fast steps, and one for a pole);
+      // a fast dish, awake, out of sight of you, going to look at (12,1) on the line.
+      const s = room(C, {}, { depth, map: ROW, you: [1, 1], rooms: SECTION, stations: [{ at: [3, 1], dir: 'E' }], items: [GARMENT],
+        more: [{ sp: 'M11.4', at: [12, y], mode: 'awake', target: [12, 1], speed: 'fast', next: 100000, stats: Roles.stats('controller', depth) }] });
+      H.play(C, s, waits(9), { inv: [] });
+      s.actors[2].next = 900;
+      const reach = HD.reach(s, s.actors[1], 10), behind = reach.some(t => t[0] === 1 && t[1] === 1);
+      assert.equal(behind, near, `the dish at 12,${y}: ${json(reach)}`);
+      assert.equal(json(HD.reach(s, s.actors[1]).filter(t => t[0] < 4)), json([[1, 1], [2, 1], [3, 1]]), 'at any time, any reflector could');
+      const t = Specials.threat(s, { a: 'equip', uid: 'g2' });
+      assert.equal(!!t && t.sp === SP, near, json(t));
+      const r = H.play(C, s, [{ a: 'equip', uid: 'g2' }], { inv: 'all' });
+      assert.deepEqual(r.violations, [], `depth ${depth}, the dish at 9,${y}`);
+      const back = r.events.find(e => e.k === 'damaged' && e.who === 'you' && e.cause.sp === SP);
+      assert.equal(!!back, near, json(r.events.filter(e => e.who === s.actors[2].uid).map(e => [e.k, e.tick])));
+      if (back) { assert.equal(json([back.cause.k, back.cause.by]), json(['reflected', s.actors[2].uid])); warned++; }
+    }
+    assert.equal(warned, 3);
+  });
+
+  test('while a module whose rules move exhibits is on, the count of a reflector\'s steps does not hold, and any reflector could turn a line back', () => {
+    const X = loadCore(), R = X.Registry;
+    R.define('MODULES', 'planted_mover', { built: 'M4', sentence: 'A planted rule moves exhibits.' });
+    R.defineCause('module', 'planted_mover', { fields: {}, built: 'M4' });
+    X.Text.defineCause('module', 'planted_mover', () => 'The planted rule acted.');
+    X.Modules.define('planted_mover', { rules: [{ rule: 'nudge', on: 'turn', who: state => state.actors.slice(1).filter(a => !a.gone), when: () => false, do: [{ k: 'move', to: [1, 1] }] }] });
+    const make = () => room(X, {}, { depth: 3, map: ROW, you: [1, 1], rooms: SECTION, stations: [{ at: [3, 1], dir: 'E' }],
+      more: [{ sp: 'M11.4', at: [12, 5], mode: 'dormant', stats: X.Roles.stats('controller', 3) }] });
+    const plain = make(), moved = make();
+    X.Modules.init(moved, { acc: 'M11', species: [], modules: [{ id: 'planted_mover', role: null, params: {} }] });
+    const behind = st => X.HourlyDemonstration.reach(st, st.actors[1], 1).some(t => t[0] === 1 && t[1] === 1);
+    assert.equal(json([behind(plain), behind(moved)]), json([false, true]));
+  });
+
+  test('a closed door in a station\'s room does not cut its forecast: a trolley opens it during your equip, the line goes through to you, and you were warned', () => {
+    // One room either side of a partition (x 8) with a door on row 3, as the Intro's stamp has.
+    const MAP = ['################', '#.......|......#', '#.......|......#', '#.......+......#', '#.......|......#', '#.......|......#', '################'];
+    const ONE = [{ key: 'sone', role: 'section', x0: 1, y0: 1, x1: 14, y1: 5 }];
+    for (const depth of [1, 4, 7]) {
+      const s = room(C, {}, { depth, map: MAP, you: [12, 3], rooms: ONE, stations: [{ at: [2, 3], dir: 'E' }], items: [GARMENT],
+        more: [{ sp: 'M11.5', at: [7, 3], mode: 'awake', target: [12, 2], next: 100000, stats: Roles.stats('fodder', depth) }] });
+      const a = s.actors[1];
+      assert.equal(json(HD.line(s, a)), json([3, 4, 5, 6, 7].map(x => [x, 3])), 'the door shut, the line stops before it');
+      assert.equal(json(HD.reach(s, a, 10)), json([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map(x => [x, 3])), 'its reach goes through it');
+      H.play(C, s, waits(9), { inv: [] });
+      s.actors[2].next = 900;
+      const t = Specials.threat(s, { a: 'equip', uid: 'g2' });
+      assert.ok(t && t.sp === SP && t.by === a.uid, json(t));
+      const r = H.play(C, s, [{ a: 'equip', uid: 'g2' }], { inv: 'all' });
+      assert.deepEqual(r.violations, [], `depth ${depth}`);
+      assert.ok(r.events.some(e => e.k === 'opened' && e.who === s.actors[2].uid), 'the trolley opened the door');
+      assert.ok(r.events.some(e => e.k === 'damaged' && e.who === 'you' && e.cause.sp === SP), 'the line went through to you');
+    }
+  });
+
   // ---- A sealed hall ----
   test('the chime still sounds in a sealed hall: the count from entry runs on while the clock is stopped, and its line strikes on time; the chip says so', () => {
     // ARCH-HALL's hall (x 1–7, y 1–5), its archway (8,2) and staff door (8,4); its 2×2 piece hunting you, held still.
@@ -339,19 +401,30 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   // ---- The mark kept and called off ----
-  test('a noise that sends a station marking its line to look elsewhere (awake to awake) leaves its line, which goes off; "Quiet, Please" puts it to sleep, and its line is called off because it went to sleep, never "it stopped hunting you"', () => {
+  test('a noise never sends a station anywhere: one marking its line hears your blow and stays as it is, and its line goes off; one asleep that a noise wakes woke where it stands, and the log never says it set off to look; "Quiet, Please" puts it to sleep, and its line is called off because it went to sleep, never "it stopped hunting you"', () => {
     for (const depth of [1, 4, 7]) {
       // You three tiles from the station, out of your still ring; a dummy asleep beside you.
       const s = room(C, {}, { depth, map: ROW, you: [5, 3], rooms: SECTION, stations: [{ at: [2, 1], dir: 'E' }],
         more: [{ sp: 'dummy', at: [4, 4], mode: 'dormant', stats: tough() }] });
       const st = s.actors[1].uid;
-      // Turn 10: the chime; then your blow's noise reaches it.
+      // Turn 10: the chime; then your blow's noise reaches it: nothing to look at, and nothing said.
       const r = H.play(C, s, [...waits(10), { a: 'attack', uid: s.actors[2].uid }, ...waits(2)], { inv: 'all', clone: true });
       assert.deepEqual(r.violations, [], `depth ${depth}`);
-      const alerted = r.events.find(e => e.k === 'alerted' && e.who === st);
-      assert.ok(alerted && alerted.turn === 10 && alerted.cause.k === 'noise', `the noise sent it to look: ${json(alerted)}`);
+      const noise = r.steps[10].events.find(e => e.k === 'noise' && e.cause.k === 'attack');
+      assert.ok(noise && C.Grid.distances(r.state.dept, [[noise.x, noise.y]], 99)[1 * r.state.dept.w + 2] <= noise.range, 'the blow\'s noise reached it');
+      assert.ok(!r.events.some(e => e.k === 'alerted' && e.who === st), json(r.events.filter(e => e.who === st).map(e => e.k)));
+      assert.equal(r.state.actors[1].target, null, 'it has nowhere to look');
+      for (const l of r.steps.flatMap(x => Text.log(x.events, Labels.nameOf(r.state)))) assert.doesNotMatch(l, /Semaphore.*(set off|look)/, l);
       assert.ok(!r.events.some(e => e.k === 'special' && e.who === st && e.cancelled), 'its line was not called off');
       assert.ok(r.events.some(e => e.k === 'special' && e.who === st && !e.cancelled && e.turn === 12), 'its line went off');
+      // Asleep with 2 pips, a station that your blow's noise wakes wakes where it stands.
+      const z = room(C, {}, { depth, map: ROW, you: [5, 3], rooms: SECTION, stations: [{ at: [2, 1], dir: 'E', pips: 2 }],
+        more: [{ sp: 'dummy', at: [4, 4], mode: 'dormant', stats: tough() }] });
+      const zr = H.play(C, z, [{ a: 'attack', uid: z.actors[2].uid }], { inv: 'all', clone: true });
+      assert.deepEqual(zr.violations, []);
+      const woke = zr.events.find(e => e.k === 'woke' && e.who === st);
+      assert.equal(json([woke.cause.k, woke.cause.how, woke.mode, zr.state.actors[1].target]), json(['noise', 'stands', 'awake', null]));
+      assert.equal(Text.event(woke, Labels.nameOf(zr.state)), `The Semaphore Station, Two-Armed woke: it heard a ${woke.cause.cls} noise.`);
       // "Quiet, Please", read at turn 10 beside it: it goes to sleep, and its line is called off.
       // You six tiles off, out of your ring and within its reach.
       const q = room(C, {}, { depth, map: ROW, you: [8, 4], rooms: SECTION, stations: [{ at: [2, 1], dir: 'E' }] });
@@ -405,7 +478,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ];
     assert.equal(json(said), json(['The chime sounded: any line marked at it strikes in 2 turns.', 'The Semaphore Station, Two-Armed marked its line at the chime.',
       'The Semaphore Station, Two-Armed did not mark its line: another mark already lies on it.', 'The Semaphore Station, Two-Armed went back to sleep, with the pips it had.',
-      'The Semaphore Station, Two-Armed woke: the chime sounded.', 'The Semaphore Station, Two-Armed marks 2 tiles for its line: 7 before your Padding, in 2 turns.',
+      'The Semaphore Station, Two-Armed woke for the chime.', 'The Semaphore Station, Two-Armed marks 2 tiles for its line: 7 before your Padding, in 2 turns.',
       'The Semaphore Station, Two-Armed used its line: it struck you.',
       'On the chime, every station marks its line across its room, and two turns later the line strikes everything on it.']));
     for (const s of said) { assert.ok(clean(s), s); assert.doesNotMatch(s, /\bbell\b/i, s); }

@@ -265,19 +265,24 @@ const Wake = (() => {
   //   hunting: if you made the noise, its last-known tile becomes the noise's tile (the
   //     Tuning Fork's lure is yours too); another exhibit's noise says nothing about where
   //     you are. Its count of turns out of sight goes on.
+  // An exhibit that never hunts (a station, M4) never steps either, so a noise sends it
+  // nowhere: asleep, it gains its pip and wakes awake where it stands, its cause saying so
+  // (how: 'stands', so the log never says it set off to look); awake, the noise only counts
+  // as a stimulus.
   // The cause names the source (who made the noise, when someone did, and its tile x, y),
   // the walking distance and the class (§3.4: a wake event names the trigger, the source and
   // the distance). Returns whether a changed.
   function hear(state, a, noise, dist, ev) {
     if (!a || a.gone || a.uid === 'you' || Archetypes.pipless(state, a)) return false;
     if (noise.by && noise.by === a.uid) return false;
-    const src = [noise.x, noise.y], cause = { k: 'noise' };
+    const src = [noise.x, noise.y], cause = { k: 'noise' }, stands = !hunts(state, a);
     if (noise.by) cause.by = noise.by;
     cause.dist = dist; cause.cls = noise.cls; cause.x = noise.x; cause.y = noise.y;
+    if (stands) cause.how = 'stands';
     switch (a.mode) {
-      case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, { target: src }) || a.pips !== pips; }
+      case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, stands ? {} : { target: src }) || a.pips !== pips; }
       case 'awake':
-        if (Array.isArray(a.target) && a.target[0] === src[0] && a.target[1] === src[1]) { a.stim = state.turn; return true; }
+        if (stands || (Array.isArray(a.target) && a.target[0] === src[0] && a.target[1] === src[1])) { a.stim = state.turn; return true; }
         return setMode(state, a, 'awake', cause, ev, { target: src });
       case 'searching': case 'returning': case 'reinstalling':
         return setMode(state, a, 'awake', cause, ev, { target: src });

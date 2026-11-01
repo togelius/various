@@ -45,7 +45,8 @@
 
   function wakeRegion(state, a, turns) {
     if (!HourlyDemonstration.strikesWithin(state, a, turns)) return [];
-    const out = HourlyDemonstration.reach(state, a);
+    // Its reach for a chime as late as the turns allow (the most a reflector could walk by then).
+    const out = HourlyDemonstration.reach(state, a, state.turn + turns);
     if (a.telegraph && a.telegraph.sp === 'demo_line') for (const t of a.telegraph.tiles) out.push([t[0], t[1]]);
     return out;
   }

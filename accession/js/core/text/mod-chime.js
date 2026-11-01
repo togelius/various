@@ -11,12 +11,14 @@
 'use strict';
 (() => {
   const isInt = Number.isInteger;
-  const why = 'the chime sounded';
-  Text.defineCause('woke', 'period', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${why}.` : `${w.Name(e.who)} woke: ${why}.`);
-  Text.defineCause('hunting', 'period', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why}.` : `${w.Name(e.who)} began hunting you: ${why}.`);
+  // A station wakes for its chime at the boundary's wake checks (step 4), before the chime
+  // sounds (step 8): so the log says it woke for the chime, then that the chime sounded, in
+  // the order they come, never that the chime had sounded before it did.
+  Text.defineCause('woke', 'period', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake for the chime.` : `${w.Name(e.who)} woke for the chime.`);
+  Text.defineCause('hunting', 'period', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke for the chime and began hunting you.` : `${w.Name(e.who)} began hunting you at the chime.`);
   // A chime wakes every station in one step: the log tells them in one line.
   // (One made awake, with no `was`, did not wake, and is told alone.)
-  Text.defineGroup('woke', 'period', events => `At the chime, ${Text.count(events.length, 'station')} woke to mark their lines.`,
+  Text.defineGroup('woke', 'period', events => `${Text.count(events.length, 'station')} woke for the chime.`,
     e => e.was == null ? null : '');
 
   const RULES = {

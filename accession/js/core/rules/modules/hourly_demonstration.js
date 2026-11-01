@@ -58,8 +58,9 @@
 // reflects steps into or out of it, a door on it opens, a cloud clears). So the forecast is
 // every tile it could take then (HourlyDemonstration.reach): along its direction, every tile
 // of its room up to the first that sight can never pass (a wall, a column: not a door, a cloud
-// or an exhibit); and, while an exhibit that reflects stands anywhere in the department, its
-// station's tile and every such tile behind it, where a reflector in its way would send it.
+// or an exhibit); and, while an exhibit that reflects could stand in its way by the chime
+// (within as many tiles of it as the steps it could take before then), its station's tile and
+// every such tile behind it, where a reflector in its way would send it.
 // A chime its station will still be held fixed through (a fixed status whose end is after it)
 // marks nothing, and is left out. It reads nothing an action's roll could change but whether a
 // reflector stands, so
@@ -79,7 +80,9 @@
 //                                                      period (for the dial: the room you
 //                                                      stand in); null with the module off
 //   HourlyDemonstration.line(state, a) → [[x, y]]      the tiles a's line would take if marked now
-//   HourlyDemonstration.reach(state, a) → [[x, y]]     every tile a line of a's could take (above)
+//   HourlyDemonstration.reach(state, a, c?) → [[x, y]] every tile a line of a's marked at the
+//                                                      boundary of turn c (any, with c absent)
+//                                                      could take (above)
 //   HourlyDemonstration.strikesWithin(state, a, turns) → bool   a line of a's goes off within
 //                                                      the next `turns` turn boundaries
 //   HourlyDemonstration.performing(a) → bool           a woke for its performance (ax.perform)
@@ -150,19 +153,40 @@ const HourlyDemonstration = (() => {
     glass: true,
   });
 
-  // Every tile a line of a's could take when it is marked: along its direction, each tile of
-  // its room up to the first that sight can never pass (a door, closed or not, and whatever
-  // stands or lies on a tile, can change before then); and, while an exhibit that reflects
-  // stands in the department, a's own tile and the same run behind it. Row-major, each once.
-  function reach(state, a) {
-    const d = dirOf(a), m = state.dept, out = [];
-    if (d < 0) return out;
+  // Every tile a line of a's could take when it is marked at the boundary of turn c (any time,
+  // with c absent): along its direction, each tile of its room up to the first that sight can
+  // never pass (its forward run: a door, closed or not, and whatever stands or lies on a tile,
+  // can change before then); and a's own tile and the same run behind it, which the line
+  // takes only when a reflector in its way turns it back, while an exhibit that reflects could
+  // stand on its forward run then (mayTurn). Row-major, each once.
+  function reach(state, a, c) {
+    const d = dirOf(a), m = state.dept;
+    if (d < 0) return [];
     const room = roomAt(m, a.x, a.y);
     const passes = (x, y) => Grid.inside(m, x, y) && (room === null || roomAt(m, x, y) === room) && (Grid.seeThrough(m, x, y) || Grid.closedDoor(m, x, y));
-    const run = k => { for (let x = a.x + Grid.DX[k], y = a.y + Grid.DY[k]; passes(x, y); x += Grid.DX[k], y += Grid.DY[k]) out.push([x, y]); };
-    run(d);
-    if (state.actors.some(b => b.uid !== 'you' && Ranged.isReflector(state, b))) { out.push([a.x, a.y]); run((d + 4) % 8); }
+    const run = k => { const got = []; for (let x = a.x + Grid.DX[k], y = a.y + Grid.DY[k]; passes(x, y); x += Grid.DX[k], y += Grid.DY[k]) got.push([x, y]); return got; };
+    const fwd = run(d), out = fwd.slice();
+    if (fwd.length && state.actors.some(b => mayTurn(state, b, fwd, c))) out.push([a.x, a.y], ...run((d + 4) % 8));
     return out.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+  }
+  // Could b, an exhibit that reflects, stand on a tile of fwd when the line is marked at the
+  // boundary of turn c? With c absent, any that reflects could. Otherwise one that stands
+  // within as many tiles of it (counted as a step goes, in any of the 8 directions: Grid.
+  // chebyshev) as the steps it could take before then: an exhibit changes tile only by its own
+  // one-tile steps, each costing at least a fast step (COST_STEP × SPEED_FAST_PCT%), so from
+  // now (state.tick) to that boundary it takes at most one a fast step's ticks, the first at
+  // once; and one more, for a Window Pole of yours. A module whose rules move exhibits (the
+  // form's move effect, which costs them nothing) would break that count: while one is on,
+  // any that reflects could. Nothing makes a new reflector during a visit (a package that
+  // makes one, or moves an exhibit faster, must widen this). It reads the state before your
+  // action, never what its roll changes.
+  const FAST = Int.pct(N.COST_STEP, N.SPEED_FAST_PCT);
+  const moving = state => Modules.active(state).some(id => Modules.form(id).rules.some(r => r.do.includes('move')));
+  function mayTurn(state, b, fwd, c) {
+    if (b.uid === 'you' || !Ranged.isReflector(state, b)) return false;
+    if (c === undefined || moving(state)) return true;
+    const ticks = c * N.TICKS_PER_TURN - state.tick, steps = (ticks > 0 ? Int.idiv(ticks - 1, FAST) + 1 : 0) + 1;
+    return Actors.footprint(b).some(([x, y]) => fwd.some(t => Grid.chebyshev(x, y, t[0], t[1]) <= steps));
   }
   // Does a line of a's go off within the next `turns` boundaries: one marked now, or one a
   // chime of its will mark (its chime after now, its multiple within them)?
@@ -226,9 +250,12 @@ const HourlyDemonstration = (() => {
     threat(state, untilTick, m) {
       const out = [], T = N.TICKS_PER_TURN, gross = Specials.info(state, SP).gross;
       for (const a of stations(state)) {
-        const p = period(state, a), tiles = reach(state, a);
-        if (!tiles.length) continue;
-        for (let c = state.turn + 1; (c + W) * T < untilTick; c++) if (chimeOf(m, p, c) && !fixedAt(a, c)) out.push({ by: a.uid, sp: SP, tiles: tiles.map(t => t.slice()), gross, due: (c + W) * T });
+        const p = period(state, a);
+        for (let c = state.turn + 1; (c + W) * T < untilTick; c++) {
+          if (!chimeOf(m, p, c) || fixedAt(a, c)) continue;
+          const tiles = reach(state, a, c);
+          if (tiles.length) out.push({ by: a.uid, sp: SP, tiles, gross, due: (c + W) * T });
+        }
       }
       return out;
     },
