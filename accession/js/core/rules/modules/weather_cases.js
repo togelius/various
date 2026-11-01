@@ -52,15 +52,17 @@
 // With the module off (rulesOff, or a visit without it) no case holds weather, so nothing is
 // let out, and a test room's case given weather by hand lets nothing out.
 //
-// Its words (D1.3, M4 plan A11's "Rain on clockwork", decided without play; revisit once M4 is
-// playable): the rain's stop is told where the rain is, not on the station's line. A flagged
-// species' line carries the module's part (§5.3), and its part is empty: M11.2's line takes
-// the phone strip's 14 rows (its budget, test/m4-lines.test.js) with clockwork's slot for it
-// empty, and with every honest tightening found (21 characters) even "Rain stops it." makes it
-// 15. So a shut case that holds weather says so on its label (Labels' case, WeatherCases.words):
-// what it lets out, how large, for how long, and, for rain, which of the department's
-// exhibits it stops and for how long; the stop is told in the log as it happens, with its
-// reason, and the label of a station held shows the status and its turns.
+// Its words (D1.3, M4 plan A11's "Rain on clockwork"; MOD-WEATHER's review, decided in play):
+// a flagged species' line carries the module's part (§5.3), "Rain stops it.", a sentence of its
+// own after the modifiers (the rule is this module's, not clockwork's, and holds with clockwork
+// switched off); M11.2's line keeps the phone strip's 14 rows with it (its budget,
+// test/m4-lines.test.js) since clockwork's clause says its rule in fewer words. How, and for
+// how long, is told where the rain is: a shut case that holds weather says so on its label
+// (Labels' case, WeatherCases.words): what it lets out, how large, for how long, and, for rain,
+// which of the department's exhibits it stops, that each only waits and any mark it has made
+// is called off, while it stands in rain and for RAIN_STOP_TURNS turns after; the stop is told
+// in the log as it happens, with its reason, and the label of a station held shows the status
+// and its turns (and says that a chime would make it mark nothing, Labels' plan line).
 //
 // Bespoke (plan A7, MO18; Modules.bespoke): nothing. Its three rules are the form's (the
 // surface and status effects of its closed table): weather fits the form.

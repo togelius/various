@@ -10,29 +10,33 @@
   const proved = extra => Object.assign({ ready: true, tests: ['behaviour/weather_cases.test.js'], inv: 'weather' }, extra);
 
   // The module (§5.4), its panel sentence and the words that name its rule (the Intro lint).
-  // Its part on the line of a species flagged with it (M.11's gallery station, M11.2, set in
-  // clockwork's slot, {module:weather_cases|}) is empty, by decision (M4 plan A11's "Rain on
-  // clockwork", D1.3; decided without play; revisit once M4 is playable): that line takes the
-  // phone strip's 14 rows without it (test/m4-lines.test.js), and 15 with even "Rain stops it."
-  // after every honest tightening found, so the rain's stop is told where the rain is: on the
-  // label of a case that holds it (WeatherCases.words: which exhibits it stops, and for how
-  // long), in the log as it happens, and by the status on the label of a station it holds. It
-  // covers no event of the line: a module event naming a station (rain_stop) is covered by the
-  // chime's part, as a status is by none (§5.3, completeness: a status is suffered, not caused).
+  // Its part on the line of a species flagged with it (M.11's gallery station, M11.2): "Rain
+  // stops it.", a sentence of its own after the modifiers (M4 plan A11's "Rain on clockwork",
+  // D1.3: the rule is this module's, not clockwork's, and it holds with clockwork switched off).
+  // MOD-WEATHER's review, decided in play: the line takes the phone strip's 14 rows with it
+  // (test/m4-lines.test.js) once clockwork's clause says its rule in fewer words; A11's whole
+  // "Stops while it stands in rain and for 2 turns after" would take 15. How, and for how long,
+  // is told where the rain is: on the label of a case that holds it (WeatherCases.words: which
+  // exhibits it stops, that each only waits and any mark it has made is called off, while it
+  // stands in rain and for RAIN_STOP_TURNS turns after), in the log as it happens, and by the
+  // status on the label of a station it holds. It covers no event of the line: a module event
+  // naming a station (rain_stop) is covered by the chime's part, as a status is by none (§5.3,
+  // completeness: a status is suffered, not caused).
   R.define('MODULES', 'weather_cases', proved({ built: 'M4', icon: null,
     sentence: 'Some cases hold weather. Break one, and the weather gets out.', keywords: ['weather', 'fog', 'rain'],
-    clause: '', params: {}, covers: [] }));
+    clause: 'Rain stops it.', params: {}, covers: [] }));
 
   // Fog and rain (§8.1's surfaces; M4 plan A13): a square WEATHER_SIZE tiles a side, centred
-  // on the case that held it, for WEATHER_TURNS turns. Fog blocks sight across it (so a beam,
-  // an axis and a line too, §8.2); rain blocks nothing, is not a loud floor, and stops the
-  // exhibits its case's label names, while they stand in it and for RAIN_STOP_TURNS turns after
-  // (rules/modules/weather_cases.js). Each clause is a sentence of its own, for the label of a
-  // tile it covers.
+  // on the case that held it, for WEATHER_TURNS turns. Fog blocks sight across it (so it stops
+  // a beam, an axis and a line marked while it lies, §8.2; a mark already made keeps its tiles,
+  // §4.1); rain blocks nothing, is not a loud floor, and stops each exhibit whose line says
+  // "Rain stops it." (flagged with the module) while it stands in it and for RAIN_STOP_TURNS
+  // turns after (rules/modules/weather_cases.js). Each clause is a sentence of its own, for the
+  // label of a tile it covers.
   const surface = (blocksSight, icon, clause, params) => proved({ built: 'M4', blocksSight, icon, clause, params, covers: [], size: 'WEATHER_SIZE', turns: 'WEATHER_TURNS' });
   R.define('SURFACES', 'fog', surface(true, 'fog', 'Fog {WEATHER_SIZE} tiles a side blocks sight for {WEATHER_TURNS} turns.',
     { WEATHER_SIZE: 'N:WEATHER_SIZE', WEATHER_TURNS: 'N:WEATHER_TURNS' }));
-  R.define('SURFACES', 'rain', surface(false, 'rain', 'Rain soaks the floor {WEATHER_SIZE} tiles a side for {WEATHER_TURNS} turns; the exhibits its case’s label names only wait while they stand in it, and for {RAIN_STOP_TURNS} turns after.',
+  R.define('SURFACES', 'rain', surface(false, 'rain', 'Rain soaks the floor {WEATHER_SIZE} tiles a side for {WEATHER_TURNS} turns; an exhibit whose line says rain stops it only waits while it stands in it, and for {RAIN_STOP_TURNS} turns after.',
     { WEATHER_SIZE: 'N:WEATHER_SIZE', WEATHER_TURNS: 'N:WEATHER_TURNS', RAIN_STOP_TURNS: 'N:RAIN_STOP_TURNS' }));
 
   // Weather out of a case (§4.3's surface): its kind, fog or rain, from the case at `case`.

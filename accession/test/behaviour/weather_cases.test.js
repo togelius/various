@@ -11,8 +11,9 @@
 // axis and a beam; a station asleep and one awake; a second rain; the Intro's station, never
 // flagged, never stopped; departments: which cases hold weather (the draws on the attempt's
 // …/a<k>/weather, the hall's rain case, none in the Intro, none with the module off, the rooms
-// the same either way), a case's label, the station's line (the decision: its part is empty,
-// and the line keeps its 14 rows), the words and the form, and the numbers read.
+// the same either way), a case's label, the station's line (the decision, in review: its part
+// is "Rain stops it.", a sentence of its own; m4-lines holds the line to 14 rows), the label of
+// a station held fixed, the words and the form, and the numbers read.
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore }) => {
@@ -294,6 +295,27 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const acc of ['S9', 'A4']) for (const seed of [1, 2, 3]) assert.ok(!Dept.create(seed, acc, 3, {}).dept.fixtures.some(f => f.weather !== undefined), acc);
   });
 
+  test('two draws a real case on the accepted attempt\'s …/a<k>/weather, the module on or off (counted on the stream itself), and none on any other path of its', () => {
+    const X = loadCore(), orig = X.Rng.stream, drawn = new Map();
+    // Count every draw made on a weather stream, by its path.
+    X.Rng.stream = (holder, p) => {
+      const r = orig(holder, p);
+      if (!/\/weather$/.test(p)) return r;
+      const w = Object.create(r);
+      w.int = (a, b) => { drawn.set(p, (drawn.get(p) || 0) + 1); return r.int(a, b); };
+      return w;
+    };
+    for (let seed = 1; seed <= 14; seed++) for (const rulesOff of [[], [ID]]) {
+      drawn.clear();
+      const depth = 1 + (seed - 1) % 7, g = X.Dept.generate(seed, 'M11', depth, { rulesOff });
+      const real = g.state.dept.fixtures.filter(f => f.k === 'case' && !f.mimic).length;
+      assert.ok(real > 0);
+      assert.equal(drawn.get(`${g.base}/weather`), 2 * real, `seed ${seed}${rulesOff.length ? ', module off' : ''}: ${json([...drawn])}`);
+      // Any other weather stream drawn on is an earlier attempt's, which the validators turned down.
+      for (const p of drawn.keys()) assert.ok(p === `${g.base}/weather` || /\/a\d+\/weather$/.test(p), p);
+    }
+  });
+
   test('a room not made by a layout attempt draws nothing and is given no weather; given an attempt\'s key, every real case is drawn for, the Intro\'s given none, the hall\'s rain, a mimic\'s disguise neither', () => {
     const s = room(C, {}, { depth: 3, map: OPEN, you: [7, 3], cases: [{ at: [6, 3] }, { at: [8, 3] }] });
     assert.ok(!s.dept.fixtures.some(f => f.weather !== undefined));
@@ -348,17 +370,52 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('the station\'s line (the decision): its weather part is empty, so it says nothing of rain and keeps its rows; with clockwork switched off it gains no gap', () => {
-    const sp = Packs.species('M11', 'M11.2');
+  test('the station\'s line (the decision, in review): "Rain stops it.", a sentence of its own after clockwork\'s, on M11.2\'s line while the module is on (with clockwork switched off too, since rain stops it then as well); gone with the module off or from a visit without it; never on the Intro\'s station', () => {
+    const sp = Packs.species('M11', 'M11.2'), intro = Packs.species('M11', 'M11.12');
     for (const depth of H.DEPTHS) {
       const parts = Clauses.of(sp, { depth });
       const w = parts.find(p => p.kind === 'module' && p.id === ID);
-      assert.ok(w && w.text === '' && w.within === 'clockwork', json(w));
-      const on = Clauses.line(sp, { depth }), off = Clauses.line(sp, { depth, rulesOff: [ID] });
-      assert.equal(on, off, 'the line is the same with the module off');
-      for (const kw of C.Registry.MODULES[ID].keywords) assert.ok(!on.toLowerCase().includes(kw), on);
+      assert.ok(w && w.text === 'Rain stops it.' && w.within === null, json(w));
+      const on = Clauses.line(sp, { depth });
+      assert.ok(on.includes('; cannot be dazed. Rain stops it. Wakes when'), on);
+      for (const off of [{ rulesOff: [ID] }, { modules: ['hourly_demonstration'] }]) {
+        const line = Clauses.line(sp, Object.assign({ depth }, off));
+        assert.ok(!/rain/i.test(line) && line === on.replace(' Rain stops it.', ''), line);
+      }
       const noClock = Clauses.line(sp, { depth, rulesOff: ['clockwork'] });
-      assert.ok(!/\s\s/.test(noClock) && Clauses.of(sp, { depth, rulesOff: ['clockwork'] }).some(p => p.kind === 'module' && p.id === ID && p.within === null), noClock);
+      assert.ok(noClock.includes('has no blow. Rain stops it. Wakes when') && !/\s\s/.test(noClock), noClock);
+      assert.ok(!/rain/i.test(Clauses.line(intro, { depth })), 'the Intro\'s station');
+    }
+    // What it says holds with clockwork switched off: rain stops the station all the same.
+    for (const rulesOff of [[], ['clockwork']]) {
+      const s = room(C, { rulesOff }, { depth: 3, map: OPEN, you: [3, 3], stations: [{ at: [2, 1], dir: 'E' }], cases: [{ at: [3, 2], weather: 'rain' }] });
+      const r = H.play(C, s, [{ a: 'bash', x: 3, y: 2 }], { inv: 'all' });
+      assert.deepEqual(r.violations, []);
+      assert.ok(Status.has(s.actors[1], 'fixed') && rules(r.events, 'rain_stop').length === 1, json(rulesOff));
+    }
+  });
+
+  test('the label of a station held fixed says a chime would make it mark nothing, not its line, and its line again once it is free (rain, and Fixative alike)', () => {
+    for (const depth of [1, 4, 7]) {
+      const s = room(C, {}, { depth, map: OPEN, you: [3, 3], stations: [{ at: [2, 1], dir: 'E' }], cases: [{ at: [3, 2], weather: 'rain' }] });
+      const st = s.actors[1], plan = () => Labels.of(s, st.uid).odds.filter(l => /^If the chime sounded now/.test(l));
+      const LINE = /^If the chime sounded now, it would mark its line: \d+ tiles to the east\.$/, HELD = 'If the chime sounded now, it would mark nothing: it is fixed in place.';
+      assert.ok(plan().length === 1 && LINE.test(plan()[0]), json(plan()));
+      const r = H.play(C, s, [{ a: 'bash', x: 3, y: 2 }], { inv: 'all' });
+      assert.deepEqual(r.violations, []);
+      assert.equal(json(plan()), json([HELD]), `depth ${depth}`);
+      // And so it does: held through a chime, it marks nothing.
+      const t = r.steps[0].events[0].turn;
+      const held = H.play(C, s, waits(freeAt(t) - 1 - s.turn), { inv: 'all' });
+      assert.deepEqual(held.violations, []);
+      assert.ok(held.events.some(e => e.k === 'module' && e.id === 'hourly_demonstration' && e.rule === 'chime'), 'a chime came while it was held');
+      assert.ok(!held.events.some(e => e.k === 'telegraphed' && e.who === st.uid), 'it marked while held');
+      assert.equal(json(plan()), json([HELD]));
+      H.play(C, s, waits(1), { inv: 'all' });
+      assert.ok(!Status.has(st, 'fixed') && LINE.test(plan()[0]), json(plan()));
+      // Fixative's fixed says the same.
+      C.Status.apply(s, st, 'fixed', 3, { k: 'planted' }, []);
+      assert.equal(json(plan()), json([HELD]));
     }
   });
 
