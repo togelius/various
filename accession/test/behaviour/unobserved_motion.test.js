@@ -321,6 +321,52 @@ module.exports = ({ test, assert, loadCore }) => {
     ok(H.sweep(W, corridor, list()), corridor.name);
   });
 
+  // ---- The Lamp Corridor itself: S.9's Intro, as population makes it ----
+  // S.9 with a gallery list (empty: the stamp places the Intro's exhibits, BUILD §5.5), at depths
+  // 1–7: its Grazer sleeps on its plinth. You walk to two tiles south of the plinth and wait in
+  // its ring until it wakes, walk east along the entrance row past the staggered columns to the
+  // Intro's far side, then on, out of its sight, and wait. It steps off its plinth, every step
+  // begun while you cannot see it (unobserved.gate, with every other invariant, after every
+  // step); once it has lost you and searched, it goes home, steps back onto its plinth, settles
+  // in and sleeps there.
+  test('the Lamp Corridor (S.9\'s Intro): its Grazer, woken on its plinth, steps off it only while you cannot see it, and goes home onto it and sleeps there', () => {
+    const X = loadCore(), { Grid: G, Step } = X;
+    X.Packs.get('S9').galleries = [];
+    for (let depth = 1; depth <= 7; depth++) {
+      const s = X.Dept.create(depth, 'S9', depth), m = s.dept, where = `depth ${depth}`;
+      s.actors[0].hp = s.actors[0].maxHp = 9999;
+      const g = s.actors.find(a => a.arch === 'unobserved_mover'), home = g.home.slice(), intro = m.rooms.find(r => r.role === 'intro'), ey = m.entrance[1];
+      assert.ok(g && g.mode === 'dormant' && G.ch(m, home[0], home[1]) === 'p' && g.x === home[0] && g.y === home[1], `${where}: the Intro's Grazer sleeps on its plinth`);
+      const fromG = G.distances(m, [[home[0] + 1, home[1]]], 9999, null);
+      let far = null;
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (m.tiles[y][x] === '.' && fromG[y * m.w + x] <= 30 && (!far || fromG[y * m.w + x] > fromG[far[1] * m.w + far[0]])) far = [x, y];
+      const toward = (st, goal) => {
+        const d = G.distances(st.dept, [goal], 9999, null), you = st.actors[0];
+        let best = null, bv = d[you.y * st.dept.w + you.x];
+        for (const a of Step.legal(st).filter(q => q.a === 'move')) { const v = d[(you.y + G.DY[a.dir]) * st.dept.w + you.x + G.DX[a.dir]]; if (v >= 0 && v < bv) { bv = v; best = a; } }
+        return best || { a: 'wait' };
+      };
+      let phase = 0, waited = 0;
+      const r = H.play(X, s, (st, i) => {
+        const you = st.actors[0], b = st.actors.find(a => a.uid === g.uid), at = t => you.x === t[0] && you.y === t[1];
+        if (i >= 160) return null;
+        if (phase === 0) { const t = [home[0], home[1] + 2]; if (at(t)) phase = 1; else return toward(st, t); }
+        if (phase === 1) { if (b.mode !== 'dormant' || waited > 8) phase = 2; else { waited++; return { a: 'wait' }; } }
+        if (phase === 2) { const t = [intro.x1, ey]; if (at(t)) phase = 3; else return toward(st, t); }
+        if (phase === 3 && !at(far)) return toward(st, far);
+        return { a: 'wait' };
+      }, { cap: 200 });
+      assert.deepEqual(r.violations.slice(0, 3).map(v => v.text), [], where);
+      const mine = r.events.filter(e => e.who === g.uid), steps = mine.filter(e => e.k === 'moved'), end = s.actors.find(a => a.uid === g.uid);
+      assert.ok(mine.some(e => e.k === 'woke'), `${where}: it woke`);
+      assert.ok(steps.length >= 2 && json(steps[0].from) === json(home), `${where}: it stepped off its plinth (${json(steps.map(e => e.to))})`);
+      assert.equal(json(steps[steps.length - 1].to), json(home), `${where}: its last step was back onto its plinth`);
+      assert.equal(json(mine.filter(e => e.k === 'returned').map(e => [e.phase, e.cause.x, e.cause.y])), json([['arrived', ...home], ['reinstalled', ...home]]), where);
+      assert.equal(json([end.mode, end.x, end.y]), json(['dormant', ...home]), `${where}: it sleeps on its plinth`);
+      assert.equal(r.events.filter(e => e.k === 'module' && e.id === ID && e.who === g.uid).length, steps.length, `${where}: each step a stride`);
+    }
+  });
+
   // ---- With the module off, or in a room without it, it walks a tile a turn, in your sight too ----
   test('with unobserved_motion off, or in a room without it, it walks a tile a turn, in your sight too, and tells no stride; its line says so', () => {
     const sp = C.Packs.species('S9', 'S9.1');

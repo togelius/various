@@ -340,7 +340,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const which of [['--strict'], ['--strict=M4']]) {
         r = lint(null, which);
         assert.equal(r.status, 1, which[0]);
-        has(r, /--strict: ARCHETYPES\.demonstrator is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
+        has(r, /--strict: ARCHETYPES\.conservator_healer is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
         has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
       }
@@ -491,17 +491,20 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // A planted department, T.9, holding S.9's two modules (unobserved_motion its signature, as
   // its first) and one species of each kind the Intro rule tells apart (T9.3 a Grazer and T9.5
   // a Wader, whose archetypes' clauses hold their modules' slots, as a species flagged with a
-  // module must, now that both modules are built).
+  // module must, now that both modules are built). T9.6, a teaching instance flagged with the
+  // signature and alarm_network too, is added only where it is planted: no archetype's clause
+  // holds a slot for both modules, so its own line is a problem as well.
+  const T9_SPECIES = [
+    { id: 'T9.1', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null },
+    { id: 'T9.2', archetype: 'darter', role: 'skirmisher', modifiers: [], trigger: null },
+    { id: 'T9.3', archetype: 'unobserved_mover', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
+    { id: 'T9.4', archetype: 'plodder', role: 'warden', modifiers: [], trigger: null },
+    { id: 'T9.5', archetype: 'patrol_guard', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
+  ];
+  const T9_6 = { id: 'T9.6', archetype: 'patrol_guard', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion', 'alarm_network'] };
   const T9 = more => `Packs.add(${json(Object.assign({ acc: 'T9', number: 'T.9', title: 'Planted', family: 'Planted', palette: 'S9', programme: 'enfilade',
     claim: { primary: 'guarded', secondary: null }, modules: [{ id: 'unobserved_motion' }, { id: 'alarm_network' }], items: [], consumables: { names: [], labels: {} },
-    species: [
-      { id: 'T9.1', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null },
-      { id: 'T9.2', archetype: 'darter', role: 'skirmisher', modifiers: [], trigger: null },
-      { id: 'T9.3', archetype: 'unobserved_mover', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
-      { id: 'T9.4', archetype: 'plodder', role: 'warden', modifiers: [], trigger: null },
-      { id: 'T9.5', archetype: 'patrol_guard', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
-      { id: 'T9.6', archetype: 'patrol_guard', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion', 'alarm_network'] },
-    ] }, more || {}))});`;
+    species: T9_SPECIES }, more || {}))});`;
 
   tmpTest('lint-registry\'s Intro rule (WO6): the Intro teaches only its signature module, in its panel and its stamp', () => {
     // The teaching instance (T9.3, an ambusher flagged with the signature), fodder and a
@@ -523,7 +526,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // Nor may the teaching instance carry another module's flag besides the signature's: its line
     // would state that module's rule in the Intro (M.11's Intro has a station of its own,
     // M11.12, flagged with the chime alone, for the stations' rain clause).
-    r = lint(T9({ intro: { map: ['#####', '#d..#', '#####'], legend: { d: { sp: 'T9.6' } }, stretch: [], invariants: [] } }));
+    r = lint(T9({ species: T9_SPECIES.concat([T9_6]), intro: { map: ['#####', '#d..#', '#####'], legend: { d: { sp: 'T9.6' } }, stretch: [], invariants: [] } }));
     assert.equal(r.status, 1);
     has(r, /T9's Intro places T9\.6 \('d'\), flagged with alarm_network, but teaches only unobserved_motion/);
     hasNot(r, /flagged with unobserved_motion/);

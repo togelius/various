@@ -355,7 +355,7 @@ module.exports = ({ test, assert, loadCore }) => {
   // A core whose packs carry an empty gallery list, so the stamp's marks are placed (§5.5);
   // with the M4 archetypes, modifier and trigger the stamps' species need planted past ready
   // false when ready is true. Populate.exhibits is watched, so a test sees each attempt's plan.
-  const M4_READY = { ARCHETYPES: ['unobserved_mover', 'demonstrator'], MODIFIERS: ['clockwork'], TRIGGERS: ['period'] };
+  const M4_READY = { ARCHETYPES: ['demonstrator'], MODIFIERS: ['clockwork'], TRIGGERS: ['period'] };
   function core(ready) {
     const X = loadCore(), plans = [];
     for (const acc of ACCS) X.Packs.get(acc).galleries = [];
@@ -397,7 +397,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('readiness: until its archetype is ready an exhibit of the stamp is not placed, and the log says so; the ready ones are', () => {
     const { X } = core(false);
-    const want = { S9: ['S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: ['M11.5'] }, held = { S9: ['S9.1 (stamp g)'], A4: [], M11: ['M11.12 (stamp s)'] };
+    const want = { S9: ['S9.1', 'S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: ['M11.5'] }, held = { S9: [], A4: [], M11: ['M11.12 (stamp s)'] };
     for (const acc of ACCS) for (let seed = 1; seed <= 10; seed++) {
       const out = X.Dept.generate(seed, acc, depthOf(seed)), m = out.state.dept, intro = m.rooms.find(r => r.role === 'intro');
       assert.equal(json(out.state.actors.filter(a => a.uid !== 'you' && m.roomOf[a.y][a.x] === intro.id).map(a => a.sp).sort()), json(want[acc]), `${acc} seed ${seed}`);
