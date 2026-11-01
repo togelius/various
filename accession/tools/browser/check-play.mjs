@@ -357,8 +357,14 @@ function helpers() {
   const free = (x, y) => { const s = S(); return Grid.walkable(s.dept, x, y) && '.,'.includes(Grid.ch(s.dept, x, y)) && !Actors.at(s, x, y) && !(s.items || []).some(i => i.where.at === 'floor' && i.where.x === x && i.where.y === y); };
   window.__m3 = {
     free,
-    // Every exhibit asleep where it stands, with no mark pending.
-    calm() { const s = S(); for (const a of s.actors) if (a.uid !== 'you' && !a.gone) { a.mode = 'dormant'; a.pips = 0; a.telegraph = null; a.notBefore = null; a.stim = s.turn; } },
+    // Every exhibit asleep where it stands, with no mark pending; and the chime held off
+    // (M.11's stations, placed since ARCH-CLOCKWORK, wake at it, which stops a walk or a
+    // rest): hourly_demonstration's count starts afresh 100 turns from now.
+    calm() {
+      const s = S();
+      for (const a of s.actors) if (a.uid !== 'you' && !a.gone) { a.mode = 'dormant'; a.pips = 0; a.telegraph = null; a.notBefore = null; a.stim = s.turn; }
+      for (const m of s.dept.modules || []) if (m.id === 'hourly_demonstration') m.since = s.turn + 100;
+    },
     put(x, y) { const me = S().actors[0]; me.x = x; me.y = y; me.seated = false; },
     // A free floor tile beside (x, y), a step in one of the four main directions away.
     beside(x, y) { for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) if (free(x + dx, y + dy)) return [x + dx, y + dy]; return null; },

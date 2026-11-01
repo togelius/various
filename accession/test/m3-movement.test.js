@@ -286,8 +286,11 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('walking round actors: exhibits woken in the three departments and left alone get home, or wander when others block every way home', () => {
     // Departments where, walking through other actors, exhibits got stuck on their way home.
+    // Left alone: in M.11 with the chime off (hourly_demonstration), since a station's line
+    // strikes whoever walks across it and its noise sends others to look (population is the
+    // same with a module off, plan A10).
     for (const [acc, seed, depth] of [['S9', 3, 2], ['A4', 5, 2], ['A4', 7, 6], ['M11', 6, 2]]) {
-      const s = C.Dept.create(seed, acc, depth), you = s.actors[0];
+      const s = C.Dept.create(seed, acc, depth, acc === 'M11' ? { rulesOff: ['hourly_demonstration'] } : undefined), you = s.actors[0];
       s.options.invulnerable = true;
       const far = s.actors.slice(1).filter(a => !a.gone && a.mode === 'dormant' && C.Actors.dist(a, you.x, you.y) > 14 && !C.Archetypes.pipless(s, a));
       for (const a of far) Wake.wake(s, a, 'awake', { k: 'noise', by: 'you', dist: 3, cls: 'soft' }, [], { target: [a.x, a.y] });
@@ -297,6 +300,10 @@ module.exports = ({ test, assert, loadCore }) => {
       let home = 0;
       for (const a of far) {
         if (a.mode === 'dormant' && a.x === a.home[0] && a.y === a.home[1]) { home++; continue; }
+        // A station (M.11's, placed once ARCH-CLOCKWORK made clockwork ready) stands fixed on
+        // its tile, its own action always a wait, so woken it stays awake where it is, at home
+        // (its clause; rules/arch/demonstrator.js, MOD-CHIME).
+        if (a.arch === 'demonstrator') { assert.ok(a.x === a.home[0] && a.y === a.home[1] && !r.events.some(e => e.k === 'moved' && e.who === a.uid), `${acc} ${seed} ${depth}: ${a.uid} left its tile`); home++; continue; }
         if (a.mode === 'hunting' || a.mode === 'searching' || a.gone) continue;
         // Otherwise it is on its way, settling in, or wandering because its last try was blocked.
         const e = lastTry(a.uid);

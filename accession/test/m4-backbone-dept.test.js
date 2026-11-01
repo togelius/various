@@ -63,13 +63,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // and M.11's again at its review, for the cabinet before its Intro's station. Re-pinned by
   // D-PACKS: each pack's gallery list places its exhibits (and the stand-in no longer puts an
   // item in a case an exhibit stands in), and S.9's Intro stamp gains its south cabinets; at its
-  // landing S.9's Grazers stand too (MOD-UNOBSERVED made them ready). A module's
+  // landing S.9's Grazers stand too (MOD-UNOBSERVED made them ready). Re-pinned by
+  // ARCH-CLOCKWORK: clockwork and the healer are ready, so A.4's Countersigning Clerk and
+  // M.11's stations (the Intro's and the gallery's) are placed. A module's
   // state is M4's own (dept.modules, each module as its file defines it: S.9's alarm_network
   // since MOD-ALARM, M.11's hourly_demonstration since MOD-CHIME), so it is left out of the
   // hash and checked apart: the pack's modules defined so far, in pack order, each on.
   // A.4's re-pinned by MOD-COPIES' review: the Proposing Trustee's spare is no plaster cast
   // (BUILD §5.5), so its health at the start moves.
-  const M3_START = { 'S9/2': 3272898097, 'S9/5': 3369086458, 'A4/2': 1573769710, 'A4/5': 3685349165, 'M11/2': 3061776739, 'M11/5': 943873704 };
+  const M3_START = { 'S9/2': 3272898097, 'S9/5': 3369086458, 'A4/2': 1512832291, 'A4/5': 2268452411, 'M11/2': 1352631592, 'M11/5': 2805425420 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
