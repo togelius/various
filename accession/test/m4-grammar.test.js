@@ -34,7 +34,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['MODIFIERS', 'clockwork', 'arch-d', 'Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.'],
     ['TRIGGERS', 'period', 'mod-chime', 'wakes on the chime to perform, then sleeps again'],
     ['MODULES', 'unobserved_motion', 'mod-unobserved', 'The animals move only when you cannot see them.'],
-    ['MODULES', 'alarm_network', 'mod-alarm', 'The waders raise the alarm when they see you; then the whole court is awake.'],
+    // Reworded by MOD-ALARM's review: M2's "then the whole court is awake" claimed more than the
+    // call does, since the Centrepiece and a mimic sleep on.
+    ['MODULES', 'alarm_network', 'mod-alarm', 'The waders raise the alarm when they see you; then every sleeping exhibit in the department that can hear, but the Centrepiece, wakes.'],
     ['MODULES', 'copies_weaken', 'mod-copies', 'When an original is broken, its spares lose heart.'],
     ['MODULES', 'hourly_demonstration', 'mod-chime', 'On the chime, the stations exchange signals down the length of the gallery.'],
     ['MODULES', 'weather_cases', 'mod-weather', 'Some cases hold weather. Break one, and the weather gets out.'],
@@ -257,7 +259,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const pip = { k: 'pip', turn: 3, who: 'x.1', pips: 1, delta: 1, cause: { k: 'ring', dist: 2, r: 3 } };
     const lines = Text.log([pip, woke('x.1', 'alarm'), woke('x.2', 'alarm'), { k: 'alarm', turn: 3, by: 'x.1', until: 33, cause: { k: 'alarm_network' } }, woke('x.3', 'alarm')], NAMES);
     assert.equal(json(lines), json([Text.event(pip, NAMES), 'The alarm woke 3 exhibits, and they set off to look where you were.',
-      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no exhibit awake or searching goes back to its place, and no other alarm can be raised.']));
+      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no exhibit goes back to its place for being left undisturbed or done searching, and no other alarm can be raised.']));
     // One alone is told by its own sentence.
     assert.equal(json(Text.log([woke('x.1', 'alarm')], NAMES)), json([Text.event(woke('x.1', 'alarm'), NAMES)]));
     assert.equal(Text.log([woke('x.1', 'period'), woke('x.2', 'period')], NAMES)[0], 'At the chime, 2 stations woke to mark their lines.');

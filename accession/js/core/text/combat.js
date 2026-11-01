@@ -5,11 +5,12 @@
 (() => {
   const isInt = v => Number.isInteger(v);
   // A special's name in a sentence, from its shape (the registry's SPECIALS): a ring of blows,
-  // a beam or a call; any other is "its special".
+  // a beam or a call; one whose entry names itself (noun: the Wader's alarm, M4) by that name;
+  // any other is "its special".
   const SHAPE = { ring: 'ring of blows', line: 'beam', call: 'call' };
   const spName = sp => {
     const S = typeof sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, sp) ? Registry.SPECIALS[sp] : null;
-    return S && SHAPE[S.shape] ? SHAPE[S.shape] : 'special';
+    return S && typeof S.noun === 'string' ? S.noun : S && SHAPE[S.shape] ? SHAPE[S.shape] : 'special';
   };
   // The arithmetic of the damage: raw less Padding, with the floor when it applied.
   const sum = (raw, pad, floor) => `${raw} − ${pad} Padding${isInt(floor) ? `, at least ${floor}` : ''}`;
@@ -68,11 +69,12 @@
   Text.defineCause('died', 'special', died);
 
   // A mark: the tiles it covers, said by its shape (a ring round it, a beam's line, a call's
-  // reach; the marks on the board show each tile), and for a damage special its number
-  // before your Padding.
+  // reach; the marks on the board show each tile), or as its entry says them (marks: the
+  // alarm's "its own tile", M4), and for a damage special its number before your Padding.
   const covers = e => {
     const S = typeof e.sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, e.sp) ? Registry.SPECIALS[e.sp] : null;
     const n = Array.isArray(e.tiles) ? e.tiles.length : 0, shape = S ? S.shape : null;
+    if (S && typeof S.marks === 'string') return S.marks;
     if (shape === 'ring') return 'the tiles round it';
     if (shape === 'line') return `a line of ${Text.tiles(n)}`;
     if (shape === 'call' && S.range && Number.isInteger(N[S.range])) return `the tiles within ${Text.tiles(N[S.range])} of it`;
