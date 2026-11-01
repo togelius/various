@@ -103,11 +103,14 @@ if (R.SYSTEMS.length > R.MAX_SYSTEMS) bad(`${R.SYSTEMS.length} universal systems
 // The packs. Shared species (the Night Watchman, content/watch.js) are linted with them.
 const packs = Packs.list();
 const shared = Packs.sharedList();
+// A pack's species, its Centrepiece and the Centrepiece's attachments (M4 TABLEAU-PHASES: each
+// an exhibit of its own, a species by its id, Packs.speciesFor), linted alike.
+const speciesOf = p => [...p.species, ...(p.centrepiece ? [p.centrepiece] : []), ...(p.centrepiece && Array.isArray(p.centrepiece.attachments) ? p.centrepiece.attachments : [])];
 const ids = new Map(), allSpecies = [];
 for (const p of packs) {
   if ((p.modules || []).length > 2) bad(`${p.acc} owns ${p.modules.length} modules; the cap is 2`);
   for (const m of p.modules || []) if (!R.MODULES[m.id]) bad(`${p.acc} uses the unknown module ${m.id}`);
-  for (const sp of [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])]) allSpecies.push([p.acc, sp]);
+  for (const sp of speciesOf(p)) allSpecies.push([p.acc, sp]);
   for (const it of p.items || []) for (const pr of it.prims || []) {
     if (!R.ITEM_PRIMS[pr.id]) bad(`${p.acc} item ${it.id} uses the primitive ${pr.id}, which the slice does not implement (§8.5)`);
     if (!['S', 'M', 'L'].includes(pr.cls)) bad(`${p.acc} item ${it.id}: primitive ${pr.id} has the class ${JSON.stringify(pr.cls)}, not S, M or L`);
@@ -412,7 +415,7 @@ for (const code of R.order('REFUSALS')) {
 }
 
 // Flags: a species is flagged only with modules its own department holds.
-for (const p of packs) for (const sp of [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])]) {
+for (const p of packs) for (const sp of speciesOf(p)) {
   if (sp.flags === undefined) continue;
   if (!Array.isArray(sp.flags)) { bad(`${sp.id}: its flags are not a list of modules`); continue; }
   for (const f of sp.flags) if (!(p.modules || []).some(m => m.id === f)) bad(`${sp.id} is flagged with ${JSON.stringify(f)}, a module its department ${p.acc} does not hold`);

@@ -219,8 +219,11 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('every species flagged with the module never steps (a station), so it stands in rain exactly while the rain lies', () => {
-    const flagged = Packs.list().flatMap(p => p.species).filter(sp => Array.isArray(sp.flags) && sp.flags.includes(ID));
-    assert.ok(flagged.length >= 1);
+    // A Centrepiece's attachments are species too (M4 TABLEAU-PHASES: the Great Board's Repeater
+    // Arm, a station flagged with the module).
+    const flagged = Packs.list().flatMap(p => p.species.concat(p.centrepiece && Array.isArray(p.centrepiece.attachments) ? p.centrepiece.attachments : []))
+      .filter(sp => Array.isArray(sp.flags) && sp.flags.includes(ID));
+    assert.ok(flagged.length >= 2 && flagged.some(sp => sp.id === 'M11.11a'), JSON.stringify(flagged.map(sp => sp.id)));
     for (const sp of flagged) assert.equal(sp.archetype, 'demonstrator', `${sp.id} is flagged with ${ID} but is a ${sp.archetype}, which may step into or out of rain`);
   });
 

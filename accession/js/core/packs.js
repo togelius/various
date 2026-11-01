@@ -107,9 +107,9 @@ const Packs = (() => {
   // the piece gives them (PIECE_WORDS: its name, sprite, tombstone and paragraph) and the
   // piece's id, so each piece's label names it, while its rules and its Behaviour line are its
   // Centrepiece's. A piece that gives no words of its own and names no id is the record itself.
-  // An attachment (`attachments`: an exhibit its Centrepiece's rules make in its hall, no piece
-  // of it; A.4's Senior Countersigning Clerk, M4 ENSEMBLE-PHASES) is a species of its own, its
-  // record as it is, by its id.
+  // An attachment (`attachments`: an exhibit its Centrepiece's rules set out in its hall, no
+  // piece of it: A.4's Senior Countersigning Clerk, M4 ENSEMBLE-PHASES; M.11's Repeater Arm
+  // and Board Dish, M4 TABLEAU-PHASES) is a species of its own, its record as it is, by its id.
   const PIECE_WORDS = ['name', 'sprite', 'tomb', 'paragraph'];
   function pieceOf(cp, sp) {
     if (!cp) return null;
