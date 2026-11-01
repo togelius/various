@@ -191,8 +191,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const certified = Layout.fallback(P, 0, { acc }).L.G.rows();
     eq(never.plan.tiles, certified);
     assert.equal(Layout.generate(P, 0, seed, { acc, depth }).rejected, undefined, 'no accept, no answer kept');
-    // Through Dept.create, with validators registered as their files register them.
-    const X = loadCore(), seen = [];
+    // Through Dept.create, with validators registered as their files register them, after
+    // those the core registers itself (LV6, D-LV6), which pass this seed's attempts.
+    const X = loadCore(), seen = [], own = X.Populate.validatorIds();
     X.Populate.addValidator('first', (state, plan) => {
       seen.push([plan.tiles.join('').length, state.actors.length > 1, state.items.some(i => i.uid === 'you.w'), state.actors[0].maxHp, state.actors[0].dmax === X.Kit.derive(state).dmax]);
       return seen.length === 1 ? { reason: 'planted rejection', tiles: [[2, 3]] } : null;
@@ -202,10 +203,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(seen.length, 2, 'asked of attempt 0, then of attempt 1');
     assert.ok(seen.every(v => v[1] && v[2] && v[3] === 30 && v[4]), `each validator sees the populated department, your kit and settled stats: ${json(seen)}`);
     assert.equal(json(s.dept.tiles), json(once.plan.tiles.map(r => r.replace(/C/g, '.'))), 'the department is attempt 1\'s');
-    // The validators the core's own files register (js/core/layout/*.js, in load order), then
-    // the two planted here.
-    eq(X.Populate.validatorIds(), C.Populate.validatorIds().concat(['first', 'second']));
-    assert.ok(C.Populate.validatorIds().includes('treasure'), 'the treasure case\'s validator is registered (D-ITEMS)');
+    // The validators the core's own files register (js/core/layout/*.js, in load order: LV6,
+    // then the treasure case), then the two planted here.
+    eq(X.Populate.validatorIds(), own.concat(['first', 'second']));
+    assert.ok(own.includes('treasure'), 'the treasure case\'s validator is registered (D-ITEMS)');
     const Y = loadCore();
     Y.Populate.addValidator('never', () => ({ reason: 'never', tiles: [] }));
     const f = Y.Dept.create(seed, acc, depth);

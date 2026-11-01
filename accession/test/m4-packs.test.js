@@ -304,8 +304,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     assert.match(w.done() || '', /a Wader's wake region reaches the safe zone in \d+ of 30 S\.9 departments, over 5%/);
     // The Lamp Corridor's stretch row 10 plain again: the Brooder's tether, guarding a case on
-    // the band room's north wall, reaches the vestibule's last row through the wall.
+    // the band room's north wall, reaches the vestibule's last row through the wall. LV6
+    // (D-LV6) rejects such an attempt, so its validator stands aside here (LV6.check, which it
+    // calls, answering null), to show the sweep's check catches it on its own.
     const T = loadCore(), t = check(T), I = T.Packs.get('S9').intro;
+    T.LV6.check = () => null;
     I.map = I.map.map((row, i) => (i === 10 ? '#.......|......' : row));
     let caught = 0;
     for (let seed = 1; seed <= 28; seed++) if (/tether reaches the safe zone/.test(t.each({ state: T.Dept.create(seed, 'S9', depthOf(seed)), seed, acc: 'S9', depth: depthOf(seed) }) || '')) caught++;
