@@ -12,9 +12,12 @@
 //     no real department places one until its core is ready, and Dept.create does once it is;
 //   - phases at CP_PHASE_PCT of its full health, which never go back, each with its event and
 //     what it gains; its specials in turn (Specials.markNext), each mark equal to its damage;
-//   - the fight form's fall: the Signature piece on the floor at its footprint's top-left tile
-//     (a full tote too), the Certificate once, the seal lifted; the treasure form's: the seal
-//     lifted and nothing else, and its line says so ('CLAUSES.cp_fight', 'CLAUSES.cp_treasure');
+//   - the fight form's fall: the Signature piece on the floor at its footprint's top-left tile,
+//     where it first stood (a full tote too), the Certificate once, the seal lifted; the
+//     treasure form's: the seal lifted and nothing else, and its line says so
+//     ('CLAUSES.cp_fight', 'CLAUSES.cp_treasure');
+//   - its hall with an ensemble split by its openings: a piece outside never seals you in
+//     alone, and the last piece inside falling opens the shutters (alone);
 //   - the burst ('cp_burst'): its readout and its marks;
 //   - the wake: pips and damage wake it; a herald's call, the night-watch bell and the alarm
 //     pass over it.
@@ -123,6 +126,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       [{ form: 'battle' }, /form is fight or treasure/], [{ archetype: 'nobody' }, /not in the registry/], [{ size: 3 }, /3 tiles across/],
       [{ specials: ['nothing'] }, /no special/], [{ pieces: [] }, /pieces are not a list of one or more/], [{ specials: undefined, pieces: [{ at: [2, 0] }] }, /not a tile of its 2×2 footprint/],
       [{ specials: undefined, pieces: [{ at: [0, 0] }, { at: [0, 0] }] }, /another's tile/], [{ pieces: [{ at: [0, 0] }] }, /names its own specials/],
+      [{ specials: undefined, pieces: [{ at: [1, 0] }, { at: [0, 1] }, { at: [1, 1] }] }, /leave its footprint's top-left tile empty, where its Signature piece drops/],
       [{ phases: [{ specials: ['ring'] }] }, /first phase gains nothing/], [{ phases: [{}, { specials: ['ring', 'cp_burst'] }] }, /at most one/],
       [{ phases: [{}, {}, {}, {}] }, /at most 3/], [{ signature: 'S9.1' }, /no weapon, garment, curio or instrument/],
       [{ role: 'brute' }, /role is centrepiece/],
@@ -236,7 +240,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         const hurt = ev.slice(0, ev.indexOf(e)).filter(d => d.k === 'damaged' && d.who === uid).pop();
         const limit = Math.floor(60 * X.N.CP_PHASE_PCT[e.phase - 2] / 100), before = ev.slice(0, ev.indexOf(hurt)).filter(d => d.k === 'damaged' && d.who === uid).pop();
         if (!hurt || hurt.hp > limit || (before && before.hp <= limit)) problems.push(`d${depth}: phase ${e.phase} came after the blow to ${hurt && hurt.hp}, the threshold ${limit}`);
-        if (!/^The Test Centrepiece is now in phase \d of 3(, and has a ring of blows)?: its health has fallen to \d+% of its full health or below\.$/.test(say(X, s, e))) problems.push(`d${depth}: ${say(X, s, e)}`);
+        if (!/^The Test Centrepiece is now in phase \d of 3(, and has a ring of blows)?: the Centrepiece’s health has fallen to \d+% of its full health or below\.$/.test(say(X, s, e))) problems.push(`d${depth}: ${say(X, s, e)}`);
       }
       if (json(K.phases.filter(p => p[0] === s).map(p => p[1])) !== '[2,3]') problems.push(`d${depth}: its onPhase heard ${json(K.phases.filter(p => p[0] === s).map(p => p[1]))}`);
       // Its specials took turns: the burst, then the ring, each a CP_SPECIAL_EVERY's cadence apart.
@@ -254,7 +258,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (!it || it.uid !== `T9.${depth}.centre.i1` || it.ref !== 'T9.11' || it.kind !== 'weapon' || it.form !== 'light' || it.tier !== X.N.TIER_LOW_BY_DEPTH[depth - 1] || json(it.where) !== json({ at: 'floor', x: 2, y: 2 }))
         problems.push(`d${depth}: the Signature piece is ${json(it)}`);
       if (cert.length !== 1 || json(cert[0].cause) !== json({ k: 'defeat', by: uid }) || json(s.dept.cert) !== json({ how: 'defeat', turn: died.turn }) || s.run.certificates.length !== 1) problems.push(`d${depth}: certificate ${json(cert)}`);
-      if (drop[0] && say(X, s, drop[0]) !== 'The Test Centrepiece fell, and the Centrepiece’s Signature piece dropped to the floor.') problems.push(`d${depth}: ${say(X, s, drop[0])}`);
+      if (drop[0] && say(X, s, drop[0]) !== 'The Test Centrepiece fell, and the Centrepiece’s Signature piece dropped to the floor where the Centrepiece first stood.') problems.push(`d${depth}: ${say(X, s, drop[0])}`);
       if (cert[0] && say(X, s, cert[0]) !== 'You earned this department’s Certificate: you defeated the Test Centrepiece.') problems.push(`d${depth}: ${say(X, s, cert[0])}`);
       if (X.Clock.sealed(s) || s.dept.tiles[2][8] !== ',' || s.dept.tiles[4][8] !== 'S') problems.push(`d${depth}: the hall is still shut`);
       // The hall opened at once, at the tick it fell, not at the next turn boundary.
@@ -324,6 +328,41 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('an ensemble split by its hall\'s openings: a piece outside never seals you in alone; struck awake inside, a piece seals you in with it and the others outside are shut out; when the last piece inside falls, the shutters open (alone) and nothing more: no drop, no Certificate; at depths 1, 4 and 7, clone-checked', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const K = core({ rec: { specials: undefined, pieces: [{ at: [0, 0] }, { at: [1, 0] }, { at: [0, 1] }, { at: [1, 1] }] } }), X = K.X;
+      const s = room(K, depth, { you: [2, 1], scale: 12 }), ps = X.Centrepiece.pieces(s), [p1, p2, p3, p4] = ps;
+      // Two of its pieces stand in the gallery, held still; one of them hunts you from there:
+      // the boundaries pass (two, before your ring wakes those beside you) and the hall does not
+      // seal you in alone.
+      Object.assign(p3, { x: 10, y: 1 }); Object.assign(p4, { x: 10, y: 5 });
+      for (const p of [p3, p4]) X.Status.apply(s, p, 'fixed', 9999, { k: 'planted' }, []);
+      X.Wake.wake(s, p3, 'hunting', { k: 'damage', by: 'you' }, []);
+      if (p3.mode !== 'hunting') { problems.push(`d${depth}: the piece outside is ${p3.mode}, so this shows nothing`); continue; }
+      let r = H.play(X, s, [wait, wait], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} outside`));
+      if (r.events.some(e => e.k === 'stage') || X.Clock.sealed(s) || p1.mode !== 'dormant') problems.push(`d${depth}: with a piece hunting you from outside: ${json(r.events.filter(e => e.k === 'stage'))}`);
+      // Struck, the first wakes hunting you inside: the hall seals for it.
+      r = H.play(X, s, [{ a: 'attack', uid: p1.uid }, wait], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} seal`), ...covered(X, s, r.events).map(l => `d${depth}: ${l}`));
+      const sealed = r.events.filter(e => e.k === 'stage' && e.stage === 'sealed');
+      if (sealed.length !== 1 || sealed[0].cause.by !== p1.uid || !X.Clock.sealed(s)) { problems.push(`d${depth}: sealed ${json(sealed)}`); continue; }
+      // Both pieces inside struck down; then the shutters open, alone, at the next boundary.
+      r = H.play(X, s, (st, i) => {
+        if (i > 400) return null;
+        const q = [p1, p2].map(p => X.Actors.byUid(st, p.uid)).find(a => !a.gone);
+        return q ? { a: 'attack', uid: q.uid } : X.Clock.sealed(st) ? wait : null;
+      }, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} fight`), ...covered(X, s, r.events).map(l => `d${depth}: ${l}`));
+      const lift = r.events.filter(e => e.k === 'stage' && e.stage === 'unsealed'), last = r.events.filter(e => e.k === 'died').pop();
+      if (json(lift.map(e => e.cause.why)) !== '["alone"]' || !last || last.who !== p2.uid || lift[0].turn !== Math.floor(last.tick / X.N.TICKS_PER_TURN) + 1) problems.push(`d${depth}: lifted ${json(lift)} after ${json(last)}`);
+      if (r.events.some(e => ['dropped', 'certificate'].includes(e.k)) || X.Progress.cert(s)) problems.push(`d${depth}: something came of half its pieces falling`);
+      if (lift[0] && say(X, s, lift[0]) !== 'The shutters opened: none of the Centrepiece is left in the hall with you. They do not close again until you have stepped out of the hall.') problems.push(`d${depth}: ${say(X, s, lift[0])}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
   test('phases never go back: a Re-admission Ticket heals it past its threshold and it stays in its phase, struck again it says nothing more; one blow past both thresholds gives phase 2 then phase 3, in that order (planted: Combat.hurt called directly)', () => {
     const K = core(), X = K.X, s = room(K, 3, { scale: 100 }), uid = s.actors[1].uid;
     X.Consumables.startRun(s);
@@ -379,7 +418,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (s.items.some(i => i.ref === 'T9.11') || X.Progress.cert(s) || s.run.grade !== grade || s.run.certificates.length) problems.push(`d${depth}: it gave something`);
     }
     const K = core({ rec: { form: 'treasure', signature: undefined } });
-    for (const d of DEPTHS) assert.match(K.X.Clauses.line(K.rec, { depth: d }), /It enters its second phase at 67% of its full health and its third at 34%, and never goes back\. Killing it earns nothing: carry the treasure it guards out of its hall\. /);
+    for (const d of DEPTHS) assert.match(K.X.Clauses.line(K.rec, { depth: d }), /Its second phase starts at 67% of its full health or less, its third at 34%, for good\. Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall\. /);
     assert.deepEqual(problems, []);
   });
 
@@ -395,9 +434,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const K = core(), X = K.X, g = d => X.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', d);
     for (const d of DEPTHS) {
       const line = X.Clauses.line(K.rec, { depth: d });
-      assert.equal(line, `Walks a tile at a time and strikes from beside you for ${X.Roles.stats('centrepiece', d).dmin}–${X.Roles.stats('centrepiece', d).dmax}. It enters its second phase at 67% of its full health and its third at 34%, and never goes back. Hunting you, it seals its hall once you are inside and no one stands in an opening. When it falls, its Signature piece drops and you earn the Certificate. `
+      assert.equal(line, `Walks a tile at a time and strikes from beside you for ${X.Roles.stats('centrepiece', d).dmin}–${X.Roles.stats('centrepiece', d).dmax}. Its second phase starts at 67% of its full health or less, its third at 34%, for good. Hunting you in its hall, it seals you in with it once no one stands in an opening. Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it. `
         + `Marks your tile and the tiles round it while it sees you, then strikes everything on them for ${g(d)} before Padding. From phase 2: marks the tiles round it for a turn, then strikes everything on them for ${X.Roles.at(X.N.ROLE_WARDEN_SPECIAL, d)} before Padding. Wakes when you stay inside your ring or make noise near it.`);
-      for (const k of [1, 2, 3]) assert.ok(X.Clauses.strip(K.rec, { depth: d, phase: k }).includes('When it falls, its Signature piece drops and you earn the Certificate.'), `phase ${k}`);
+      for (const k of [1, 2, 3]) assert.ok(X.Clauses.strip(K.rec, { depth: d, phase: k }).includes('Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it.'), `phase ${k}`);
     }
     assert.equal(json([R.SPECIALS.cp_burst.shape, R.SPECIALS.cp_burst.curve, R.CLAUSES.cp_fight.covers, R.CLAUSES.cp_treasure.covers]), json(['burst', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', ['phase', 'stage', 'dropped', 'certificate'], ['phase']]));
     // Its readout, beside it while it hunts: the burst by name, where it strikes, and how often.

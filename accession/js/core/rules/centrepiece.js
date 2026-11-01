@@ -11,8 +11,9 @@
 //   specials   the specials its body has from the start (ax.specials, in order), when it has
 //              no pieces;
 //   pieces     an ensemble's bodies instead of one: [{id?, at: [dx, dy], specials?}], each one
-//              tile, at (dx, dy) from its footprint's top-left tile, in order, its species id
-//              its own or the Centrepiece's;
+//              tile, at (dx, dy) from its footprint's top-left tile (one of them on that tile,
+//              where a fight's Signature piece drops), in order, its species id its own or the
+//              Centrepiece's;
 //   phases     one record a phase ({parts?, specials?}, §5.3): phase k's specials (k from 2, at
 //              most one) are what it gains on entering it;
 //   signature  its Signature piece: the id of an item of its pack (§8.5); a fight's drops when
@@ -96,6 +97,9 @@ const Centrepiece = (() => {
         if (p.id !== undefined && (typeof p.id !== 'string' || !p.id)) throw new Error(`Centrepiece: ${where}'s piece ${i + 1} has the id ${JSON.stringify(p.id)}`);
         specialsOk(p.specials, `piece ${i + 1}'s specials`);
       });
+      // Its Signature piece drops on the footprint's top-left tile, where it first stood
+      // (§8.7): a piece starts there, so that tile is one it stood on.
+      if (!seen.includes('0,0')) throw new Error(`Centrepiece: ${where}'s pieces leave its footprint's top-left tile empty, where its Signature piece drops`);
     }
     if (rec.phases !== undefined) {
       if (!Array.isArray(rec.phases) || rec.phases.length > LAST()) throw new Error(`Centrepiece: ${where} has ${JSON.stringify(rec.phases)} for its phases, not a list of at most ${LAST()}`);

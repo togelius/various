@@ -33,16 +33,20 @@
     tests: ['behaviour/centrepiece.test.js', 'm4-specials-core.test.js'] }));
 
   // A Centrepiece's form's rule (§5.3, §5.5, §8.4, §8.7; R4), a part of every Centrepiece's line
-  // by its record's form (Clauses.of), after its archetype's: its phases, on its health, which
-  // never go back; then what its form makes of it. A fight seals its hall while it hunts you
-  // there (Hall's fight seal, §8.4), and its fall drops its Signature piece and earns the
-  // Certificate (§8.7), whose cause names it. A treasure's guardian earns nothing, since only
-  // carrying its treasure out of its hall is that department's defeat (§5.5, D3.14); what
-  // seals its hall is its own rule's to say (Hall.defineSeal).
+  // by its record's form (Clauses.of), after its archetype's: its phases, on its health, at
+  // each threshold or below, which never go back; then what its form makes of it. A fight
+  // seals you in its hall with it while it hunts you there (Hall's fight seal, §8.4: never
+  // alone, never while someone stands in an opening), and its fall drops its Signature piece
+  // where it first stood (its footprint's top-left tile) and earns the Certificate unless one
+  // was earned in the visit already (one a visit, §8.7), whose cause names it. A treasure's
+  // guardian's death opens its hall and earns nothing, since only carrying its treasure out of
+  // its hall is that department's defeat (§5.5, D3.14); what seals its hall is its own rule's
+  // to say (Hall.defineSeal). Every word counts against the strip's 14 rows (m4-lines): the
+  // fight's takes 7 alone, the treasure's 5.
   const PHASES = { first: 'N:CP_PHASE_PCT[0]', second: 'N:CP_PHASE_PCT[1]' };
-  const PHASE_RULE = 'It enters its second phase at {first}% of its full health and its third at {second}%, and never goes back.';
+  const PHASE_RULE = 'Its second phase starts at {first}% of its full health or less, its third at {second}%, for good.';
   R.define('CLAUSES', 'cp_fight', proved({ icon: null, params: PHASES, covers: ['phase', 'stage', 'dropped', 'certificate'],
-    clause: `${PHASE_RULE} Hunting you, it seals its hall once you are inside and no one stands in an opening. When it falls, its Signature piece drops and you earn the Certificate.` }));
+    clause: `${PHASE_RULE} Hunting you in its hall, it seals you in with it once no one stands in an opening. Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it.` }));
   R.define('CLAUSES', 'cp_treasure', proved({ icon: null, params: PHASES, covers: ['phase'],
-    clause: `${PHASE_RULE} Killing it earns nothing: carry the treasure it guards out of its hall.` }));
+    clause: `${PHASE_RULE} Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall.` }));
 })();
