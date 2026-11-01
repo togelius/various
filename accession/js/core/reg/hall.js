@@ -7,12 +7,16 @@
 
   // The hall's stages (§4.3's stage, §8.4): `sealed` (the shutters closed over its openings),
   // `unsealed` (they opened) and `waiting` (it would seal, but someone stands in an opening,
-  // M4 plan A13). by: the actor it is about, if any (sealed: the piece whose hunt called for
-  // the seal; waiting: who stands in an opening); why: what called for the seal (`hunt` for a
-  // fight's), or what opened the shutters: `quiet` (SEAL_LIFT_TURNS turns in a row in which
-  // the Centrepiece neither hurt you nor ended a turn beside you), `ticket`, `defeat`,
-  // `treasure` (a treasure's guardian fell) or `sheet` (it went under its dust sheet).
-  R.defineCause('stage', 'hall', { fields: { by: 'uid?', why: 'str' }, built: 'M4' });
+  // M4 plan A13). by: what calls for the seal, if its rule names one (sealed and waiting: the
+  // piece whose hunt calls for it), so the stage is that exhibit's doing, which its line
+  // covers; in (waiting only): who stands in the opening, only when you see it then, so no
+  // sentence names an exhibit out of your sight and no exhibit that merely stands in the way
+  // is held to cause a stage; why: what called for the seal (`hunt` for a fight's), or what
+  // opened the shutters: `quiet` (SEAL_LIFT_TURNS turns in a row in which the Centrepiece
+  // neither hurt you nor ended a turn beside you), `ticket`, `defeat`, `treasure` (a
+  // treasure's guardian fell), `sheet` (it went under its dust sheet) or `alone` (none of it
+  // standing is left in the hall).
+  R.defineCause('stage', 'hall', { fields: { by: 'uid?', in: 'uid?', why: 'str' }, built: 'M4' });
 
   // A Re-admission Ticket read while the hall is sealed (§8.4): each piece of the Centrepiece
   // still standing regains SEAL_HEAL_PCT of its maximum health (healed) and, unless asleep,

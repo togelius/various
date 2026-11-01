@@ -4,24 +4,28 @@
 //
 // dept.cp, the Centrepiece and its hall, is absent from a state until the Centrepiece is
 // placed (§4.1), and every rule reads it through Hall.cp:
-//   { uids, room, openings: [{x, y, ch}], form, sealed: null | {turn, by, why, at, last},
+//   { uids, room, openings: [{x, y, ch}], form, sealed: null | {turn, by, why, at, last, seen},
 //     touched, sheet, treasure, waiting?, lifted? }
 // room is the hall's room key in dept.rooms; openings are its ways in, staff doors included,
 // each with the tile a shutter stands over (ch, the tile as it was when the shutters closed).
 // The hall's own parts: sealed (turn: when the shutters closed; by and why: what called for
 // them; at: the turn of the last boundary that judged the seal; last: the turn of the last
-// boundary at which the Centrepiece was found to have hurt you or to stand beside you);
-// waiting {turn, by}, present while a seal waits on an opening someone stands in; lifted
+// boundary at which the Centrepiece was found to have hurt you or to stand beside you; seen:
+// what your memory held at each opening, in the openings' order, as the shutters closed);
+// waiting {turn, by}, present while a seal waits on an opening someone (by) stands in; lifted
 // {turn, why}, present from the shutters opening until you stand outside the hall at a turn's
 // end, while the hall does not seal again.
 //
 // The seal (A13, R5). At a turn boundary (step 6, before the clock, Hall.boundary), while
 // the Centrepiece stands and its form's seal rule calls for the seal (a fight's: one of its
-// pieces hunts you; a treasure's: its own rule, Hall.defineSeal), you stand inside the hall
-// and no one stands in any of its openings, shutters (Z) close over every opening, staff
-// doors included: the clock's count stops (dept.clock.pausedSince) and so does your
-// regeneration (Clock.regenRate), while every other boundary step goes on. While someone
-// stands in an opening the seal waits, says so once (stage waiting), and is tried again at
+// pieces hunts you from inside the hall, so a piece hunting you from outside it never seals
+// you in alone; a treasure's: its own rule, Hall.defineSeal), you stand inside the hall and
+// no one stands in any of its openings, shutters (Z) close over every opening, staff doors
+// included: the clock's count stops (dept.clock.pausedSince) and so does your regeneration
+// (Clock.regenRate), while every other boundary step goes on. While someone stands in an
+// opening the seal waits, says so once (stage waiting; its cause names, as by, what calls
+// for the seal, as a sealing names it, and, as `in`, who stands in the opening only if you
+// see it then, so the log never names an exhibit out of your sight), and is tried again at
 // each boundary. The shutters open (stage unsealed):
 //   - quiet: at the boundary that ends the SEAL_LIFT_TURNS-th turn in a row in which none of
 //     the Centrepiece's pieces hurt you (Hall.onHurt, from Combat.hurt) or stood beside you
@@ -31,11 +35,16 @@
 //     place;
 //   - defeat: when the Centrepiece is defeated (Hall.onDefeat, at once), or, failing that, at
 //     the next boundary once none of its pieces stands (treasure for a treasure's guardian,
-//     sheet when it went under its dust sheet).
+//     sheet when it went under its dust sheet);
+//   - alone: at the next boundary once none of its pieces still standing is in the hall (an
+//     ensemble's last piece inside fell while others stand outside), so the seal never keeps
+//     you in alone.
 // Once they have opened the hall does not seal again until you have stood outside it at a
 // turn's end, so a quiet lift lets you walk out. Your memory of the map (dept.seen) takes the
-// shutters as they close and open on every opening you remember, since the stage event tells
-// you of them; an opening you have never seen stays unseen.
+// shutters as they close on every opening you remember, since the stage event tells you of
+// them, and as they open gives each back what you last saw there before they closed (sealed.
+// seen), never what an opening out of your sight has become since; an opening you have never
+// seen stays unseen.
 //
 // Hall.addCheck(id, fn) lets a Centrepiece's own rules add a check that Hall.boundary runs
 // after the seal's own step (the treasure's carry-out, rules/treasure.js), so none of them
@@ -105,10 +114,28 @@ const Hall = (() => {
     for (const o of c.openings || []) { const a = Actors.at(state, o.x, o.y, except); if (a) return a; }
     return null;
   }
+  // Every actor standing in an opening, each once, in the openings' order.
+  function occupants(state, c) {
+    const out = [];
+    for (const o of c.openings || []) { const a = Actors.at(state, o.x, o.y); if (a && !out.includes(a)) out.push(a); }
+    return out;
+  }
 
-  // A fight's seal: one of its pieces hunts you (the first, in cp.uids's order).
+  // Is actor a in the hall: does any tile of it stand inside it?
+  const inHall = (state, a) => Actors.footprint(a).some(([x, y]) => inside(state, x, y));
+  // Do you see actor a now, as the board shows it (ViewModel): any tile of it in your sight,
+  // and shown as itself (not a mimic in its disguise)?
+  function inView(state, a) {
+    if (!a || a.gone || Archetypes.present(state, a) !== null) return false;
+    const m = state.dept, v = Vision.visible(state);
+    return Actors.footprint(a).some(([x, y]) => Grid.inside(m, x, y) && v[y * m.w + x] === 1);
+  }
+
+  // A fight's seal: one of its pieces hunts you from inside the hall (the first, in cp.uids's
+  // order). One hunting you from outside it calls for nothing: the seal shuts you in with it,
+  // never alone.
   defineSeal('fight', (state, c) => {
-    for (const a of standing(state, c)) if (a.mode === 'hunting') return { by: a.uid, why: 'hunt' };
+    for (const a of standing(state, c)) if (a.mode === 'hunting' && inHall(state, a)) return { by: a.uid, why: 'hunt' };
     return null;
   });
 
@@ -135,30 +162,39 @@ const Hall = (() => {
     m.seen = m.seen.slice(0, i) + ch + m.seen.slice(i + 1);
   }
 
-  // The shutters close: each opening's tile is kept in ch and becomes Z; the clock stops.
+  // What your memory holds at an opening: its character in dept.seen (' ' never seen), or ' '
+  // with no memory kept.
+  const memoryAt = (m, o) => m.seen && m.seen.length === m.w * m.h ? m.seen.charAt(o.y * m.w + o.x) : ' ';
+
+  // The shutters close: each opening's tile is kept in ch and becomes Z, and what you
+  // remembered there in sealed.seen; the clock stops.
   function seal(state, c, call, ev) {
     const m = state.dept;
+    let seen = '';
     for (const o of c.openings || []) {
       const ch = Grid.ch(m, o.x, o.y);
       if (ch !== 'Z') o.ch = ch;
+      seen += memoryAt(m, o);
       Grid.set(m, o.x, o.y, 'Z');
       remember(m, o, 'Z');
     }
-    c.sealed = { turn: state.turn, by: call.by === undefined ? null : call.by, why: call.why, at: state.turn, last: state.turn };
+    c.sealed = { turn: state.turn, by: call.by === undefined ? null : call.by, why: call.why, at: state.turn, last: state.turn, seen };
     delete c.waiting;
     if (m.clock) m.clock.pausedSince = state.turn;
     const cause = { k: 'hall', why: call.why };
     if (call.by !== undefined) cause.by = call.by;
     Causes.emit(state, ev, 'stage', { stage: 'sealed' }, cause);
   }
-  // The shutters open: each opening's tile comes back; the clock runs again.
+  // The shutters open: each opening's tile comes back, and your memory of a remembered one
+  // goes back to what you last saw there before they closed (an opening in view takes what it
+  // is now at the step's end, Vision.remember); the clock runs again.
   function lift(state, c, why, ev) {
-    const m = state.dept;
-    for (const o of c.openings || []) {
-      if (Grid.ch(m, o.x, o.y) !== 'Z') continue;
+    const m = state.dept, seen = c.sealed && typeof c.sealed.seen === 'string' ? c.sealed.seen : '';
+    (c.openings || []).forEach((o, i) => {
+      if (Grid.ch(m, o.x, o.y) !== 'Z') return;
       Grid.set(m, o.x, o.y, o.ch);
-      remember(m, o, o.ch);
-    }
+      remember(m, o, i < seen.length ? seen.charAt(i) : o.ch);
+    });
     c.sealed = null;
     c.lifted = { turn: state.turn, why };
     if (m.clock) m.clock.pausedSince = null;
@@ -175,6 +211,7 @@ const Hall = (() => {
     if (c.sealed) {
       const left = standing(state, c);
       if (!left.length) lift(state, c, gone(c), ev);
+      else if (!left.some(a => inHall(state, a))) lift(state, c, 'alone', ev);
       else {
         const s = c.sealed, you = state.actors[0];
         s.at = state.turn;
@@ -191,8 +228,13 @@ const Hall = (() => {
         const who = occupant(state, c);
         if (!who) seal(state, c, call, ev);
         else if (!c.waiting) {
+          // The cause names what calls for the seal (by), never who merely stands in the way,
+          // and one who stands there (in) only if you see it: the first you see, if any.
           c.waiting = { turn: state.turn, by: who.uid };
-          Causes.emit(state, ev, 'stage', { stage: 'waiting' }, { k: 'hall', by: who.uid, why: call.why });
+          const cause = { k: 'hall', why: call.why }, seen = occupants(state, c).find(a => inView(state, a));
+          if (call.by !== undefined) cause.by = call.by;
+          if (seen) cause.in = seen.uid;
+          Causes.emit(state, ev, 'stage', { stage: 'waiting' }, cause);
         }
       }
     }

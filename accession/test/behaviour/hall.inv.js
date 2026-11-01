@@ -9,12 +9,19 @@
 //   hall.clear     no one ever stands on a shutter;
 //   hall.seal      the shutters close only at a turn boundary while you stand inside the hall,
 //                  every opening is clear and the Centrepiece stands; a fight's, only while
-//                  one of its pieces hunts you (the cause names it);
+//                  one of its pieces hunts you from inside the hall (the cause names it);
 //   hall.frozen    while the hall stays sealed through a step, the clock's count does not move,
 //                  you do not regenerate, and no clock stage, night-watch bell or Night
 //                  Watchman comes;
 //   hall.waiting   the hall says it waits (stage waiting) at most once while one wait lasts,
-//                  only while you stand inside it, and names who stands in an opening;
+//                  only while you stand inside it; its cause's by, if any, is what calls for
+//                  the seal (a fight's: one of its pieces, hunting you, in the hall), never
+//                  merely who stands in the way; it names who stands in an opening (in) only
+//                  if that one does and you see it, and names one whenever you see one there;
+//   hall.alone     the shutters stay down only while a piece of the Centrepiece stands in the
+//                  hall (a step may end sealed with none there only when one of its pieces
+//                  fell in it, and the next boundary opens them), and they open as alone only
+//                  once every piece that stood in the hall has fallen;
 //   hall.quiet     the shutters open as quiet only once SEAL_LIFT_TURNS turns have passed since
 //                  the seal, and never while a piece stands beside you.
 'use strict';
@@ -54,6 +61,19 @@ module.exports = (C) => {
     const r = c && (m.rooms || []).find(q => q.key === c.room || q.id === c.room);
     return !!r && Array.isArray(m.roomOf) && !!m.roomOf[y] && m.roomOf[y][x] === r.id;
   };
+  // An actor with any tile of it in the hall.
+  const bodyIn = (s, a) => Actors.footprint(a).some(([x, y]) => inHall(s, x, y));
+  const piecesUp = s => { const c = cpOf(s); return ((c && c.uids) || []).map(u => s.actors.find(a => a.uid === u)).filter(a => a && !a.gone); };
+  // Do you see actor a in state s, as the board shows it: a tile of it in your sight, and it
+  // shown as itself (a mimic in its disguise shows as a case)?
+  function seen(s, a) {
+    if (!a || a.gone || C.Archetypes.present(s, a) !== null) return false;
+    const v = C.Vision.visible(s), m = s.dept;
+    return Actors.footprint(a).some(([x, y]) => Grid.inside(m, x, y) && v[y * m.w + x] === 1);
+  }
+  // Did anything after event i of the step move actor uid or change a door (so what stood or
+  // was in sight then may differ from the step's end)?
+  const changedAfter = (events, i, uid) => events.slice(i + 1).some(e => (e.k === 'moved' && (uid === null || e.who === uid)) || e.k === 'opened' || e.k === 'closed');
 
   return [
     {
@@ -128,6 +148,8 @@ module.exports = (C) => {
           if (e.cause.why !== 'hunt' || !(c.uids || []).includes(e.cause.by)) return `a fight's hall sealed for ${JSON.stringify(e.cause)}, not for one of its pieces hunting you`;
           const mode = modeAt(pre, events, e.cause.by, events.indexOf(e));
           if (mode !== 'hunting') return `the hall sealed for ${e.cause.by}, which was ${mode}, not hunting you`;
+          const p = post.actors.find(a => a.uid === e.cause.by);
+          if (!p || !bodyIn(post, p)) return `the hall sealed for ${e.cause.by}, which hunts you from outside it: you are sealed in alone`;
         }
         return null;
       },
@@ -152,8 +174,37 @@ module.exports = (C) => {
         const a = cpOf(pre), b = cpOf(post), you = post.actors[0];
         if (a && a.waiting && b && b.waiting && a.waiting.turn === b.waiting.turn) return 'the hall said again that it waits, in the same wait';
         if (!inHall(post, you.x, you.y)) return 'the hall said it waits while you stood outside it';
-        const by = w[0].cause.by, at = by && post.actors.find(x => x.uid === by);
-        if (!at || !(b.openings || []).some(o => Actors.covers(at, o.x, o.y))) return `the hall said ${by} stands in an opening, but it does not`;
+        const e = w[0], i = events.indexOf(e), by = e.cause.by, inn = e.cause.in;
+        if (by !== undefined) {
+          if (!(b.uids || []).includes(by)) return `the hall's wait names ${by} as what calls for the seal, but it is none of the Centrepiece`;
+          if (b.form === 'fight' && modeAt(pre, events, by, i) !== 'hunting') return `the hall's wait names ${by}, which was ${modeAt(pre, events, by, i)}, not hunting you`;
+        }
+        const inOpening = a => (b.openings || []).some(o => Actors.covers(a, o.x, o.y));
+        if (inn !== undefined) {
+          const at = post.actors.find(x => x.uid === inn);
+          if (!changedAfter(events, i, inn) && (!at || !inOpening(at))) return `the hall said ${inn} stands in an opening, but it does not`;
+          if (!changedAfter(events, i, inn) && !seen(post, at)) return `the hall named ${inn} in an opening, out of your sight`;
+        } else if (!changedAfter(events, i, null)) {
+          const there = post.actors.find(a => a.uid !== 'you' && !a.gone && inOpening(a) && seen(post, a));
+          if (there) return `the hall named no one in its openings, but you see ${there.uid} in one`;
+        }
+        return null;
+      },
+    },
+    {
+      id: 'hall.alone',
+      check(pre, events, post) {
+        const c = cpOf(post);
+        if (!c) return null;
+        if (c.sealed && !piecesUp(post).some(a => bodyIn(post, a)) && piecesUp(post).length
+          && !events.some(e => e.k === 'died' && (c.uids || []).includes(e.who))) return 'the hall is sealed with none of its Centrepiece in it: you are sealed in alone';
+        const alone = of(events, 'unsealed').filter(e => e.cause.why === 'alone');
+        if (!alone.length) return null;
+        const at = events.indexOf(alone[0]);
+        for (const a of piecesUp(pre)) {
+          if (!bodyIn(pre, a)) continue;
+          if (!events.slice(0, at).some(e => e.k === 'died' && e.who === a.uid)) return `the shutters opened as alone while ${a.uid} still stood in the hall`;
+        }
         return null;
       },
     },

@@ -41,7 +41,7 @@
     return ` ${list.length === 1 ? 'Another goes' : 'More go'} off there before your next turn: ${list.map(one).join('; ')}.`;
   }
   // How a sealed hall's shutters open (rules/hall.js; text/hall.js says the same).
-  const opens = () => `they open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket`;
+  const opens = () => `they open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket`;
   const shut = 'shutters close over its openings, the clock stops, and you do not recover health';
   const more = n => n === 1 ? '1 more breaks it' : `${n} more break it`;
   const SAY = {
@@ -66,15 +66,15 @@
         line: `${cap(who)}’s ${sp} goes off on that tile before your next turn: it would deal you ${d.dmg}, with no roll.${more}` };
     },
     // The hall seals at a turn boundary while you stand inside it, no one stands in an
-    // opening, and its Centrepiece calls for it (a fight's: it hunts you; a treasure's: as its
-    // guardian's label says).
+    // opening, and its Centrepiece calls for it (a fight's: it hunts you from inside the hall;
+    // a treasure's: as its guardian's label says).
     hall: (d, nameOf) => {
       const who = (typeof nameOf === 'function' && d.by && nameOf(d.by)) || 'the Centrepiece';
       // A treasure's hall seals by its own rule, never on the hunt: its words never say hunting.
       const line = d.seals && d.form === 'treasure' ? `The hall will seal behind you as this turn ends, as its guardian’s label says, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
         : d.seals ? `${cap(who)} is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
         : d.form === 'treasure' ? `This hall can seal while you are inside it, as its guardian’s label says: ${shut}; ${opens()}.`
-        : `If the Centrepiece hunts you while you are inside, the hall seals at the end of a turn when no one stands in its openings: ${shut}; ${opens()}.`;
+        : `If the Centrepiece hunts you while you and it are inside, the hall seals at the end of a turn when no one stands in its openings: ${shut}; ${opens()}.`;
       return { title: 'Step into the Centrepiece’s hall?', yes: 'Step in', line };
     },
   };

@@ -243,7 +243,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const s of chime) { assert.doesNotMatch(s, /\bbell\b/i, s); assert.ok(clean(s), s); }
   });
 
-  test('a sentence that states a number of record says "1 turn" when its row is 1, and the Signature piece\'s drop names no place', () => {
+  test('a sentence that states a number of record says "1 turn" when its row is 1, and the Signature piece\'s drop says where it lies: where the Centrepiece first stood, never where its last piece fell', () => {
     // Every M4 sentence that states a row's count, with that row at 1 (a planted copy of the core).
     const X = loadCore(null, { numbers: { SEAL_LIFT_TURNS: 1, VIEW_TURNS: 1, PERK_SECOND_WIND_TURNS: 1, PERK_DUCK_AND_COVER: 1 } });
     const said = [];
@@ -252,9 +252,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(lift, 'The shutters opened: the Centrepiece has neither hurt you nor ended a turn beside you for 1 turn. They do not close again until you have stepped out of the hall.');
     for (const s of said) assert.doesNotMatch(s, ONE, s);
     assert.ok(said.some(s => /1 of 1 turn\./.test(s)) && said.some(s => /over 1 turn\./.test(s)) && said.some(s => /costs 1 tick less/.test(s)));
-    // The piece drops on the Centrepiece's anchor tile (§8.7), not where an ensemble's last piece fell.
+    // The piece drops on the Centrepiece's anchor tile (§8.7), where it first stood, not where an
+    // ensemble's last piece fell: the sentence says so (ARCH-CP-CORE's review).
     const drop = Text.event({ k: 'dropped', turn: 3, who: 'x.1', item: 'i.1', x: 4, y: 4, cause: { k: 'defeated', by: 'you' } }, NAMES);
-    assert.equal(drop, 'The Lantern-Crop Wader fell, and the Centrepiece’s Signature piece dropped to the floor.');
+    assert.equal(drop, 'The Lantern-Crop Wader fell, and the Centrepiece’s Signature piece dropped to the floor where the Centrepiece first stood.');
   });
 
   // ---- The log ----

@@ -4,20 +4,24 @@
 // main scenarios clone-checked at depths 1–7. The figures expected are worked out here from
 // BUILD's sentences, not from rules/hall.js:
 //   - the hall seals on the hunt, at the boundary its piece begins to hunt you, while you stand
-//     inside it; never from outside; an occupied opening delays it, said once; a staff door is
-//     shuttered with the rest, and the board shows no staff door under a shutter;
+//     inside it; never from outside; never for a piece hunting you from outside it (you are
+//     never sealed in alone); an occupied opening delays it, said once, naming what calls for
+//     the seal and who stands in the way only if you see it; a staff door is shuttered with
+//     the rest, and the board shows no staff door under a shutter;
 //   - the count stops and you do not regenerate while it is sealed; a planted module's turn
 //     rules still run; the Night Watchman is shut out;
 //   - the shutters open after SEAL_LIFT_TURNS turns in a row in which the Centrepiece neither
 //     hurt you (at any range) nor ended a turn beside you; with a Ticket (its pieces heal
 //     SEAL_HEAL_PCT and go back); on defeat; and the hall seals again only once you have
 //     stood outside it at a turn's end;
-//   - your memory of an opening follows its shutter; a treasure's hall does not seal on the hunt;
+//   - your memory of an opening follows its shutter, and as it opens shows what you last saw
+//     there; a treasure's hall does not seal on the hunt;
 //   - the words: the hall's confirmation (Hall.entering, R11), the threat's for a line not yet
 //     marked (D7.3), the sealed chip and the dial.
 'use strict';
 const H = require('./_harness.js');
 const Inv = require('../../tools/invariants.js');
+const B = require('../../tools/battery.js');
 
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore();
@@ -68,7 +72,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (json(s.dept.cp.openings) !== json(OPENINGS)) problems.push(`d${depth}: the openings keep ${json(s.dept.cp.openings)}`);
       if (s.dept.clock.pausedSince !== hunt.turn || s.dept.clock.count !== hunt.turn - 1) problems.push(`d${depth}: the clock ${json(s.dept.clock)} after a seal at turn ${hunt.turn}`);
       const words = say(C, s, sealed[0]);
-      if (!/^Shutters closed over the hall’s openings, since the training dummy is hunting you: .* They open once the Centrepiece has gone 50 turns without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket\.$/.test(words)) problems.push(`d${depth}: ${words}`);
+      if (!/^Shutters closed over the hall’s openings, since the training dummy is hunting you: .* They open once the Centrepiece has gone 50 turns without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket\.$/.test(words)) problems.push(`d${depth}: ${words}`);
     }
     assert.deepEqual(problems, []);
   });
@@ -92,16 +96,18 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(problems, []);
   });
 
-  test('an occupied opening delays the seal: it says once, naming who stands there, that it waits, and seals at the first boundary every opening is clear', () => {
+  test('an occupied opening delays the seal: it says once that it waits, naming the hunting piece that calls for the seal as its cause (so the stage is the piece\'s doing, never the bystander\'s) and who stands there, seen; and seals at the first boundary every opening is clear', () => {
     const problems = [];
     for (const depth of DEPTHS) {
       const dummy = { sp: 'dummy', at: [8, 2], mode: 'dormant', stats: { hp: 1, acc: -99, eva: -999, pad: 0, dmin: 1, dmax: 1 } };
-      const s = hall(C, depth, { you: [7, 2], more: [dummy] }), who = `T0.${depth}.room.2`;
+      const s = hall(C, depth, { you: [7, 2], more: [dummy] }), who = `T0.${depth}.room.2`, piece = `T0.${depth}.room.1`;
       let r = H.play(C, s, Array(5).fill(wait), { inv: 'all', clone: true });
       problems.push(...bad(r, `d${depth}`));
       const w = stages(r.events, 'waiting');
-      if (w.length !== 1 || w[0].turn !== 1 || w[0].cause.by !== who || stages(r.events, 'sealed').length || tilesAt(s) !== ',S') problems.push(`d${depth}: waiting ${json(w)} with ${tilesAt(s)}`);
-      if (w[0] && say(C, s, w[0]) !== 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside and the Centrepiece hunts you.') problems.push(`d${depth}: ${say(C, s, w[0])}`);
+      if (w.length !== 1 || w[0].turn !== 1 || json(w[0].cause) !== json({ k: 'hall', why: 'hunt', by: piece, in: who }) || stages(r.events, 'sealed').length || tilesAt(s) !== ',S') problems.push(`d${depth}: waiting ${json(w)} with ${tilesAt(s)}`);
+      // The soak's completeness holds the stage to its causer: the piece, whose line covers it.
+      if (w[0] && B.causer(w[0]) !== piece) problems.push(`d${depth}: the waiting stage is ${B.causer(w[0])}'s doing`);
+      if (w[0] && say(C, s, w[0]) !== 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you and the Centrepiece are inside and it hunts you.') problems.push(`d${depth}: ${say(C, s, w[0])}`);
       r = H.play(C, s, (state, i) => i < 10 && !state.actors[2].gone ? { a: 'attack', uid: who } : null, { inv: 'all', clone: true });
       problems.push(...bad(r, `d${depth} clearing`));
       const died = r.events.find(e => e.k === 'died' && e.who === who), sealed = stages(r.events, 'sealed');
@@ -171,7 +177,77 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const r = H.play(C, s, Array(3).fill(wait), { inv: 'all', clone: true });
       problems.push(...bad(r, `d${depth}`));
       const w = stages(r.events, 'waiting');
-      if (C.Clock.sealed(s) || w.length !== 1 || w[0].cause.by !== s.actors[2].uid) problems.push(`d${depth}: sealed ${C.Clock.sealed(s)}, waiting ${json(w)}`);
+      if (C.Clock.sealed(s) || w.length !== 1 || w[0].cause.in !== s.actors[2].uid || w[0].cause.by !== s.actors[1].uid) problems.push(`d${depth}: sealed ${C.Clock.sealed(s)}, waiting ${json(w)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('an occupied opening out of your sight: the hall says it waits without naming who stands there, "someone out of your sight", and the stage is still the hunting piece\'s doing; one you see is named before one you do not', () => {
+    // Pillars (4,2) and (4,3) hide the archway (8,2) from you at (1,3), and from (7,5), which sees
+    // the staff door (8,4).
+    const map = MAP.slice(); map[2] = '#...o...,...#'; map[3] = '#...o...#...#';
+    const sleeper = at => ({ sp: 'dummy', at, mode: 'dormant', statuses: [{ id: 'fixed', turns: 9999 }], stats: BODY });
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { map, you: [1, 3], more: [sleeper([8, 2])] }), piece = `T0.${depth}.room.1`;
+      if (C.Vision.visible(s)[2 * s.dept.w + 8]) { problems.push(`d${depth}: the archway is in your sight, so this shows nothing`); continue; }
+      const r = H.play(C, s, [wait, wait], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const w = stages(r.events, 'waiting');
+      if (w.length !== 1 || json(w[0].cause) !== json({ k: 'hall', why: 'hunt', by: piece }) || B.causer(w[0]) !== piece) problems.push(`d${depth}: waiting ${json(w)}`);
+      const words = w[0] ? say(C, s, w[0]) : '';
+      if (words !== 'The hall would seal, but someone out of your sight stands in an opening: its shutters close once every opening is clear while you and the Centrepiece are inside and it hunts you.') problems.push(`d${depth}: ${words}`);
+      if (/training dummy/.test(C.Text.log(r.events, C.Labels.nameOf(s), () => false).join(' '))) problems.push(`d${depth}: the log names the dummy out of your sight`);
+      // Two in the openings, the first (by the openings' order) out of sight: the one seen is named.
+      const t = hall(C, depth, { map, you: [7, 5], more: [sleeper([8, 2]), sleeper([8, 4])] });
+      if (!C.Vision.visible(t)[4 * t.dept.w + 8] || C.Vision.visible(t)[2 * t.dept.w + 8]) { problems.push(`d${depth}: you see the archway, or not the staff door, so this shows nothing`); continue; }
+      const q = stages(H.play(C, t, [wait], { inv: 'all' }).events, 'waiting');
+      if (q.length !== 1 || q[0].cause.in !== t.actors[3].uid) problems.push(`d${depth}: two in the openings: ${json(q)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('never sealed in alone: a piece hunting you from outside the hall seals nothing, however long you stay inside, and the clock counts on; once it stands in the hall with you it seals you in with it; at depths 1–7, clone-checked', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      // Held still in the gallery, hunting you: 60 turns inside, and nothing.
+      const s = hall(C, depth, { you: [6, 3], piece: { size: 1, at: [10, 1] } });
+      let r = H.play(C, s, Array(60).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} held`));
+      if (stages(r.events).length || C.Clock.sealed(s) || s.dept.clock.count !== 60 || C.Hall.calls(s) !== null) problems.push(`d${depth}: held outside: ${json(stages(r.events).map(e => [e.turn, e.stage]))}, count ${s.dept.clock.count}`);
+      // The hall's confirmation from outside says nothing seals behind you.
+      const u = hall(C, depth, { you: [8, 2], piece: { size: 1, at: [10, 1] } });
+      if (json(C.Hall.entering(u, { a: 'move', dir: 6 })) !== json({ by: null, form: 'fight', seals: false })) problems.push(`d${depth}: entering ${json(C.Hall.entering(u, { a: 'move', dir: 6 }))}`);
+      // Free to come: it walks in through the archway, and the hall seals once it is inside.
+      const t = hall(C, depth, { you: [6, 3], still: false, piece: { size: 1, at: [10, 1] } }), p = t.actors[1];
+      r = H.play(C, t, (state, i) => i < 20 && !C.Clock.sealed(state) ? wait : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} walks in`));
+      const sealed = stages(r.events, 'sealed'), inside = r.events.filter(e => e.k === 'moved' && e.who === p.uid && C.Hall.inside(t, e.to[0], e.to[1]));
+      if (sealed.length !== 1 || !inside.length || sealed[0].turn < inside[0].turn || sealed[0].cause.by !== p.uid || !C.Hall.inside(t, p.x, p.y)) problems.push(`d${depth}: walked in ${json(inside.map(e => e.turn))}, sealed ${json(sealed)}`);
+      if (r.events.some(e => e.k === 'stage' && e.cause && e.cause.k === 'hall' && e.turn < (inside[0] || { turn: 0 }).turn)) problems.push(`d${depth}: a hall stage before it came in`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('the shutters open when none of the Centrepiece is left in the hall with you (alone): its piece inside falls while another stands outside; the sentence says so and that they close only once you have stepped out; the clock counts again', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      // A second piece of it, hunting you from the gallery, held still; the first beside you.
+      const out = { sp: 'dummy', at: [10, 1], size: 1, role: 'centrepiece', mode: 'hunting', statuses: [{ id: 'fixed', turns: 9999 }], stats: BODY };
+      const s = hall(C, depth, { you: [3, 3], more: [out], piece: { hp: 3, stats: Object.assign({}, BODY, { hp: 3, eva: -999 }) } });
+      s.dept.cp.uids.push(s.actors[2].uid);
+      let r = H.play(C, s, [wait], { inv: 'all' });
+      if (!C.Clock.sealed(s) || stages(r.events, 'sealed')[0].cause.by !== s.actors[1].uid) { problems.push(`d${depth}: not sealed by the piece inside: ${json(stages(r.events))}`); continue; }
+      const count = s.dept.clock.count, uid = s.actors[1].uid;
+      r = H.play(C, s, (state, i) => i < 20 && C.Clock.sealed(state) ? (state.actors[1].gone ? wait : { a: 'attack', uid }) : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const died = r.events.find(e => e.k === 'died' && e.who === uid), lift = stages(r.events, 'unsealed');
+      if (!died || json(lift.map(e => e.cause.why)) !== '["alone"]' || lift[0].turn !== Math.floor(died.tick / C.N.TICKS_PER_TURN) + 1 || tilesAt(s) !== ',S') { problems.push(`d${depth}: fell ${json(died)}, lifted ${json(lift)}`); continue; }
+      if (say(C, s, lift[0]) !== 'The shutters opened: none of the Centrepiece is left in the hall with you. They do not close again until you have stepped out of the hall.') problems.push(`d${depth}: ${say(C, s, lift[0])}`);
+      // Still inside, the other still hunting you from outside: no seal again, and the clock counts.
+      const before = s.dept.clock.count;
+      r = H.play(C, s, Array(3).fill(wait), { inv: 'all' });
+      if (stages(r.events).length || before <= count || s.dept.clock.count !== before + 3) problems.push(`d${depth}: after: ${json(stages(r.events))}, count ${count}, ${before}, ${s.dept.clock.count}`);
     }
     assert.deepEqual(problems, []);
   });
@@ -451,6 +527,21 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(vm.tiles[4][8], ' ', 'the staff door, never seen, stays unseen');
     C.Hall.onDefeat(s, []);
     assert.equal(C.ViewModel.derive(s, {}).tiles[2][8], ',', 'and it opens again in your memory');
+    // A door you remember shut, which an exhibit opened out of your sight before the seal: as
+    // the shutters open you remember it shut, as you last saw it, not as it is now.
+    const doorMap = map.slice(); doorMap[2] = '#...o...+...#';
+    for (const [how, lift] of [['defeat', t => C.Hall.onDefeat(t, [])], ['quiet', t => H.play(C, t, Array(N_LIFT).fill(wait), { inv: 'all' })]]) {
+      const t = hall(C, 3, { map: doorMap, you: [3, 2] });
+      t.dept.seen = t.dept.tiles.join('');
+      C.Grid.set(t.dept, 8, 2, "'");
+      H.play(C, t, [wait], { inv: 'all' });
+      assert.ok(C.Clock.sealed(t) && !C.Vision.visible(t)[j], how);
+      assert.equal(C.ViewModel.derive(t, {}).tiles[2][8], 'Z', how);
+      lift(t);
+      assert.ok(!C.Clock.sealed(t), how);
+      assert.equal(t.dept.tiles[2][8], "'", `${how}: the door is open`);
+      assert.equal(C.ViewModel.derive(t, {}).tiles[2][8], '+', `${how}: your memory shows the open door you never saw`);
+    }
   });
 
   // ---- The words ----
@@ -463,7 +554,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(C.Hall.entering(s, step)), json({ by: 'T0.3.room.1', form: 'fight', seals: true }));
     const c = C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s));
     assert.equal(json(c), json({ title: 'Step into the Centrepiece’s hall?', yes: 'Step in',
-      line: `The Great Board is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: shutters close over its openings, the clock stops, and you do not recover health; they open once the Centrepiece has gone ${N_LIFT} turns without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket.` }));
+      line: `The Great Board is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: shutters close over its openings, the clock stops, and you do not recover health; they open once the Centrepiece has gone ${N_LIFT} turns without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket.` }));
     // Not a step in: a wait, a step along the gallery, a step from inside, a bump into an exhibit.
     assert.equal(C.Hall.entering(s, wait), null);
     assert.equal(C.Hall.entering(s, { a: 'move', dir: 2 }), null);
@@ -473,7 +564,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     s = at([8, 2], [{ sp: 'dummy', at: [8, 4], mode: 'dormant', stats: BODY }]);
     const e = C.Hall.entering(s, step);
     assert.equal(json(e), json({ by: 'T0.3.room.1', form: 'fight', seals: false }));
-    assert.match(C.Text.confirm('hall', e, nameOf(s)).line, /^If the Centrepiece hunts you while you are inside, the hall seals at the end of a turn when no one stands in its openings: /);
+    assert.match(C.Text.confirm('hall', e, nameOf(s)).line, /^If the Centrepiece hunts you while you and it are inside, the hall seals at the end of a turn when no one stands in its openings: /);
     // A sleeping piece: no seal yet. A treasure's hall: its label says when.
     assert.equal(json(C.Hall.entering(at([8, 2], [], { piece: { mode: 'dormant' } }), step)), json({ by: null, form: 'fight', seals: false }));
     s = at([8, 2], [], { form: 'treasure' });
@@ -602,8 +693,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('every hall sentence is clean, whatever the stage, why, and who', () => {
     const names = uid => uid === 'x.1' ? 'the Great Board' : null, out = [];
-    for (const stage of ['sealed', 'unsealed', 'waiting', 'other']) for (const why of ['hunt', 'quiet', 'ticket', 'defeat', 'treasure', 'sheet', 'touched']) for (const by of [undefined, 'x.1', 'you', 'x.9']) {
-      const cause = Object.assign({ k: 'hall', why }, by ? { by } : {});
+    for (const stage of ['sealed', 'unsealed', 'waiting', 'other']) for (const why of ['hunt', 'quiet', 'ticket', 'defeat', 'treasure', 'sheet', 'alone', 'touched']) for (const by of [undefined, 'x.1', 'you', 'x.9']) for (const inn of [undefined, 'x.1', 'x.9']) {
+      const cause = Object.assign({ k: 'hall', why }, by ? { by } : {}, inn ? { in: inn } : {});
       out.push(C.Text.event({ k: 'stage', turn: 3, stage, cause }, names));
     }
     out.push(C.Text.event({ k: 'healed', turn: 3, who: 'x.1', amount: 15, hp: 40, cause: { k: 'hall', why: 'ticket' } }, names));
@@ -655,7 +746,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // ---- The invariants catch what they say ----
 
-  test('hall.inv.js catches a shutter off an opening, a shutter with no seal, a paused clock with no seal, someone on a shutter, the count moving while sealed, a second "waiting", and a quiet lift too soon', () => {
+  test('hall.inv.js catches a shutter off an opening, a shutter with no seal, a paused clock with no seal, someone on a shutter, the count moving while sealed, a seal for a piece outside the hall, a second "waiting", a wait blamed on a bystander, naming one out of sight or naming none in sight, a hall sealed with none of it inside, a lift "alone" too soon, and a quiet lift too soon', () => {
     const check = ids => Inv.checker(C, Inv.select(C, ids));
     const sealedHall = () => { const s = hall(C, 3); C.Step.step(s, wait); return s; };
     const text = (ids, pre, ev, post) => check(ids)(pre, wait, ev, post).map(v => v.text).join(' | ');
@@ -687,11 +778,30 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(text(['hall.seal'], pre, [{ k: 'stage', turn: 0, tick: 0, stage: 'sealed', cause: { k: 'hall', by: 'T0.3.room.1', why: 'hunt' } }], post), /outside it/);
     pre = hall(C, 3, { piece: { mode: 'dormant' } }); post = C.State.clone(pre); post.dept.cp.sealed = { turn: 0, by: 'T0.3.room.1', why: 'hunt', at: 0, last: 0 };
     assert.match(text(['hall.seal'], pre, [{ k: 'stage', turn: 0, tick: 0, stage: 'sealed', cause: { k: 'hall', by: 'T0.3.room.1', why: 'hunt' } }], post), /which was dormant, not hunting you/);
+    // A seal for a piece hunting you from outside the hall: you sealed in alone.
+    pre = hall(C, 3, { piece: { size: 1, at: [10, 1] } }); post = C.State.clone(pre); post.dept.cp.sealed = { turn: 0, by: 'T0.3.room.1', why: 'hunt', at: 0, last: 0 };
+    assert.match(text(['hall.seal'], pre, [{ k: 'stage', turn: 0, tick: 0, stage: 'sealed', cause: { k: 'hall', by: 'T0.3.room.1', why: 'hunt' } }], post), /hunts you from outside it: you are sealed in alone/);
     // "Waiting" said twice in one wait.
     pre = hall(C, 3, { you: [7, 2], more: [{ sp: 'dummy', at: [8, 2], mode: 'dormant', stats: BODY }] });
     C.Step.step(pre, wait);
     post = C.State.clone(pre);
-    assert.match(text(['hall.waiting'], pre, [{ k: 'stage', turn: 2, tick: 200, stage: 'waiting', cause: { k: 'hall', by: 'T0.3.room.2', why: 'hunt' } }], post), /said again that it waits/);
+    const waits = cause => [{ k: 'stage', turn: 2, tick: 200, stage: 'waiting', cause: Object.assign({ k: 'hall', why: 'hunt' }, cause) }];
+    assert.match(text(['hall.waiting'], pre, waits({ by: 'T0.3.room.1', in: 'T0.3.room.2' }), post), /said again that it waits/);
+    // A wait blamed on the bystander in the archway; one naming it out of your sight; one naming
+    // no one while you see it there (each in a fresh wait).
+    pre = hall(C, 3, { you: [7, 2], more: [{ sp: 'dummy', at: [8, 2], mode: 'dormant', stats: BODY }] }); post = C.State.clone(pre);
+    assert.match(text(['hall.waiting'], pre, waits({ by: 'T0.3.room.2', in: 'T0.3.room.2' }), post), /names T0\.3\.room\.2 as what calls for the seal, but it is none of the Centrepiece/);
+    assert.match(text(['hall.waiting'], pre, waits({ by: 'T0.3.room.1' }), post), /named no one in its openings, but you see T0\.3\.room\.2 in one/);
+    assert.equal(text(['hall.waiting'], pre, waits({ by: 'T0.3.room.1', in: 'T0.3.room.2' }), post), '');
+    const hid = MAP.slice(); hid[2] = '#...o...,...#'; hid[3] = '#...o...#...#';
+    pre = hall(C, 3, { map: hid, you: [1, 3], more: [{ sp: 'dummy', at: [8, 2], mode: 'dormant', stats: BODY }] }); post = C.State.clone(pre);
+    assert.match(text(['hall.waiting'], pre, waits({ by: 'T0.3.room.1', in: 'T0.3.room.2' }), post), /named T0\.3\.room\.2 in an opening, out of your sight/);
+    // Sealed with none of it in the hall (its piece moved out), and no piece of it fell.
+    pre = sealedHall(); post = C.State.clone(pre); Object.assign(post.actors[1], { x: 10, y: 1, size: 1 });
+    assert.match(text(['hall.alone'], pre, [], post), /sealed with none of its Centrepiece in it/);
+    // "Alone" while its piece still stands in the hall.
+    pre = sealedHall(); post = C.State.clone(pre);
+    assert.match(text(['hall.alone'], pre, [{ k: 'stage', turn: 2, tick: 200, stage: 'unsealed', cause: { k: 'hall', why: 'alone' } }], post), /opened as alone while T0\.3\.room\.1 still stood in the hall/);
     // A quiet lift too soon.
     pre = sealedHall(); post = C.State.clone(pre);
     assert.match(text(['hall.quiet'], pre, [{ k: 'stage', turn: 20, tick: 2000, stage: 'unsealed', cause: { k: 'hall', why: 'quiet' } }], post), /19 turns after the seal/);
