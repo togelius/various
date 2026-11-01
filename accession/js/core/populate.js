@@ -588,8 +588,17 @@ const Populate = (() => {
       r.a.route = { posts: r.posts.map(q => q.slice()), i: 0 };
     };
     rounds.forEach(walk);
-    for (let tries = 0; tries < 4 * rounds.length; tries++) {
-      const t = Patrol.timeline(state, ROUND_TURNS), stuck = t ? t.filter(p => p.stuck) : [];
+    // The rounds are walked on the map as the visit will have it: each mimic's tile its case
+    // already (its init makes it one), so the walk is the one the Wader will take.
+    const mimics = state.actors.filter(a => !a.gone && a.arch === 'mimic_vitrine');
+    const asMade = () => {
+      if (!mimics.length) return state;
+      const d = Object.assign({}, m, { tiles: m.tiles.slice() });
+      for (const a of mimics) Grid.set(d, a.x, a.y, 'v');
+      return Object.assign({}, state, { dept: d });
+    };
+    for (let tries = 0; rounds.length && tries < 4 * rounds.length; tries++) {
+      const t = Patrol.timeline(asMade(), ROUND_TURNS), stuck = t ? t.filter(p => p.stuck) : [];
       if (!stuck.length) break;
       for (const p of stuck) {
         const r = rounds.find(q => q.a.uid === p.uid);

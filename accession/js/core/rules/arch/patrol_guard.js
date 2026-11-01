@@ -313,7 +313,7 @@ const Patrol = (() => {
   // More waits in a row than any patrol that blocks another could cause by its own steps and
   // doors (each patrol's wait for the one ahead lasts an action or two).
   const STUCK_ACTIONS = 8;
-  const lines = new WeakMap(), fieldsFor = { tiles: null, of: null };
+  const lines = new WeakMap(), fieldsFor = { tiles: null, of: null, walk: null };
   function fingerprint(state) {
     let f = `${state.tick}|${state.dept.tiles.join('')}`;
     for (const o of state.actors) f += `|${o.uid},${o.x},${o.y},${o.mode},${o.gone ? 1 : 0},${o.next},${o.arch === 'patrol_guard' && o.route ? JSON.stringify(o.route) : '-'}`;
@@ -327,6 +327,41 @@ const Patrol = (() => {
     if (!got) { got = { fp, horizon, all: walkAll(state, horizon) }; lines.set(state, got); }
     if (!got.all) return null;
     return got.all.map(p => ({ uid: p.uid, at: p.at.filter(s => s.t <= horizon), stuck: p.stuck && p.stuck.t <= horizon ? { post: p.stuck.post } : null }));
+  }
+  // AI.field toward a post a one-tile patrol not on a plinth can stand on: the exhibits' walking
+  // distance from it (Grid.distances by the exhibits' step rule: staff doors walls, no step out
+  // of a case, a diagonal past no tile it could not step onto), -1 where unreached; worked out
+  // here on the map's walking tiles, read once (fieldsFor.walk), since a round asks for several.
+  // The cache of one map's walking fields (kept while its tiles stay as they are).
+  function cacheFor(m) {
+    const tiles = m.tiles.join('\n');
+    if (fieldsFor.tiles !== tiles) { fieldsFor.tiles = tiles; fieldsFor.of = new Map(); fieldsFor.walk = null; }
+    return fieldsFor;
+  }
+  function walkField(m, post) {
+    const w = m.w, n = m.w * m.h;
+    cacheFor(m);
+    if (!fieldsFor.walk) {
+      const walk = new Uint8Array(n), kase = new Uint8Array(n);
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < w; x++) { walk[y * w + x] = Grid.walkable(m, x, y, 'exhibit') ? 1 : 0; kase[y * w + x] = Grid.ch(m, x, y) === 'v' ? 1 : 0; }
+      fieldsFor.walk = { walk, kase };
+    }
+    const { walk, kase } = fieldsFor.walk, dist = new Int32Array(n).fill(-1), queue = new Int32Array(n), DX = Grid.DX, DY = Grid.DY;
+    let head = 0, tail = 0;
+    dist[post[1] * w + post[0]] = 0; queue[tail++] = post[1] * w + post[0];
+    while (head < tail) {
+      const p = queue[head++], x = p % w, y = (p - x) / w;
+      if (kase[p]) continue;
+      for (let d = 0; d < 8; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (nx < 0 || ny < 0 || nx >= w || ny >= m.h) continue;
+        const q = ny * w + nx;
+        if (!walk[q] || dist[q] >= 0) continue;
+        if (DX[d] !== 0 && DY[d] !== 0 && !(walk[y * w + nx] && walk[ny * w + x])) continue;
+        dist[q] = dist[p] + 1; queue[tail++] = q;
+      }
+    }
+    return dist;
   }
   function walkAll(state, horizon) {
     const m0 = state.dept, w = m0.w, fixed = new Uint8Array(m0.w * m0.h), sims = [];
@@ -343,13 +378,12 @@ const Patrol = (() => {
     // A post's walking field (AI.field, actors never counting), worked out once: one for every
     // one-tile patrol not on a plinth, whose field it is the same for, and kept for the next
     // timeline asked of the same map (population's, then the runner's).
-    const tiles = m0.tiles.join('\n');
-    if (fieldsFor.tiles !== tiles) { fieldsFor.tiles = tiles; fieldsFor.of = new Map(); }
-    const shared = fieldsFor.of;
+    const shared = cacheFor(m0).of;
     const field = (p, k) => {
       if (p.fields.has(k)) return p.fields.get(k);
-      const key = `${p.P[k][0]},${p.P[k][1]}`, alike = (p.a.size || 1) === 1 && Grid.ch(m0, p.a.x, p.a.y) === '.';
-      const f = alike && shared.has(key) ? shared.get(key) : AI.field(state, p.a, p.P[k], 'onto');
+      const post = p.P[k], key = `${post[0]},${post[1]}`, alike = (p.a.size || 1) === 1 && Grid.ch(m0, p.a.x, p.a.y) === '.' && Grid.walkable(m0, post[0], post[1], 'exhibit');
+      let f = alike ? shared.get(key) : null;
+      if (!f) f = alike ? walkField(m0, post) : AI.field(state, p.a, post, 'onto');
       if (alike) shared.set(key, f);
       p.fields.set(k, f);
       return f;
@@ -406,5 +440,5 @@ const Patrol = (() => {
   }
 
   Archetypes.add('patrol_guard', { act, onResolve, wakeRegion });
-  return { timeline };
+  return { timeline, walkField };
 })();
