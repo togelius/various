@@ -52,7 +52,10 @@
 //   a pack's Intro teaches anything but its signature module (§5.1; WO6 of the M4 maps): its
 //   signature is the module with role 'signature', else its first; its intro panel
 //   (panels.intro) says another module's panel sentence or one of its keywords; its stamp
-//   (intro: {map, legend}) puts there an exhibit flagged with another module, a weather case
+//   (intro: {map, legend}) puts there an exhibit flagged with another module and not with the
+//   signature (the signature's teaching instance may carry another module's flag: it says how
+//   that module acts on it where that module's means are, and the Intro holds none of them, as
+//   this rule sees to: M.11's station, stopped by rain from a weather case), a weather case
 //   (a legend case with `weather`) unless weather_cases is the signature, more than
 //   INTRO_HOSTILES exhibits, or an exhibit neither of an orientation role (fodder,
 //   skirmisher) nor flagged with the signature (its teaching instance), or names a species
@@ -445,7 +448,10 @@ for (const p of packs) {
       if (!sp) { bad(`${p.acc}'s Intro places ${spId} ('${ch}'), which is no species of its pack`); continue; }
       hostiles += n * (Number.isInteger(L.count) && L.count > 0 ? L.count : 1);
       const flags = Array.isArray(sp.flags) ? sp.flags : [];
-      for (const f of flags) if (f !== sig) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), flagged with ${f}, but teaches only ${sig || 'no module'}`);
+      // The teaching instance (flagged with the signature) may carry another module's flag too:
+      // the Intro holds no means of that module (no weather case, and no exhibit flagged with it
+      // alone), so the flag never acts there.
+      if (!(sig && flags.includes(sig))) for (const f of flags) if (f !== sig) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), flagged with ${f}, but teaches only ${sig || 'no module'}`);
       if (!INTRO_ROLES.includes(sp.role) && !(sig && flags.includes(sig))) bad(`${p.acc}'s Intro places ${sp.id} ('${ch}'), a ${sp.role}: only ${INTRO_ROLES.join(' and ')} or the signature's teaching instance (flagged with ${sig || 'it'}) belong there`);
     }
   }

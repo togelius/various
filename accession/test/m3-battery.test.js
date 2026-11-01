@@ -50,9 +50,12 @@ module.exports = ({ test, assert, root, fs, path }) => {
     const soak = r.results.find(x => x.kind === 'soak');
     assert.ok(soak && soak.turns >= 1000 && soak.tally.stages.bell >= 1 && soak.tally.stages.night_watch >= 1, `the soak: ${json(soak && soak.tally.stages)}`);
     if (r.arenas.includes('night_watchman')) assert.ok(r.killers.night_watch >= 1, json(r.killers));
-    // The monkeys draw every action kind a player has (weighted): each kind legal at 1,000
-    // steps or more of theirs was drawn, beyond moves, waits and blows.
-    const often = Object.keys(r.legal).filter(k => r.legal[k] >= 1000);
+    // The monkeys draw every action kind a player has (weighted): each kind legal at 500
+    // steps or more of theirs was drawn, beyond moves, waits and blows. (1,000 until D-STAMPS:
+    // with the packs' own Intro stamps the department monkeys take fewer items, so drop and
+    // equip, legal at about 1,090 steps before, fell to about 915 and out of the check; at 500
+    // they, and attack, are held to it again.)
+    const often = Object.keys(r.legal).filter(k => r.legal[k] >= 500);
     assert.ok(often.length >= 5, json(r.legal));
     for (const k of often) assert.ok(r.kinds[k] > 0, `the monkeys never drew ${k}, legal at ${r.legal[k]} steps`);
     console.log(`  ${r.steps} steps in ${(r.ms / 1000).toFixed(1)} s, ${(r.cpuMs / 1000).toFixed(1)} CPU-s: ${r.cpuMsPerStep.toFixed(2)} CPU-ms a step`);

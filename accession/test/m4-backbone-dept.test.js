@@ -58,11 +58,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // M3's starting state, hashed at W0c's base (a33bbd7) as Dept.create(1, acc, depth) made it.
   // A package that changes a department's start on purpose re-pins these with its reason, as
   // it does the golden runs. Re-pinned by D-INTRO-GEN: layout version 3 grows the Intro to its
-  // stamp, so every department's plan, and so its start, moves. A module's state is M4's own
-  // (dept.modules, each module as its file defines it: S.9's alarm_network since MOD-ALARM), so
-  // it is left out of the hash and checked apart: the pack's modules defined so far, in pack
-  // order, each on.
-  const M3_START = { 'S9/2': 1266330469, 'S9/5': 2577597585, 'A4/2': 1896667028, 'A4/5': 1024964630, 'M11/2': 2845619567, 'M11/5': 479322793 };
+  // stamp, so every department's plan, and so its start, moves. Re-pinned by D-STAMPS: each
+  // pack's own stamp (content/*-intro.js) is now its Intro, so every department's plan moves.
+  // A module's state is M4's own (dept.modules, each module as its file defines it: S.9's
+  // alarm_network since MOD-ALARM), so it is left out of the hash and checked apart: the
+  // pack's modules defined so far, in pack order, each on.
+  const M3_START = { 'S9/2': 625162344, 'S9/5': 2684081107, 'A4/2': 1033732929, 'A4/5': 1021234286, 'M11/2': 4263557361, 'M11/5': 373938249 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
@@ -137,13 +138,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       // The oracle: the room of each tile you stand on, once, from the department's own map.
       const stood = () => { const y = s.actors[0], id = m.roomOf[y.y][y.x]; if (m.rooms.some(r => r.id === id) && !oracle.includes(id)) oracle.push(id); };
       stood();
-      // The walk takes, in a turning order, the first move onto a tile not yet stood on, else
-      // the turning order's move, so it leaves the Intro's vestibule (layout version 3).
+      // The walk takes, in a turning order, the first move onto a tile not yet stood on; with
+      // none beside you, the move that most shortens the walk to the nearest tile not yet stood
+      // on (a frontier walk), else the turning order's move; so it leaves the Intro whatever its
+      // stamp's furniture (layout version 3; A.4's desks, D-STAMPS).
       const been = new Set();
+      const toward = (you, moves) => {
+        const D = Grid.distances(m, [[you.x, you.y]], 99999);
+        let goal = -1;
+        for (let t = 0; t < D.length; t++) if (D[t] > 0 && !been.has(t) && (goal < 0 || D[t] < D[goal])) goal = t;
+        if (goal < 0) return null;
+        const G = Grid.distances(m, [[goal % m.w, (goal - (goal % m.w)) / m.w]], 99999), at = mv => G[(you.y + Grid.DY[mv.dir]) * m.w + you.x + Grid.DX[mv.dir]];
+        return moves.filter(mv => at(mv) >= 0).sort((p, q) => at(p) - at(q))[0] || null;
+      };
       for (let i = 0; i < 600 && !s.over; i++) {
         const moves = Step.legal(s).filter(a => a.a === 'move'), you = s.actors[0], k0 = (i * 7919 + (i >> 3)) % Math.max(1, moves.length);
         been.add(you.y * m.w + you.x);
-        const fresh = moves.map((_, k) => moves[(k0 + k) % moves.length]).find(mv => !been.has((you.y + Grid.DY[mv.dir]) * m.w + you.x + Grid.DX[mv.dir]));
+        const fresh = moves.map((_, k) => moves[(k0 + k) % moves.length]).find(mv => !been.has((you.y + Grid.DY[mv.dir]) * m.w + you.x + Grid.DX[mv.dir])) || toward(you, moves);
         Step.step(s, fresh || (moves.length ? moves[k0] : { a: 'wait' }));
         stood();
         eq(Dept.walked(s), oracle, `${acc}, after step ${i + 1}`);
@@ -215,6 +226,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('a pack\'s part is given once, to a pack already added; a flag must name one of its own department\'s modules, and a copy one of its species', () => {
     const X = loadCore();
+    delete X.Packs.get('S9').intro; // S.9's own stamp (content/S9-intro.js), taken away in this core
     X.Packs.part('S9', 'intro', { map: ['E..'] });
     eq(X.Packs.get('S9').intro, { map: ['E..'] }, 'merged into the pack');
     assert.ok(X.Packs.list().find(p => p.acc === 'S9').intro);

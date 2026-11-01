@@ -102,7 +102,9 @@ const Populate = (() => {
   //     dir     (a demonstrator) its line's direction, N, E, S or W, instead of the longest;
   // and items, {item, case?}, which population leaves to the item placement.
   // The Intro stamp's legend (pack.intro.legend, a letter → a record) names an exhibit as
-  // {sp, guards?, dir?}: it stands on each tile the plan marks with that letter.
+  // {sp, guards?, dir?}: it stands on each tile the plan marks with that letter. No such letter
+  // stands on a stretch row, and a copy group the stamp places keeps a gallery's rule (one of
+  // its original, COPY_GROUP in all), its marks counted on the stamp's map (D-STAMPS).
   //
   // Populate.check(pack) → the problems with its gallery list and its stamp's exhibits, as
   // sentences ([] when there are none, or when it has no gallery list). Population refuses a
@@ -173,6 +175,11 @@ const Populate = (() => {
     });
     const legend = pack.intro && pack.intro.legend;
     if (legend && typeof legend === 'object') {
+      // The stamp's exhibits, each letter with how many tiles of its map hold it (the floor
+      // columns of every row, each row once).
+      const rows = Array.isArray(pack.intro.map) ? pack.intro.map.filter(r => typeof r === 'string') : [];
+      const stretch = Array.isArray(pack.intro.stretch) ? pack.intro.stretch : [];
+      const marks = [];
       for (const ch of Object.keys(legend).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
         const e = legend[ch];
         if (!e || typeof e !== 'object' || e.sp === undefined) continue;
@@ -180,6 +187,26 @@ const Populate = (() => {
         if (!sp) { out.push(`${at} names ${JSON.stringify(e.sp)}, which is no species of ${pack.acc}`); continue; }
         if (Object.keys(e).some(k => !LEGEND.includes(k) && k !== 'tile')) out.push(`${at} gives an exhibit fields beyond sp, guards and dir (and its tile)`);
         options(at, e, sp);
+        // A stretch row is repeated as often as the Intro is tall, so an exhibit on one would
+        // stand there that many times: the stamp's count would not be the department's.
+        for (const r of stretch) if (typeof rows[r] === 'string' && rows[r].slice(1).includes(ch)) out.push(`${at}: ${sp.id} stands on the stamp's stretch row ${r}, which repeats it as often as the Intro is tall`);
+        marks.push({ sp, n: rows.reduce((k, row) => k + row.slice(1).split(ch).length - 1, 0) });
+      }
+      // A copy group the stamp places is one instance (the Intro's, §4.1), held to the rule a
+      // gallery's is: each spare with exactly one of its original, COPY_GROUP[0]–COPY_GROUP[1] in all.
+      const named = id => marks.filter(q => q.sp.id === id).reduce((k, q) => k + q.n, 0);
+      const spares = [], groups = [];
+      for (const { sp } of marks) {
+        if (sp.copyOf && !spares.includes(sp.id)) {
+          spares.push(sp.id);
+          const orig = named(sp.copyOf);
+          if (orig !== 1) out.push(`${pack.acc}'s stamp holds ${sp.id}, a spare of ${sp.copyOf}, with ${orig} of its original, not 1`);
+        }
+        if (sp.copyOf && sp.group && !groups.includes(sp.group)) {
+          groups.push(sp.group);
+          const n = marks.filter(q => q.sp.group === sp.group).reduce((k, q) => k + q.n, 0);
+          if (n < N.COPY_GROUP[0] || n > N.COPY_GROUP[1]) out.push(`${pack.acc}'s stamp holds a copy group of ${n} (${sp.group}), not ${N.COPY_GROUP[0]}–${N.COPY_GROUP[1]}`);
+        }
       }
     }
     return out;

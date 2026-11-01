@@ -7,11 +7,12 @@
 // readiness; plain data, clones, `without` and independence of rulesOff; and Dept.generate,
 // which says how a department was made.
 //
-// The real packs have no gallery list until D-PACKS, and no Intro stamp of their own until
-// D-STAMPS (their plans take the generator's fixture stamp, which names no exhibit), so these
-// tests give fixture galleries to the real packs (in a core of their own), and M11 a stamp of
-// its own where a test needs one. The expected figures are worked out here from the plan's and
-// BUILD's text, never from the rule code.
+// The real packs have no gallery list until D-PACKS, so these tests give fixture galleries to
+// the real packs (in a core of their own). That core takes away the packs' own Intro stamps
+// (content/*-intro.js, D-STAMPS), so its plans take the generator's fixture stamp, which names
+// no exhibit, and gives M11 a stamp of its own where a test needs one; test/m4-intro.test.js
+// places the packs' own stamps' exhibits. The expected figures are worked out here from the
+// plan's and BUILD's text, never from the rule code.
 'use strict';
 module.exports = ({ test, assert, loadCore }) => {
   const json = x => JSON.stringify(x);
@@ -48,12 +49,13 @@ module.exports = ({ test, assert, loadCore }) => {
   };
   const M4_READY = { ARCHETYPES: ['unobserved_mover', 'patrol_guard', 'demonstrator', 'conservator_healer'], MODIFIERS: ['clockwork'], TRIGGERS: ['period'] };
 
-  // A core whose real packs carry the fixture galleries; with every M4 species' archetype,
+  // A core whose real packs carry the fixture galleries and no stamp of their own (the fixture
+  // stamp's Intro); with every M4 species' archetype,
   // modifier and trigger set past ready false when ready is true. Populate.exhibits is watched
   // so a test sees the plan each attempt was populated from (the last is the department's).
   function core(ready, galleries) {
     const X = loadCore(), plans = [];
-    for (const acc of ACCS) X.Packs.get(acc).galleries = JSON.parse(json((galleries || GALLERIES)[acc]));
+    for (const acc of ACCS) { X.Packs.get(acc).galleries = JSON.parse(json((galleries || GALLERIES)[acc])); delete X.Packs.get(acc).intro; }
     if (ready) for (const t of ['ARCHETYPES', 'MODIFIERS', 'TRIGGERS']) for (const id of M4_READY[t]) X.Registry[t][id].ready = 'unit';
     const real = X.Populate.exhibits;
     X.Populate.exhibits = (state, plan, pack, base, log) => { plans.push(plan); return real(state, plan, pack, base, log); };
