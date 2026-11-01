@@ -257,7 +257,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const pip = { k: 'pip', turn: 3, who: 'x.1', pips: 1, delta: 1, cause: { k: 'ring', dist: 2, r: 3 } };
     const lines = Text.log([pip, woke('x.1', 'alarm'), woke('x.2', 'alarm'), { k: 'alarm', turn: 3, by: 'x.1', until: 33, cause: { k: 'alarm_network' } }, woke('x.3', 'alarm')], NAMES);
     assert.equal(json(lines), json([Text.event(pip, NAMES), 'The alarm woke 3 exhibits, and they set off to look where you were.',
-      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no awake exhibit goes back to its place, and no other alarm can be raised.']));
+      'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no exhibit awake or searching goes back to its place, and no other alarm can be raised.']));
     // One alone is told by its own sentence.
     assert.equal(json(Text.log([woke('x.1', 'alarm')], NAMES)), json([Text.event(woke('x.1', 'alarm'), NAMES)]));
     assert.equal(Text.log([woke('x.1', 'period'), woke('x.2', 'period')], NAMES)[0], 'At the chime, 2 stations woke to mark their lines.');
@@ -446,9 +446,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, new RegExp(`GLASS\\.${orphan} is referenced by no pack, by none of its scenario files \\(m4-grammar\\.test\\.js\\) and by no arena stamp`));
     hasNot(r, /planted_m4_named is referenced/); hasNot(r, /planted_m4_waiting is referenced/);
     // Under --strict=M4 every M4 id is held to it: a module is referenced by the pack that
-    // holds it; a wake cause no scenario names yet is not.
+    // holds it; a wake cause no scenario names yet is not (the chime's, until MOD-CHIME).
     r = lint(null, ['--strict=M4']);
-    hasNot(r, /MODULES\.[a-z_]+ is referenced/); has(r, /WAKE_CAUSES\.alarm is referenced by no pack/);
+    hasNot(r, /MODULES\.[a-z_]+ is referenced/); has(r, /WAKE_CAUSES\.period is referenced by no pack/);
   });
 
   tmpTest('lint-registry fails a flag a species\' department does not hold, and malformed keywords', () => {
@@ -473,7 +473,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   // A planted department, T.9, holding S.9's two modules (unobserved_motion its signature, as
-  // its first) and one species of each kind the Intro rule tells apart.
+  // its first) and one species of each kind the Intro rule tells apart (T9.5 a Wader, whose
+  // archetype's clause holds alarm_network's slot, as a species flagged with it must).
   const T9 = more => `Packs.add(${json(Object.assign({ acc: 'T9', number: 'T.9', title: 'Planted', family: 'Planted', palette: 'S9', programme: 'enfilade',
     claim: { primary: 'guarded', secondary: null }, modules: [{ id: 'unobserved_motion' }, { id: 'alarm_network' }], items: [], consumables: { names: [], labels: {} },
     species: [
@@ -481,7 +482,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       { id: 'T9.2', archetype: 'darter', role: 'skirmisher', modifiers: [], trigger: null },
       { id: 'T9.3', archetype: 'plodder', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
       { id: 'T9.4', archetype: 'plodder', role: 'warden', modifiers: [], trigger: null },
-      { id: 'T9.5', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
+      { id: 'T9.5', archetype: 'patrol_guard', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
     ] }, more || {}))});`;
 
   tmpTest('lint-registry\'s Intro rule (WO6): the Intro teaches only its signature module, in its panel and its stamp', () => {

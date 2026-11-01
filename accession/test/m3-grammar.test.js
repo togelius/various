@@ -240,7 +240,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const p of Packs.list()) for (const s of [...p.species, p.centrepiece]) {
       const got = Clauses.of(s, { depth: 3 }).map(q => q.id), arch = R.ARCHETYPES[s.archetype], role = R.CLAUSES['role_' + s.role] ? ['role_' + s.role] : [];
       roles += role.length;
-      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...role, ...(s.modifiers || []),
+      // M4: a module the species is flagged with, once its rules are defined, set in its
+      // archetype's slot, with the module's own special inside it (the Wader's alarm_network).
+      const slotted = Clauses.slots(arch.clause).filter(sl => (s.flags || []).includes(sl.id) && C.Modules.defined(sl.id)).flatMap(sl => [sl.id, ...(R.MODULES[sl.id].special ? [R.MODULES[sl.id].special] : [])]);
+      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted, ...role, ...(s.modifiers || []),
         ...(s.trigger && R.TRIGGERS[s.trigger].replacesWake ? [] : [arch.wake || 'wake']), ...(s.trigger ? [s.trigger] : [])];
       same(got, want, s.id);
     }

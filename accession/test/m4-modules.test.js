@@ -55,6 +55,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // ---- The form ----
   test('Modules.define refuses what is not the form: an unknown module, effect, part or kind, a rule with no name or listening to module events, a hook not named bespoke, the registry\'s words given twice', () => {
     const X = loadCore(), M = X.Modules, R = X.Registry;
+    // The slice's modules their own files have defined so far (alarm_network, MOD-ALARM).
+    const real = M.defined(), realBespoke = M.bespoke();
     R.define('MODULES', 'planted_m', { built: 'M4', sentence: 'A planted rule.' });
     const ok = { rule: 'r', on: 'waited', do: [flag('n', 1)] };
     const refused = [
@@ -91,11 +93,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       [{ rules: [ok], reach: 3 }, /unknown part reach/],
     ];
     for (const [form, why, id] of refused) assert.throws(() => M.define(id || 'planted_m', form), why, json(form));
-    assert.equal(json(M.defined()), '[]', 'nothing refused was defined');
+    assert.equal(json(M.defined()), json(real), 'nothing refused was defined');
     M.define('planted_m', { rules: [ok, Object.assign({}, ok, { rule: 'shown', telegraph: { turns: 1, shown: 'r' } })], bespoke: ['pipsDecay', 'the gate'], pipsDecay: () => true });
     assert.throws(() => M.define('planted_m', { rules: [ok] }), /defined twice/);
-    assert.equal(json([M.defined(), M.defined('planted_m'), M.defined('unobserved_motion')]), json([['planted_m'], true, false]));
-    assert.equal(json(M.bespoke()), json([{ id: 'planted_m', bespoke: ['pipsDecay', 'the gate'] }]));
+    assert.equal(json([M.defined(), M.defined('planted_m'), M.defined('planted_none')]), json([real.concat(['planted_m']), true, false]));
+    assert.equal(json(M.bespoke()), json(realBespoke.concat([{ id: 'planted_m', bespoke: ['pipsDecay', 'the gate'] }])));
     assert.equal(json(M.form('planted_m')), json({ rules: [{ rule: 'r', on: 'waited', do: ['flag'], telegraph: null }, { rule: 'shown', on: 'waited', do: ['flag'], telegraph: { turns: 1, shown: 'r' } }], bespoke: ['pipsDecay', 'the gate'] }));
     assert.equal(M.form('unobserved_motion'), null);
     assert.equal(json(M.EFFECTS), json(['status', 'surface', 'wake', 'pips', 'move', 'special', 'alarm', 'clock', 'tier', 'flag']), 'the closed table of §5.4');
@@ -123,17 +125,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(seen.length, 2, 'its init ran');
   });
 
-  test('every department is as it was while no module is defined: dept.modules stays empty, and a department with one defined holds it in pack order, off under rulesOff', () => {
+  test('every department is as it was while its modules are not defined: dept.modules holds only those defined, in pack order, off under rulesOff', () => {
+    // Defined by its file so far: S.9's alarm_network (MOD-ALARM); none of A.4's or M.11's.
     for (const acc of ['S9', 'A4', 'M11']) {
       const d = C.Dept.create(4, acc, 3);
-      assert.equal(json(d.dept.modules), '[]', acc);
+      assert.equal(json(d.dept.modules), acc === 'S9' ? json([{ id: 'alarm_network', role: 'secondary', on: true, since: 0, params: {} }]) : '[]', acc);
     }
     const X = loadCore(), inits = [];
-    for (const id of ['alarm_network', 'unobserved_motion']) X.Modules.define(id, { init: (state, p, m) => inits.push([m.id, m.on]) });
+    X.Modules.define('unobserved_motion', { init: (state, p, m) => inits.push([m.id, m.on]) });
     const d = X.Dept.create(4, 'S9', 3), o = X.Dept.create(4, 'S9', 3, { rulesOff: ['alarm_network'] });
     assert.equal(json(d.dept.modules), json([{ id: 'unobserved_motion', role: 'signature', on: true, since: 0, params: {} }, { id: 'alarm_network', role: 'secondary', on: true, since: 0, params: {} }]));
     assert.equal(json(o.dept.modules.map(m => [m.id, m.on])), json([['unobserved_motion', true], ['alarm_network', false]]));
-    assert.ok(inits.length >= 4, 'each attempt\'s modules are made');
+    assert.ok(inits.length >= 2, 'each attempt\'s modules are made');
     // flagged: on, and the actor's species flagged with it (S9.1, the Grazer, with unobserved_motion).
     const s = X.Setup.room(1, { acc: 'S9', depth: 2, map: OPEN, you: [2, 3], exhibits: [{ sp: 'S9.1', at: [6, 3], mode: 'dormant', stats: BODY }, { sp: 'S9.3', at: [8, 3], mode: 'dormant', stats: BODY }] });
     assert.equal(X.Modules.flagged(s, s.actors[1], 'unobserved_motion'), false, 'not in the visit');

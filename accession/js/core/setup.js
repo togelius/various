@@ -55,10 +55,14 @@ const Setup = (() => {
   // already taken its uid and its place, so nothing else is renumbered or moved (§3.2). Then
   // each archetype's init runs, in spawn order, for actors not gone; then each exhibit made
   // awake gets its story from the starting state (Wake.created, with no event or beat): the
-  // cause `awake` ("it never sleeps") for one whose trigger stands for the wake clause (the
-  // `awake` trigger), and `placed` ("it was set out awake when the room was made") for any
-  // other, which a room for tests or an arena stamp made awake but which can sleep (§3.4).
+  // cause `patrol` ("it walks its round", M4) for a patrol, a patrol_guard with a round
+  // (route.posts) to walk; else `awake` ("it never sleeps") for one whose trigger stands for
+  // the wake clause (the `awake` trigger), and `placed` ("it was set out awake when the room
+  // was made") for any other, which a room for tests or an arena stamp made awake but which
+  // can sleep (§3.4).
+  const patrol = a => a.arch === 'patrol_guard' && !!a.route && Array.isArray(a.route.posts) && a.route.posts.length > 0;
   const createdAs = a => {
+    if (patrol(a)) return 'patrol';
     const T = typeof a.trigger === 'string' && Object.prototype.hasOwnProperty.call(Registry.TRIGGERS, a.trigger) ? Registry.TRIGGERS[a.trigger] : null;
     return T && T.replacesWake ? 'awake' : 'placed';
   };

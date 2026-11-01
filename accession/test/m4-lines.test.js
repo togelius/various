@@ -384,7 +384,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     X.Modules.init(runs, X.Packs.get('S9'));
     const off = X.Setup.room(1, { acc: 'S9', depth: 2, map: MAP, you: [2, 2], exhibits: ex }, { rulesOff: ['unobserved_motion'] });
     X.Modules.init(off, X.Packs.get('S9'));
-    assert.equal(json([said(bare), said(runs), said(off), X.Modules.active(runs), X.Modules.active(bare)]), json([false, true, false, ['unobserved_motion'], []]));
+    assert.equal(json([said(bare), said(runs), said(off), X.Modules.active(runs), X.Modules.active(bare)]), json([false, true, false, ['unobserved_motion', 'alarm_network'], []]));
   });
 
   // ---- cp:, phases, the strip, the panel sentence ----

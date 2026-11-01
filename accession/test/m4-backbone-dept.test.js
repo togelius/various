@@ -58,12 +58,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // M3's starting state, hashed at W0c's base (a33bbd7) as Dept.create(1, acc, depth) made it.
   // A package that changes a department's start on purpose re-pins these with its reason, as
   // it does the golden runs. Re-pinned by D-INTRO-GEN: layout version 3 grows the Intro to its
-  // stamp, so every department's plan, and so its start, moves.
+  // stamp, so every department's plan, and so its start, moves. A module's state is M4's own
+  // (dept.modules, each module as its file defines it: S.9's alarm_network since MOD-ALARM), so
+  // it is left out of the hash and checked apart: the pack's modules defined so far, in pack
+  // order, each on.
   const M3_START = { 'S9/2': 1266330469, 'S9/5': 2577597585, 'A4/2': 1896667028, 'A4/5': 1024964630, 'M11/2': 2845619567, 'M11/5': 479322793 };
-  test('with carry \'start\' a department is M3\'s start but for dept.walked; the median visitor changes only what the visitor decides', () => {
+  test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
-      const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' });
-      assert.equal(State.hash(without(s, 'walked')), M3_START[key], `${key}: carry 'start' is M3's start`);
+      const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
+      eq(m3.dept.modules.map(m => [m.id, m.on]), C.Packs.get(acc).modules.filter(m => C.Modules.defined(m.id)).map(m => [m.id, true]), `${key}: its modules`);
+      m3.dept.modules = [];
+      assert.equal(State.hash(m3), M3_START[key], `${key}: carry 'start' is M3's start`);
       eq([s.run.grade, s.actors[0].maxHp, s.items[0].tier, s.items[1].tier], [1, 20, 1, 1], key);
       // The plan, the cases and the exhibits do not depend on the visitor; the items may, since
       // one goes in a case only if its lock is within the grade you came in with (§8.5).

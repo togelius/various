@@ -526,7 +526,8 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const id of ['plodder', 'darter', 'kiter', 'axis_sniper', 'splitter', 'mote_swarm', 'herald', 'tethered_warden', 'reflector', 'mimic_vitrine', 'night_watchman'])
       assert.ok(X.Archetypes.added(id), id);
     for (const id of ['glass', 'old_repair', 'marble', 'plaster']) assert.ok(X.Archetypes.addedModifier(id), id);
-    // Every M3 archetype in the registry has its file.
-    for (const id of X.Registry.order('ARCHETYPES')) assert.equal(X.Archetypes.added(id), X.Registry.ARCHETYPES[id].built === 'M3', id);
+    // Every M3 archetype in the registry has its file, and an M4 one once its package has
+    // built it (past ready false: patrol_guard, MOD-ALARM's), and not before.
+    for (const id of X.Registry.order('ARCHETYPES')) assert.equal(X.Archetypes.added(id), X.Registry.ARCHETYPES[id].built === 'M3' || X.Registry.ARCHETYPES[id].ready !== false, id);
   });
 };

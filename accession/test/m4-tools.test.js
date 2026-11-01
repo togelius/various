@@ -181,8 +181,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // module's part (kind 'module', M4 plan A11), and no other table's id names that part.
     const Z = loadCore(), of = Z.Clauses.of, flagged = 'S9.3';
     Z.Clauses.of = (sp, ctx) => of(sp, ctx).concat(sp.id === flagged ? [{ id: 'alarm_network', kind: 'module', text: 'Planted.', params: {}, covers: ['module'], within: null }] : []);
-    assert.equal(json(H.species(Z, 'MODULES.alarm_network').map(x => `${x.sp.id}@${x.depth}`)), json(H.DEPTHS.map(d => `${flagged}@${d}`)));
-    assert.equal(json(H.species(Z, 'alarm_network').map(x => x.sp.id)), json(H.DEPTHS.map(() => flagged)));
+    // Beside the species really flagged with it (S.9's Waders, once MOD-ALARM built it).
+    const real = H.species(C, 'MODULES.alarm_network').map(x => `${x.sp.id}@${x.depth}`), got = H.species(Z, 'MODULES.alarm_network').map(x => `${x.sp.id}@${x.depth}`);
+    assert.equal(json(got.filter(k => !real.includes(k))), json(H.DEPTHS.map(d => `${flagged}@${d}`)));
+    assert.equal(json(got.filter(k => real.includes(k))), json(real));
+    assert.equal(json(H.species(Z, 'alarm_network').map(x => x.sp.id).filter(id => !real.some(k => k.startsWith(id + '@')))), json(H.DEPTHS.map(() => flagged)));
     for (const t of ['MODIFIERS', 'ARCHETYPES', 'PERKS']) assert.equal(H.species(Z, `${t}.alarm_network`).length, 0, t);
   });
 
@@ -253,6 +256,19 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const s = patrolRoom(C, 'patrol', true), a = s.actors[1];
     const f = Battery.Recap.fromLog(s, [{ k: 'died', who: 'you', turn: 3, cause: { k: 'attack', by: a.uid } }]);
     assert.equal(json([f.killer, f.wakeTrigger, f.wakeTurn]), json([a.uid, 'patrol', 0]));
+  });
+
+  // MOD-ALARM's follow-up fix to setup.js (W0f's finding): the story a room or a department
+  // starts an exhibit with is `patrol` for a patrol, which Setup.settleActors now gives.
+  test('Setup.settleActors starts a patrol on its round told "it walks its round" (patrol), and a patrol_guard with no round "it never sleeps" (awake)', () => {
+    const s = C.Setup.room(1, { acc: 'S9', depth: 3, map: ['##########', '#........#', '##########'], you: [1, 1] });
+    const st = C.Roles.stats('warden', 3), at = x => Object.assign({}, st, { uid: `S9.3.room.${x}`, sp: 'S9.2', arch: 'patrol_guard', role: 'warden', trigger: 'awake', x, y: 1, maxHp: st.hp, mode: 'awake' });
+    const a = C.Actors.spawn(s, at(4)), b = C.Actors.spawn(s, at(7));
+    a.route = { posts: [[4, 1], [8, 1]], i: 1 };
+    C.Setup.settleActors(s, 1);
+    assert.equal(json([a.woke, b.woke]), json([{ turn: 0, cause: { k: 'patrol' } }, { turn: 0, cause: { k: 'awake' } }]));
+    const chk = Battery.checks(C, { invs: [] });
+    assert.deepEqual(chk.check(C.State.clone(s), { a: 'wait' }, C.Step.step(s, { a: 'wait' }), s).filter(v => v.id === 'start_story').map(v => v.text), []);
   });
 
   test('the doers of M4\'s event kinds, for the battery\'s completeness: a Wader\'s alarm, your view, a Centrepiece\'s phase and the exhibit a module event is about; certificates, grades and perks are no exhibit\'s', () => {
