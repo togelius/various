@@ -342,7 +342,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const which of [['--strict'], ['--strict=M4']]) {
         r = lint(null, which);
         assert.equal(r.status, 1, which[0]);
-        has(r, /--strict: ARCHETYPES\.conservator_healer is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
+        has(r, /--strict: ARCHETYPES\.completing_guardian is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
         has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
       }
@@ -409,16 +409,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // its banner and in the log while the module is on, whatever its readiness (the real ones
     // are at false); a clause at false is read on the line of every species population can place
     // (its archetype M3's or past false): A.4's Countersigning Clerk shows its modifiers'
-    // placeholders once its archetype, conservator_healer, is at 'unit'. (Its clockwork is on
-    // M.11's station's line too, whose archetype MOD-CHIME built, and lost its digit then: a
-    // planted modifier at false, on the Clerk alone, stands in for it.)
+    // placeholders once its archetype, conservator_healer, is past false. (ARCH-CLOCKWORK built
+    // it and clockwork: a planted modifier at false, on the Clerk alone, stands in for one, its
+    // archetype planted back at false and then at 'unit'.)
     r = lint(["Registry.MODULES.copies_weaken.sentence = 'Every three turns, its spares lose heart.';",
       "Registry.define('MODULES', 'planted_quiet', { built: 'M4', sentence: 'Every 3 turns, a bell.' });"]);
     assert.equal(r.status, 1);
     has(r, /MODULES\.copies_weaken: "three" states a number in words/); has(r, /MODULES\.planted_quiet: a digit outside \{\}/);
     const tick = ["Registry.define('MODIFIERS', 'planted_tick', { built: 'M4', ready: false, clause: 'Ticks for 2 turns.', params: {}, covers: [], tests: [], inv: null });",
       "Packs.get('A4').species.find(sp => sp.archetype === 'conservator_healer').modifiers.push('planted_tick');"];
-    r = lint(tick);
+    r = lint(tick.concat(["Registry.ARCHETYPES.conservator_healer.ready = false;"]));
     hasNot(r, /MODIFIERS\.planted_tick: a digit outside \{\}/);
     r = lint(tick.concat(["Object.assign(Registry.ARCHETYPES.conservator_healer, { ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' });"]));
     assert.equal(r.status, 1);

@@ -281,8 +281,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(got('rooted')), json(expect(sp => sp.archetype === 'mimic_vitrine')));
     assert.ok(got('wake').length > 0 && !got('wake').some(k => records.some(sp => sp.archetype === 'mimic_vitrine' && k.startsWith(sp.id + '@'))));
     // Unbuilt archetypes (M4's, until their package adds them: Archetypes.added) only on
-    // request; depths on request.
-    const m4 = records.filter(sp => !built(sp) && Registry.ARCHETYPES[sp.archetype] && !C.Archetypes.added(sp.archetype) && sp.role);
+    // request; depths on request. (Every gallery species' archetype is built since
+    // ARCH-CLOCKWORK; the Centrepieces', whose records name no role, wait for theirs.)
+    const m4 = records.filter(sp => !built(sp) && Registry.ARCHETYPES[sp.archetype] && !C.Archetypes.added(sp.archetype));
     assert.ok(m4.length > 0);
     assert.equal(json(got(m4[0].archetype)), '[]');
     assert.equal(json(got(m4[0].archetype, { m4: true })), json(records.filter(sp => sp.archetype === m4[0].archetype).flatMap(sp => H.DEPTHS.map(d => `${sp.id}@${d}`))));

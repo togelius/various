@@ -160,13 +160,21 @@ const Labels = (() => {
     return { min: d, max: d };
   }
 
-  // What a special is called in its line, by its shape (Specials.SHAPES).
+  // What a special is called in its line: the noun its registry entry gives (SPECIALS[sp].noun,
+  // as the log names it: M4's restore), else by its shape (Specials.SHAPES).
   const SPECIAL = { ring: 'ring of blows', line: 'beam', call: 'call', burst: 'burst' };
+  const spNoun = sp => own(Registry.SPECIALS, sp) && typeof Registry.SPECIALS[sp].noun === 'string' && Registry.SPECIALS[sp].noun ? Registry.SPECIALS[sp].noun : null;
   // The odds readout's line for a special (§8.1; Specials.readout): what it would deal you now
-  // through your Padding, its gross number, with no roll, its reach, and its cadence.
+  // through your Padding, its gross number, with no roll, its reach, and its cadence. One that
+  // deals no damage: a call wakes the sleepers within its range that can hear; a heal (M4's
+  // restore) heals an exhibit within its reach, its mark shown first; any other is told only as
+  // dealing no damage, its Behaviour line saying what it does (never "within null tiles").
   function specialLine(r) {
-    const name = own(SPECIAL, r.shape) ? SPECIAL[r.shape] : 'special';
-    if (r.net === null) return `Its ${name} deals no damage: it wakes the sleeping exhibits within ${r.range} tiles of it that can hear.`;
+    const name = spNoun(r.sp) || (own(SPECIAL, r.shape) ? SPECIAL[r.shape] : 'special');
+    const within = r.range !== null ? ` within ${r.range} tiles of it` : '';
+    if (r.net === null && r.shape === 'call' && r.range !== null) return `Its ${name} deals no damage: it wakes the sleeping exhibits${within} that can hear.`;
+    if (r.net === null && r.effect === 'heal') return `Its ${name} deals no damage: it heals an exhibit${within}, marking its tile first.`;
+    if (r.net === null) return `Its ${name} deals no damage: its Behaviour line says what it does.`;
     const where = r.shape === 'ring' ? ', on the tiles round it' : r.shape === 'burst' ? ', on your tile and the tiles round it'
       : r.range !== null ? `, up to ${r.range} tiles along a row or column` : '';
     const cadence = r.every !== null ? `, at most one action in ${r.every}` : '';
@@ -212,7 +220,33 @@ const Labels = (() => {
         : `A surprise attack now would hit for certain, for ${range(m)} from beside it, or ${range(r)} with Reach from ${N.REACH_RANGE} tiles away.`);
     }
     for (const r of Specials.readout(state, a, you)) lines.push(specialLine(r));
+    const plan = said.find(r => r.k === 'plan');
+    if (plan) lines.push(planLine(state, a, plan.plan));
     return lines;
+  }
+  // A clockwork exhibit's next move, as its arrow shows it (Archetypes.readout's {k: 'plan',
+  // plan}: Clockwork.shown, M4): a step (its compass side), a blow at whom, a mark (its
+  // special, on whose tile), its mark going off, or a wait; a station's arrow is its line, the
+  // tiles it would mark if the chime sounded now (its direction, route.dir).
+  const SIDE = [[0, -1, 'N'], [1, -1, 'NE'], [1, 0, 'E'], [1, 1, 'SE'], [0, 1, 'S'], [-1, 1, 'SW'], [-1, 0, 'W'], [-1, -1, 'NW']];
+  function planLine(state, a, p) {
+    const who = uid => uid === 'you' ? 'you' : nameOf(state)(uid) || 'an exhibit';
+    const named = sp => spNoun(sp) || (own(Registry.SPECIALS, sp) && own(SPECIAL, Registry.SPECIALS[sp].shape) ? SPECIAL[Registry.SPECIALS[sp].shape] : 'special');
+    if (p.k === 'step') {
+      const s = SIDE.find(([dx, dy]) => a.x + dx === p.to[0] && a.y + dy === p.to[1]);
+      return `Its next move, shown by its arrow: a step ${s ? Clauses.COMPASS[s[2]] : 'beside it'}.`;
+    }
+    if (p.k === 'strike') return `Its next move, shown by its arrow: a blow at ${who(p.at)}.`;
+    if (p.k === 'mark') {
+      const b = p.tiles.length ? Actors.at(state, p.tiles[0][0], p.tiles[0][1], a) : null;
+      return `Its next move, shown by its arrow: its ${named(p.sp)}, marked on ${b ? `the tile of ${who(b.uid)}` : Text.tiles(p.tiles.length)}.`;
+    }
+    if (p.k === 'resolve') return `Its next move, shown by its arrow: its ${named(p.sp)} goes off.`;
+    if (p.k === 'line') {
+      const dir = a.route && own(Clauses.COMPASS, a.route.dir) ? ` to the ${Clauses.COMPASS[a.route.dir]}` : '';
+      return `Its arrow shows its line: ${Text.tiles(p.tiles.length)}${dir}, the line it would mark if the chime sounded now.`;
+    }
+    return 'Its next move, shown by its arrow: a wait.';
   }
 
   // The Behaviour line (§5.3), with its numbers at the department's depth, leaving out the

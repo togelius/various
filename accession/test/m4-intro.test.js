@@ -396,12 +396,18 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('readiness: until its archetype is ready an exhibit of the stamp is not placed, and the log says so; the ready ones are', () => {
-    const { X } = core(false);
-    const want = { S9: ['S9.1', 'S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: ['M11.5'] }, held = { S9: [], A4: [], M11: ['M11.12 (stamp s)'] };
-    for (const acc of ACCS) for (let seed = 1; seed <= 10; seed++) {
-      const out = X.Dept.generate(seed, acc, depthOf(seed)), m = out.state.dept, intro = m.rooms.find(r => r.role === 'intro');
-      assert.equal(json(out.state.actors.filter(a => a.uid !== 'you' && m.roomOf[a.y][a.x] === intro.id).map(a => a.sp).sort()), json(want[acc]), `${acc} seed ${seed}`);
-      for (const h of held[acc]) assert.ok(out.log.some(l => l.op === `${h} is not placed: its archetype, a modifier or its trigger is not ready`), `${acc} seed ${seed}: ${h} logged`);
+    // Every stamp's exhibits are ready since ARCH-CLOCKWORK built clockwork (M.11's First Landing
+    // station, M11.12, has it); with clockwork planted back at false, that station waits.
+    for (const planted of [false, true]) {
+      const { X } = core(false);
+      if (planted) X.Registry.MODIFIERS.clockwork.ready = false;
+      const want = { S9: ['S9.1', 'S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: planted ? ['M11.5'] : ['M11.12', 'M11.5'] }, held = { S9: [], A4: [], M11: planted ? ['M11.12 (stamp s)'] : [] };
+      for (const acc of ACCS) for (let seed = 1; seed <= 10; seed++) {
+        const out = X.Dept.generate(seed, acc, depthOf(seed)), m = out.state.dept, intro = m.rooms.find(r => r.role === 'intro');
+        assert.equal(json(out.state.actors.filter(a => a.uid !== 'you' && m.roomOf[a.y][a.x] === intro.id).map(a => a.sp).sort()), json(want[acc]), `${acc} seed ${seed}`);
+        for (const h of held[acc]) assert.ok(out.log.some(l => l.op === `${h} is not placed: its archetype, a modifier or its trigger is not ready`), `${acc} seed ${seed}: ${h} logged`);
+        if (!planted) assert.ok(!out.log.some(l => / is not placed: its archetype, a modifier or its trigger is not ready$/.test(l.op || '')), `${acc} seed ${seed}: nothing waits`);
+      }
     }
   });
 

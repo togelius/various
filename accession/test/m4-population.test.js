@@ -344,23 +344,30 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const acc of ACCS) {
       const pack = X.Packs.get(acc), out = X.Dept.generate(2, acc, 3);
       const held = pack.species.filter(m4).map(sp => sp.id);
-      // S.9's species are all built now (its modules' archetypes: the Wader, MOD-ALARM's, and
-      // the Grazer, MOD-UNOBSERVED's), so its gallery list places its Grazers; A.4 and M.11
-      // still hold species that wait.
-      if (acc === 'S9') assert.ok(!held.length && exhibitsOf(out.state).some(a => a.sp === 'S9.1'), `${acc}: ${json(held)}`);
-      else assert.ok(held.length >= 1, acc);
-      for (const a of exhibitsOf(out.state)) assert.ok(!held.includes(a.sp), `${acc}: ${a.sp} is not ready`);
-      for (const id of held) if (pack.galleries.some(g => g.contents.some(e => e.sp === id))) assert.ok(out.log.some(l => l.check === 'population' && l.op.startsWith(`${id} (`) && l.op.endsWith('is not placed: its archetype, a modifier or its trigger is not ready')), `${acc}: ${id} logged`);
+      // Every gallery species is built now (the Grazer, MOD-UNOBSERVED's; the Wader, MOD-ALARM's;
+      // the station, MOD-CHIME's; the Countersigning Clerk and clockwork, ARCH-CLOCKWORK's), so
+      // nothing waits; the Countersigning Clerk and M.11's station are placed.
+      assert.equal(json(held), '[]', acc);
+      if (acc !== 'S9') assert.ok(exhibitsOf(out.state).some(a => a.sp === (acc === 'A4' ? 'A4.5' : 'M11.2')), `${acc}: its clockwork species is placed`);
+      assert.ok(!out.log.some(l => l.check === 'population' && / is not placed: its archetype, a modifier or its trigger is not ready$/.test(l.op)), `${acc}: nothing waits`);
       assert.ok(exhibitsOf(out.state).length > 0, `${acc}: the ready ones are placed`);
       for (const sp of pack.species) assert.equal(X.Populate.ready(sp), !m4(sp), sp.id);
       // A Centrepiece is placed only once its core is (ARCH-CP-CORE asks Populate.ready).
       assert.equal(X.Populate.ready(pack.centrepiece), false, acc);
     }
-    // One readiness flips: only that species joins, and the Countersigning Clerk waits on its modifier too.
-    X.Registry.ARCHETYPES.conservator_healer.ready = 'unit';
-    assert.equal(X.Populate.ready(X.Packs.get('A4').species.find(sp => sp.id === 'A4.5')), false, 'clockwork is not ready');
+    // One readiness flips back (planted): only that species waits, and says so; the Countersigning
+    // Clerk waits on its modifier as on its archetype.
+    X.Registry.MODIFIERS.clockwork.ready = false;
+    const clerk = X.Packs.get('A4').species.find(sp => sp.id === 'A4.5');
+    assert.equal(X.Populate.ready(clerk), false, 'clockwork is not ready');
+    const out = X.Dept.generate(2, 'A4', 3);
+    assert.ok(!exhibitsOf(out.state).some(a => a.sp === 'A4.5'));
+    assert.ok(out.log.some(l => l.check === 'population' && l.op.startsWith('A4.5 (') && l.op.endsWith('is not placed: its archetype, a modifier or its trigger is not ready')), 'A4.5 logged');
     X.Registry.MODIFIERS.clockwork.ready = true;
-    assert.ok(X.Populate.ready(X.Packs.get('A4').species.find(sp => sp.id === 'A4.5')));
+    X.Registry.ARCHETYPES.conservator_healer.ready = false;
+    assert.equal(X.Populate.ready(clerk), false, 'its archetype is not ready');
+    X.Registry.ARCHETYPES.conservator_healer.ready = 'unit';
+    assert.ok(X.Populate.ready(clerk));
     assert.ok(exhibitsOf(X.Dept.create(2, 'A4', 3)).some(a => a.sp === 'A4.5'));
     X.Registry.ARCHETYPES.mp_ensemble.ready = 'unit';
     assert.ok(X.Populate.ready(X.Packs.get('A4').centrepiece));
