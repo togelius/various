@@ -412,7 +412,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 2 }), [arch, p1, p2, wake, 'Phase 2 of 3: its label has the rest.'].join(' '));
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 3 }), X.Clauses.line(cp, { depth: 4 }), 'nothing is left for the label in the last phase');
     assert.equal(X.Clauses.strip(cp, { depth: 4 }), X.Clauses.line(cp, { depth: 4 }), 'with no phase given, the whole line');
-    assert.equal(json(X.Clauses.phaseParts(cp, 2, { depth: 4 }).map(p => [p.id, p.phase === undefined ? null : p.phase])), json([['mp_tableau', null], ['planted_burst', 1], ['planted_summon', 2], ['wake', null]]));
+    // (cp_fight: the form's rule every Centrepiece's line carries, in no phase.)
+    assert.equal(json(X.Clauses.phaseParts(cp, 2, { depth: 4 }).map(p => [p.id, p.phase === undefined ? null : p.phase])), json([['mp_tableau', null], ['cp_fight', null], ['planted_burst', 1], ['planted_summon', 2], ['wake', null]]));
     assert.equal(json(X.Clauses.of(cp, { depth: 4 }).filter(p => p.phase).map(p => [p.kind, p.id, p.phase])), json([['special', 'planted_burst', 1], ['special', 'planted_summon', 2], ['clause', 'planted_quick', 3]]));
     // A phase with nothing to add leaves nothing for the label.
     const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }, {}] });

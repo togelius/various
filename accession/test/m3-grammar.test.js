@@ -235,7 +235,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       }
     }
     // Every pack species: a part for each id it uses, its role's own rule (a brute's) after
-    // its archetype's.
+    // its archetype's, and a Centrepiece's form's rule (CLAUSES.cp_<form>, M4) after that.
     let roles = 0;
     for (const p of Packs.list()) for (const s of [...p.species, p.centrepiece]) {
       const got = Clauses.of(s, { depth: 3 }).map(q => q.id), arch = R.ARCHETYPES[s.archetype], role = R.CLAUSES['role_' + s.role] ? ['role_' + s.role] : [];
@@ -246,7 +246,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       // hourly_demonstration, in the period trigger's).
       const slotted = cl => Clauses.slots(cl || '').filter(sl => (s.flags || []).includes(sl.id) && C.Modules.defined(sl.id)).flatMap(sl => [sl.id, ...(R.MODULES[sl.id].special ? [R.MODULES[sl.id].special] : [])]);
       const trig = s.trigger ? R.TRIGGERS[s.trigger] : null;
-      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...(s.modifiers || []),
+      const form = typeof s.form === 'string' && R.CLAUSES['cp_' + s.form] ? ['cp_' + s.form] : [];
+      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []),
         ...(trig && trig.replacesWake ? [] : [arch.wake || 'wake']), ...(trig ? [s.trigger, ...slotted(trig.clause)] : [])];
       same(got, want, s.id);
     }

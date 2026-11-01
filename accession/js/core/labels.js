@@ -161,13 +161,14 @@ const Labels = (() => {
   }
 
   // What a special is called in its line, by its shape (Specials.SHAPES).
-  const SPECIAL = { ring: 'ring of blows', line: 'beam', call: 'call' };
+  const SPECIAL = { ring: 'ring of blows', line: 'beam', call: 'call', burst: 'burst' };
   // The odds readout's line for a special (§8.1; Specials.readout): what it would deal you now
   // through your Padding, its gross number, with no roll, its reach, and its cadence.
   function specialLine(r) {
     const name = own(SPECIAL, r.shape) ? SPECIAL[r.shape] : 'special';
     if (r.net === null) return `Its ${name} deals no damage: it wakes the sleeping exhibits within ${r.range} tiles of it that can hear.`;
-    const where = r.shape === 'ring' ? ', on the tiles round it' : r.range !== null ? `, up to ${r.range} tiles along a row or column` : '';
+    const where = r.shape === 'ring' ? ', on the tiles round it' : r.shape === 'burst' ? ', on your tile and the tiles round it'
+      : r.range !== null ? `, up to ${r.range} tiles along a row or column` : '';
     const cadence = r.every !== null ? `, at most one action in ${r.every}` : '';
     return `Its ${name} would deal you ${r.net} (${r.gross} before your Padding), with no roll${where}${cadence}.`;
   }

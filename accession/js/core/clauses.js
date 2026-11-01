@@ -157,6 +157,7 @@ const Clauses = (() => {
   // it inflicts and each module it embeds at a slot, whose texts the archetype's clause sets
   // at {special}, {status:<id>} and {module:<id>} (their parts say so in `within`); its
   // role's own rule, when the role has one (the clause CLAUSES.role_<role>: the brute's);
+  // a Centrepiece's form's rule (CLAUSES.cp_fight or cp_treasure, by its record's form);
   // each modifier not switched off by rulesOff; each module the species is flagged with
   // (sp.flags) that is on, as a sentence of its own unless a slot embeds it; for a
   // Centrepiece, each phase's parts (`phase`: the phase it holds from); the wake clause (the
@@ -206,6 +207,10 @@ const Clauses = (() => {
     if (arch) parts.push(...whole('archetype', sp.archetype, arch, null, true));
     const role = typeof sp.role === 'string' ? 'role_' + sp.role : null;
     if (role && own(R.CLAUSES, role)) parts.push(...whole('role', role, R.CLAUSES[role], null, false));
+    // A Centrepiece's record names its form (M4, §5.5): its form's rule, CLAUSES.cp_<form>
+    // (its phases, and what its fall gives), a part of kind clause.
+    const form = typeof sp.form === 'string' ? 'cp_' + sp.form : null;
+    if (form && own(R.CLAUSES, form)) parts.push(...whole('clause', form, R.CLAUSES[form], null, false));
     for (const m of sp.modifiers || []) if (own(R.MODIFIERS, m) && !c.rulesOff.includes(m)) parts.push(...whole('modifier', m, R.MODIFIERS[m], m, false));
     const tail = [];
     phasesOf(sp).forEach((list, i) => {

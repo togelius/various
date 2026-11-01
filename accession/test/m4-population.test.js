@@ -371,6 +371,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const acc of ACCS) X.Dept.create(1, acc, 2);
     assert.equal(json(seen), '[]', 'no core is ready');
     X.Registry.ARCHETYPES.mp_tableau.ready = 'unit';
+    X.Archetypes.add('mp_tableau', X.Centrepiece.hooks('mp_tableau', {})); // the shared rules, which a core is placed only with (ARCH-CP-CORE)
     for (const acc of ACCS) X.Dept.create(1, acc, 2);
     assert.equal(json(seen), json([['M11', true, true]]), 'M.11\'s core is ready: placed, once, after the exhibits');
   });
