@@ -200,7 +200,7 @@ module.exports = ({ test, assert, loadCore }) => {
         state.items.push(X.Kit.item({ uid: `${state.dept.acc}.${state.dept.depth}.${rm.key}.i${tag === 'kit' ? 1 : 2}`, kind: tag === 'kit' ? 'curio' : 'consumable', where: { at: 'floor', x, y } }));
       }
     };
-    X.Kit.standIn = items('kit'); X.Consumables.standIn = items('consumables');
+    X.Kit.place = items('kit'); X.Consumables.place = items('consumables');
     return { X, calls };
   }
 
@@ -241,7 +241,7 @@ module.exports = ({ test, assert, loadCore }) => {
       const [base, pop] = name === 'cases' ? [b, c] : [a, b], key = state.dept.rooms.find(r => r.role === 'section').key;
       seen.push({ name, base, pop, draw: X.Rng.stream(pop, `${base}/room/${key}/populate`).u32(), path: `${base}/room/${key}/populate` });
     };
-    X.Cases.place = rec('cases'); X.Kit.standIn = rec('kit'); X.Consumables.standIn = rec('consumables');
+    X.Cases.place = rec('cases'); X.Kit.place = rec('kit'); X.Consumables.place = rec('consumables');
     const s = X.Dept.create(3, 'M11', 2), base = Layout.generate('enfilade', 0, 3, { acc: 'M11', depth: 2 }).base;
     assert.equal(json(seen.map(x => x.name)), json(['cases', 'kit', 'consumables']), 'in this order');
     assert.ok(seen.every(x => x.pop === seen[0].pop && x.base === base), 'one holder and one base');
@@ -432,9 +432,9 @@ module.exports = ({ test, assert, loadCore }) => {
     const NAMED = [
       ['Cases', 'place', null], ['Cases', 'touch', null], ['Cases', 'dissolve', 4], ['Cases', 'release', null], ['Cases', 'enter', null], ['Cases', 'staffGrade', null],
       ['Cases', 'reach', null], ['Cases', 'view', null], ['Cases', 'describe', null], ['Cases', 'highlightOk', null], ['Cases', 'openCost', null],
-      ['Kit', 'recharge', null], ['Kit', 'standIn', null], ['Kit', 'settle', null], ['Kit', 'ringDelta', null], ['Kit', 'useLegal', null], ['Kit', 'useAction', null],
+      ['Kit', 'recharge', null], ['Kit', 'standIn', null], ['Kit', 'place', 3], ['Kit', 'settle', null], ['Kit', 'ringDelta', null], ['Kit', 'useLegal', null], ['Kit', 'useAction', null],
       ['Kit', 'useCandidates', 1], ['Kit', 'addToTote', null], ['Kit', 'targets', null], ['Kit', 'describe', null], ['Kit', 'view', null],
-      ['Consumables', 'startRun', null], ['Consumables', 'standIn', null], ['Consumables', 'useLegal', null], ['Consumables', 'useAction', null],
+      ['Consumables', 'startRun', null], ['Consumables', 'place', 3], ['Consumables', 'useLegal', null], ['Consumables', 'useAction', null],
       ['Consumables', 'useCandidates', 1], ['Consumables', 'known', null], ['Consumables', 'name', null], ['Consumables', 'targets', null], ['Consumables', 'view', null],
       ['ClockRules', 'boundary', null], ['ClockRules', 'fell', null], ['ClockRules', 'nearestSleepers', null], ['ClockRules', 'spawnWatchman', null], ['Clock', 'view', null],
       // The labels W2a-LABELS fills take what Obs.readLabel (tools/policies/lib.js) passes: a

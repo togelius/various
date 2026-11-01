@@ -118,6 +118,10 @@ const Layout = (() => {
     const K = P.knobs(B.stream(seed, base + '/knobs'), size);
     const L = B.newLayout();
     L.meta.programme = programme;
+    // A treasure's hall (M4, BUILD.md §5.5): the pack opts.acc names guards a treasure (its
+    // Centrepiece's form), so curation stands the hall's wall case deep in it (LCurate).
+    const pack = typeof opts.acc === 'string' ? Packs.get(opts.acc) : null;
+    L.meta.treasure = !!(pack && pack.centrepiece && pack.centrepiece.form === 'treasure');
     P.embed(L, K, B.stream(seed, base + '/embed'), LStamp.of(opts));
     B.addLoops(L, P.d, B.stream(seed, base + '/openings'), {
       allow: (a, b) => !a.tags.noLoops && !b.tags.noLoops && a.role !== 'staff' && b.role !== 'staff' && !((a.role === 'intro' && b.role === 'coda') || (a.role === 'coda' && b.role === 'intro')),

@@ -188,7 +188,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('no stand-in places a Signature piece as loot; with its Centrepiece naming none it would', () => {
     const placed = (X, acc) => { let n = 0; for (let seed = 1; seed <= 20; seed++) n += X.Dept.create(seed, acc, depthOf(seed)).items.filter(i => i.ref === SIGNATURE[acc]).length; return n; };
-    for (const acc of ACCS) assert.equal(placed(C, acc), 0, acc);
+    // S.9's Lamp is its treasure, placed once in every department, in its hall's case (D-ITEMS;
+    // test/m4-items.test.js and the sweep's items check hold where); A.4's and M.11's Signature
+    // pieces come only with their Centrepieces' fall.
+    for (const acc of ACCS) assert.equal(placed(C, acc), acc === 'S9' ? 20 : 0, acc);
     // Planted: the Centrepiece names no Signature piece, so the stand-in takes it as any item.
     const X = loadCore();
     for (const acc of ACCS) delete X.Packs.get(acc).centrepiece.signature;

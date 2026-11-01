@@ -89,7 +89,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('in a department every vitrine in a room is a case, numbered by its department, room and place, drawn first on its room\'s populate stream; glazing in no room is no case; every staff door has its grade', () => {
     let cases = 0, glazing = 0, doors = 0;
     for (const acc of ACCS) for (const depth of DEPTHS) for (const seed of [1, 2, 3]) {
-      const s = Dept.create(seed, acc, depth), m = s.dept, P = plan(acc, depth, seed), pack = Packs.get(acc);
+      // The plan the department took: a validator may reject a layout attempt (M4, §5.5), so it
+      // is Dept.generate's attempt (its tiles as layout made them, before any mimic's disguise),
+      // not always the first plan layout passes.
+      const g = Dept.generate(seed, acc, depth), s = g.state, m = s.dept, pack = Packs.get(acc);
+      const made = g.fallback ? Layout.fallback(pack.programme, 0, { acc }) : Layout.attempt(pack.programme, 0, seed, g.base, { acc });
+      const P = { plan: { w: m.w, h: m.h, tiles: made.L.G.rows(), roomOf: m.roomOf }, base: g.base, acc, depth, rooms: m.rooms.map(rm => ({ id: rm.id, key: rm.key, role: rm.role, number: rm.number })) };
       const mine = m.fixtures.filter(f => f.k === 'staff' || (f.k === 'case' && f.mimic === null));
       // They come first, in row-major order (§4.1); anything placed later is appended.
       assert.equal(json(m.fixtures.slice(0, mine.length)), json(mine), `${acc} d${depth} s${seed}: placed fixtures first`);
@@ -110,6 +115,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         k[rm.key] = (k[rm.key] || 0) + 1;
         assert.ok(rm.number > 0, `${acc}: a case in an unnumbered room ${rm.key}`);
         want.push({ k: 'case', x, y, room: rm.key, num: `${pack.number}.${rm.number}.${k[rm.key]}`, glass: g, lock, hits: 0, st: 'shut', loan, holds: null, mimic: null });
+      }
+      // M4 (D-ITEMS, §5.5): S.9's treasure case, the hall's one case, holds the Lamp: its glass
+      // is the pack's Security, Laminated at depths 1–2 where the mix holds none; its lock is
+      // drawn for that glass on the hall's populate stream after its own draws; never on loan.
+      if (acc === 'S9') {
+        const t = want.find(f => f.k === 'case' && f.room === 'centre'), r = Rng.stream(holder, `${P.base}/room/centre/populate`);
+        t.glass = depth <= 2 ? 2 : 3;
+        const lo = LOCKS[t.glass][0], hi = Math.min(LOCKS[t.glass][1], depth + 1);
+        t.lock = hi < lo ? lo : r.int(lo, hi); t.loan = false;
       }
       // What a case holds is the item rules' (W1-KIT); everything else is as drawn.
       assert.equal(json(mine.map(f => Object.assign({}, f, f.k === 'case' ? { holds: null } : {}))), json(want), `${acc} d${depth} s${seed}`);

@@ -92,8 +92,9 @@ const Dept = (() => {
   // for a pack with a gallery list, once its core is past ready false, plan A10) and its
   // lectern, a fixture on the plan's lectern tile (Viewing.place, M4's PG-VIEW); your
   // starting kit of the carry's tier (Kit.start) and the items the carry gives (Setup.carry);
-  // the stand-in equipment and kits (Kit.standIn); the run's seals (Consumables.startRun);
-  // the stand-in consumables (Consumables.standIn); the panels (Panels.place); the modules
+  // the department's items, kits and treasure (Kit.place, from the gallery list, else the
+  // stand-in); the run's seals (Consumables.startRun); the consumables and their labels
+  // (Consumables.place); the panels (Panels.place); the modules
   // (Modules.init); your stats (Kit.settle), so that the validators see them. Your grade, its
   // health and the grade you came in with are the carry's, and so are the run's perks. The
   // three placement calls share one local holder, pop, so a room's `${base}/room/<key>/populate`
@@ -117,9 +118,9 @@ const Dept = (() => {
     if (pack.galleries !== undefined && pack.centrepiece && Populate.ready(pack.centrepiece)) { Centrepiece.place(state, plan, pack); Viewing.place(state); }
     Kit.start(state, 'balanced', v.tier);
     Setup.carry(state, carried(pack, v));
-    Kit.standIn(state, r.base, pop);
+    Kit.place(state, r.base, pop, r.log);
     Consumables.startRun(state);
-    Consumables.standIn(state, r.base, pop);
+    Consumables.place(state, r.base, pop);
     Panels.place(state, plan, pack);
     Modules.init(state, pack);
     Kit.settle(state);

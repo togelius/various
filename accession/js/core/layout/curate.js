@@ -104,7 +104,13 @@ const LCurate = (() => {
         const [px, py] = L.meta.cpl;
         const ring = tiles.filter(i => free(i) && wallAdj(i));
         for (const i of rng.shuffle(ring.slice())) if (G.t[i] === T.FLOOR && cheb(i, px, py) >= 4 && tryPut(i, T.COL)) break;
-        for (const i of rng.shuffle(ring.slice())) if (G.t[i] === T.FLOOR && cheb(i, px, py) >= 4 && tryPut(i, T.VIT)) break;
+        // The hall's wall case. In a treasure's hall (L.meta.treasure) it is the treasure's case
+        // (BUILD.md §5.5): the wall tile deepest in the hall (treasureFirst), at least
+        // TREASURE_CASE_GAP tiles from every tile of the footprint; elsewhere, as before.
+        const shuffled = rng.shuffle(ring.slice()), deep = L.meta.treasure === true;
+        for (const i of deep ? treasureFirst(L, r, shuffled) : shuffled) {
+          if (G.t[i] === T.FLOOR && (deep ? fromFootprint(i, W, px, py) >= TREASURE_CASE_GAP : cheb(i, px, py) >= 4) && tryPut(i, T.VIT)) break;
+        }
         placeLectern(L, r, tiles, tryPut);
         const view = L.meta.viewTile;
         for (const [x, y] of [[px - 5, py - 1], [px - 5, py + 1]]) if (G.rid(x, y) === r.id && G.t[y * W + x] === T.FLOOR && !(view && view[0] === x && view[1] === y)) G.t[y * W + x] = T.BENCH;
@@ -133,6 +139,31 @@ const LCurate = (() => {
         }
       }
     }
+  }
+
+  // A treasure's hall (M4, BUILD.md §5.5; L.meta.treasure, which Layout sets for a pack whose
+  // Centrepiece is a treasure: S.9's). Its wall case holds the treasure, and the treasure
+  // validator (js/core/layout/treasure.js) wants it far from every way in, so it stands as
+  // deep in the hall as the wall allows: the tiles of `order` (the shuffled ring) by their
+  // walking distance from the tiles outside the hall one steps in from (its openings, staff
+  // doors included), farthest first, the shuffle breaking ties, so no draw changes. A curated
+  // case elsewhere keeps 4 tiles from the footprint's first tile; this one keeps
+  // TREASURE_CASE_GAP from each of its tiles, as near the guardian as that on every side
+  // (its Chebyshev distance to the 2×2 footprint, fromFootprint).
+  const TREASURE_CASE_GAP = 3;
+  function treasureFirst(L, r, order) {
+    const G = L.G, W = G.W, outside = [];
+    for (let i = 0; i < G.t.length; i++) {
+      if (G.room[i] === r.id || !B.walk(G.t[i], B.ALL)) continue;
+      const x = i % W, y = (i - x) / W;
+      if (N4.some(([dx, dy]) => G.rid(x + dx, y + dy) === r.id)) outside.push(i);
+    }
+    const D = B.bfs(G, outside, B.ALL);
+    return order.map((i, k) => [i, k]).sort((p, q) => (D[q[0]] - D[p[0]]) || (p[1] - q[1])).map(p => p[0]);
+  }
+  function fromFootprint(i, W, px, py) {
+    const x = i % W, y = (i - x) / W;
+    return Math.max(x < px ? px - x : Math.max(0, x - px - 1), y < py ? py - y : Math.max(0, y - py - 1));
   }
 
   // Walking distance from every tile to the Centrepiece's footprint (BUILD.md §8.2): one

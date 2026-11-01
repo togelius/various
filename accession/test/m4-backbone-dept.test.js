@@ -72,8 +72,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // A.4's re-pinned by MOD-COPIES' review: the Proposing Trustee's spare is no plaster cast
   // (BUILD §5.5), so its health at the start moves. S.9's and A.4's re-pinned by CP1-RUNNER:
   // S.9's Waders walk the court on rounds of their own, starting on their first posts, and A.4's
-  // Copying-Room Bell stands apart.
-  const M3_START = { 'S9/2': 1589730819, 'S9/5': 2850740627, 'A4/2': 4099054262, 'A4/5': 2275910519, 'M11/2': 1352631592, 'M11/5': 2805425420 };
+  // Copying-Room Bell stands apart. Re-pinned by D-ITEMS: the item placement (Kit.place) puts
+  // each item a gallery lists in its gallery's room and draws only the rest of §8.5's counts,
+  // S.9's Lamp lies in its treasure case, and S.9's hall has its wall case curated deep in it.
+  const M3_START = { 'S9/2': 4158820198, 'S9/5': 493658256, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 948057416, 'M11/5': 235815564 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
@@ -197,7 +199,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(seen.length, 2, 'asked of attempt 0, then of attempt 1');
     assert.ok(seen.every(v => v[1] && v[2] && v[3] === 30 && v[4]), `each validator sees the populated department, your kit and settled stats: ${json(seen)}`);
     assert.equal(json(s.dept.tiles), json(once.plan.tiles.map(r => r.replace(/C/g, '.'))), 'the department is attempt 1\'s');
-    eq(X.Populate.validatorIds(), ['first', 'second']);
+    // The validators the core's own files register (js/core/layout/*.js, in load order), then
+    // the two planted here.
+    eq(X.Populate.validatorIds(), C.Populate.validatorIds().concat(['first', 'second']));
+    assert.ok(C.Populate.validatorIds().includes('treasure'), 'the treasure case\'s validator is registered (D-ITEMS)');
     const Y = loadCore();
     Y.Populate.addValidator('never', () => ({ reason: 'never', tiles: [] }));
     const f = Y.Dept.create(seed, acc, depth);
@@ -223,7 +228,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const X = loadCore(), calls = [];
     const spy = (ns, fn) => { const real = X[ns][fn]; X[ns][fn] = (...a) => { calls.push(`${ns}.${fn}`); return real(...a); }; };
     for (const [ns, fn] of [['Cases', 'place'], ['Populate', 'exhibits'], ['Setup', 'settleActors'], ['Centrepiece', 'place'], ['Kit', 'start'], ['Setup', 'carry'],
-      ['Kit', 'standIn'], ['Consumables', 'startRun'], ['Consumables', 'standIn'], ['Panels', 'place'], ['Modules', 'init'], ['Kit', 'settle'], ['Populate', 'validate']]) spy(ns, fn);
+      ['Kit', 'place'], ['Consumables', 'startRun'], ['Consumables', 'place'], ['Panels', 'place'], ['Modules', 'init'], ['Kit', 'settle'], ['Populate', 'validate']]) spy(ns, fn);
     // The Centrepiece is placed only from a gallery list, once its core is ready (D-POP), and
     // only a core added with the shared rules (Centrepiece.hooks, ARCH-CP-CORE): the Ordinance's
     // is (rules/arch/mp_ensemble.js, ENSEMBLE-CORE), at ready false, planted ready here.
@@ -231,8 +236,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     X.Registry.ARCHETYPES.mp_ensemble.ready = 'unit';
     X.Dept.create(2, 'A4', 2);
     // (The Centrepiece's pieces then meet without and their archetype's init, as every exhibit does.)
-    eq(calls, ['Cases.place', 'Populate.exhibits', 'Setup.settleActors', 'Centrepiece.place', 'Setup.settleActors', 'Kit.start', 'Setup.carry', 'Kit.standIn',
-      'Consumables.startRun', 'Consumables.standIn', 'Panels.place', 'Modules.init', 'Kit.settle', 'Populate.validate']);
+    eq(calls, ['Cases.place', 'Populate.exhibits', 'Setup.settleActors', 'Centrepiece.place', 'Setup.settleActors', 'Kit.start', 'Setup.carry', 'Kit.place',
+      'Consumables.startRun', 'Consumables.place', 'Panels.place', 'Modules.init', 'Kit.settle', 'Populate.validate']);
   });
 
   // ---- The pack's parts, flags and sprites (A9) ----

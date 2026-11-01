@@ -548,7 +548,7 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   // ---- The departments still build, and the items work in a room ----
-  // Kit.standIn and Consumables.standIn (W1-KIT, W1-CONSUMABLES) place the pack's pieces and
+  // Kit.place and Consumables.place (W1-KIT, W1-CONSUMABLES, D-ITEMS) place the pack's pieces and
   // name its consumables, so each department must hold at least one of its pack's weapons or
   // garments, one of its curios or instruments and one named consumable, and the checks of
   // what they place are never empty. The room test below puts every pack item in a state.
