@@ -1,7 +1,8 @@
 // ACCESSION — your kit (BUILD.md §8.1, §8.5): what you wear and carry, the stats it gives
 // you, the item actions (take, drop, equip, unequip), the instruments and the Restoration
-// kit (use), and the stand-in placement of a department's equipment and kits. W0e built the
-// item record, the starting kit and the derived stats; W1-KIT owns the file after.
+// kit (use), and the placement of a department's equipment and kits (Kit.place; the stand-in
+// for a pack with no gallery list). W0e built the item record, the starting kit and the derived
+// stats; W1-KIT owns the file after, and M4's D-ITEMS the placement from gallery lists.
 //
 // An item, in state.items:
 //   { uid, kind, ref, where, form, tier, level, prims, charges, max, rechargeAt, ck, seal, n, from }
@@ -699,8 +700,8 @@ const Kit = (() => {
     }
     return out;
   }
-  // Kit.standIn(state, base, pop): the M3 stand-in placement (§8.5), until M4's population.
-  // On the department's `${base}/items` stream (in pop): first the pieces, EQUIPMENT_PER_DEPT
+  // Kit.standIn(state, base, pop): the M3 stand-in placement (§8.5), for a pack with no gallery
+  // list (Kit.place). On the department's `${base}/items` stream (in pop): first the pieces, EQUIPMENT_PER_DEPT
   // of the pack's weapons and garments and CURIO_OR_INSTRUMENT_PER_DEPT of its curios and
   // instruments (but its Signature piece, the item its Centrepiece names: a fight drops it,
   // and a treasure is its own, never loot, M4 plan D2.9), each list shuffled and taken in
@@ -716,24 +717,121 @@ const Kit = (() => {
     const sig = pack.centrepiece ? pack.centrepiece.signature : undefined;
     const rng = Rng.stream(pop, `${base}/items`), items = (pack.items || []).filter(i => i.id !== sig), pieces = [];
     const take = (list, n) => { const l = rng.shuffle(list); for (let i = 0; i < n && l.length; i++) pieces.push(l[i % l.length]); };
-    take(items.filter(i => i.kind === 'weapon' || i.kind === 'garment'), N.EQUIPMENT_PER_DEPT);
-    take(items.filter(i => i.kind === 'curio' || i.kind === 'instrument'), N.CURIO_OR_INSTRUMENT_PER_DEPT);
+    take(items.filter(isGear), N.EQUIPMENT_PER_DEPT);
+    take(items.filter(isExtra), N.CURIO_OR_INSTRUMENT_PER_DEPT);
     for (let i = 0; i < N.KITS_PER_DEPT; i++) pieces.push({ kind: 'kit' });
-    const rooms = m.rooms.filter(r => r.role === 'section' || r.role === 'study');
+    const rooms = sectionsOf(m);
     if (!rooms.length) return;
     const reach = reachable(state);
-    for (const spec of pieces) {
-      const highlight = spec.kind === 'kit', first = rng.int(0, rooms.length - 1);
-      for (let k = 0; k < rooms.length; k++) {
-        const rm = rooms[(first + k) % rooms.length], spots = spotsIn(state, rm, highlight, reach);
-        if (!spots.length) continue;
-        const pr = Rng.stream(pop, `${base}/room/${rm.key}/populate`), [x, y, inCase] = pr.pick(spots);
-        const tier = spec.kind === 'weapon' || spec.kind === 'garment' || spec.kind === 'instrument' ? drawTier(pr, m.depth) : null;
-        const it = make(state, tier === null ? spec : Object.assign({}, spec, { tier }), { at: inCase ? 'case' : 'floor', x, y });
-        if (highlight) m.highlights.push({ uid: it.uid, room: rm.key });
-        break;
-      }
+    for (const spec of pieces) putDrawn(state, spec, rooms, rng, pop, base, reach);
+  }
+  const isGear = i => i.kind === 'weapon' || i.kind === 'garment', isExtra = i => i.kind === 'curio' || i.kind === 'instrument';
+  const sectionsOf = m => m.rooms.filter(r => r.role === 'section' || r.role === 'study');
+  const tiered = spec => spec.kind === 'weapon' || spec.kind === 'garment' || spec.kind === 'instrument';
+  // A piece on a place of room rm, [x, y, inCase] (spotsIn's), with its tier drawn after it on
+  // the room's populate stream pr: the item made. A kit is a Highlight, recorded with its room.
+  function putAt(state, spec, rm, at, pr) {
+    const tier = tiered(spec) ? drawTier(pr, state.dept.depth) : null;
+    const it = make(state, tier === null ? spec : Object.assign({}, spec, { tier }), { at: at[2] ? 'case' : 'floor', x: at[0], y: at[1] });
+    if (spec.kind === 'kit') state.dept.highlights.push({ uid: it.uid, room: rm.key });
+    return it;
+  }
+  // The stand-in's way with one piece: a room drawn on rng (the `…/items` stream) from rooms
+  // (the sections and studies), or the next one in order with a place left; there its place,
+  // drawn on the room's populate stream (spotsIn: a Highlight only where Cases.highlightOk and
+  // the walk from the entrance allow), then its tier. The item, or null with no place anywhere.
+  function putDrawn(state, spec, rooms, rng, pop, base, reach) {
+    const highlight = spec.kind === 'kit', first = rng.int(0, rooms.length - 1);
+    for (let k = 0; k < rooms.length; k++) {
+      const rm = rooms[(first + k) % rooms.length], spots = spotsIn(state, rm, highlight, reach);
+      if (!spots.length) continue;
+      const pr = Rng.stream(pop, `${base}/room/${rm.key}/populate`);
+      return putAt(state, spec, rm, pr.pick(spots), pr);
     }
+    return null;
+  }
+
+  // Kit.place(state, base, pop, log): the department's equipment, curios, instruments and
+  // Restoration kits (§8.5; M4 plan A10's step 8), after your starting kit and the carry's
+  // items. A pack with no gallery list takes the stand-in (Kit.standIn). With one (§5.2, §5.5;
+  // M4, decided without play; revisit once M4 is playable):
+  //   1. Each item its galleries list, in the list's order, in the room its gallery took
+  //      (dept.rooms[].galleries, Populate's mapping):
+  //        - the treasure (LTreasure.of: a treasure Centrepiece's Signature piece, listed in its
+  //          hall's gallery) in the treasure case (LTreasure.dress: the hall's wall case, its
+  //          glass the pack's override and its lock drawn for it), or on the hall's floor when
+  //          that case cannot hold it (the treasure validator then rejects the attempt);
+  //        - an item listed directly after a warden that guards a case (guards: 'case') in the
+  //          case that warden guards, its nest, when it guards one and the case can hold it
+  //          (S.9's Round Book 9, which the Brooder's paragraph says is displayed with it);
+  //          otherwise as its own entry says, in its room;
+  //        - any other `case: true` item in an empty case of its room, or on its floor when
+  //          none is left; any other item on its floor;
+  //      each place drawn from the room's places (spotsIn: never on an actor or an item, never
+  //      in a case an exhibit stands in, a removed one included) on the room's populate stream,
+  //      then its tier. A listed item whose gallery has no room here, or whose room has no place
+  //      left, is placed as the stand-in places a piece (putDrawn).
+  //   2. On `${base}/items`, the rest of §8.5's counts, from the pack's items no gallery lists,
+  //      never the Signature piece: EQUIPMENT_PER_DEPT weapons and garments and
+  //      CURIO_OR_INSTRUMENT_PER_DEPT curios and instruments, each less the list's own of them
+  //      (never below none; a list may place more, as S.9's does), each list shuffled and taken
+  //      in turn as the stand-in takes it.
+  //   3. KITS_PER_DEPT Restoration kits, the Highlights.
+  //   The pieces of 2 and 3 are placed as the stand-in places them (putDrawn).
+  // A Signature piece listed anywhere but as its pack's treasure is a content error: no
+  // Signature piece is loot (§8.5). log, given, gets a line ({check: 'items', room, op}) for
+  // each item not where its entry first asks.
+  function place(state, base, pop, log = null) {
+    const m = state.dept, pack = Packs.get(m.acc);
+    if (!pack || pack.galleries === undefined) { standIn(state, base, pop); return; }
+    if (!m.rooms || !m.roomOf) return;
+    const say = (rm, op) => { if (log) log.push({ check: 'items', room: rm ? rm.id : null, op }); };
+    const sig = pack.centrepiece ? pack.centrepiece.signature : undefined, treasure = LTreasure.of(pack);
+    const rng = Rng.stream(pop, `${base}/items`), populate = rm => Rng.stream(pop, `${base}/room/${rm.key}/populate`);
+    const reach = reachable(state), rooms = sectionsOf(m), listed = [], pieces = [];
+    // A case that can take an item now: shut, not on loan, a real one, holding nothing, with no
+    // exhibit in it (a removed one included).
+    const free = f => !!f && f.k === 'case' && f.st === 'shut' && !f.loan && f.mimic === null && f.holds === null && !state.actors.some(a => Actors.covers(a, f.x, f.y));
+    pack.galleries.forEach((g, gi) => {
+      const rm = m.rooms.find(r => Array.isArray(r.galleries) && r.galleries.includes(gi)) || null;
+      g.contents.forEach((e, k) => {
+        if (e.item === undefined) return;
+        const rec = (pack.items || []).find(i => i.id === e.item);
+        if (!rec) throw new Error(`Kit.place: ${pack.acc}'s gallery ${g.name} lists ${e.item}, no item of the pack`);
+        const isTreasure = !!treasure && rec.id === treasure.id && g.key === 'centre';
+        if (rec.id === sig && !isTreasure) throw new Error(`Kit.place: ${pack.acc}'s gallery ${g.name} lists its Signature piece ${sig}, which is no loot: only a treasure's lies in its hall's case`);
+        listed.push(rec);
+        if (!rm) { say(null, `${rec.id} (${g.name}) is placed as the stand-in places an item: its gallery has no room here`); pieces.push(rec); return; }
+        const pr = populate(rm), prev = k > 0 ? g.contents[k - 1] : null;
+        let at = null;
+        if (isTreasure) {
+          const f = LTreasure.dress(state, pack, pr);
+          if (f) at = [f.x, f.y, true];
+          else say(rm, `${rec.id} finds no case in the hall that can hold it and lies on its floor`);
+        } else if (prev && prev.sp !== undefined && prev.guards === 'case') {
+          const w = state.actors.find(a => a.sp === prev.sp && a.arch === 'tethered_warden' && m.roomOf[a.y] && m.roomOf[a.y][a.x] === rm.id) || null;
+          const f = w && Array.isArray(w.guards) ? Cases.at(state, w.guards[0], w.guards[1]) : null;
+          if (free(f)) at = [f.x, f.y, true];
+          else say(rm, `${rec.id} is not in a nest: ${w ? `${w.uid} guards ${f && f.k === 'case' ? 'a case that cannot hold it' : 'no case'}` : `${prev.sp} is not placed`}, so it lies in its room as its entry says`);
+        }
+        if (!at) {
+          const spots = spotsIn(state, rm, false, reach), cases = e.case === true && !isTreasure ? spots.filter(s => s[2]) : [], floor = spots.filter(s => !s[2]);
+          if (e.case === true && !isTreasure && !cases.length) say(rm, `${rec.id} finds no empty case in ${rm.key} and lies on its floor`);
+          const pool = cases.length ? cases : floor;
+          if (!pool.length) { say(rm, `${rec.id} finds no place in ${rm.key} and is placed as the stand-in places an item`); pieces.push(rec); return; }
+          at = pr.pick(pool);
+        }
+        putAt(state, rec, rm, at, pr);
+      });
+    });
+    // The rest of §8.5's counts, from what no gallery lists, then the kits.
+    const unlisted = (pack.items || []).filter(i => i.id !== sig && !listed.includes(i)), mine = listed.filter(i => i.id !== sig);
+    const take = (list, n) => { const l = rng.shuffle(list); for (let i = 0; i < n && l.length; i++) pieces.push(l[i % l.length]); };
+    take(unlisted.filter(isGear), Math.max(0, N.EQUIPMENT_PER_DEPT - mine.filter(isGear).length));
+    take(unlisted.filter(isExtra), Math.max(0, N.CURIO_OR_INSTRUMENT_PER_DEPT - mine.filter(isExtra).length));
+    for (let i = 0; i < N.KITS_PER_DEPT; i++) pieces.push({ kind: 'kit' });
+    if (!rooms.length) return;
+    for (const spec of pieces) putDrawn(state, spec, rooms, rng, pop, base, reach);
   }
 
   // ---- What the view model and the labels read ----
@@ -849,5 +947,5 @@ const Kit = (() => {
   }
 
   return { SLOTS, item, start, needs, short, derive, stats, settle, ringDelta, slots, addToTote, shot, useInstrument, recharge, restore,
-    useLegal, useAction, useCandidates, targets, nextUid, make, drawTier, standIn, view, describe, observing };
+    useLegal, useAction, useCandidates, targets, nextUid, make, drawTier, standIn, place, view, describe, observing };
 })();

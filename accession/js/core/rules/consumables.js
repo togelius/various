@@ -26,8 +26,8 @@ const Consumables = (() => {
   // target, would include you: that is, if you are within GENTLE tiles of it (Chebyshev).
   const AREA = Math.max(...KINDS.filter(isSolution).map(ck => N[R.CONSUMABLES[ck].area]));
   const GENTLE = Int.idiv(AREA, 2);
-  // The rooms the stand-in placement uses, by role: consumables lie in the sections and
-  // studies, as the kit's items do (Kit.standIn); labels hang by those and by the Intro.
+  // The rooms the placement uses, by role: consumables lie in the sections and studies, as the
+  // kit's drawn pieces do (Kit.place); labels hang by those and by the Intro.
   const ITEM_ROOMS = ['section', 'study'], LABEL_ROOMS = ['intro', 'section', 'study'];
 
   // ---- Seals ----
@@ -385,9 +385,12 @@ const Consumables = (() => {
     };
   }
 
-  // ---- The stand-in placement (§3.2, §5.5) ----
+  // ---- The placement (§3.2, §5.5, §8.6) ----
 
-  // The department's consumables and its identifying labels, until M4's population:
+  // Consumables.place(state, base, pop): the department's consumables and its identifying
+  // labels (M4 plan A10's step 10). A gallery list names no consumables (§5.2), so M4 keeps
+  // the placement M3 built as a stand-in, for every pack (decided without play; revisit once M4
+  // is playable):
   //   CONSUMABLES_PER_DEPT consumables, each a card from the deck (draw), in a section or
   //   study drawn on `${base}/items` (then the next one in order if it has no free tile), on
   //   a free floor tile drawn on that room's populate stream in pop (after the cases' and the
@@ -402,8 +405,8 @@ const Consumables = (() => {
   //   any mimic's disguise), in the order placed (§4.1).
   // Walking is measured on the map as it was laid out, by the exhibits' step rule (staff
   // doors are walls), with a mimic's disguise counted as the floor it stands on, so removing a
-  // mimic moves nothing (§3.2), as Kit.standIn measures it.
-  function standIn(state, base, pop) {
+  // mimic moves nothing (§3.2), as Kit.place measures it.
+  function place(state, base, pop) {
     const m = state.dept;
     if (!m.rooms || !m.roomOf || !m.entrance) return;
     const itemRooms = m.rooms.filter(r => ITEM_ROOMS.includes(r.role)), labelRooms = m.rooms.filter(r => LABEL_ROOMS.includes(r.role));
@@ -502,5 +505,5 @@ const Consumables = (() => {
   });
 
   return { AREA, GENTLE, startRun, draw, make, known, sealFor, kindOf, unknownSeals, identify, drink, readItem, throwAt, throwRefusal, targets,
-    name, line, arrival, planRooms, useRefusal, useLegal, useAction, useCandidates, readRefusal, view, standIn };
+    name, line, arrival, planRooms, useRefusal, useLegal, useAction, useCandidates, readRefusal, view, place };
 })();

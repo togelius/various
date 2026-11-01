@@ -2,8 +2,9 @@
 // grade, level, primitive and curio; the tote; take, drop, equip and unequip and what they
 // cost; a garment's Padding counting once its ticks are done; Restoration on every slot; the
 // instruments' charges, recharge, targets and effects; the quiet ring; legal ⇔ step for every
-// item action; the stand-in placement (the tier draw, item uids, the Highlights); and what the
-// view model and the labels read. The expected figures are worked out here from BUILD.md's
+// item action; the placement (the tier draw, item uids, the Highlights: Kit.place from a gallery
+// list, M4's D-ITEMS, whose own tests are test/m4-items.test.js; Kit.standIn for a pack with
+// none); and what the view model and the labels read. The expected figures are worked out here from BUILD.md's
 // text and §8.10's rows, never from the kit's own code.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const Stats = require(path.join(root, 'tools/stats.js'));
@@ -596,10 +597,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     return X;
   }
 
-  // The items Kit.standIn places: weapons, garments, curios, instruments and kits (a
-  // department's consumables are Consumables.standIn's, placed after them in each room).
+  // The items Kit.place places: weapons, garments, curios, instruments and kits (a
+  // department's consumables are Consumables.place's, placed after them in each room).
   const MINE = ['weapon', 'garment', 'curio', 'instrument', 'kit'];
   const placedByKit = i => MINE.includes(i.kind) && !i.uid.startsWith('you.');
+  // A pack's treasure (S.9's Lamp: its Centrepiece is a treasure and its hall's gallery lists
+  // its Signature piece), which lies in the hall; every other piece lies in a section or study.
+  const treasureOf = acc => { const p = Packs.get(acc), cp = p.centrepiece; return cp && cp.form === 'treasure' && p.galleries.some(g => g.key === 'centre' && g.contents.some(e => e.item === cp.signature)) ? cp.signature : null; };
 
   test('item uids are <acc>.<depth>.<roleKey>.i<n>, n counted per room in placement order, and stay as they are when another room is perturbed or an exhibit removed', () => {
     const X = withCases(null);
@@ -610,7 +614,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         const k = X.Cases.roomKey(s, it.where.x, it.where.y);
         count[k] = (count[k] || 0) + 1;
         assert.equal(it.uid, `${acc}.${depth}.${k}.i${count[k]}`);
-        assert.ok(['section', 'study'].includes(s.dept.rooms.find(r => r.key === k).role), `${it.uid} is in a section or study`);
+        assert.ok(it.ref !== null && it.ref === treasureOf(acc) ? k === 'centre' : ['section', 'study'].includes(s.dept.rooms.find(r => r.key === k).role), `${it.uid} is in a section or study, or is the treasure in the hall`);
         checked++;
       }
       // Perturb one room: the items of every other room keep their uid, place and tier.
@@ -636,17 +640,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.throws(() => X.Kit.make(s, Object.assign({ uid: made.uid }, { kind: 'kit' }), { at: 'tote' }), /already exists/);
   });
 
-  test('a department places 2 pieces of equipment, a curio or instrument and 2 Restoration kits, the kits its Highlights: never behind a staff door, and in a case only where highlightOk holds', () => {
+  test('a department places what its gallery list names, then 2 pieces of equipment and a curio or instrument less the list\'s own, and 2 Restoration kits, the kits its Highlights: never behind a staff door, and in a case only where highlightOk holds', () => {
     const X = withCases(null);
     let inCase = 0, kitsInCase = 0, depts = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (const depth of [1, 3, 5, 7]) for (const seed of [1, 2, 3, 4, 5]) {
       const s = X.Dept.create(seed, acc, depth), m = s.dept, pack = Packs.get(acc), placed = s.items.filter(placedByKit);
       depts++;
-      const gear = pack.items.filter(i => i.kind === 'weapon' || i.kind === 'garment'), extra = pack.items.filter(i => i.kind === 'curio' || i.kind === 'instrument');
-      const kinds = placed.map(i => i.kind);
-      assert.equal(kinds.filter(k => k === 'weapon' || k === 'garment').length, gear.length ? N.EQUIPMENT_PER_DEPT : 0, `${acc}: equipment`);
-      assert.equal(kinds.filter(k => k === 'curio' || k === 'instrument').length, extra.length ? N.CURIO_OR_INSTRUMENT_PER_DEPT : 0, `${acc}: curio or instrument`);
-      assert.equal(kinds.filter(k => k === 'kit').length, N.KITS_PER_DEPT);
+      // §8.5's counts, of what is not the Signature piece: the list's own of each, and of the
+      // rest no fewer than EQUIPMENT_PER_DEPT and CURIO_OR_INSTRUMENT_PER_DEPT while the pack
+      // has an item no gallery lists to draw; the treasure, once, apart.
+      const sig = pack.centrepiece.signature, listed = pack.galleries.flatMap(g => g.contents.filter(e => e.item !== undefined && e.item !== sig).map(e => pack.items.find(r => r.id === e.item)));
+      const gearOf = r => r.kind === 'weapon' || r.kind === 'garment', extraOf = r => r.kind === 'curio' || r.kind === 'instrument';
+      const rest = pack.items.filter(r => r.id !== sig && !listed.includes(r));
+      const want = (n, of) => listed.filter(of).length + (rest.some(of) ? Math.max(0, n - listed.filter(of).length) : 0);
+      const loot = placed.filter(i => i.ref !== sig);
+      assert.equal(loot.filter(i => i.kind === 'weapon' || i.kind === 'garment').length, want(N.EQUIPMENT_PER_DEPT, gearOf), `${acc}: equipment`);
+      assert.equal(loot.filter(i => i.kind === 'curio' || i.kind === 'instrument').length, want(N.CURIO_OR_INSTRUMENT_PER_DEPT, extraOf), `${acc}: curios and instruments`);
+      assert.equal(placed.filter(i => i.ref === sig).length, treasureOf(acc) ? 1 : 0, `${acc}: the treasure`);
+      for (const r of listed) assert.equal(placed.filter(i => i.ref === r.id).length, 1, `${acc}: ${r.id}, listed, placed once`);
+      assert.equal(loot.filter(i => i.kind === 'kit').length, N.KITS_PER_DEPT);
       for (const it of placed) {
         if (it.kind !== 'kit') { const rec = pack.items.find(r => r.id === it.ref); assert.ok(rec, `${it.uid} comes from the pack`); assert.equal(it.form, rec.instrument || rec.form || null); assert.equal(json(it.prims), json(rec.prims)); }
         if (it.where.at === 'case') { inCase++; const f = m.fixtures.find(f => f.x === it.where.x && f.y === it.where.y); assert.ok(f && f.holds === it.uid && !f.loan && f.mimic === null, `${it.uid}'s case`); }

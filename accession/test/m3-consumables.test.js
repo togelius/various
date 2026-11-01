@@ -1,8 +1,9 @@
 // M3's consumables (BUILD.md §8.6, §3.2, §8.3): the seals and the deck; drinking, reading
 // and throwing every kind; a first use that never harms you; identification by use, by a
 // label and by the Catalogue Card; the Floor Plan, "Quiet, Please" and the Re-admission
-// Ticket; the actions' parity with step(); the stand-in placement of a department's
-// consumables and labels; local names; the sentences. The expected figures are worked out
+// Ticket; the actions' parity with step(); the placement of a department's consumables and
+// labels (Consumables.place: M3's stand-in, which M4 keeps, gallery lists naming none); local
+// names; the sentences. The expected figures are worked out
 // here from BUILD.md's text, never from the rule code.
 //
 // Consumables call other Wave 1 packages' hooks (Health.heal, Wake.quiet, Wake.lose,
@@ -551,7 +552,7 @@ module.exports = ({ test, assert, loadCore }) => {
   }
   const beforeRM = (a, b) => a.y < b.y || (a.y === b.y && a.x < b.x);
 
-  test('the stand-in placement: CONSUMABLES_PER_DEPT consumables from the deck on free floor of the sections and studies that you can walk to, and ID_LABELS_PER_DEPT labels for unknown kinds on walls beside such a tile, the first by the Intro or the first section, after the cases and staff doors', () => {
+  test('the placement (Consumables.place): CONSUMABLES_PER_DEPT consumables from the deck on free floor of the sections and studies that you can walk to, and ID_LABELS_PER_DEPT labels for unknown kinds on walls beside such a tile, the first by the Intro or the first section, after the cases and staff doors', () => {
     const { X } = core(), N = X.N;
     const ROLES = ['intro', 'section', 'study'];
     let depts = 0;
@@ -604,14 +605,14 @@ module.exports = ({ test, assert, loadCore }) => {
     }
     // A room for tests has no rooms to place in: nothing is placed, and the deck is untouched.
     const r = room(X, {});
-    X.Consumables.standIn(r, 'layout/T0@1/d1/a0', { seed: 1, rng: {} });
+    X.Consumables.place(r, 'layout/T0@1/d1/a0', { seed: 1, rng: {} });
     assert.equal(json([r.items.filter(i => i.kind === 'consumable'), r.dept.fixtures, r.run.deck]), json([[], [], DECK]));
   });
 
   // A department made by hand: a section s1 whose floor is all taken by items but for a pocket
   // at 2,1, shut in by columns and the wall; a study s2 beyond a gap that a mimic in its
   // disguise stands in; the entrance at 0,5.
-  test('the stand-in placement, by hand: never in a pocket you cannot walk to, never on an item, through a mimic\'s disguise as through floor; labels only for kinds you do not know', () => {
+  test('the placement, by hand: never in a pocket you cannot walk to, never on an item, through a mimic\'s disguise as through floor; labels only for kinds you do not know', () => {
     const { X } = core(), N = X.N;
     const map = ['#############', '#o.o..#.....#', '#ooo..#.....#', '#.....#.....#', '#.....#.....#', 'E.....v.....#', '#############'];
     const mk = (seed, knownKinds) => {
@@ -626,7 +627,7 @@ module.exports = ({ test, assert, loadCore }) => {
     };
     for (let seed = 1; seed <= 60; seed++) {
       const s = mk(seed, []);
-      X.Consumables.standIn(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
+      X.Consumables.place(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
       const cons = s.items.filter(i => i.kind === 'consumable');
       assert.equal(cons.length, N.CONSUMABLES_PER_DEPT, `seed ${seed}`);
       for (const it of cons) {
@@ -643,7 +644,7 @@ module.exports = ({ test, assert, loadCore }) => {
     // the one left; with all eight, none.
     for (const n of [6, 7, 8]) for (let seed = 1; seed <= 10; seed++) {
       const knownKinds = KINDS.slice(0, n), s = mk(seed, knownKinds);
-      X.Consumables.standIn(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
+      X.Consumables.place(s, 'layout/T0@1/d1/a0', { seed, rng: {} });
       const cks = s.dept.fixtures.filter(f => f.k === 'plaque').map(p => p.ck).sort();
       assert.equal(json(cks), json(KINDS.slice(n).sort()), `${n} known, seed ${seed}`);
     }
