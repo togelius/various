@@ -32,7 +32,7 @@ const PRELUDE = `
 // unconfigurably (an engine reads undefined at once anyway), nor the names the prelude bans.
 const BUILTINS = ['Object', 'Array', 'Number', 'String', 'Boolean', 'Math', 'JSON', 'Error', 'TypeError', 'RangeError',
   'Map', 'Set', 'WeakMap', 'Symbol', 'RegExp', 'ArrayBuffer', 'Uint8Array', 'Int8Array', 'Uint16Array', 'Int16Array',
-  'Uint32Array', 'Int32Array', 'parseInt', 'isNaN', 'isFinite'];
+  'Uint32Array', 'Int32Array', 'Float64Array', 'parseInt', 'isNaN', 'isFinite'];
 const BIND = `'use strict';\nconst ${BUILTINS.map(n => `${n} = globalThis.${n}`).join(', ')};`;
 
 function coreFiles() {
