@@ -1,7 +1,8 @@
-// ACCESSION — sentences: the perks: their table, their families and the order a slot falls back
-// in, and the perk event (BUILD.md §3.4, §8.7), owned by PG-CORE. M4's skeleton made it; M4's
-// Wave 0 (W0a) moved here the perk event's sentence, naming a perk by its name (Registry.PERKS),
-// never its id, and gave each cause its own. PG-CORE fills the rest.
+// ACCESSION — sentences: the perk event (BUILD.md §3.4, §8.7), owned by PG-CORE. M4's skeleton
+// made it; M4's Wave 0 (W0a) moved here the perk event's sentence, naming a perk by its name
+// (Registry.PERKS), never its id, and gave each cause its own. A perk's own activations have
+// their sentences in its package's fragment (text/perks-a.js, perks-b.js, perks-timing.js).
+// `none` is said only when every perk is held at its highest rank (Progress.offer).
 'use strict';
 (() => {
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
