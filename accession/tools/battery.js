@@ -9,7 +9,9 @@
 //   invariant        every Behaviour-line invariant in test/behaviour/*.inv.js (§5.3 check 1);
 //   special_marks    every special's damage to you equals its mark on your tile in the view
 //                    model taken before the step (criterion 3; a beam sent back by a reflector
-//                    is its shooter's special, the mark's `by`);
+//                    is its shooter's special, the mark's `by`), or, for a due line marked and
+//                    gone off within the step (a chime's during a long action of yours, D7.3),
+//                    what the threat of your action (Specials.threat) warned of there;
 //   completeness     no exhibit causes an event kind that is neither universal
 //                    (Clauses.UNIVERSAL) nor covered by a clause of its Behaviour line (§5.3
 //                    check 4, the soak half; who causes an event is CAUSER's rule below);
@@ -232,13 +234,27 @@ function checks(C, o) {
     else { tally.recaps++; bump(tally.killers, f.wakeTrigger === null ? 'none' : f.wakeTrigger); }
     for (const l of r.lines || []) if (!clean(l)) v('recap', `a line of the recap reads ${JSON.stringify(l)}`);
   }
-  function marks(pre, events, v) {
-    let vm = null;
-    for (const e of events) {
+  function marks(pre, action, events, v) {
+    let vm = null, warned = null;
+    for (let n = 0; n < events.length; n++) {
+      const e = events[n];
       if (e.k !== 'damaged' || e.who !== 'you' || !e.cause) continue;
       const c = e.cause, owner = c.k === 'special' ? c.by : c.k === 'reflected' && typeof c.sp === 'string' ? c.shooter : null;
       if (typeof owner !== 'string') continue;
       tally.specials++;
+      // A due line marked and gone off within the step (a chime's line during a long action of
+      // yours, §8.1, D7.3): no view model before the step could show it, so it is held to the
+      // warning instead, the threat of your action (Specials.threat, the confirmation's): its
+      // owner's line, due then, on this tile, for what it dealt.
+      const marked = events.slice(0, n).filter(t => t.k === 'telegraphed' && t.who === owner && t.cause && t.cause.k === 'special').pop();
+      if (marked && Number.isInteger(marked.cause.due)) {
+        if (warned === null) { const t = C.Specials.threat(pre, action); warned = t ? [t].concat(t.more || []) : []; }
+        const w = warned.find(h => h.by === owner && h.due === marked.cause.due && h.x === c.x && h.y === c.y);
+        const what = `${owner}'s ${c.sp}, a line marked during the step, dealt you ${e.amount} on ${c.x},${c.y}`;
+        if (!w) v('special_marks', `${what}, where the threat of your action warned of no line`);
+        else if (w.dmg !== e.amount) v('special_marks', `${what}; the threat of your action warned of ${w.dmg} there`);
+        continue;
+      }
       if (!vm) {
         try { vm = C.ViewModel.derive(pre, { events: drawn }); } catch (err) { v('special_marks', `the view model before the step could not be made: ${msg(err)}`); return; }
       }
@@ -274,7 +290,7 @@ function checks(C, o) {
       }
     }
     for (const x of inv(pre, action, events, post)) v('invariant', `${x.inv}: ${x.message}${x.uid ? ` (${x.uid}${x.sp ? ', ' + x.sp : ''})` : ''}`, { inv: x.inv });
-    marks(pre, events, v);
+    marks(pre, action, events, v);
     const keys = Object.keys(post.rng).length;
     if (keys > RNG_KEYS) v('rng', `state.rng holds ${keys} streams, more than ${RNG_KEYS}`);
     if (post.causes.length > N.CAUSE_RECORDS) v('causes', `state.causes holds ${post.causes.length} records, more than ${N.CAUSE_RECORDS}`);

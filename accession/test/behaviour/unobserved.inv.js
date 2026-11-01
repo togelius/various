@@ -15,7 +15,7 @@
 //     else (with the module off, of an exhibit not flagged with it, or naming no one).
 // A step holds several actions (yours, then every exhibit's until your next decision), so a
 // check about one moment follows the step's events in order from the state before it: where
-// you and the Grazer stood (their moves), the doors opened and closed, the hall's shutters,
+// you and the Grazer stood (their moves, and a Re-admission Ticket's return), the doors opened and closed, the hall's shutters,
 // and the surfaces laid (and gone at their turn).
 'use strict';
 module.exports = (C) => {
@@ -39,6 +39,9 @@ module.exports = (C) => {
     for (let k = 0; k < i; k++) {
       const e = events[k];
       if (e.k === 'moved' && e.who === 'you') you = e.to.slice();
+      // A Re-admission Ticket puts you at the entrance with no moved event: its used event's
+      // cause says where (consumables.js).
+      else if (e.k === 'used' && e.who === 'you' && e.cause && e.cause.ck === 'ticket' && Number.isInteger(e.cause.x) && Number.isInteger(e.cause.y)) you = [e.cause.x, e.cause.y];
       else if (e.k === 'opened' && own(OPEN, rows[e.y][e.x])) rows[e.y][e.x] = OPEN[rows[e.y][e.x]];
       else if (e.k === 'closed' && own(SHUT, rows[e.y][e.x])) rows[e.y][e.x] = SHUT[rows[e.y][e.x]];
       else if (e.k === 'stage' && e.cause && e.cause.k === 'hall' && cp && (e.stage === 'sealed' || e.stage === 'unsealed'))

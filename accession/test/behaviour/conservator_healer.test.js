@@ -199,7 +199,7 @@ module.exports = ({ test, assert, loadCore }) => {
       .includes(`Its call deals no damage: it wakes the sleeping exhibits within ${N.HERALD_RANGE} tiles of it that can hear.`));
   });
 
-  test('the healer invariants fail a planted blow, a planted step nearer, and a planted restore off its mark or by the wrong amount', () => {
+  test('the healer invariants fail a planted blow, a planted step nearer, and a planted restore off its mark or by the wrong amount; a splitter\'s half made during the step stands where it was made', () => {
     const invs = require('./arch-d.inv.js')(C), by = id => invs.find(i => i.id === id);
     const s = room(C, 3, { rulesOff: ['clockwork'] }, { you: [3, 3], exhibits: [{ sp: 'A4.5', at: [6, 3], mode: 'hunting' }, hurt('A4.1', [9, 3], 3, 1)] });
     const h = s.actors[1], ally = s.actors[2], ctx = { actor: h, before: h, uid: h.uid };
@@ -213,5 +213,21 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.match(by('healer.restore').check(s, [Object.assign({}, marked, { tiles: [[10, 3]] }), heal(share), went], s), /on no tile its mark showed/);
     assert.match(by('healer.restore').check(s, [marked, heal(share)], s), /did not go off/);
     assert.match(by('healer.restore').check(s, [marked, heal(share, { who: 'you' }), went], s), /healed you/);
+    // A splitter's half made during the step on the marked tile (your blow split it there), then
+    // restored as the mark goes off: it stood where it was made, which no event tells, so the
+    // check reads it from the state after the step (CP1's soak: A.4, seed 401, depth 1). One
+    // made off the mark is still caught.
+    const pre = C.State.clone(s), post = C.State.clone(s), half = Object.assign(C.State.clone(ally), { uid: `${ally.uid}/1`, x: 9, y: 3, hp: 1 });
+    post.actors.find(a => a.uid === ally.uid).x = 10;
+    post.actors.push(half);
+    const made = { k: 'woke', who: half.uid, was: null, mode: 'hunting', cause: { k: 'summoned', how: 'split', from: ally.uid, by: 'you' } };
+    assert.equal(by('healer.restore').check(pre, [marked, made, heal(share, { who: half.uid }), went], post), null);
+    half.x = 10;
+    assert.match(by('healer.restore').check(pre, [marked, made, heal(share, { who: half.uid }), went], post), /on no tile its mark showed/);
+    // A half made during the step that walks onto the mark before it goes off.
+    half.x = 9;
+    const walked = { k: 'moved', who: half.uid, from: [10, 3], to: [9, 3] };
+    assert.equal(by('healer.restore').check(pre, [marked, made, walked, heal(share, { who: half.uid }), went], post), null);
+    assert.match(by('healer.restore').check(pre, [marked, made, heal(share, { who: half.uid }), walked, went], post), /on no tile its mark showed/);
   });
 };

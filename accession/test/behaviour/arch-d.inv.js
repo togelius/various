@@ -61,11 +61,24 @@ module.exports = (C) => {
     return false;
   }
   // Where an actor stood just before the i-th event: from the state before the step, through
-  // its moves (a step of its own, or one a rule or an instrument made).
-  function where(pre, events, uid, i) {
+  // its moves (a step of its own, or one a rule or an instrument made) and, for you, a
+  // Re-admission Ticket's return. One made during the step (a splitter's half, which no event
+  // places) stood where it was made until its first move: that move's from, or, if it never
+  // moved, where it stands after the step.
+  function where(pre, post, events, uid, i) {
     const b = find(pre, uid);
     let at = b ? [b.x, b.y] : null;
-    for (let k = 0; k < i; k++) if (events[k].k === 'moved' && events[k].who === uid) at = events[k].to.slice();
+    if (!b) {
+      const first = events.find(e => e.k === 'moved' && e.who === uid), a = find(post, uid);
+      at = first ? first.from.slice() : a ? [a.x, a.y] : null;
+    }
+    for (let k = 0; k < i; k++) {
+      const e = events[k];
+      if (e.k === 'moved' && e.who === uid) at = e.to.slice();
+      // A Re-admission Ticket puts you at the entrance with no moved event: its used event's
+      // cause says where (consumables.js).
+      else if (uid === 'you' && e.k === 'used' && e.who === 'you' && e.cause && e.cause.ck === 'ticket' && Number.isInteger(e.cause.x) && Number.isInteger(e.cause.y)) at = [e.cause.x, e.cause.y];
+    }
     return at;
   }
 
@@ -122,7 +135,7 @@ module.exports = (C) => {
         const stop = events.findIndex(e => (e.k === 'lost' || e.k === 'alerted' || e.k === 'returned') && e.who === b.uid);
         for (const { i, e } of own) {
           if (stop >= 0 && i > stop) break;
-          const you = where(pre, events, 'you', i), m = post.dept, d = Grid.distances(m, [you], m.w * m.h, null, 'exhibit');
+          const you = where(pre, post, events, 'you', i), m = post.dept, d = Grid.distances(m, [you], m.w * m.h, null, 'exhibit');
           const from = d[e.from[1] * m.w + e.from[0]], to = d[e.to[1] * m.w + e.to[0]];
           if (to >= 0 && to < N.CONSERVATOR_KEEP && (from < 0 || to < from)) return `${b.uid} stepped from ${e.from} to ${e.to}, ${to} walking tiles from you at ${you}, nearer than ${N.CONSERVATOR_KEEP}`;
         }
@@ -147,7 +160,7 @@ module.exports = (C) => {
           for (let k = i - 1; k >= 0 && !tiles; k--) if (events[k].k === 'telegraphed' && events[k].who === h) tiles = events[k].tiles;
           if (!tiles) { const p = find(pre, h); tiles = p && p.telegraph && p.telegraph.sp === 'restore' ? p.telegraph.tiles : null; }
           if (!tiles) return `${h}'s restore healed ${e.who} with no mark shown`;
-          const at = where(pre, events, e.who, i), size = who ? who.size || 1 : 1;
+          const at = where(pre, post, events, e.who, i), size = who ? who.size || 1 : 1;
           let on = false;
           for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) if (at && tileIn(tiles, at[0] + dx, at[1] + dy)) on = true;
           if (!on) return `${h}'s restore healed ${e.who} at ${at}, on no tile its mark showed (${JSON.stringify(tiles)})`;

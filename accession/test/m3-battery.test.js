@@ -16,6 +16,9 @@
 //     off before your next decision, and a beam that deals more on its way back from a
 //     reflector than its shooter's mark there showed (in a room built for it, since no pack's
 //     beam can strike you on its way back in play).
+//   - A chime's line marked and gone off within one long action of yours (D7.3) is held to the
+//     threat of that action, which warned of it, not to a view model that could not show it;
+//     a line dealing more than its warning, or one no warning named, is caught.
 //   - A log that links a missing build fails check-all (§12).
 //   - The battery's monkey plays as Monkey.run does, visit for visit.
 'use strict';
@@ -171,6 +174,42 @@ module.exports = ({ test, assert, root, fs, path }) => {
     X.Combat.hurt = (s, who, amount, cause, ev) => real(s, who, who.uid === 'you' && cause.k === 'reflected' && typeof cause.sp === 'string' ? amount + 1 : amount, cause, ev);
     const r = beamBack(X, 4);
     assert.ok(r.out.some(v => v.id === 'special_marks' && /'s line dealt you \d+ on \d+,\d+; its mark there in the view model before the step showed \d+/.test(v.text)), json(r.out));
+  });
+
+  test('special_marks holds a chime\'s line that is marked and strikes during one long action of yours (D7.3) to the threat of that action: its owner, its due tick, your tile and what it dealt', () => {
+    // M.11's station (M11.2) at the west end of a row, facing east, you on its line; a 300-tick
+    // equip begun the turn before the chime (hourly_demonstration.test.js's room): the chime
+    // marks the line and it goes off during the equip, which no view model before the step
+    // showed, and which the confirmation warned of (Specials.threat). Found by CP1's soak (M.11,
+    // seed 213, depth 6: an unequip across a chime).
+    const H = require(path.join(root, 'test/behaviour/_harness.js'));
+    const ROW = ['################', '#..............#', '#..............#', '#..............#', '#..............#', '#..............#', '################'];
+    function equipAcross(X, depth) {
+      const sp = X.Packs.species('M11', 'M11.2');
+      const s = H.room(X, 1, { acc: 'M11', depth, map: ROW, you: [8, 1], rooms: [{ key: 'sone', role: 'section', x0: 1, y0: 1, x1: 14, y1: 5 }],
+        exhibits: [{ sp: 'M11.2', at: [2, 1], stats: X.Roles.stats(sp.role, depth) }], items: [{ uid: 'g2', kind: 'garment', form: 'standard', tier: 3, where: { at: 'tote' } }] }, {});
+      s.actors[0].hp = s.actors[0].maxHp = 999;
+      s.actors[1].route = { dir: 'E' };
+      X.Modules.init(s, X.Packs.get('M11'));
+      for (let i = 0; i < 9; i++) X.Step.step(s, { a: 'wait' });
+      const chk = Battery.checks(X, { invs: [] }), action = { a: 'equip', uid: 'g2' }, pre = X.State.clone(s), ev = X.Step.step(s, action);
+      return { out: chk.check(pre, action, ev, s), tally: chk.tally, hit: ev.filter(e => e.k === 'damaged' && e.who === 'you'), marked: ev.filter(e => e.k === 'telegraphed' && e.who === s.actors[1].uid) };
+    }
+    for (const depth of [1, 4, 7]) {
+      const r = equipAcross(Battery.context(), depth);
+      assert.equal(json([r.marked.length, r.hit.length, r.hit[0] && r.hit[0].cause.sp]), json([1, 1, 'demo_line']), `depth ${depth}: the line was marked and struck you during the equip`);
+      assert.equal(r.tally.specials, 1);
+      assert.equal(json(r.out), '[]', `depth ${depth}`);
+    }
+    // Planted: the line deals one more than the warning said; no warning was given.
+    const more = Battery.load(), hurt = more.Combat.hurt;
+    more.Combat.hurt = (s, who, amount, cause, ev) => hurt(s, who, who.uid === 'you' && cause.sp === 'demo_line' ? amount + 1 : amount, cause, ev);
+    const r1 = equipAcross(more, 4);
+    assert.ok(r1.out.some(v => v.id === 'special_marks' && /a line marked during the step, dealt you \d+ on \d+,\d+; the threat of your action warned of \d+ there/.test(v.text)), json(r1.out));
+    const silent = Battery.load();
+    silent.Specials.threat = () => null;
+    const r2 = equipAcross(silent, 4);
+    assert.ok(r2.out.some(v => v.id === 'special_marks' && /where the threat of your action warned of no line/.test(v.text)), json(r2.out));
   });
 
   test('the battery\'s other checks bite: more than 150 rng streams, more than 64 cause records, a state that is not plain data, a sentence with a gap, a starting story no room gives or one told at another turn, an illegal action', () => {

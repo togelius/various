@@ -193,6 +193,35 @@ module.exports = ({ test, assert, loadCore }) => {
       return null;
     },
   });
+  // ---- A Re-admission Ticket ----
+  // Hunting you from beside you, in your sight, it stays still and strikes; you read a Ticket and
+  // are put back at the entrance, behind the wall: it loses you and, out of your sight, strides
+  // to where it last knew you were. The checks follow you there (no moved event tells the
+  // Ticket's return: its used event's cause says where), so its strides begin out of your sight.
+  const ticket = H.scenario({
+    name: 'beside you it stays in place; a Re-admission Ticket puts you at the entrance behind the wall, and out of your sight it strides to where it last knew you were',
+    id: 'MODULES.' + ID, clone: true,
+    build: (params, sp, depth, opts) => {
+      const s = room(opts, { depth, map: GAP, you: [15, 2], entrance: [2, 2], exhibits: [hunter(sp, depth, [16, 2], [15, 2])] });
+      C.Consumables.startRun(s);
+      C.Consumables.make(s, 'ticket', { at: 'tote' });
+      return s;
+    },
+    actions: (s, i) => i < 2 ? { a: 'wait' } : i === 2 ? { a: 'use', uid: s.items.find(x => x.ck === 'ticket').uid } : i < 6 ? { a: 'wait' } : null,
+    expect(r) {
+      const g = grazer(r.start), used = r.events.find(e => e.k === 'used' && e.who === 'you');
+      if (!used || !used.cause || used.cause.ck !== 'ticket' || used.cause.x !== 2 || used.cause.y !== 2) return `the Ticket was not read to the entrance: ${json(used)}`;
+      if (!r.events.some(e => e.k === 'lost' && e.who === g.uid)) return 'it did not lose you';
+      const after = r.events.filter(e => e.k === 'moved' && e.who === g.uid && e.tick >= used.tick), strides = r.events.filter(e => e.k === 'module' && e.id === ID && e.who === g.uid && e.tick >= used.tick);
+      if (!after.length) return 'out of your sight it never stepped';
+      if (strides.length !== after.length) return `${after.length} steps after the Ticket, ${strides.length} strides`;
+      return null;
+    },
+  });
+  test('a Re-admission Ticket puts you behind the wall: out of your sight it strides to where it last knew you were, and every invariant follows you there', () => {
+    ok(H.sweep(W, ticket, list()), ticket.name);
+  });
+
   test('a Fumigant cloud between you breaks your sight: it comes on, 2 tiles a turn', () => {
     ok(H.sweep(W, cloud, list()), cloud.name);
   });
