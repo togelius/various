@@ -9,8 +9,11 @@
 //     not the rank above yours;
 //   - an empty offer gives no perk, the log says so and no choice waits; an offer of one or two
 //     perks is shown as it is;
+//   - the award reads HP_PER_GRADE and CERT_HEAL (set apart, so neither stands in for the
+//     other), and a room that names no department cannot give a Certificate;
 //   - a perk offer and the Catalogue Card's seal choice, in both orders: neither ever leaves a
-//     choice with no answer;
+//     choice with no answer; death while either waits ends the visit with it unanswered, and
+//     leaving waits for every answer;
 //   - joined-up scenarios at depths 1–7 with every invariant on and a clone check, and the
 //     invariants of test/behaviour/progress.inv.js shown failing on planted states.
 // The expected figures are worked out here from BUILD.md, never from the code.
@@ -29,7 +32,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const maxAt = g => 20 + 5 * (g - 1);
   const room = (X, o) => {
     o = o || {};
-    const s = X.Setup.room(o.seed || 1, { acc: o.acc || 'S9', depth: o.depth || 1, grade: o.grade || 1, map: OPEN, you: [2, 3], exhibits: [], fixtures: o.fixtures || [] });
+    const s = X.Setup.room(o.seed || 1, { acc: o.acc || 'S9', depth: o.depth || 1, grade: o.grade || 1, map: OPEN, you: [2, 3], exhibits: [], fixtures: o.fixtures || [], exits: o.exits || [] });
     if (o.hp !== undefined) s.actors[0].hp = o.hp;
     if (o.perks) s.run.perks = o.perks.map(p => ({ id: p[0], rank: p[1] }));
     return s;
@@ -67,13 +70,38 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(s.ui.pendingChoice.k, 'perk');
       assert.equal(s.ui.pendingChoice.options.length, 3);
       const words = said(C, s, ev);
-      assert.equal(words[1], up ? `Your Handling Clearance is now Grade ${ROMAN[g + 1]}.` : 'Your Handling Clearance stays at Grade VII, the highest there is, and so does your maximum health.');
-      assert.doesNotMatch(words[1], /\d/);
+      // §8.7: each part in the log, the raised maximum too (the heal may pass the old one).
+      assert.equal(words[1], up ? `Your Handling Clearance is now Grade ${ROMAN[g + 1]}, and your maximum health is 5 higher.` : 'Your Handling Clearance stays at Grade VII, the highest there is, and so does your maximum health.');
+      assert.doesNotMatch(words[1], /Grade \d/);
     }
-    // The causes' sentences.
-    const s = room(C, { acc: 'S9', depth: 2, grade: 2, hp: 10 });
+    // The causes' sentences: 28 of 30 becomes 33 of 35, and the log says why 33 is not too many.
+    const s = room(C, { acc: 'S9', depth: 3, grade: 3, hp: 28 });
     const ev = []; C.Progress.award(s, 'view', { k: 'view' }, ev);
-    assert.equal(json(said(C, s, ev)), json(['You earned this department’s Certificate: you viewed its Centrepiece.', 'Your Handling Clearance is now Grade III.', 'You healed 5 with the Certificate: now 15.']));
+    assert.equal(json(said(C, s, ev)), json(['You earned this department’s Certificate: you viewed its Centrepiece.', 'Your Handling Clearance is now Grade IV, and your maximum health is 5 higher.',
+      'You healed 5 with the Certificate: now 33.']));
+  });
+
+  test('the award reads its numbers: HP_PER_GRADE for the maximum and its sentence, CERT_HEAL for the heal', () => {
+    // Set apart (7 and 3), so neither can stand in for the other; the invariants read them too.
+    const X = loadCore(null, { numbers: { HP_PER_GRADE: 7, CERT_HEAL: 3 } });
+    const invs = Inv.select(X, ['progress']);
+    for (const [g, hp, wantMax, wantHp] of [[3, 30, 41, 33], [3, 34, 41, 37], [1, 10, 27, 13], [7, 60, 62, 62], [7, 50, 62, 53]]) {
+      const s = X.Setup.room(1, { acc: 'M11', depth: g, grade: g, map: OPEN, you: [2, 3], exhibits: [] }), you = s.actors[0];
+      assert.equal(you.maxHp, 20 + 7 * (g - 1));
+      you.hp = Math.min(hp, you.maxHp);
+      const pre = X.State.clone(s), ev = [];
+      X.Progress.award(s, 'view', { k: 'view' }, ev);
+      assert.equal(json([you.maxHp, you.hp]), json([wantMax, wantHp]), `grade ${g}, ${hp} health`);
+      assert.deepEqual(Inv.checker(X, invs)(pre, { a: 'wait' }, ev, s).map(v => v.text), [], `grade ${g}`);
+      const words = X.Text.log(ev, X.Labels.nameOf(s));
+      if (g < 7) assert.ok(words.includes(`Your Handling Clearance is now Grade ${ROMAN[g + 1]}, and your maximum health is 7 higher.`), json(words));
+    }
+  });
+
+  test('a Certificate is a department\'s: a room that names none cannot give one, and asking it to throws', () => {
+    const s = C.Setup.room(1, { map: OPEN, you: [2, 3], exhibits: [] }), before = json(s), ev = [];
+    assert.throws(() => C.Progress.award(s, 'view', { k: 'view' }, ev), /a Certificate is a department's/);
+    assert.equal(json(s), before); assert.equal(ev.length, 0);
   });
 
   test('+5 maximum health, then 5 back, in that order: never capped at the old maximum; nothing to heal at full health', () => {
@@ -161,6 +189,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(said(C, s, ev)[0], index === 0 ? 'You took the perk Duck and Cover, at rank 2.' : `You took the perk ${C.Registry.PERKS[o.id].name}.`);
       assert.ok(C.Step.legal(s).some(a => a.a === 'wait'), 'the visit goes on');
     }
+    // In place: a perk you hold goes up where it is, not to the end (here it is held first).
+    const p = room(C, { acc: 'M11', depth: 3, grade: 3, perks: [['duck_and_cover', 1], ['soft_soles', 1], ['second_wind', 1]] });
+    C.Progress.award(p, 'view', { k: 'view' }, []);
+    assert.equal(json(p.ui.pendingChoice.options[0]), json({ id: 'duck_and_cover', rank: 2 }));
+    checked(C, C.Step.step(p, { a: 'choose', index: 0 }));
+    assert.equal(json(p.run.perks), json([{ id: 'duck_and_cover', rank: 2 }, { id: 'soft_soles', rank: 1 }, { id: 'second_wind', rank: 1 }]));
     // An option that is not a perk at the rank above yours is refused, and the choice waits.
     const s = room(C, { acc: 'A4', depth: 2, grade: 2 });
     C.Progress.award(s, 'view', { k: 'view' }, []);
@@ -289,13 +323,89 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
   });
 
+  // ---- Death and leaving while an offer waits ----
+
+  test('death while an offer waits ends the visit with it unanswered, nothing left to give; leaving waits for every answer', () => {
+    // The Certificate comes as the world acts (as a Centrepiece's last piece falling in the
+    // world's turn would), at the first turn boundary, and the world may then kill you in that
+    // same turn, with the perk choice waiting, or with the offer waiting behind a Card's.
+    const X = loadCore();
+    const boundary = X.Hall.boundary, invs = Inv.select(X, ['progress']);
+    let armed = null;
+    X.Hall.boundary = (st, ev) => { if (armed) { const f = armed; armed = null; f(st, ev); } return boundary(st, ev); };
+    const award = (st, ev) => X.Progress.award(st, 'defeat', { k: 'defeat', by: 'S9.3.room.1' }, ev);
+    const die = (st, ev) => X.Combat.hurt(st, st.actors[0], 999, { k: 'special', by: 'S9.3.room.1', sp: 'cp_burst', gross: 999, pad: 0, net: 999, x: 2, y: 3, from: [3, 3] }, ev);
+    const play = (s, a) => {
+      const pre = X.State.clone(s), ev = checked(X, X.Step.step(s, a));
+      assert.deepEqual(Inv.checker(X, invs)(pre, a, ev, s).map(v => v.text), [], json(a));
+      return ev;
+    };
+    const ended = (s, what) => {
+      assert.equal(s.over.k, 'died', what);
+      assert.equal(json(X.Step.legal(s)), '[]', `${what}: nothing is legal`);
+      assert.equal(json(X.Step.step(X.State.clone(s), { a: 'choose', index: 0 }).map(e => e.reason)), json(['visit_over']), what);
+      const h = X.State.hash(s);
+      X.Progress.afterChoice(s, []);
+      assert.equal(X.State.hash(s), h, `${what}: nothing is raised over a finished visit`);
+      assert.equal(json(s.run.perks), '[]', `${what}: no perk was taken`);
+      assert.equal(s.run.certificates.length, 1, `${what}: the Certificate stays earned`);
+    };
+    for (const depth of [1, 4, 7]) {
+      // The perk choice waiting.
+      let s = room(X, { depth, grade: depth });
+      armed = (st, ev) => { award(st, ev); die(st, ev); };
+      let ev = play(s, { a: 'wait' });
+      assert.ok(kinds(ev).indexOf('certificate.defeat') < ev.findIndex(e => e.k === 'died'), 'the Certificate, then the death');
+      assert.equal(s.ui.pendingChoice.k, 'perk');
+      ended(s, `d${depth}, the perk choice waiting`);
+      // The offer waiting behind the Card's seal choice.
+      const c = cardRoom(X, { depth, grade: depth });
+      s = c.s;
+      armed = (st, ev) => { award(st, ev); die(st, ev); };
+      ev = play(s, { a: 'use', uid: c.card });
+      assert.equal(s.ui.pendingChoice.k, 'seal'); assert.equal(X.Progress.waiting(s).length, 3);
+      ended(s, `d${depth}, the offer behind the Card`);
+      // Death first, then the way to the Certificate in the same turn: the visit is over, so nothing.
+      s = room(X, { depth, grade: depth });
+      let got = null;
+      armed = (st, ev) => { die(st, ev); got = award(st, ev); };
+      ev = play(s, { a: 'wait' });
+      assert.equal(got, false); assert.ok(!ev.some(e => e.k === 'certificate'));
+      assert.equal(json([s.run.certificates, X.Progress.cert(s), s.ui.pendingChoice]), json([[], null, null]));
+    }
+    // afterChoice, asked of a finished visit with an offer still in dept.offer, raises nothing.
+    const t = room(X, { depth: 2, grade: 2 });
+    t.dept.offer = [{ id: 'second_wind', rank: 1 }]; t.over = { k: 'died', turn: 0, by: null, door: null, cause: null };
+    X.Progress.afterChoice(t, []);
+    assert.equal(t.ui.pendingChoice, null);
+
+    // Leaving: refused while any choice waits, the perk's or the Card's with the offer behind it;
+    // once the perk is taken you leave with it and the Certificate.
+    for (const viaCard of [false, true]) {
+      const c = cardRoom(X, { depth: 3, grade: 3, exits: [[2, 3]] }), s = c.s;
+      assert.ok(X.Step.legal(s).some(a => a.a === 'leave'));
+      armed = award;
+      play(s, viaCard ? { a: 'use', uid: c.card } : { a: 'wait' });
+      const refusedLeave = () => assert.equal(json(X.Step.step(X.State.clone(s), { a: 'leave', i: 0 }).map(e => e.reason)), json(['choice_pending']));
+      refusedLeave();
+      if (viaCard) { assert.equal(s.ui.pendingChoice.k, 'seal'); play(s, { a: 'choose', index: 0 }); refusedLeave(); }
+      assert.equal(s.ui.pendingChoice.k, 'perk');
+      assert.ok(X.Step.legal(s).every(a => a.a === 'choose'));
+      const taken = s.ui.pendingChoice.options[0];
+      play(s, { a: 'choose', index: 0 });
+      const ev = play(s, { a: 'leave', i: 0 });
+      assert.equal(json([s.over.k, ev.map(e => e.k)]), json(['left', ['left']]));
+      assert.equal(json([s.run.perks, s.run.certificates.length]), json([[taken], 1]));
+    }
+  });
+
   // ---- Joined up, with every invariant ----
 
   test('scenarios at depths 1–7 in each department: earn, take the perk, play on; every invariant held, clone-stable', () => {
     const X = loadCore();
     X.Fixtures.addReader('planted_cert', () => ({ text: null, effects: (st, ev) => X.Progress.award(st, 'view', { k: 'view' }, ev) }));
     let runs = 0;
-    for (const acc of DEPTS) for (let d = 1; d <= 7; d++) for (const held of [[], [['second_wind', 1]], allAt(2, [['soft_soles', 1]]), allAt(2)]) {
+    for (const acc of DEPTS) for (let d = 1; d <= 7; d++) for (const held of [[], [['second_wind', 1]], [['second_wind', 1], ['elbow_room', 2]], allAt(2, [['soft_soles', 1]]), allAt(2)]) {
       const s = H.room(X, d, { acc, depth: d, grade: Math.min(7, d), map: OPEN, you: [2, 3], exhibits: [], fixtures: [{ k: 'planted_cert', x: 3, y: 3 }] });
       s.run.perks = held.map(p => ({ id: p[0], rank: p[1] }));
       s.actors[0].hp -= 3;
@@ -306,7 +416,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(s.ui.pendingChoice, null);
       runs++;
     }
-    assert.equal(runs, 84);
+    assert.equal(runs, 105);
   });
 
   // ---- The invariants against planted states ----
@@ -348,6 +458,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       ['offer_valid', (p, e) => { p.ui.pendingChoice.options[0] = { id: 'soft_soles', rank: 1 }; p.ui.pendingChoice.options[1] = { id: 'elbow_room', rank: 1 }; }, 'a held rank-1 perk left out of its family\'s'],
       ['offer_valid', (p, e) => { p.ui.pendingChoice = null; }, 'no offer and nothing said'],
       ['offer_valid', (p, e) => { p.ui.pendingChoice = null; e.push({ k: 'perk', turn: 0, tick: 0, cause: { k: 'none' } }); }, 'no perk said while perks are left'],
+      ['grade_and_health', (p, e) => { const h = e.find(x => x.k === 'healed'); p.actors[0].hp = p.actors[0].maxHp; h.hp = p.actors[0].maxHp; h.amount = N.CERT_HEAL + 2; }, 'a heal past CERT_HEAL, to the maximum'],
     ];
     for (const [want, edit, what] of cases) assert.ok(awarded(edit).includes(want), `${what}: ${json(awarded(edit))}`);
     // The grade past VII, and a grade raised at VII.
@@ -356,6 +467,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(run(pre, ev, post), []);
     post.run.grade = 8;
     assert.ok(run(pre, ev, post).includes('grade_and_health'));
+    post.run.grade = 7; post.actors[0].maxHp += N.HP_PER_GRADE;
+    assert.ok(run(pre, ev, post).includes('grade_and_health'), 'maximum health raised at grade VII');
+    // The run's record of the Certificate must be the visit's.
+    post.actors[0].maxHp -= N.HP_PER_GRADE; post.run.certificates[0].depth = 6;
+    assert.ok(run(pre, ev, post).includes('certificate_once'), 'a record of another depth');
     // A perk taken by something other than choose, and at the wrong rank.
     pre = base(); post = C.State.clone(pre); C.Progress.award(post, 'view', { k: 'view' }, []);
     const p2 = C.State.clone(post), ev2 = C.Step.step(p2, { a: 'choose', index: 0 });

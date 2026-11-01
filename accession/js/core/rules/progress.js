@@ -122,7 +122,9 @@ const Progress = (() => {
 
   // Progress.award(state, how, cause, ev) → bool: the department's Certificate, earned by `how`
   // ('defeat', 'view' or 'treasure'; cause is the certificate event's cause, whose k is how:
-  // {k: 'defeat', by}, {k: 'view'}, {k: 'treasure'}). Once a visit: with this visit's
+  // {k: 'defeat', by}, {k: 'view'}, {k: 'treasure'}). A Certificate is a department's, so a
+  // room that names none (no dept.acc: some rooms for tests) cannot give one, and asking it
+  // to is a bug in the caller, as a way that is not one is. Once a visit: with this visit's
   // Certificate already earned, or the visit over, it gives nothing and returns false.
   // Otherwise, in this order, each with its event:
   //   1. the Certificate (certificate {acc, how}): dept.cert {how, turn}, and the run's record
@@ -137,6 +139,7 @@ const Progress = (() => {
     if (!HOW.includes(how)) throw new Error(`Progress.award: a Certificate is earned by ${HOW.join(', ')}, not ${JSON.stringify(how)}`);
     if (!cause || cause.k !== how) throw new Error(`Progress.award: a Certificate earned by ${how} needs the cause {k: '${how}'}, not ${JSON.stringify(cause)}`);
     const m = state.dept, you = state.actors[0];
+    if (!m || typeof m.acc !== 'string' || !m.acc) throw new Error('Progress.award: a Certificate is a department\'s, and this room names none (dept.acc)');
     if (state.over || !you || you.gone || cert(state)) return false;
     m.cert = { how, turn: state.turn };
     state.run.certificates.push({ acc: m.acc, depth: m.depth, how, turn: state.turn });

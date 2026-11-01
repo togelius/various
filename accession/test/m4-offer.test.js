@@ -5,6 +5,7 @@
 // from any family in §8.7's table order; never a perk twice. Shown here:
 //   - the families' data agrees with Registry.PERKS and with every pack's claim;
 //   - each department's offer with no perks held, over 1,000 draws;
+//   - the slots read PERK_OFFER (1 and 2 give other offers than 2 and 1);
 //   - hand-worked fallbacks, from §8.7's words;
 //   - every combination of the ranks held (3⁸) in each department and a room that is no
 //     department, against those rules restated here;
@@ -66,6 +67,30 @@ module.exports = ({ test, assert, loadCore }) => {
     const got = Object.keys(pairs).sort();
     assert.equal(json(got), json(['soft_soles,light_fingers,second_wind', 'soft_soles,vanishing_act,second_wind', 'vanishing_act,light_fingers,second_wind']));
     for (const k of got) assert.ok(pairs[k] >= 243 && pairs[k] <= 423, `${k}: ${pairs[k]} of 1000`);
+  });
+
+  test('the slots are PERK_OFFER\'s: one primary and two secondary give A.4 a swarm perk, Second Wind and a guarded one', () => {
+    // A context of its own, with PERK_OFFER [1, 2] (numbers.js freezes N, not its rows).
+    const X = loadCore();
+    X.N.PERK_OFFER[0] = 1; X.N.PERK_OFFER[1] = 2;
+    const of = (acc, seed) => X.Progress.offer(X.Setup.room(seed, { acc, depth: 1 + (seed % 7), map: OPEN, you: [1, 1], exhibits: [] }));
+    const seen = { A4: new Set(), M11: new Set(), S9: new Set() };
+    for (let seed = 1; seed <= 60; seed++) {
+      // A.4: the one primary slot drawn from swarm's two; the secondary's two from locks' stand-ins.
+      const a = of('A4', seed);
+      assert.equal(json([famOf(a[0].id), a[1].id, famOf(a[2].id)]), json(['swarm', 'second_wind', 'guarded']), json(a));
+      seen.A4.add(a[0].id);
+      const m = of('M11', seed);
+      assert.equal(json([famOf(m[0].id), m[1].id, famOf(m[2].id)]), json(['artillery', 'second_wind', 'guarded']), json(m));
+      seen.M11.add(m[0].id);
+      // S.9: guarded, then its missing secondary's two (attrition, then guarded again), the two
+      // guarded perks in table order.
+      const g = of('S9', seed);
+      assert.equal(json([famOf(g[0].id), g[1].id, famOf(g[2].id)]), json(['guarded', 'second_wind', 'guarded']), json(g));
+      assert.ok(TABLE.findIndex(t => t[0] === g[0].id) < TABLE.findIndex(t => t[0] === g[2].id), json(g));
+      seen.S9.add(g[0].id + g[2].id);
+    }
+    assert.equal(json([seen.A4.size, seen.M11.size, seen.S9.size]), json([2, 2, 3]), 'drawn where a family has more perks than its slots');
   });
 
   test('hand-worked fallbacks, from §8.7\'s words', () => {
