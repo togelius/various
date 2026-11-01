@@ -579,10 +579,10 @@ const LRunner = (() => {
     alarm: 'wakes at the alarm', herald: 'wakes at a herald\'s call', ally_hit: 'wakes as one of its group is struck' };
   function why(state, b) {
     const name = uid => { const a = state.actors.find(x => x.uid === uid), sp = a ? Packs.speciesFor(state, a) : null; return sp && sp.name ? sp.name : 'an exhibit'; };
-    let top = null;
-    for (const f of b.fights) if (!top || f.b > top.b) top = f;
-    if (!top) return b.lines.length ? `the line of ${name(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
-    const first = b.woken.find(w => w.uid === top.uids[0]) || b.woken[0], more = top.uids.length - 1;
+    let worst = null;
+    for (const f of b.fights) if (!worst || f.b > worst.b) worst = f;
+    if (!worst) return b.lines.length ? `the line of ${name(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
+    const first = b.woken.find(w => w.uid === worst.uids[0]) || b.woken[0], more = worst.uids.length - 1;
     return `the ${name(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}` + (more ? `, and ${more} more join the fight` : '');
   }
 

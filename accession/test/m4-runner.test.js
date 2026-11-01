@@ -439,7 +439,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Patrol.timeline(s2, 30)[0].at[0].x, 5);
   });
 
-  test('a timed patrol sees, at each of its actions, every tile you could stand on within SIGHT_EXHIBIT in line of sight (Grid.los, every door open)', () => {
+  test('a timed patrol sees, at each of its actions, every tile you could stand on within SIGHT_EXHIBIT in line of sight (Grid.los, every door open), and walks by AI.field', () => {
     let checked = 0;
     for (const d of made.filter(x => x.acc === 'S9')) {
       const st = d.state, m = st.dept, M = LRunner.model(st), open = Object.assign({}, m, { tiles: m.tiles.map(r => r.replace(/\+/g, "'")), surfaces: [] });
@@ -450,6 +450,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         for (const k of at) for (let y = Math.max(0, (k - (k % m.w)) / m.w - R); y <= Math.min(m.h - 1, (k - (k % m.w)) / m.w + R); y++) for (let x = Math.max(0, (k % m.w) - R); x <= Math.min(m.w - 1, (k % m.w) + R); x++)
           if (Grid.walkable(open, x, y) && !Grid.closedDoor(open, x, y) && Grid.disc(x - (k % m.w), y - (k - (k % m.w)) / m.w, R) && Grid.los(open, k % m.w, (k - (k % m.w)) / m.w, x, y)) want[y * m.w + x] = 1;
         same(Array.from(e.sight), Array.from(want), `S9 seed ${d.seed}: ${p.uid}'s sight`);
+        // And the walking field of each of its posts is AI.field's.
+        const a = st.actors.find(x => x.uid === p.uid);
+        for (const q of a.route.posts) same(Array.from(Patrol.walkField(m, q)), Array.from(C.AI.field(st, a, q, 'onto')), `S9 seed ${d.seed}: ${p.uid}'s field to ${q}`);
         checked++;
       }
     }
