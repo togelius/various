@@ -226,7 +226,8 @@ const Combat = (() => {
   //      cause.side on a blow, a shot or a beam);
   //   2. health falls; with options.invulnerable your health stays at 1 or more and the
   //      cause says `saved` (so every damage cause's schema accepts saved and side);
-  //   3. `damaged`;
+  //   3. `damaged`; damage to you is told to the Centrepiece's hall (Hall.onHurt, M4: a sealed
+  //      hall's quiet turns count from the last time its Centrepiece hurt you, §8.4);
   //   4. an exhibit not already hunting wakes into a hunt (damage, with its distance);
   //   5. its group hears of it (Wake.allyHit);
   //   6. at 0 health it is destroyed (Combat.die); otherwise Archetypes.onDamaged, then
@@ -238,6 +239,7 @@ const Combat = (() => {
     if (who.hp < 0) who.hp = 0;
     if (who.uid === 'you' && who.hp < 1 && state.options && state.options.invulnerable) { who.hp = 1; cause.saved = 1; }
     Causes.emit(state, ev, 'damaged', { who: who.uid, amount, hp: who.hp }, cause);
+    if (who.uid === 'you') Hall.onHurt(state, cause);
     if (who.uid !== 'you' && who.mode !== 'hunting') {
       const wake = { k: 'damage' };
       if (cause.by) wake.by = cause.by;

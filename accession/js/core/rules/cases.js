@@ -415,7 +415,8 @@ const Cases = (() => {
   function staffView(state, vis) {
     const out = [];
     for (const f of (state.dept && state.dept.fixtures) || []) {
-      if (f.k !== 'staff' || !shown(state, vis, f.x, f.y)) continue;
+      // A staff door under a hall's shutter (M4, §8.4) is not shown: the shutter is.
+      if (f.k !== 'staff' || !shown(state, vis, f.x, f.y) || Grid.ch(state.dept, f.x, f.y) === 'Z') continue;
       out.push({ x: f.x, y: f.y, grade: f.grade, open: Grid.ch(state.dept, f.x, f.y) === 's', canOpen: gradeOf(state) >= f.grade });
     }
     return out;

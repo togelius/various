@@ -69,8 +69,8 @@ const N = Object.freeze({
   NIGHT_WAKE_EVERY: 30, // turns between night-watch bells
   NIGHT_WAKE_COUNT: 3, // exhibits woken per night-watch bell
   WATCHMAN_RETURN: 20, // turns before a defeated Watchman returns
-  SEAL_HEAL_PCT: 25, // Centrepiece heal when a hall is unsealed, % of its maximum
-  SEAL_LIFT_TURNS: 50, // a seal lifts after this long without the Centrepiece reaching you or dealing damage
+  SEAL_HEAL_PCT: 25, // a Centrepiece's heal when a Re-admission Ticket unseals its hall, % of each piece's maximum
+  SEAL_LIFT_TURNS: 50, // a seal lifts after this many turns in a row in which the Centrepiece neither hurt you nor ended a turn beside you
   VIEW_TURNS: 4, // viewing turns for a Certificate
   VIEW_DISTANCE: 3, // walking tiles from the lectern's reading tile to the Centrepiece
   TREASURE_SEAL_HP_PCT: 34, // a treasure hall also seals when its Centrepiece falls to this share of its health

@@ -8,7 +8,7 @@ Views.register('topdown', 'Flat', host => {
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'Z'];
+  const PLAIN = ['.', ','];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page
@@ -106,6 +106,17 @@ Views.register('topdown', 'Flat', host => {
       case 'E': case 'X':
         ctx.fillStyle = ART.palettes.semantic.readable; ctx.globalAlpha = 0.35;
         ctx.fillRect(px + 5 * u, py + 5 * u, 6 * u, 6 * u); ctx.globalAlpha = 1;
+        break;
+      // A hall's shutter (M4), closed over an opening while the hall is sealed: a steel shutter
+      // filling the opening from jamb to jamb, ribbed across, with a dark bottom rail, so it
+      // reads as shut by its shape (the ribs) as well as its colour, never as an open way.
+      case 'Z':
+        ctx.fillStyle = P.wallTop; ctx.fillRect(px, py, t, t);
+        ctx.fillStyle = '#8796a8'; ctx.fillRect(px + u, py + u, t - 2 * u, t - u);
+        ctx.fillStyle = '#2b323b';
+        for (let i = 0; i < 4; i++) ctx.fillRect(px + u, py + (3 + 3 * i) * u, t - 2 * u, u);
+        ctx.fillRect(px + u, py + t - 2 * u, t - 2 * u, 2 * u);
+        ctx.fillRect(px, py, u, t); ctx.fillRect(px + t - u, py, u, t);
         break;
     }
   }

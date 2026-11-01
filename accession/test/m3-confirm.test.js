@@ -51,9 +51,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); }
     })(fn);
     // The action kinds it looks at and the kinds of confirmation it asks for: words, never a sentence.
-    const KINDS = ['move', 'bash', 'leave', 'shards', 'threat'];
+    const KINDS = ['move', 'bash', 'leave', 'shards', 'hall', 'threat'];
     assert.deepEqual(strings.filter(s => !KINDS.includes(s)), [], 'askFor writes words of its own');
     assert.deepEqual([...new Set(calls)], ['confirm']);
-    for (const k of ['shards', 'bash', 'leave', 'threat']) assert.ok(strings.includes(k), `askFor asks for ${k}`);
+    for (const k of ['shards', 'bash', 'leave', 'hall', 'threat']) assert.ok(strings.includes(k), `askFor asks for ${k}`);
   });
 };

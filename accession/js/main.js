@@ -174,11 +174,13 @@ const Main = (() => {
   const SHARDS = 'xk'; // shards, and a broken case's tile, which holds its glass
   // What a confirmation says before an action, or null when it needs none. It asks before:
   // stepping onto shards from a tile without them; every blow at a case's glass; leaving by
-  // an exit (a minimal confirmation, D4.9); and any action that would leave you on a tile
-  // marked for damage by a special that goes off before your next decision (Specials.threat).
-  // An action step() would refuse is never asked about: its refusal says why. This decides
-  // when to ask; the words are Text.confirm's (text/confirm.js), as every sentence about the
-  // rules is (§3.4). The first that applies gives the title and button; each adds its line.
+  // an exit (a minimal confirmation, D4.9); stepping into a Centrepiece's hall (Hall.entering,
+  // which says whether it would seal behind you, R11); and any action that would leave you on
+  // a tile marked for damage by a special that goes off before your next decision
+  // (Specials.threat). An action step() would refuse is never asked about: its refusal says
+  // why. This decides when to ask; the words are Text.confirm's (text/confirm.js), as every
+  // sentence about the rules is (§3.4). The first that applies gives the title and button;
+  // each adds its line.
   function askFor(action) {
     if (!action || state.over || !Labels.allowed(state, action)) return null;
     const you = state.actors[0], m = state.dept, nameOf = Labels.nameOf(state), said = [];
@@ -192,13 +194,22 @@ const Main = (() => {
       if (d && d.canBreak) ask('bash', { glassName: d.glassName, blows: d.blows });
     }
     if (action.a === 'leave') ask('leave', { place: m.place || null });
+    const hall = Hall.entering(state, action);
+    if (hall) ask('hall', hall);
     const t = Specials.threat(state, action);
-    if (t) {
-      const owner = Actors.byUid(state, t.by), sp = owner && owner.telegraph ? owner.telegraph.sp : null;
-      const shape = sp && Registry.SPECIALS[sp] ? Registry.SPECIALS[sp].shape : null;
-      ask('threat', { by: t.by, shape, dmg: t.dmg, stay: t.x === you.x && t.y === you.y });
-    }
+    if (t) ask('threat', Object.assign(threatPart(t), { stay: t.x === you.x && t.y === you.y, more: (t.more || []).map(threatPart) }));
     return said.length ? { title: said[0].title, lines: said.map(c => c.line), yes: said[0].yes } : null;
+  }
+  // One special of a threat (Specials.threat's first, or one of its more) as Text.confirm's
+  // 'threat' takes it: its owner, its special's shape, what it deals you, whether it is a due
+  // line (one that goes off at a turn boundary), and whether it is marked on the board yet (a
+  // due line a module will mark, such as a chime still to come, is not: D7.3).
+  function threatPart(h) {
+    const owner = Actors.byUid(state, h.by), tel = owner ? owner.telegraph : null;
+    const marked = !!tel && (h.sp === undefined || (tel.sp === h.sp && tel.due === h.due));
+    const sp = h.sp !== undefined ? h.sp : tel ? tel.sp : null;
+    const shape = sp && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, sp) ? Registry.SPECIALS[sp].shape : null;
+    return { by: h.by, shape, dmg: h.dmg, due: h.due !== undefined, marked };
   }
 
   // ---- Walking and resting ----
@@ -458,7 +469,8 @@ const Main = (() => {
     // leans as far towards it as it can.
     const open = UI.labelShown(), target = open && targetOf(open, vm);
     if (target) vm.camera = focus(vm.you, target, shown);
-    UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock, dial: Text.clock(vm.clock), stage: stageChip(vm.clock), statuses: statusChips() });
+    const clock = vm.clock ? Object.assign({ sealed: Clock.sealed(state), chime: Modules.on(state, 'hourly_demonstration') }, vm.clock) : null;
+    UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock, dial: Text.clock(clock), stage: stageChip(clock), statuses: statusChips() });
     UI.strip(Labels.strip(state), history, fresh, [...banners]);
     Bag.render(vm, { of: id => labelOf(id), ofItem: uid => Labels.ofItem(state, uid) });
     renderer.setInset(UI.sheetCover());
@@ -469,7 +481,9 @@ const Main = (() => {
     UI.sync(); UI.refocus();
   }
   // The stage chip: the clock's stage (n, for its colour) with Text.stage's words, its name
-  // and what comes next (§7.2, §8.4, §3.4), or null with no clock.
+  // and what comes next (§7.2, §8.4, §3.4), or null with no clock. The clock it is given also
+  // says whether a hall is sealed and whether the chime's module is on (draw), so a sealed
+  // hall's chip says the clock is stopped and, while the chime counts on, that it sounds.
   function stageChip(c) {
     const w = c ? Text.stage(c) : null;
     return w ? { n: c.stage, name: w.name, next: w.next } : null;

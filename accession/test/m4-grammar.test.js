@@ -240,7 +240,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const said = [];
     for (const [k, c] of M4_PAIRS) for (const e of variants(k, c, 1)) { const s = X.Text.event(e, NAMES); if (typeof s === 'string') said.push(s); }
     const lift = X.Text.event({ k: 'stage', turn: 3, stage: 'unsealed', cause: { k: 'hall', why: 'quiet' } }, NAMES);
-    assert.equal(lift, 'The shutters opened: the Centrepiece has neither reached you nor dealt damage for 1 turn.');
+    assert.equal(lift, 'The shutters opened: the Centrepiece has neither hurt you nor ended a turn beside you for 1 turn.');
     for (const s of said) assert.doesNotMatch(s, ONE, s);
     assert.ok(said.some(s => /1 of 1 turn\./.test(s)) && said.some(s => /over 1 turn\./.test(s)) && said.some(s => /costs 1 tick less/.test(s)));
     // The piece drops on the Centrepiece's anchor tile (§8.7), not where an ensemble's last piece fell.

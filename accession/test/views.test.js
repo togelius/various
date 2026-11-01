@@ -14,8 +14,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const src = fs.readFileSync(path.join(root, v), 'utf8'), handled = new Set();
       for (const m of src.matchAll(/case (['"])(.)\1:/g)) handled.add(m[2]);
       // A tile kind listed as plain floor is drawn as nothing more than floor: none of M3's
-      // tiles may be (u, s and the masked ' ' each look different from floor).
-      for (const k of ['u', 's', ' ', 'k', 'x']) assert.ok(!(src.match(/const PLAIN = \[([^\]]*)\]/) || ['', ''])[1].includes(`'${k}'`), `${v} draws ${JSON.stringify(k)} as plain floor`);
+      // tiles may be (u, s and the masked ' ' each look different from floor), nor M4's
+      // shutter (Z), since a shut opening drawn as floor would show an open way that is shut.
+      for (const k of ['u', 's', ' ', 'k', 'x', 'Z']) assert.ok(!(src.match(/const PLAIN = \[([^\]]*)\]/) || ['', ''])[1].includes(`'${k}'`), `${v} draws ${JSON.stringify(k)} as plain floor`);
       for (const m of src.matchAll(/ch === (['"])(.)\1/g)) handled.add(m[2]);
       const plain = src.match(/const PLAIN = \[([^\]]*)\]/);
       assert.ok(plain, `${v} does not list its plain-floor tiles in const PLAIN`);

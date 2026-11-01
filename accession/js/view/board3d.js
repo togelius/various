@@ -8,7 +8,7 @@
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ',', 'Z'];
+  const PLAIN = ['.', ','];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -120,7 +120,7 @@ const Board3D = (() => {
     // The height of whatever stands on a tile, as build() draws it (glass counts as see-through).
     function top_(ch) {
       switch (ch) {
-        case '#': case '+': case 'S': return H.wall;
+        case '#': case '+': case 'S': case 'Z': return H.wall;
         case 'o': return H.column;
         case 'H': case '|': return H.partition;
         case 'v': case 'k': case 'u': return H.caseBase;
@@ -151,6 +151,16 @@ const Board3D = (() => {
         if (ch === '+' || ch === 'S') {
           block(so, x, y, x + 1, y + 1, 0, H.wall, top, top, oid);
           block(so, x + 0.12, y + 0.98, x + 0.88, y + 1.0, 0.0, H.wall - 0.1, C(ch === 'S' ? '#5c5560' : '#7a5232'), C(ch === 'S' ? '#5c5560' : '#7a5232'), oid);
+          continue;
+        }
+        // A hall's shutter (M4), closed over an opening while the hall is sealed: a steel block
+        // as tall as the walls, ribbed across its top and its south face, so it reads as shut
+        // by its shape as well as its colour, never as an open way.
+        if (ch === 'Z') {
+          const steel = C('#8796a8'), rib = C('#2b323b'), lid = H.wall + 0.004;
+          block(so, x, y, x + 1, y + 0.97, 0, H.wall, steel, scale(steel, 0.85), oid);
+          for (let j = 0; j < 3; j++) { const z = y + 0.2 + 0.25 * j; quad(so, [[x + 0.04, lid, z], [x + 0.96, lid, z], [x + 0.96, lid, z + 0.08], [x + 0.04, lid, z + 0.08]], rib, oid); }
+          for (let j = 0; j < 4; j++) { const h0 = 0.12 + 0.27 * j; block(so, x + 0.04, y + 0.97, x + 0.96, y + 1.0, h0, h0 + 0.08, rib, rib, oid); }
           continue;
         }
         const floor = C(ch === '~' || ch === 'w' ? '#2b4f66' : ((x + y) & 1) ? P.floor2 : P.floor);

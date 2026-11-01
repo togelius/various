@@ -362,9 +362,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(far(z, 99), far(door, 99), 'as through a closed door');
     assert.equal(far(z, 3 + N.NOISE_DOOR), -1, 'not past its range');
     assert.equal(Grid.distances(z, [[1, 1]], 99)[1 * 7 + 5], -1, 'no one walks through it');
-    // In a room: a step into it is refused and leaves you where you are.
+    // In a room: a step into it is refused, by the shutter's own refusal (sealed, rules/hall.js),
+    // and leaves you where you are.
     const s = Setup.room(1, { acc: 'T0', map: ['#######', '#..Z..#', '#######'], you: [2, 1], exhibits: [] });
-    eq(Step.step(s, { a: 'move', dir: 2 }).map(e => [e.k, e.reason]), [['refused', 'blocked']]);
+    eq(Step.step(s, { a: 'move', dir: 2 }).map(e => [e.k, e.reason]), [['refused', 'sealed']]);
     eq([s.actors[0].x, s.actors[0].y], [2, 1]);
   });
 
