@@ -42,8 +42,10 @@
 //     earshot of another exhibit, whose noise would send it to look or stir it), or while it is
 //     searching or sent to look at something, they are every tile it has the time to walk to.
 //     None while it hunts you: it has found you. It draws on no stream.
+//   - Its timeline (Patrol.timeline, for the worst-case runner and LV6): where each patrol
+//     walking its round stands at each of its actions, told exactly where it can be (below).
 'use strict';
-(() => {
+const Patrol = (() => {
   // The shape of the alarm's mark: its own tile (a call marks at least one, §8.1).
   Specials.addShape('alarm', { tiles: (state, a) => Actors.footprint(a) });
 
@@ -285,5 +287,116 @@
     return out;
   }
 
+  // ---- Its timeline: where it stands at each of its actions, told exactly ----
+  // Patrol.timeline(state, turns) → null, or [{uid, at: [{x, y, t}]}], one per patrol walking
+  // its round (onRound, not in a case), in spawn order: the tile each stands on at each of its
+  // actions over the next `turns` turns (t the action's tick, when it looks for you, AI.look,
+  // before it moves), you standing where it never sees you. It is round() taken exactly, every
+  // patrol at once in the scheduler's order (the smallest next tick, ties in spawn order):
+  // each action, standing on its post it sets off for the next; a post it cannot reach it
+  // passes over, waiting; else the first step, in compass order, of a shortest walk to its
+  // post that no other actor stands on (the sleepers and the encased where they lie, the
+  // other patrols where they stand then), a closed door on the way opened as that action and
+  // left open; with no such step it waits, and beside its post with another actor on it,
+  // heads for the next. A patrol with more than one post that waits STUCK_ACTIONS of its
+  // actions in a row with its way blocked only by exhibits that stand still (asleep or in a
+  // case), never by another patrol, is stuck: nothing will move out of its way, so it would
+  // wait there for good; its record then carries stuck: {post}, the post it was walking to.
+  // (One waiting behind another patrol is not stuck: it moves once the other does.) null
+  // where that cannot be told: another exhibit awake on no round (where it goes is its own),
+  // or a door a patrol opens within the earshot of another exhibit (its noise would send it to
+  // look or stir it). It draws on no stream and changes
+  // nothing; one state's timeline is worked out once for the longest `turns` asked of it, and
+  // shared by every reader of that state (the runner and LV6 ask for the same patrols).
+  // More waits in a row than any patrol that blocks another could cause by its own steps and
+  // doors (each patrol's wait for the one ahead lasts an action or two).
+  const STUCK_ACTIONS = 8;
+  const lines = new WeakMap();
+  function fingerprint(state) {
+    let f = `${state.tick}|${state.dept.tiles.join('')}`;
+    for (const o of state.actors) f += `|${o.uid},${o.x},${o.y},${o.mode},${o.gone ? 1 : 0},${o.next},${o.arch === 'patrol_guard' && o.route ? JSON.stringify(o.route) : '-'}`;
+    return f;
+  }
+  function timeline(state, turns) {
+    const m0 = state && state.dept;
+    if (!m0 || !Array.isArray(state.actors) || !Number.isInteger(turns) || turns < 0) return null;
+    const horizon = state.tick + turns * N.TICKS_PER_TURN, fp = fingerprint(state), kept = lines.get(state);
+    let got = kept && kept.fp === fp && kept.horizon >= horizon ? kept : null;
+    if (!got) { got = { fp, horizon, all: walkAll(state, horizon) }; lines.set(state, got); }
+    if (!got.all) return null;
+    return got.all.map(p => ({ uid: p.uid, at: p.at.filter(s => s.t <= horizon), stuck: p.stuck && p.stuck.t <= horizon ? { post: p.stuck.post } : null }));
+  }
+  function walkAll(state, horizon) {
+    const m0 = state.dept, w = m0.w, fixed = new Uint8Array(m0.w * m0.h), sims = [];
+    for (let i = 1; i < state.actors.length; i++) {
+      const o = state.actors[i];
+      if (o.gone) continue;
+      if (o.mode === 'dormant' || Cases.encased(state, o)) { for (const [x, y] of Actors.footprint(o)) if (Grid.inside(m0, x, y)) fixed[y * w + x] = 1; continue; }
+      if (!onRound(o)) return null;
+      const P = posts(o);
+      sims.push({ a: o, uid: o.uid, x: o.x, y: o.y, P, i: index(o, P), t: Math.max(o.next, state.tick), c: costsOf(state, o), fields: new Map(), at: [], still: 0, stuck: null });
+    }
+    const open = [];
+    let m = m0;
+    // A post's walking field (AI.field, actors never counting), worked out once: one for every
+    // one-tile patrol not on a plinth, whose field it is the same for.
+    const shared = new Map();
+    const field = (p, k) => {
+      if (p.fields.has(k)) return p.fields.get(k);
+      const key = `${p.P[k][0]},${p.P[k][1]}`, alike = (p.a.size || 1) === 1 && Grid.ch(m0, p.a.x, p.a.y) === '.';
+      const f = alike && shared.has(key) ? shared.get(key) : AI.field(state, p.a, p.P[k], 'onto');
+      if (alike) shared.set(key, f);
+      p.fields.set(k, f);
+      return f;
+    };
+    const taken = (p, x, y) => fixed[y * w + x] === 1 || sims.some(q => q !== p && q.x === x && q.y === y);
+    for (;;) {
+      let p = null;
+      for (const q of sims) if (q.t <= horizon && (!p || q.t < p.t)) p = q;
+      if (!p) break;
+      p.at.push({ x: p.x, y: p.y, t: p.t });
+      const P = p.P, was = [p.x, p.y, p.i];
+      p.walled = false;
+      act1(p);
+      p.still = p.walled && p.x === was[0] && p.y === was[1] && p.i === was[2] ? p.still + 1 : 0;
+      if (p.still === STUCK_ACTIONS && P.length > 1 && !p.stuck) p.stuck = { post: p.i, t: p.t };
+      if (p.heard) return null;
+    }
+    return sims.map(p => ({ uid: p.uid, at: p.at, stuck: p.stuck }));
+    // One action of patrol p, as round() takes it.
+    function act1(p) {
+      const P = p.P;
+      if (!P.length) { p.t += p.c.wait; return; }
+      if (P.length > 1 && p.x === P[p.i][0] && p.y === P[p.i][1]) p.i = (p.i + 1) % P.length;
+      const post = P[p.i], f = field(p, p.i), here = f[p.y * w + p.x];
+      if (here < 0) { if (P.length > 1) p.i = (p.i + 1) % P.length; p.t += p.c.wait; return; }
+      if (here === 0) { p.t += p.c.wait; return; }
+      let d0 = -1, patrol = false;
+      for (let d = 0; d < 8 && d0 < 0; d++) {
+        if (!Grid.canStep(m, p.x, p.y, d, 'exhibit')) continue;
+        const nx = p.x + Grid.DX[d], ny = p.y + Grid.DY[d], v = f[ny * w + nx];
+        if (v < 0 || v >= here || !Archetypes.mayStep(state, p.a, nx, ny)) continue;
+        if (!taken(p, nx, ny)) d0 = d;
+        else if (fixed[ny * w + nx] !== 1) patrol = true;
+      }
+      if (d0 < 0) {
+        p.walled = !patrol;
+        if (P.length > 1 && Grid.chebyshev(p.x, p.y, post[0], post[1]) === 1 && taken(p, post[0], post[1])) p.i = (p.i + 1) % P.length;
+        p.t += p.c.wait;
+        return;
+      }
+      const nx = p.x + Grid.DX[d0], ny = p.y + Grid.DY[d0], k = ny * w + nx;
+      if (Grid.ch(m, nx, ny) === '+') {
+        if (heard(state, k, p.a)) { p.heard = true; return; }
+        open.push(k);
+        m = opened(m0, open);
+        p.t += p.c.door;
+        return;
+      }
+      p.x = nx; p.y = ny; p.t += p.c.step;
+    }
+  }
+
   Archetypes.add('patrol_guard', { act, onResolve, wakeRegion });
+  return { timeline };
 })();

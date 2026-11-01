@@ -110,7 +110,7 @@ const Populate = (() => {
   // sentences ([] when there are none, or when it has no gallery list). Population refuses a
   // pack with any (an error), since each is a content fault no layout can mend.
   const KEYS = ['intro', 'centre', 'coda', 'last'];
-  const ENTRY = ['sp', 'count', 'case', 'near', 'guards', 'dir'], ITEM = ['item', 'case'], LEGEND = ['sp', 'guards', 'dir'];
+  const ENTRY = ['sp', 'count', 'case', 'near', 'guards', 'dir', 'apart'], ITEM = ['item', 'case'], LEGEND = ['sp', 'guards', 'dir'];
   const isSection = key => typeof key === 'string' && /^s[1-9][0-9]*$/.test(key);
   function check(pack) {
     const out = [];
@@ -124,6 +124,7 @@ const Populate = (() => {
       if ((sp.size || 1) !== 1) out.push(`${what}: ${sp.id} is ${sp.size} tiles across, and population places one-tile exhibits (a Centrepiece by its own rule)`);
       if (e.guards !== undefined && !(e.guards === 'case' && arch(sp) === 'tethered_warden')) out.push(`${what}: guards is 'case', and only for a tethered_warden`);
       if (e.dir !== undefined && !(LINE_DIRS.includes(e.dir) && arch(sp) === 'demonstrator')) out.push(`${what}: dir is one of ${LINE_DIRS.join(', ')}, and only for a demonstrator`);
+      if (e.apart !== undefined && !(e.apart === true && arch(sp) === 'herald')) out.push(`${what}: apart is true, and only for a herald`);
     };
     const keys = [];
     pack.galleries.forEach((g, i) => {
@@ -463,6 +464,12 @@ const Populate = (() => {
       } else if (e.near === 'case') {
         at = take(floor.filter(([x, y]) => { for (let k = 0; k < 8; k++) if (realCase(Cases.at(state, x + Grid.DX[k], y + Grid.DY[k]))) return true; return false; }));
         if (!at) say(rm, `${sp.id} found no tile beside a case in ${rm.key} and stands elsewhere in it`);
+      } else if (e.apart) {
+        // A herald kept apart (CP1 review): where its call (every tile within HERALD_RANGE)
+        // reaches no exhibit placed before it, so its call wakes no one beside it.
+        const others = state.actors.filter(o => o.uid !== 'you' && !o.gone);
+        at = take(floor.filter(([x, y]) => !others.some(o => Actors.footprint(o).some(([u, v]) => Grid.disc(u - x, v - y, N.HERALD_RANGE)))));
+        if (!at) say(rm, `${sp.id} found no tile in ${rm.key} out of call of every exhibit and stands elsewhere in it`);
       } else if (e.guards === 'case') {
         nests = nestsIn(all);
         at = take(floor.filter(([x, y]) => nests.some(([gx, gy]) => Grid.disc(x - gx, y - gy, N.TETHER_RANGE))));
@@ -537,27 +544,93 @@ const Populate = (() => {
     }
 
     // What placement fixes with no draw, once every exhibit stands: a station's line (route
-    // {dir}), a Wader's round (route {posts, i}: the free tiles nearest its room's corners,
-    // north-west, north-east, south-east, south-west, each once, starting at the post nearest
-    // it), and what a warden guards. A Wader whose room gives it fewer than two posts keeps no
-    // round (route null), which the log says.
+    // {dir}), what a warden guards, and the Waders' rounds (route {posts, i}). A Wader's round
+    // (CP1 review; decided without play, revisit once M4 is playable):
+    //   - keeps to the half of its room farther from the Intro's onward openings (the room cut
+    //     across its longer side; the whole room in a plan with no stamped Intro), so that no
+    //     Wader walks past the Intro's mouth, from where it would see into the safe zone;
+    //   - is its own: a room's k Waders cut that half into k strips across its longer side,
+    //     the j-th Wader in spawn order taking the j-th (north to south, or west to east), as
+    //     the sample gives each of its Waders a route of its own, with a line of tiles kept
+    //     between two strips, so no two meet;
+    //   - has for posts the free tiles nearest its strip's corners, north-west, north-east,
+    //     south-east, south-west, each once, and the Wader starts the visit on the first;
+    //   - leaves out a post the Wader's walk would stall on for good (its way there blocked
+    //     only by exhibits that stand still: Patrol.timeline's stuck), and is fixed again
+    //     without it, until every Wader walks its whole round.
+    // A Wader left with fewer than two posts keeps no round (route null), which the log says.
+    // No draw.
+    const mouths = intro && Array.isArray(intro.openings) ? intro.openings : [];
+    const walkers = new Map();
     for (const { a, rm, opts } of placed) {
       if (opts.guards) a.guards = opts.guards.slice();
       if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(state, m, a) };
-      if (a.arch !== 'patrol_guard' || !rm) continue;
-      const free = floorOf(rm).filter(([x, y]) => !covered(x, y, a));
-      const posts = [];
-      for (const [cx, cy] of [[rm.x0, rm.y0], [rm.x1, rm.y0], [rm.x1, rm.y1], [rm.x0, rm.y1]]) {
-        let best = null;
-        for (const t of free) if (!best || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(best[0], best[1], cx, cy)) best = t;
-        if (best && !posts.some(p => p[0] === best[0] && p[1] === best[1])) posts.push(best.slice());
-      }
-      if (posts.length < 2) { miss(rm, { reason: `room ${rm.key} has no round for ${a.uid}`, tiles: [[a.x, a.y]] }, 'it keeps none'); continue; }
-      let i = 0;
-      for (let k = 1; k < posts.length; k++) if (Grid.chebyshev(posts[k][0], posts[k][1], a.x, a.y) < Grid.chebyshev(posts[i][0], posts[i][1], a.x, a.y)) i = k;
-      a.route = { posts, i };
+      if (a.arch === 'patrol_guard' && rm) { if (!walkers.has(rm.id)) walkers.set(rm.id, { rm, list: [] }); walkers.get(rm.id).list.push(a); }
     }
+    const rounds = [];
+    for (const { rm, list } of walkers.values()) {
+      const half = farHalf(rm, mouths), mine = (x, y) => list.some(a => Actors.covers(a, x, y));
+      list.forEach((a, j) => {
+        const box = strip(half, j, list.length), free = floorOf(rm).filter(([x, y]) => (!covered(x, y) || mine(x, y)) && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]);
+        const posts = [];
+        for (const [cx, cy] of [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]) {
+          let best = null;
+          for (const t of free) if (!best || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(best[0], best[1], cx, cy)) best = t;
+          if (best && !posts.some(p => p[0] === best[0] && p[1] === best[1])) posts.push(best.slice());
+        }
+        rounds.push({ rm, a, posts });
+      });
+    }
+    // Each Wader on its first post, walking its round; or none.
+    const walk = r => {
+      if (r.posts.length < 2) { r.a.route = null; return; }
+      r.a.x = r.posts[0][0]; r.a.y = r.posts[0][1]; r.a.home = r.posts[0].slice();
+      r.a.route = { posts: r.posts.map(q => q.slice()), i: 0 };
+    };
+    rounds.forEach(walk);
+    for (let tries = 0; tries < 4 * rounds.length; tries++) {
+      const t = Patrol.timeline(state, ROUND_TURNS), stuck = t ? t.filter(p => p.stuck) : [];
+      if (!stuck.length) break;
+      for (const p of stuck) {
+        const r = rounds.find(q => q.a.uid === p.uid);
+        if (!r || !r.a.route) continue;
+        const gone = r.posts.splice(p.stuck.post, 1)[0];
+        say(r.rm, `${r.a.uid}'s round leaves out its post at ${gone[0]},${gone[1]}: its walk there would stall`);
+        walk(r);
+      }
+    }
+    for (const r of rounds) if (r.posts.length < 2) miss(r.rm, { reason: `room ${r.rm.key} has no round for ${r.a.uid}`, tiles: [[r.a.x, r.a.y]] }, 'it keeps none');
     return first;
+  }
+  // The turns over which each Wader's round is walked to see whether it stalls: more than any
+  // room's round takes (a Cabinet room's four posts are at most about 60 steps apart in all).
+  const ROUND_TURNS = 120;
+  // The j-th of k strips of a box [x0, y0, x1, y1], cut across its longer side (west to east
+  // when it is at least as wide as it is tall, else north to south), as even as whole tiles
+  // allow, each a tile short of where it meets the next, so that two Waders walking strips
+  // side by side never stand in each other's way.
+  function strip(b, j, k) {
+    const wide = b[2] - b[0] >= b[3] - b[1], lo = wide ? b[0] : b[1], n = (wide ? b[2] : b[3]) - lo + 1;
+    const from = lo + Int.idiv(j * n, k) + (j > 0 ? 1 : 0), to = lo + Int.idiv((j + 1) * n, k) - 1 - (j < k - 1 ? 1 : 0);
+    return wide ? [from, b[1], to, b[3]] : [b[0], from, b[2], to];
+  }
+  // The half of a room's box [x0, y0, x1, y1] farther from the Intro's onward openings: the
+  // room cut across its longer side (west and east halves when it is at least as wide as it is
+  // tall), the half whose centre's nearest opening is farther (the first half on a tie); the
+  // whole box when there are no openings.
+  function farHalf(rm, mouths) {
+    if (!mouths.length) return [rm.x0, rm.y0, rm.x1, rm.y1];
+    const wide = rm.x1 - rm.x0 >= rm.y1 - rm.y0, mid = wide ? Int.idiv(rm.x0 + rm.x1, 2) : Int.idiv(rm.y0 + rm.y1, 2);
+    const halves = wide ? [[rm.x0, rm.y0, mid, rm.y1], [mid + 1, rm.y0, rm.x1, rm.y1]] : [[rm.x0, rm.y0, rm.x1, mid], [rm.x0, mid + 1, rm.x1, rm.y1]];
+    // Twice the distance, squared, from the half's centre to its nearest opening.
+    const far = h => { let best = -1; for (const o of mouths) { const dx = h[0] + h[2] - 2 * o[0], dy = h[1] + h[3] - 2 * o[1], d = dx * dx + dy * dy; if (best < 0 || d < best) best = d; } return best; };
+    return far(halves[1]) > far(halves[0]) ? halves[1] : halves[0];
+  }
+  // The post nearest a (Grid.chebyshev; the first on a tie).
+  function nearestPost(posts, a) {
+    let i = 0;
+    for (let k = 1; k < posts.length; k++) if (Grid.chebyshev(posts[k][0], posts[k][1], a.x, a.y) < Grid.chebyshev(posts[i][0], posts[i][1], a.x, a.y)) i = k;
+    return i;
   }
 
   // Place the pack's exhibits (§5.5): from its gallery list when it has one, else the

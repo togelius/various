@@ -17,8 +17,8 @@
 //     ("in a case", "under glass", "at the end of this row") is held to it on the sweep, and
 //     says only what population keeps (A.4.1/a's "see the case at the end of this row" is gone);
 //   - the Orientation's species and item, M.11.5 and M.11.7, unchanged;
-//   - what D-LV6 will read, planted: a Wader on the court's round (it sees the Intro's open
-//     doorway, in the safe zone) and the Lamp Corridor without its south cabinets (the
+//   - what D-LV6 will read, planted: a Wader on the court's whole round (it sees the Intro's
+//     open doorway, in the safe zone; CP1 keeps a round to the court's far half) and the Lamp Corridor without its south cabinets (the
 //     Brooder's tether reaches the vestibule through the wall) are each caught by the sweep's
 //     check, which the real packs pass.
 // The expected rooms and counts are written out here from the samples and BUILD.md.
@@ -51,7 +51,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   };
   // Each gallery's exhibits as {sp: count}, and the stamp's.
   const EXHIBITS = {
-    S9: { s1: { 'S9.1': 1, 'S9.3': 1, 'S9.6': 2 }, s2: { 'S9.4': 1, 'S9.5': 1, 'S9.2': 2 }, centre: { 'S9.1': 2 }, stamp: { 'S9.1': 1, 'S9.6': 2 } },
+    S9: { s1: { 'S9.1': 1, 'S9.3': 1, 'S9.6': 2, 'S9.2': 2 }, s2: { 'S9.4': 1, 'S9.5': 1 }, centre: { 'S9.1': 2 }, stamp: { 'S9.1': 1, 'S9.6': 2 } },
     A4: { s1: { 'A4.1': 1, 'A4.1a': 3, 'A4.4': 1, 'A4.4a': 2, 'A4.5': 1 }, s2: { 'A4.2': 2, 'A4.3': 1 }, stamp: { 'A4.1': 1, 'A4.1a': 2 } },
     M11: { s1: { 'M11.1': 1, 'M11.3': 1 }, s2: { 'M11.2': 1, 'M11.4': 1, 'M11.1': 1, 'M11.3': 1 }, stamp: { 'M11.12': 1, 'M11.5': 1 } },
   };
@@ -61,11 +61,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // bays' end cases, the Brooder with its nest and Round Book 9 inside, the Date Stamp in a
   // case, the Lamp in its case), so a lost `case` or `guards` is a change of the list.
   const ENTRIES = {
-    S9: { s1: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { item: 'S9.7', case: true }],
-      s2: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { sp: 'S9.2', count: 2 }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }],
+    S9: { s1: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { sp: 'S9.2', count: 2 }, { item: 'S9.7', case: true }],
+      s2: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }],
       last: [], centre: [{ sp: 'S9.1', count: 2 }, { item: 'S9.11', case: true }] },
     A4: { s1: [{ sp: 'A4.1', case: true }, { sp: 'A4.1a', count: 3 }, { sp: 'A4.4', case: true }, { sp: 'A4.4a', count: 2 }, { sp: 'A4.5' }],
-      s2: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3' }, { item: 'A4.6', case: true }], last: [{ item: 'A4.10' }], centre: [] },
+      s2: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3', apart: true }, { item: 'A4.6', case: true }], last: [{ item: 'A4.10' }], centre: [] },
     M11: { s1: [{ sp: 'M11.1' }, { sp: 'M11.3' }], s2: [{ sp: 'M11.2' }, { sp: 'M11.4' }, { sp: 'M11.1' }, { sp: 'M11.3' }], last: [{ item: 'M11.9' }], centre: [] },
   };
   const SIGNATURE = { S9: 'S9.11', A4: 'A4.11', M11: 'M11.10' };
@@ -283,12 +283,22 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const real = readyCore(), ok = check(real);
     for (let seed = 1; seed <= 21; seed++) assert.equal(ok.each({ state: real.Dept.create(seed, 'S9', depthOf(seed)), seed, acc: 'S9', depth: depthOf(seed) }), null, `S9 seed ${seed}`);
     assert.equal(json([ok.done(), ok.tally.wader, ok.tally.waderDepts]), json([null, 0, 21]));
-    // A Wader moved into the court: its round passes the court's door on the Intro's entrance
-    // row, from which it sees the doorway of the partition, at walk 8, once that door is open.
-    const W = readyCore(), w = check(W), g = W.Packs.get('S9').galleries;
-    g.find(x => x.key === 's2').contents.find(e => e.sp === 'S9.2').count = 1;
-    g.find(x => x.key === 's1').contents.push({ sp: 'S9.2' });
-    for (let seed = 1; seed <= 30; seed++) w.each({ state: W.Dept.create(seed, 'S9', depthOf(seed)), seed, acc: 'S9', depth: depthOf(seed) });
+    // A Wader on the court's whole round, as before the CP1 review (its posts the court's own
+    // corners): it passes the court's door on the Intro's entrance row,
+    // from which it sees the doorway of the partition, at walk 8, once that door is open.
+    const W = readyCore(), w = check(W);
+    for (let seed = 1; seed <= 30; seed++) {
+      const st = W.Dept.create(seed, 'S9', depthOf(seed)), m = st.dept;
+      for (const a of st.actors.filter(b => b.arch === 'patrol_guard')) {
+        const rm = m.rooms.find(r => r.id === m.roomOf[a.y][a.x]), free = [];
+        for (let y = rm.y0; y <= rm.y1; y++) for (let x = rm.x0; x <= rm.x1; x++) if (m.roomOf[y][x] === rm.id && m.tiles[y][x] === '.' && !st.actors.some(b => b !== a && !b.gone && b.x === x && b.y === y)) free.push([x, y]);
+        const posts = [[rm.x0, rm.y0], [rm.x1, rm.y0], [rm.x1, rm.y1], [rm.x0, rm.y1]].map(([cx, cy]) => free.reduce((b, t) => (!b || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(b[0], b[1], cx, cy) ? t : b), null));
+        // On its south-west post, walking north to the north-west one, past the court's door.
+        if (!st.actors.some(b => b !== a && !b.gone && b.x === posts[3][0] && b.y === posts[3][1])) { a.x = posts[3][0]; a.y = posts[3][1]; }
+        a.route = { posts, i: 0 };
+      }
+      w.each({ state: st, seed, acc: 'S9', depth: depthOf(seed) });
+    }
     assert.match(w.done() || '', /a Wader's wake region reaches the safe zone in \d+ of 30 S\.9 departments, over 5%/);
     // The Lamp Corridor's stretch row 10 plain again: the Brooder's tether, guarding a case on
     // the band room's north wall, reaches the vestibule's last row through the wall.

@@ -90,21 +90,24 @@ Packs.add({
   // coda. Tour order at layout version 3 puts the band room first and the court second, so
   // each section gallery names its element. The Intro's exhibits are its stamp's
   // (content/S9-intro.js: a Grazer and two Hoppers), so its gallery lists none.
-  //   - The Mount Court (the court): the sample's two Mount Court galleries but for their
-  //     Waders and the Tortoise: a Grazer, the Dawn-Caller, and the two Hoppers the Intro does
-  //     not hold (the preparators mounted four). The court has no wall cases (p50 0), so the
-  //     Overshoes' case is the floor where none is left.
+  //   - The Mount Court (the court): the sample's two Mount Court galleries but for the
+  //     Tortoise: a Grazer, the Dawn-Caller, the two Hoppers the Intro does not hold (the
+  //     preparators mounted four), and both Waders, on the court's round (its panel: "This
+  //     court is alarmed"). The court has no wall cases (p50 0), so the Overshoes' case is the
+  //     floor where none is left.
   //   - The Brooders' Bay (the band room, which has 6–16 cases): the Brooder first, so it has
   //     the first pick of a case to guard (its nest, Round Book 9 inside, when one passes the
   //     take rule: 60% of S.9 departments, 420 of 700, where the court has no case and the
   //     coda's pass in 1 of 700; the Lamp Corridor's south cabinets keep its tether, which
   //     needs no sight, out of the safe zone beyond the band room's north wall); the Tortoise
-  //     beside a real case, among the cases (DE6); both Waders, on the band room's round; and
-  //     the preparators' tools.
-  //     The Waders walk the band room, not the court: the court opens onto the Intro along
-  //     the entrance row, and a Wader on the court's round sees the Intro's partition doorway,
-  //     which is in the safe zone, once its door is open (20 of seeds 1–100 with one in
-  //     the court; 0 of 700 with both here, doors shut or open).
+  //     beside a real case, among the cases (DE6); and the preparators' tools.
+  //     The Waders walk the court (CP1 review, decided without play; revisit once M4 is
+  //     playable): the court opens onto the Intro along the entrance row, so population keeps
+  //     a Wader's round to the half of its room farther from the Intro's onward openings, and
+  //     none sees the safe zone in its first SAFE_ZONE_TURNS turns, every door open (0 of
+  //     seeds 1–70). On the band room's round, the two of them saw nearly every tile of it and
+  //     the coda's doorway, turn after turn, and the worst-case runner, timing them, passed
+  //     only 26% of seeds; on the court's far half, 80%.
   //   - The Round-Book Room (the samples' study room) joins the last section: nothing in it is
   //     an exhibit or an item of the slice.
   //   - The Day Curator's Case (the hall): two Grazers, wherever the hall's rules let them
@@ -114,8 +117,8 @@ Packs.add({
   // of its room, or on its floor when none is left.
   galleries: [
     { key: 'intro', name: 'The Lamp Corridor', contents: [] },
-    { key: 's1', where: 'central', name: 'The Mount Court', contents: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { item: 'S9.7', case: true }] },
-    { key: 's2', where: 'band', name: 'The Brooders’ Bay', contents: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { sp: 'S9.2', count: 2 }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }] },
+    { key: 's1', where: 'central', name: 'The Mount Court', contents: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { sp: 'S9.2', count: 2 }, { item: 'S9.7', case: true }] },
+    { key: 's2', where: 'band', name: 'The Brooders’ Bay', contents: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }] },
     { key: 'last', name: 'The Round-Book Room', contents: [] },
     { key: 'centre', name: 'The Day Curator’s Case', contents: [{ sp: 'S9.1', count: 2 }, { item: 'S9.11', case: true }] },
     { key: 'coda', name: 'The Night Staff’s Tea Room', contents: [] },

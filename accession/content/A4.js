@@ -109,14 +109,20 @@ Packs.add({
   //     Trustee's paragraph says ("kept under glass"): the maze always has an empty case left
   //     (test/sweep/population.check.js).
   //   - The Copying Room (the band room): two swarms of Carbon Flimsies, the Copying-Room Bell,
-  //     and the Date Stamp in a case.
+  //     and the Date Stamp in a case. The Bell stands apart (CP1 review, decided without play;
+  //     revisit once M4 is playable): where its call reaches no exhibit, so the Flimsies, the
+  //     maze's copy groups through its wall and the Intro's clerks are all out of its call.
+  //     Beside the swarms, its call woke them, and through the maze's wall a copy group, and
+  //     the worst-case runner passed 76.5% of seeds; apart, 94%. Moved into the maze it passed
+  //     96.5%, but it is the Copying-Room Bell, and the Quiet notice is posted in the Copying
+  //     Room for it.
   //   - The Registry (the samples' study room) joins the last section: the Register.
   //   - The Lectern Hall: the Ordinance is placed by its own rule; the sample's four side
   //     vitrines of spares joined phase 3, which is cut (M4 plan D3.7).
   galleries: [
     { key: 'intro', name: 'The Office Counter', contents: [] },
     { key: 's1', where: 'central', name: 'Originals Under Glass', contents: [{ sp: 'A4.1', case: true }, { sp: 'A4.1a', count: 3 }, { sp: 'A4.4', case: true }, { sp: 'A4.4a', count: 2 }, { sp: 'A4.5' }] },
-    { key: 's2', where: 'band', name: 'The Copying Room', contents: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3' }, { item: 'A4.6', case: true }] },
+    { key: 's2', where: 'band', name: 'The Copying Room', contents: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3', apart: true }, { item: 'A4.6', case: true }] },
     { key: 'last', name: 'The Registry', contents: [{ item: 'A4.10' }] },
     { key: 'centre', name: 'The Lectern Hall', contents: [] },
     { key: 'coda', name: 'The Forms Counter', contents: [] },

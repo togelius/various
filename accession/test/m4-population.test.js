@@ -222,23 +222,39 @@ module.exports = ({ test, assert, loadCore }) => {
         const rm = roomAt(s, a.x, a.y);
         if (a.arch === 'patrol_guard') {
           rounds++;
-          // Its posts: for each corner of its room (NW, NE, SE, SW), the nearest floor tile of the
-          // room beyond the safe zone that no other exhibit stands on; each once; it starts at the nearest.
-          const free = [];
-          for (let y = rm.y0; y <= rm.y1; y++) for (let x = rm.x0; x <= rm.x1; x++) {
+          // Its round (CP1 review): the half of its room farther from the Intro's onward
+          // openings (the room cut across its longer side), the j-th of the k strips of it its
+          // room's k Waders take in spawn order (cut across the half's longer side, each a tile
+          // short of the next); its posts the floor tiles of the room beyond the safe zone and
+          // the reading tile's ring that no exhibit but its room's Waders stands on, nearest
+          // that strip's corners (NW, NE, SE, SW), each once, less those the log says it left
+          // out (its walk there would stall); it starts on the first.
+          const ops = d.plan.intro ? d.plan.intro.openings : [], mates = exhibitsOf(s).filter(b => b.arch === 'patrol_guard' && roomAt(s, b.x, b.y) === rm);
+          const cut = (b, j, k) => { const wide = b[2] - b[0] >= b[3] - b[1], lo = wide ? b[0] : b[1], n = (wide ? b[2] : b[3]) - lo + 1, from = lo + Math.floor(j * n / k) + (j > 0 ? 1 : 0), to = lo + Math.floor((j + 1) * n / k) - 1 - (j < k - 1 ? 1 : 0); return wide ? [from, b[1], to, b[3]] : [b[0], from, b[2], to]; };
+          let half = [rm.x0, rm.y0, rm.x1, rm.y1];
+          if (ops.length) {
+            const wide = rm.x1 - rm.x0 >= rm.y1 - rm.y0, mid = Math.floor((wide ? rm.x0 + rm.x1 : rm.y0 + rm.y1) / 2);
+            const hs = wide ? [[rm.x0, rm.y0, mid, rm.y1], [mid + 1, rm.y0, rm.x1, rm.y1]] : [[rm.x0, rm.y0, rm.x1, mid], [rm.x0, mid + 1, rm.x1, rm.y1]];
+            const gap = h => Math.min(...ops.map(o => (h[0] + h[2] - 2 * o[0]) ** 2 + (h[1] + h[3] - 2 * o[1]) ** 2));
+            half = gap(hs[1]) > gap(hs[0]) ? hs[1] : hs[0];
+          }
+          const box = cut(half, mates.indexOf(a), mates.length), free = [];
+          for (let y = box[1]; y <= box[3]; y++) for (let x = box[0]; x <= box[2]; x++) {
             if (m.roomOf[y][x] !== rm.id || d.plan.tiles[y][x] !== '.' || from[y * m.w + x] <= N.SAFE_ZONE) continue;
-            if (exhibitsOf(s).some(b => b !== a && b.x === x && b.y === y)) continue;
+            if (exhibitsOf(s).some(b => !mates.includes(b) && b.x === x && b.y === y)) continue;
             const v = Grid.distances(m, [d.plan.viewTile], N.RING_STILL + 1)[y * m.w + x];
             if (v >= 0) continue;
             free.push([x, y]);
           }
           const posts = [];
-          for (const [cx, cy] of [[rm.x0, rm.y0], [rm.x1, rm.y0], [rm.x1, rm.y1], [rm.x0, rm.y1]]) {
+          for (const [cx, cy] of [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]) {
             const best = free.reduce((b, t) => (!b || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(b[0], b[1], cx, cy) ? t : b), null);
-            if (!posts.some(p => json(p) === json(best))) posts.push(best);
+            if (best && !posts.some(p => json(p) === json(best))) posts.push(best);
           }
-          const near = posts.reduce((bi, p, i) => (Grid.chebyshev(p[0], p[1], a.x, a.y) < Grid.chebyshev(posts[bi][0], posts[bi][1], a.x, a.y) ? i : bi), 0);
-          assert.equal(json(a.route), json({ posts, i: near }), `${where}: ${a.uid}'s round`);
+          const left = (d.out.log || []).filter(l => l.op && l.op.startsWith(`${a.uid}'s round leaves out its post at `)).map(l => l.op.split(' at ')[1].split(':')[0]);
+          const kept = posts.filter(p => !left.includes(`${p[0]},${p[1]}`));
+          assert.equal(json(a.route), json({ posts: kept, i: 0 }), `${where}: ${a.uid}'s round`);
+          assert.equal(json([a.x, a.y]), json(kept[0]), `${where}: ${a.uid} starts on its first post`);
         } else if (a.arch === 'demonstrator') {
           lines++;
           // The longest run of its room that sight passes and no other exhibit stands on (N, E,
