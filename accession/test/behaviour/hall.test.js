@@ -576,8 +576,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s)).line, /^This hall can seal while you are inside it, as its guardian’s label says: /);
     // A treasure's hall whose own rule calls for the seal (COMPOSITE-PHASES', rules/treasure.js:
     // its case touched TREASURE_SEAL_TURNS turns ago, planted, while its guardian hunts you): it
-    // seals behind you, and the words never say its guardian hunts you, though it does; and once
-    // it waits on an opening, the waiting words do not either. Both come true.
+    // seals behind you, and its words say only that its guardian's label says when; once it
+    // waits on an opening, the waiting words say what it still needs then, its guardian hunting
+    // you, since a treasure's seal needs that too (COMPOSITE-PHASES' review). Both come true.
     {
       const X = loadCore();
       const t = hall(X, 3, { you: [8, 2], form: 'treasure' });
@@ -592,7 +593,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const u = hall(X, 3, { you: [7, 2], form: 'treasure', more: [{ sp: 'dummy', at: [8, 4], mode: 'dormant', stats: BODY }] });
       u.dept.cp.touched = { turn: u.turn - C.N.TREASURE_SEAL_TURNS };
       const w = stages(H.play(X, u, [wait], { inv: 'all' }).events, 'waiting');
-      assert.equal(say(X, u, w[0]), 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside.');
+      assert.equal(say(X, u, w[0]), 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you and the Centrepiece are inside and it hunts you.');
     }
     // Sealed, or its Centrepiece gone: nothing to ask.
     s = at([8, 2]); s.actors[1].gone = 1;

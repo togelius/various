@@ -30,13 +30,24 @@
   };
   const since = (e, w) => e.cause.why === 'hunt' && e.cause.by !== undefined && e.cause.by !== 'you' ? `, since ${w.name(e.cause.by)} is hunting you`
     : own(TREASURE, e.cause.why) ? TREASURE[e.cause.why]() : '';
+  // What a waiting seal still needs once every opening is clear: a fight's, its Centrepiece
+  // hunting you from inside the hall; a treasure's too (M4 COMPOSITE-PHASES' review), with its
+  // health still that low when that is why (its case's touch, once that old, stays so); another
+  // form's (planted in tests), you inside.
+  const HUNTS = 'you and the Centrepiece are inside and it hunts you';
+  const STILL = {
+    hunt: () => HUNTS,
+    touched: () => HUNTS,
+    hurt: () => `${HUNTS} with ${N.TREASURE_SEAL_HP_PCT}% of its full health or less`,
+  };
+  const still = e => own(STILL, e.cause.why) ? STILL[e.cause.why]() : 'you are inside';
   const STAGES = {
     sealed: (e, w) => `Shutters closed over the hall’s openings${since(e, w)}: it is sealed, and while it is, the clock is stopped and you do not recover health. ${opens}`,
     unsealed: e => `The shutters opened${lift(e)}.${AGAIN.includes(e.cause.why) ? ' They do not close again until you have stepped out of the hall.' : ''}`,
-    // The seal still needs its call when the openings clear: for a fight's, a piece hunting you
-    // in the hall. Who stands in the opening is named (in) only if you saw it there; by is what
-    // calls for the seal, not said here.
-    waiting: (e, w) => `The hall would seal, but ${e.cause.in !== undefined ? w.name(e.cause.in) : 'someone out of your sight'} stands in an opening: its shutters close once every opening is clear while ${e.cause.why === 'hunt' ? 'you and the Centrepiece are inside and it hunts you' : 'you are inside'}.`,
+    // The seal still needs its call when the openings clear (still, above). Who stands in the
+    // opening is named (in) only if you saw it there; by is what calls for the seal, not said
+    // here.
+    waiting: (e, w) => `The hall would seal, but ${e.cause.in !== undefined ? w.name(e.cause.in) : 'someone out of your sight'} stands in an opening: its shutters close once every opening is clear while ${still(e)}.`,
   };
   Text.defineCause('stage', 'hall', (e, w) => own(STAGES, e.stage) ? STAGES[e.stage](e, w) : 'The hall changed.');
 
