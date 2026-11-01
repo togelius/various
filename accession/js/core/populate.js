@@ -543,8 +543,9 @@ const Populate = (() => {
       }
     }
 
-    // What placement fixes with no draw, once every exhibit stands: a station's line (route
-    // {dir}), what a warden guards, and the Waders' rounds (route {posts, i}). A Wader's round
+    // What placement fixes with no draw, once every exhibit stands: what a warden guards, the
+    // Waders' rounds (route {posts, i}), and then, with every Wader where it starts, a
+    // station's line (route {dir}: lineDir, a run no exhibit stands on). A Wader's round
     // (CP1 review; decided without play, revisit once M4 is playable):
     //   - keeps to the half of its room farther from the Intro's onward openings (the room cut
     //     across its longer side; the whole room in a plan with no stamped Intro), so that no
@@ -567,7 +568,6 @@ const Populate = (() => {
     const walkers = new Map();
     for (const { a, rm, opts } of placed) {
       if (opts.guards) a.guards = opts.guards.slice();
-      if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(state, m, a) };
       if (a.arch === 'patrol_guard' && rm) { if (!walkers.has(rm.id)) walkers.set(rm.id, { rm, list: [] }); walkers.get(rm.id).list.push(a); }
     }
     const rounds = [];
@@ -618,6 +618,8 @@ const Populate = (() => {
       }
     }
     for (const r of rounds) if (r.posts.length < 2) miss(r.rm, { reason: `room ${r.rm.key} has no round for ${r.a.uid}`, tiles: [[r.a.x, r.a.y]] }, 'it keeps none');
+    // The stations' lines last, once every Wader stands where it starts.
+    for (const { a, opts } of placed) if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(state, m, a) };
     return first;
   }
   // The turns over which the Waders' rounds are walked to see whether one stalls: three times
