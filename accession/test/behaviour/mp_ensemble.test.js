@@ -21,6 +21,11 @@
 //   - its strip within the budget in every phase (m4-lines' model), its line at length on
 //     its label;
 //   - a view names a piece still standing.
+// ENSEMBLE-PHASES' rules (inheritance, phase 3's shatter, its Clerk, its gallery hook) have their
+// own scenarios, test/behaviour/mp_ensemble-phases.test.js; here they come in where these runs
+// meet them (a fallen piece's burst taken on, phase 3's shatter gained), and the Senior
+// Countersigning Clerk, its attachment, is left out of these rooms (options.without) unless a
+// test asks for it, so that each run here plays the pieces alone.
 'use strict';
 const H = require('./_harness.js');
 
@@ -47,10 +52,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // A room with the hall, the Ordinance placed on its footprint (Centrepiece.place) and A.4's
   // modules running (Modules.init). o: you ([1, 2], beside the original), map, more exhibits,
   // items, options (rulesOff), core (X).
+  // (The Clerk, made with the pieces, is the hall's next exhibit, <acc>.<depth>.centre.5, after
+  // the more exhibits a room is given, which take its number first; left out unless o.clerk.)
   function room(depth, o) {
     o = o || {};
+    const opts = Object.assign({}, o.options || {}), clerk = `A4.${depth}.centre.${5 + (o.more || []).filter(e => (e.room || 'room') === 'centre').length}`;
+    if (!o.clerk) opts.without = (opts.without || []).concat([clerk]);
     const X = o.core || C, s = H.room(X, o.seed || 1, { acc: 'A4', depth, map: o.map || MAP, you: o.you || [1, 2], exhibits: o.more || [], rooms: o.rooms || ROOMS,
-      clock: { B: 300, G: 60 }, entrance: [11, 3], fixtures: o.fixtures || [{ k: 'staff', x: 8, y: 4, grade: 1 }], items: o.items || [] }, o.options || {});
+      clock: { B: 300, G: 60 }, entrance: [11, 3], fixtures: o.fixtures || [{ k: 'staff', x: 8, y: 4, grade: 1 }], items: o.items || [] }, opts);
     s.actors[0].maxHp = 999; s.actors[0].hp = 999;
     const pack = X.Packs.get('A4');
     X.Centrepiece.place(s, { cpl: AT }, pack);
@@ -95,14 +104,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Its record and its placement ----
 
-  test('its record (content/A4-cp.js): ENSEMBLE_PIECES one-tile pieces on its 2×2 footprint, the signed original first on the top-left tile, then copies a, b and c, copies a and b with the burst; phase 2 gives the burst, phase 3 says its quicker specials; a fight whose Signature piece is the Repealing Pen; flagged with copies_weaken; its core at ready false, so no department of the game places it', () => {
+  test('its record (content/A4-cp.js): ENSEMBLE_PIECES one-tile pieces on its 2×2 footprint, the signed original first on the top-left tile, then copies a, b and c, copies a and b with the burst; phase 2 gives the burst, phase 3 says its quicker specials and gives the shatter; a fight whose Signature piece is the Repealing Pen; flagged with copies_weaken; its core at ready false, so no department of the game places it', () => {
     const pack = C.Packs.get('A4'), rec = pack.centrepiece;
     C.Centrepiece.check(rec, pack);
     assert.equal(rec.pieces.length, N.ENSEMBLE_PIECES);
     assert.equal(json(rec.pieces.map(p => [p.id, p.at, p.specials || [], p.sprite])), json([['A4.12', [0, 0], [], 'ordinance_original'], ['A4.12a', [1, 0], ['cp_burst'], 'ordinance_copy'],
       ['A4.12b', [0, 1], ['cp_burst'], 'ordinance_copy'], ['A4.12c', [1, 1], [], 'ordinance_copy']]));
     assert.equal(json([rec.id, rec.archetype, rec.role, rec.form, rec.size, rec.signature, rec.flags, rec.phases]),
-      json(['A4.12', 'mp_ensemble', 'centrepiece', 'fight', 2, 'A4.11', ['copies_weaken'], [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, { parts: ['CLAUSES.ens_quick'] }]]));
+      json(['A4.12', 'mp_ensemble', 'centrepiece', 'fight', 2, 'A4.11', ['copies_weaken'], [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, { parts: ['CLAUSES.ens_quick', 'CLAUSES.ens_shatter'], specials: ['shatter_all'] }]]));
     assert.ok(typeof rec.gateway === 'string' && rec.gateway.split(/\s+/).length >= 40 && rec.gateway.split(/\s+/).length <= 120, 'its gateway label is 40–120 words (D3.8)');
     assert.equal(C.Registry.ARCHETYPES.mp_ensemble.ready, false);
     assert.equal(C.Populate.ready(rec), false);
@@ -120,7 +129,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (json(got) !== json(want)) problems.push(`d${depth}: ${json(got)}`);
       if (ps.reduce((n, a) => n + a.maxHp, 0) !== role.hp || ps.some(a => a.hp !== a.maxHp)) problems.push(`d${depth}: the shares are not the role's ${role.hp}`);
       for (const k of ['acc', 'eva', 'pad', 'dmin', 'dmax']) if (ps.some(a => a[k] !== role[k])) problems.push(`d${depth}: a piece's ${k} is not the role's`);
-      if (json(s.dept.cp.gains) !== json([null, 'cp_burst', null]) || json(s.dept.cp.at) !== json(AT) || s.dept.cp.signature !== 'A4.11') problems.push(`d${depth}: dept.cp ${json(s.dept.cp)}`);
+      if (json(s.dept.cp.gains) !== json([null, 'cp_burst', 'shatter_all']) || json(s.dept.cp.at) !== json(AT) || s.dept.cp.signature !== 'A4.11') problems.push(`d${depth}: dept.cp ${json(s.dept.cp)}`);
       if (json(ps.slice(1).map(a => C.CopiesWeaken.originalOf(s, a))) !== json([ps[0].uid, ps[0].uid, ps[0].uid]) || C.CopiesWeaken.originalOf(s, ps[0]) !== null) problems.push(`d${depth}: the copy group`);
       if (json(s.rng) !== '{}') problems.push(`d${depth}: placing it drew on ${json(Object.keys(s.rng))}`);
     }
@@ -170,22 +179,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     return [`Its ${N.ENSEMBLE_PIECES} pieces stand fixed, each striking from beside you for ${dmg} and holding its own equal whole share of its ${r.hp} health, the original also any left over.`,
       'The original’s number has no letter; its copies, its spares, have one.',
       'Its phases count all its pieces’ health, and their full health, together.',
+      'When a piece falls, each piece still standing takes on every special the fallen piece had that it lacks.',
+      `Each original destroyed in the galleries, a companion piece to it, costs it ${N.ENSEMBLE_HOOK_PCT[0]}% of its full health, at most ${N.ENSEMBLE_HOOK_PCT[1]}% in all, taken from its first piece standing, never that piece’s last point.`,
       `Its second phase starts at ${N.CP_PHASE_PCT[0]}% of its full health or less, its third at ${N.CP_PHASE_PCT[1]}%, for good.`,
       'Hunting you in its hall, it seals you in with it once no one stands in an opening.',
       'Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it.',
       ...(on ? [`When its group’s original is destroyed, each spare loses ${N.COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then ${weak}), and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`] : []),
       `Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`,
       'From phase 2: its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.',
-      `From phase 3: each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`,
+      `From phase 3: each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}; ${SHATTER}.`,
       'Wakes when you stay inside your ring or make noise near it.'].join(' ');
   }
   const FIGHT = 'Its fall earns the Certificate, unless you have it.', REST = 'Its label has the rest.';
+  const SHATTER = 'its first piece standing as the phase begins has a shatter too: it marks every case of its hall still intact, then breaks them all; once none is intact, the shatter is spent';
   const wantStrip = (d, k) => [`Phase ${k} of 3.`, FIGHT,
     ...(k === 1 ? [`Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`]
       : k === 2 ? ['Its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.']
-        : [`Each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`]), REST].join(' ');
+        : [`Each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}; ${SHATTER}.`]), REST].join(' ');
 
-  test('its line (\'ARCHETYPES.mp_ensemble\', \'CLAUSES.ens_burst\', \'CLAUSES.ens_gain\', \'CLAUSES.ens_quick\', with \'MODULES.copies_weaken\' while on) says each piece\'s share, that its phases count its health together, the copies rule, where phase 2\'s special goes and that phase 3 brings its specials more often; its strip, in every phase, its phase\'s own part within the budget (m4-lines\' model), module on and off, at depths 1–7; a planted long part fails in its own phase alone', () => {
+  test('its line (\'ARCHETYPES.mp_ensemble\', \'CLAUSES.ens_burst\', \'CLAUSES.ens_gain\', \'CLAUSES.ens_quick\', \'CLAUSES.ens_shatter\', with \'MODULES.copies_weaken\' while on) says each piece\'s share, that its phases count its health together, the copies rule, where phase 2\'s special goes and that phase 3 brings its specials more often; its strip, in every phase, its phase\'s own part within the budget (m4-lines\' model), module on and off, at depths 1–7; a planted long part fails in its own phase alone', () => {
     const rec = C.Packs.get('A4').centrepiece, problems = [];
     for (const d of DEPTHS) {
       if (C.Clauses.line(rec, { depth: d }) !== wantLine(d, true)) problems.push(`d${d} on: ${C.Clauses.line(rec, { depth: d })}`);
@@ -200,7 +212,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(LINES.rows(C.Clauses.line(rec, { depth: 7 })) > LINES.METRICS.budgetRows);
     // Its words: no digit outside a parameter, each a sentence or a phase's continuation.
     const R = C.Registry;
-    for (const [t, id] of [['ARCHETYPES', 'mp_ensemble'], ['CLAUSES', 'ens_burst'], ['CLAUSES', 'ens_gain'], ['CLAUSES', 'ens_quick']]) {
+    for (const [t, id] of [['ARCHETYPES', 'mp_ensemble'], ['CLAUSES', 'ens_burst'], ['CLAUSES', 'ens_gain'], ['CLAUSES', 'ens_quick'], ['CLAUSES', 'ens_shatter']]) {
       const cl = R[t][id].clause;
       if (/[0-9]/.test(cl.replace(/\{[^}]*\}/g, ''))) problems.push(`${t}.${id}: a digit outside a parameter`);
       if (t === 'ARCHETYPES' ? !/^[A-Z].*\.$/.test(cl) : /^[A-Z]|\.$/.test(cl)) problems.push(`${t}.${id}: "${cl}"`);
@@ -250,14 +262,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const said = C.Text.log(ev, C.Labels.nameOf(s), () => true);
     if (!said.includes(`An original was destroyed, and ${copies.length} of its spares lost heart.`)) problems.push(`${tag}: the log says ${json(said)}`);
     // Its phases, on its pieces' health together, each once, in order, each naming the first
-    // piece still standing as it came (you see every piece here), phase 2 with its burst.
-    const ph = r.events.filter(e => e.k === 'phase');
-    if (json(ph.map(e => [e.phase, e.cause.k, e.cause.seen, e.gained || null])) !== json([[2, 'ensemble', true, 'cp_burst'], [3, 'ensemble', true, null]])) problems.push(`${tag}: phases ${json(ph)}`);
+    // piece still standing as it came (you see every piece here), phase 2 with its burst, phase
+    // 3 with its shatter. (A special a piece takes on from one that fell is a phase event too,
+    // cause inherited, which enters no phase: mp_ensemble-phases.test.js.)
+    const ph = r.events.filter(e => e.k === 'phase' && e.cause.k !== 'inherited');
+    if (json(ph.map(e => [e.phase, e.cause.k, e.cause.seen, e.gained || null])) !== json([[2, 'ensemble', true, 'cp_burst'], [3, 'ensemble', true, 'shatter_all']])) problems.push(`${tag}: phases ${json(ph)}`);
     for (const e of ph) {
       const before = r.events.slice(0, r.events.indexOf(e)), first = ids.find(u => !before.some(x => x.k === 'died' && x.who === u));
       if (e.who !== first) problems.push(`${tag}: phase ${e.phase} names ${e.who}, not the first piece standing, ${first}`);
       const name = C.Labels.nameOf(s)(e.who);
-      const want2 = `The Centrepiece is now in phase ${e.phase} of 3: its pieces’ health together has fallen to ${N.CP_PHASE_PCT[e.phase - 2]}% of their full health or below.${e.gained ? ` ${name.charAt(0).toUpperCase() + name.slice(1)}, the first of them still standing, has a burst.` : ''}`;
+      const want2 = `The Centrepiece is now in phase ${e.phase} of 3: its pieces’ health together has fallen to ${N.CP_PHASE_PCT[e.phase - 2]}% of their full health or below. ${name.charAt(0).toUpperCase() + name.slice(1)}, the first of them still standing, has ${e.phase === 2 ? 'a burst' : 'a shatter'}.`;
       if (say(C, s, e) !== want2) problems.push(`${tag}: ${say(C, s, e)}`);
     }
     // Its fall: the Repealing Pen on its footprint's top-left tile, the Certificate by its first
@@ -346,14 +360,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const s = room(3, { options: off }), ps = pieces(C, s), before = ps.map(a => a.ax.specials.slice()), ev = [];
       for (const i of fallen) ev.push(...blow(C, s, ps[i], 999));
       ev.push(...toPhase2(C, s, [ps[3], ps[2]]));
-      const ph = ev.filter(e => e.k === 'phase');
+      // (A fallen piece's specials taken on, cause inherited: mp_ensemble-phases.test.js.)
+      const ph = ev.filter(e => e.k === 'phase' && e.cause.k !== 'inherited');
       assert.equal(json(ph.map(e => [e.phase, e.who, e.gained, e.cause.k, e.cause.seen])), json([[2, ps[gainer].uid, 'cp_burst', 'ensemble', true]]), json(fallen));
       assert.equal(json(ps[gainer].ax.specials), json(gainer === 0 ? ['cp_burst'] : before[gainer]), json(fallen));
       assert.ok(say(C, s, ph[0]).endsWith(` ${named(s, ps[gainer].uid)}, the first of them still standing, has a burst.`), say(C, s, ph[0]));
-      for (const [i, a] of ps.entries()) if (i !== gainer) assert.equal(json(a.ax.specials), json(before[i]), `${json(fallen)}: ${a.uid}`);
+      // (Any other piece holds what it had, and what it took on from one that fell.)
+      const took = uid => ev.filter(e => e.k === 'phase' && e.cause.k === 'inherited' && e.who === uid).map(e => e.gained);
+      for (const [i, a] of ps.entries()) if (i !== gainer) assert.equal(json(a.ax.specials), json(before[i].concat(took(a.uid))), `${json(fallen)}: ${a.uid}`);
       // Phase 3, as its line says: each piece standing marks a special at most once every
       // CP_SPECIAL_EVERY[1] of its actions, not CP_SPECIAL_EVERY[0] (Specials.cadence, which its
-      // odds readout gives), and gains no special.
+      // odds readout gives); the shatter it gives is spent at once, since this hall has no case
+      // (mp_ensemble-phases.test.js plays it with one), so no piece holds another special.
       const up = ps.filter(a => !a.gone), was = up.map(a => C.Specials.cadence(s, a)), got = before.map((x, i) => ps[i].ax.specials.slice());
       for (const a of up) { const h = C.Centrepiece.health(s), n = h.hp - Int.pct(h.max, N.CP_PHASE_PCT[1]); if (n > 0) blow(C, s, a, Math.min(n, a.hp - 1)); }
       assert.equal(C.Centrepiece.phase(s), 3, json(fallen));

@@ -1,14 +1,16 @@
 // ACCESSION — registry fragment: A.4's Centrepiece, mp_ensemble (the Ordinance) (BUILD.md §5.1,
-// §5.5), owned by ENSEMBLE-CORE. M4's skeleton made it; M4's Wave 0 (W0a) moved here, verbatim
-// from reg/system.js, the archetype's placeholder (its M2 clause, at ready false), and gave the
-// phase event its cause for a special taken on (M4 plan A5). ENSEMBLE-CORE built the core: the
-// rules are in js/core/rules/arch/mp_ensemble.js, the record in content/A4-cp.js, the scenarios
-// in test/behaviour/mp_ensemble.test.js, and the invariants every Centrepiece keeps in
-// test/behaviour/centrepiece.inv.js. ENSEMBLE-PHASES adds inheritance and the hooks.
+// §5.5), owned by ENSEMBLE-CORE and then ENSEMBLE-PHASES. M4's skeleton made it; M4's Wave 0
+// (W0a) moved here, verbatim from reg/system.js, the archetype's placeholder (its M2 clause, at
+// ready false), and gave the phase event its cause for a special taken on (M4 plan A5).
+// ENSEMBLE-CORE built the core: the rules are in js/core/rules/arch/mp_ensemble.js, the record
+// in content/A4-cp.js, the scenarios in test/behaviour/mp_ensemble.test.js, and the invariants
+// every Centrepiece keeps in test/behaviour/centrepiece.inv.js. ENSEMBLE-PHASES added
+// inheritance, phase 3's shatter, its Clerk (an attachment, with the healer's own entries,
+// reg/arch-d.js) and its gallery hook, scenarios in test/behaviour/mp_ensemble-phases.test.js.
 'use strict';
 (() => {
   const R = Registry;
-  const TESTS = ['behaviour/mp_ensemble.test.js'];
+  const TESTS = ['behaviour/mp_ensemble.test.js', 'behaviour/mp_ensemble-phases.test.js'];
   // Proved joined up with the Ordinance's own record in the real rules, every invariant on.
   const proved = more => Object.assign({ built: 'M4', ready: true, tests: TESTS, inv: 'centrepiece' }, more);
 
@@ -30,9 +32,22 @@
   // Wake.stands); until then only tests place it (Centrepiece.place). lint-registry's word rules read this clause once it is past false,
   // and now under --strict=M4 (which it passes but for its readiness); mp_ensemble.test.js holds
   // its digits and its form, and the whole line it makes.
+  // ENSEMBLE-PHASES added two sentences (M4 plan D3.3, decided without play; revisit once M4 is
+  // playable). Inheritance: when a piece falls while another stands, each piece still standing
+  // takes on every special the fallen piece had that it lacks (rules/arch/mp_ensemble.js; a
+  // shatter only while a case of its hall is intact, its phase part says why), told by a phase
+  // event with the cause `inherited` (below). The gallery hook (ENSEMBLE_HOOK_PCT; the sample's
+  // originals are labelled "Companion piece to A.4.12"): each original destroyed in the
+  // galleries (an exhibit some spare copies, not a piece of its own, whose every body is
+  // destroyed, outside its hall) costs it ENSEMBLE_HOOK_PCT[0]% of its full health (its pieces'
+  // maximums together, rounded down), for at most ENSEMBLE_HOOK_PCT[1] ÷ ENSEMBLE_HOOK_PCT[0]
+  // originals, so at most ENSEMBLE_HOOK_PCT[1]% in all; its first piece standing loses it,
+  // never its last point; with or without copies_weaken, whose rule is the spares'. It is taken
+  // at the turn boundary after the original's fall (the hall's checks, Hall.addCheck), and told
+  // by a damaged event with the cause `hook` (below), whose sentence names no piece.
   R.define('ARCHETYPES', 'mp_ensemble', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,
-    clause: 'Its {n} pieces stand fixed, each striking from beside you for {dmg} and holding its own equal whole share of its {hp} health, the original also any left over. The original’s number has no letter; its copies, its spares, have one. Its phases count all its pieces’ health, and their full health, together.',
-    params: { n: 'N:ENSEMBLE_PIECES', dmg: 'role:DMG', hp: 'role:HP' }, covers: ['attacked', 'missed'] });
+    clause: 'Its {n} pieces stand fixed, each striking from beside you for {dmg} and holding its own equal whole share of its {hp} health, the original also any left over. The original’s number has no letter; its copies, its spares, have one. Its phases count all its pieces’ health, and their full health, together. When a piece falls, each piece still standing takes on every special the fallen piece had that it lacks. Each original destroyed in the galleries, a companion piece to it, costs it {hook}% of its full health, at most {most}% in all, taken from its first piece standing, never that piece’s last point.',
+    params: { n: 'N:ENSEMBLE_PIECES', dmg: 'role:DMG', hp: 'role:HP', hook: 'N:ENSEMBLE_HOOK_PCT[0]', most: 'N:ENSEMBLE_HOOK_PCT[1]' }, covers: ['attacked', 'missed'] });
 
   // Its phase parts (§5.3's "From phase k: …"; Q10, its strip), one a phase. Phase 1, from the
   // start: the burst (cp_burst, its own registry entry, reg/centrepiece.js), which copies a and
@@ -43,8 +58,8 @@
   // Phase 2: the special phase 2 gives (the record's phases[1].specials, cp_burst) goes, as every
   // Centrepiece's does (Centrepiece.advance), to its first piece still standing as the phase
   // begins: in its pieces' order, the original, then the copies by letter. A copy that has it
-  // already gains nothing; one that falls later does not pass it on (inheritance is
-  // ENSEMBLE-PHASES').
+  // already gains nothing; one that falls later passes it on to each piece still standing that
+  // lacks it, as it passes every special it has (inheritance, the archetype's clause).
   R.define('CLAUSES', 'ens_gain', proved({ icon: null,
     clause: 'its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too',
     params: {}, covers: ['telegraphed', 'special', 'damaged'] }));
@@ -56,6 +71,30 @@
   R.define('CLAUSES', 'ens_quick', proved({ icon: null,
     clause: 'each of its pieces marks a special at most once every {n} of its actions, not {was}',
     params: { n: 'N:CP_SPECIAL_EVERY[1]', was: 'N:CP_SPECIAL_EVERY[0]' }, covers: ['telegraphed', 'special', 'damaged'] }));
+  // Phase 3 also gives its first piece still standing the shatter (the record's
+  // phases[2].specials, shatter_all, below), the sample's phase-3 special, trimmed: every case
+  // of its hall still intact is marked, then broken (no spares come out of them: the sample's
+  // spares joining phase 3 are cut, M4 plan D3.7, and its hall holds none). Once no case of its
+  // hall is intact, the shatter is spent: no piece holds it (rules/arch/mp_ensemble.js drops it
+  // at once, with special {cancelled}, cause `spent`), so it never holds a piece's other specials
+  // back as one that cannot be marked would (Specials.markNext).
+  R.define('CLAUSES', 'ens_shatter', proved({ icon: null,
+    clause: 'its first piece standing as the phase begins has a shatter too: it marks every case of its hall still intact, then breaks them all; once none is intact, the shatter is spent',
+    params: {}, covers: ['telegraphed', 'special', 'glass_broke'] }));
+
+  // The shatter (§8.1; the shape shatter_all, rules/arch/mp_ensemble.js): a mark that deals no
+  // damage (effect shatter), on the tile of every case of its owner's hall still intact (a
+  // Centrepiece's hall: dept.cp.room), made while it hunts, whether or not it sees you. At its
+  // owner's next action (Specials' resolve, a hook: onResolve) each case still intact on a
+  // marked tile breaks as a breaking bash breaks one (§8.3): it is broken, passable and loud,
+  // what stood in it is released, its shards fall on the first floor or archway tile beside it
+  // in direction order (Cases.spreadShards from its own tile, which is no longer floor), each
+  // told by glass_broke with the cause `shatter`, then a crash from its tile. It is no bash: no
+  // touch_case. Named a shatter in sentences (noun), and what it marks in its own words (marks).
+  R.define('SPECIALS', 'shatter_all', proved({ icon: 'special', shape: 'shatter_all', effect: 'shatter', curve: null, range: null, every: null, noun: 'shatter',
+    marks: 'every case of its hall still intact',
+    clause: 'marks every case of its hall still intact, then breaks them all',
+    params: {}, covers: ['telegraphed', 'special', 'glass_broke'] }));
 
   // Its phase event's cause (reg/centrepiece.js): `ensemble`, its pieces' health together fell to
   // a threshold (CP_PHASE_PCT, % of their full health together), by whoever hurt a piece (by),
@@ -66,7 +105,23 @@
   // the Ordinance you cannot see.
   R.defineCause('phase', 'ensemble', { fields: { by: 'uid?', seen: 'bool' }, built: 'M4' });
 
-  // Its phase event's cause (reg/centrepiece.js): `inherited`, a piece took on the special of
-  // one that fell (from). ENSEMBLE-PHASES' (a fallen piece's special inherited).
-  R.defineCause('phase', 'inherited', { fields: { from: 'uid?' }, built: 'M4' });
+  // Its phase event's cause (reg/centrepiece.js): `inherited`, a piece (who) took on a special
+  // (gained) of one that fell (from), in the phase it is in (phase: no phase is entered); seen,
+  // whether you see the piece that took it on, judged as for `ensemble`: its sentence names that
+  // piece only then (the fallen piece's fall is told by its own died sentence).
+  R.defineCause('phase', 'inherited', { fields: { from: 'uid', seen: 'bool' }, built: 'M4' });
+
+  // Its gallery hook (above): damaged {who: its first piece standing, amount, hp}, with the
+  // cause `hook`, of the original destroyed in the galleries (of). No blow: it wakes no one and
+  // no one hears it. (saved and side, which every damage cause's schema accepts, never come.)
+  R.defineCause('damaged', 'hook', { fields: { of: 'uid', saved: 'int?', side: 'str?' }, built: 'M4' });
+
+  // The shatter going off (above): glass_broke {by: the piece whose shatter it was, x, y,
+  // glass, shards, released}, with the cause `shatter` (sp, the special).
+  R.defineCause('glass_broke', 'shatter', { fields: { by: 'uid', sp: 'str' }, built: 'M4' });
+
+  // A shatter spent (above): special {who: the piece that held it, sp, cancelled: true}, with
+  // the cause `spent`, by that piece; seen, whether you see it, as for `ensemble`: its sentence
+  // names that piece only then.
+  R.defineCause('special', 'spent', { fields: { by: 'uid', seen: 'bool' }, built: 'M4' });
 })();
