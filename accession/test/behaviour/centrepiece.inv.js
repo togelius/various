@@ -12,8 +12,9 @@
 //                       showed on that tile the moment before (Specials.marks), and was shown;
 //   centrepiece.fall    the step its last standing piece dies: a fight's Signature piece drops
 //                       to the floor at its footprint's top-left tile (dept.cp.at), once, and
-//                       the Certificate follows it (by defeat, naming its first piece) unless one
-//                       was earned already; a sealed hall opens; a treasure's guardian earns
+//                       the Certificate follows it (by defeat, naming its first piece when that
+//                       piece is called by the Centrepiece's own name, else none: an ensemble's
+//                       pieces have names of their own) unless one was earned already; a sealed hall opens; a treasure's guardian earns
 //                       nothing (no drop, no Certificate); no drop or Certificate by defeat
 //                       comes in any other step;
 //   centrepiece.sleep   a piece wakes from pips and damage only: never by a herald's call, the
@@ -98,7 +99,10 @@ module.exports = (C) => {
           } else if (drops.length) return `a Signature piece dropped, but the Centrepiece names none: ${json(drops)}`;
           const had = !!(pre.dept && pre.dept.cert);
           if (certs.length !== (had ? 0 : 1)) return `the Centrepiece fell with ${had ? 'a' : 'no'} Certificate earned, and ${certs.length} came by defeat`;
-          if (certs.length && certs[0].cause.by !== c.uids[0]) return `the Certificate names ${certs[0].cause.by}, not the Centrepiece's first piece ${c.uids[0]}`;
+          // (Its first piece names it when called by its record's name: Packs.speciesFor.)
+          const pack = C.Packs.get(post.dept.acc), rec = pack && pack.centrepiece, first = byUid(post, c.uids[0]), sp = first ? C.Packs.speciesFor(post, first) : null;
+          const names = !rec || !sp || sp.name === rec.name ? c.uids[0] : undefined;
+          if (certs.length && certs[0].cause.by !== names) return `the Certificate names ${certs[0].cause.by}, not ${names === undefined ? 'no piece (its first piece has a name of its own)' : `the Centrepiece's first piece ${names}`}`;
           if (certs.length && drops.length && events.indexOf(certs[0]) < events.indexOf(drops[0])) return 'the Certificate came before the Signature piece dropped';
         }
         if (c.sealed) return 'the Centrepiece fell, and its hall is still sealed';

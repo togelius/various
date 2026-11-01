@@ -97,14 +97,14 @@ module.exports = ({ test, assert, loadCore }) => {
       // Each view told, with the count still to come.
       for (let n = 1; n <= 3; n++) {
         const e = r.steps[n].events.find(x => x.k === 'viewed'), left = 4 - n;
-        const want = `You viewed the Test Centrepiece: ${n} of 4 turns. ${left} more ${left === 1 ? 'turn' : 'turns'} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.${n === 1 ? ' Any other action that takes time starts the count again, and so does its waking.' : ''}`;
+        const want = `You viewed the Test Centrepiece: ${n} of 4 turns. ${left} more ${left === 1 ? 'turn' : 'turns'} of viewing in a row while the Centrepiece sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.${n === 1 ? ' Any other action that takes time starts the count again, and so does its waking.' : ''}`;
         if (say(X, s, e) !== want) problems.push(`${tag}: view ${n} reads ${json(say(X, s, e))}`);
         if (!X.Text.log(r.steps[n].events, names(X, s)).includes(want)) problems.push(`${tag}: view ${n} is not in the log`);
         if (e.of !== uids[0] || e.who !== 'you' || e.cause.k !== 'view') problems.push(`${tag}: view ${n} is ${json(e)}`);
       }
       // The last: told, then the Certificate at once, before any event of the world's.
       const last = r.steps[4].events, done = last.find(x => x.k === 'viewed'), at = last.indexOf(done);
-      if (say(X, s, done) !== 'You viewed the Test Centrepiece: 4 of 4 turns. The view is complete: a dust sheet now covers it for the night, and it will neither wake nor fight.') problems.push(`${tag}: ${say(X, s, done)}`);
+      if (say(X, s, done) !== 'You viewed the Test Centrepiece: 4 of 4 turns. The view is complete: a dust sheet now covers the Centrepiece for the night, and it will neither wake nor fight.') problems.push(`${tag}: ${say(X, s, done)}`);
       if (json(last.slice(at, at + 4).map(e => e.k + '.' + e.cause.k)) !== json(['viewed.view', 'certificate.view', 'grade.certificate', 'healed.certificate'])) problems.push(`${tag}: the last view's events ${json(last.map(e => e.k))}`);
       if (json(X.Progress.cert(s)) !== json({ how: 'view', turn: r.steps[4].events[0].turn }) || s.run.certificates.length !== 1 || s.run.grade !== grade + 1) problems.push(`${tag}: the Certificate ${json(X.Progress.cert(s))}`);
       if (s.actors[0].maxHp !== max + X.N.HP_PER_GRADE || s.actors[0].hp < Math.min(hp + X.N.CERT_HEAL, max + X.N.HP_PER_GRADE) - 0) problems.push(`${tag}: your health ${s.actors[0].hp}/${s.actors[0].maxHp}`);
@@ -132,8 +132,8 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(json(views(r)), json(Array.from({ length: turns }, (_, i) => i + 1)));
       assert.ok(X.Viewing.sheeted(s) && X.Progress.cert(s), `at ${turns}: no sheet or Certificate`);
       const done = r.events.find(e => e.k === 'viewed' && e.n === turns);
-      assert.equal(say(X, s, done), `You viewed the Test Centrepiece: ${turns} of ${turns === 1 ? '1 turn' : `${turns} turns`}. The view is complete: a dust sheet now covers it for the night, and it will neither wake nor fight.`);
-      if (turns === 2) assert.equal(say(X, s, r.events.find(e => e.k === 'viewed' && e.n === 1)), 'You viewed the Test Centrepiece: 1 of 2 turns. 1 more turn of viewing in a row while it sleeps earns the Certificate. Any other action that takes time starts the count again, and so does its waking.');
+      assert.equal(say(X, s, done), `You viewed the Test Centrepiece: ${turns} of ${turns === 1 ? '1 turn' : `${turns} turns`}. The view is complete: a dust sheet now covers the Centrepiece for the night, and it will neither wake nor fight.`);
+      if (turns === 2) assert.equal(say(X, s, r.events.find(e => e.k === 'viewed' && e.n === 1)), 'You viewed the Test Centrepiece: 1 of 2 turns. 1 more turn of viewing in a row while the Centrepiece sleeps earns the Certificate. Any other action that takes time starts the count again, and so does its waking.');
     }
   });
 

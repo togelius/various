@@ -289,7 +289,8 @@ const Centrepiece = (() => {
   //   - a fight: its Signature piece drops on the floor at its footprint's top-left tile
   //     (dept.cp.at), whatever your tote holds (dropped {who: a, item, x, y}, cause defeated
   //     {by?}, by whoever struck the last blow); then the Certificate (Progress.award,
-  //     'defeat', by its first piece, which names it); then the seal lifts (Hall.onDefeat);
+  //     'defeat', by its first piece, which names it, when namesIt); then the seal lifts
+  //     (Hall.onDefeat);
   //   - a treasure: the seal lifts, and nothing else: killing its guardian earns nothing.
   // Nothing happens once the visit is over (a blow that ends you and it together).
   function onPieceDied(state, a, ev) {
@@ -305,9 +306,19 @@ const Centrepiece = (() => {
     const cp = Hall.cp(state);
     if (cp.form === 'fight') {
       drop(state, a, cause, ev);
-      Progress.award(state, 'defeat', { k: 'defeat', by: cp.uids[0] }, ev);
+      Progress.award(state, 'defeat', namesIt(state, cp) ? { k: 'defeat', by: cp.uids[0] } : { k: 'defeat' }, ev);
     }
     Hall.onDefeat(state, ev);
+  }
+
+  // Does its first piece name the Centrepiece: is it called by its record's own name (Packs.
+  // speciesFor), as one body, or a piece that gives no name of its own, is? An ensemble's
+  // pieces each have their own (A.4's Ordinance: "…, Signed Original"), which would name one
+  // piece for the whole, so its Certificate names none ("you defeated its Centrepiece"; M4
+  // ENSEMBLE-CORE's review). In a room with no record (a test's), it does.
+  function namesIt(state, cp) {
+    const p = Packs.get(state.dept.acc), rec = p && p.centrepiece, a = Actors.byUid(state, cp.uids[0]), sp = a ? Packs.speciesFor(state, a) : null;
+    return !rec || !sp || sp.name === rec.name;
   }
 
   // A fight's Signature piece (onPieceDied asks this only of a fight), made on the floor (Kit.make: its uid that of an item placed in

@@ -8,14 +8,18 @@
   // A view (viewed {who, of, n}): the count so far, of VIEW_TURNS; then how many more turns of
   // viewing in a row earn the Certificate, with the rule that restarts the count said at the
   // first view of a row; or, at the last, that the view is complete and the Centrepiece is
-  // under its dust sheet (rules/viewing.js: the Certificate's own sentences follow it).
+  // under its dust sheet (rules/viewing.js: the Certificate's own sentences follow it). What
+  // must sleep, and what the sheet covers, is the Centrepiece, every piece of it, so the
+  // sentence says so, not "it": `of` names its first piece still standing, which for an
+  // ensemble is one of several pieces, each with a name of its own (A.4's Ordinance; M4
+  // ENSEMBLE-CORE's review).
   const T = () => N.VIEW_TURNS;
   function viewed(e, w) {
     if (!Number.isInteger(e.n) || e.n < 1) return `${w.Name(e.who)} viewed ${w.name(e.of)}.`;
     const so = `${w.Name(e.who)} viewed ${w.name(e.of)}: ${e.n} of ${Text.count(T(), 'turn')}.`;
-    if (e.n >= T()) return `${so} The view is complete: a dust sheet now covers it for the night, and it will neither wake nor fight.`;
+    if (e.n >= T()) return `${so} The view is complete: a dust sheet now covers the Centrepiece for the night, and it will neither wake nor fight.`;
     const left = T() - e.n;
-    const more = ` ${Text.count(left, 'more turn')} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.`;
+    const more = ` ${Text.count(left, 'more turn')} of viewing in a row while the Centrepiece sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.`;
     return e.n === 1 ? `${so}${more} Any other action that takes time starts the count again, and so does its waking.` : `${so}${more}`;
   }
   Text.define('viewed', viewed);
