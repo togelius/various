@@ -534,9 +534,9 @@ module.exports = ({ test, assert, loadCore }) => {
     // built it (past ready false: patrol_guard, MOD-ALARM's; demonstrator, MOD-CHIME's), and not
     // before; but a Centrepiece's core, added with the shared rules (Centrepiece.wired) and held
     // at ready false by its package, so that no department places it before what its Certificate
-    // needs is built (mp_ensemble, ENSEMBLE-CORE's; mp_tableau, TABLEAU-CORE's: Populate.ready
-    // keeps each out until then).
+    // needs is built (mp_ensemble, ENSEMBLE-CORE's; mp_tableau, TABLEAU-CORE's; completing_guardian,
+    // COMPOSITE-CORE's: Populate.ready keeps each out until then).
     for (const id of X.Registry.order('ARCHETYPES')) assert.equal(X.Archetypes.added(id), X.Registry.ARCHETYPES[id].built === 'M3' || X.Registry.ARCHETYPES[id].ready !== false || X.Centrepiece.wired(id), id);
-    assert.equal(json(X.Registry.order('ARCHETYPES').filter(id => X.Registry.ARCHETYPES[id].ready === false && X.Archetypes.added(id))), json(['mp_ensemble', 'mp_tableau']));
+    assert.equal(json(X.Registry.order('ARCHETYPES').filter(id => X.Registry.ARCHETYPES[id].ready === false && X.Archetypes.added(id))), json(['completing_guardian', 'mp_ensemble', 'mp_tableau']));
   });
 };

@@ -225,11 +225,19 @@ const Cases = (() => {
   //   3. the mimic wakes at once, hunting (it gains no pips: Wake.wake, which a pipless
   //      exhibit allows for touch_case); every other one whose trigger is touch_case gains
   //      PIPS_TO_WAKE pips (Wake.addPips), so it wakes at once, hunting.
+  // An exhibit whose trigger is touch_case and that guards the case (its `guards` is the case's
+  // tile: M4's Composite, which guards the Lamp's case, rules/arch/completing_guardian.js) is
+  // touched with it as one standing in it is, after those and before the mimic: the case is its
+  // case, as its line says.
   // The cause is {k: 'touch_case', by, x, y, how}, with itself: true for the mimic, whose
   // case is the mimic itself. It comes before the action's noise (§8.2, one action's wake
   // order), so a sleeper at 2 pips that the touch wakes hunts you.
   function touch(state, f, how, by, ev) {
     const mimic = mimicOf(state, f), list = exhibitsOf(state, f);
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (!a.gone && a.trigger === 'touch_case' && Array.isArray(a.guards) && a.guards[0] === f.x && a.guards[1] === f.y && !list.includes(a)) list.push(a);
+    }
     if (mimic && !list.includes(mimic)) list.push(mimic);
     for (const a of list) Archetypes.onTouched(state, a, how, by, ev);
     if (f.mimic) unmask(state, f);

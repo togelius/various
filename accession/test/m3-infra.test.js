@@ -266,7 +266,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   test('species gives every pack species whose line has a clause, at depths 1–7, as the pack gives it, leaving out unbuilt archetypes', () => {
     const records = [];
     for (const p of Packs.list()) for (const sp of [...p.species, p.centrepiece]) records.push(sp);
-    const built = sp => Registry.ARCHETYPES[sp.archetype] && Registry.ARCHETYPES[sp.archetype].built === 'M3';
+    // Built: an M3 archetype, or an M4 one its package has added (Archetypes.added: the
+    // Centrepieces' cores, whose records name a trigger once built, as S.9's does, COMPOSITE-CORE).
+    const built = sp => Registry.ARCHETYPES[sp.archetype] && (Registry.ARCHETYPES[sp.archetype].built === 'M3' || C.Archetypes.added(sp.archetype));
     const expect = pred => records.filter(sp => built(sp) && pred(sp)).flatMap(sp => H.DEPTHS.map(d => `${sp.id}@${d}`));
     const got = (id, o) => H.species(C, id, o).map(x => `${x.sp.id}@${x.depth}`);
     for (const arch of ['plodder', 'herald', 'darter', 'kiter', 'splitter']) assert.equal(json(got(arch)), json(expect(sp => sp.archetype === arch)), arch);
@@ -281,12 +283,21 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(got('rooted')), json(expect(sp => sp.archetype === 'mimic_vitrine')));
     assert.ok(got('wake').length > 0 && !got('wake').some(k => records.some(sp => sp.archetype === 'mimic_vitrine' && k.startsWith(sp.id + '@'))));
     // Unbuilt archetypes (M4's, until their package adds them: Archetypes.added) only on
-    // request; depths on request. (Every gallery species' archetype is built since
-    // ARCH-CLOCKWORK; the Centrepieces', whose records name no role, wait for theirs.)
-    const m4 = records.filter(sp => !built(sp) && Registry.ARCHETYPES[sp.archetype] && !C.Archetypes.added(sp.archetype));
-    assert.ok(m4.length > 0);
-    assert.equal(json(got(m4[0].archetype)), '[]');
-    assert.equal(json(got(m4[0].archetype, { m4: true })), json(records.filter(sp => sp.archetype === m4[0].archetype).flatMap(sp => H.DEPTHS.map(d => `${sp.id}@${d}`))));
+    // request; depths on request. Every pack archetype is added since COMPOSITE-CORE (the
+    // gallery species' since ARCH-CLOCKWORK, the three Centrepieces' cores, each held at ready
+    // false by its package), so none is left in the packs: in a core of its own, A.4's record
+    // names a planted archetype that no package adds.
+    assert.equal(json(records.filter(sp => !built(sp) && Registry.ARCHETYPES[sp.archetype] && !C.Archetypes.added(sp.archetype)).map(sp => sp.id)), '[]');
+    const X = loadCore();
+    X.Registry.define('ARCHETYPES', 'planted_unbuilt', { built: 'M4', ready: false, clause: 'Stands for an archetype no package has added yet.', params: {}, covers: [], tests: [], inv: null });
+    X.Packs.get('A4').centrepiece.archetype = 'planted_unbuilt';
+    const xs = [];
+    for (const p of X.Packs.list()) for (const sp of [...p.species, p.centrepiece]) xs.push(sp);
+    const m4 = xs.filter(sp => X.Registry.ARCHETYPES[sp.archetype] && X.Registry.ARCHETYPES[sp.archetype].built !== 'M3' && !X.Archetypes.added(sp.archetype));
+    assert.equal(json(m4.map(sp => [sp.id, sp.archetype])), json([['A4.12', 'planted_unbuilt']]));
+    const gotX = (id, o) => H.species(X, id, o).map(x => `${x.sp.id}@${x.depth}`);
+    assert.equal(json(gotX('planted_unbuilt')), '[]');
+    assert.equal(json(gotX('planted_unbuilt', { m4: true })), json(H.DEPTHS.map(d => `A4.12@${d}`)));
     assert.equal(json(got('plodder', { depths: [2, 5] })), json(records.filter(sp => built(sp) && sp.archetype === 'plodder').flatMap(sp => [`${sp.id}@2`, `${sp.id}@5`])));
   });
 

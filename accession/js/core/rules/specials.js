@@ -128,7 +128,7 @@ const Specials = (() => {
   }
 
   // ---- Shapes added by the rules that use them ----
-  // Specials.addShape(id, {tiles, from?, via?, glass?}): a shape a registry special may name.
+  // Specials.addShape(id, {tiles, from?, via?, glass?, after?}): a shape a registry special may name.
   //   tiles(state, a) → [[x, y]…]   the tiles a would mark now, inside the map (any order;
   //                                 made row-major, each once); [] when it has none to mark;
   //   from(state, a, tiles) → [[x, y]…]   for each tile, the tile its damage comes from
@@ -137,17 +137,21 @@ const Specials = (() => {
   //                                 before it reached that tile; else none;
   //   glass: true if it passes glass, as only a beam does: it may then be marked by an
   //          exhibit in an intact case, and strikes one in a case.
+  //   after(state, a, tel, ev): what its owner does once its damage mark tel has gone off
+  //          (fire: after every hit and its noise, before the special event), while its owner
+  //          still stands and the visit goes on: the Composite's legs run along their lane (M4
+  //          COMPOSITE-CORE, rules/arch/completing_guardian.js); else nothing.
   // Once each, never one of the shapes written here, and every key one of these.
   const ADDED = {}, ADDED_ORDER = [];
-  const SHAPE_KEYS = ['tiles', 'from', 'via', 'glass'];
+  const SHAPE_KEYS = ['tiles', 'from', 'via', 'glass', 'after'];
   function addShape(id, def) {
     if (typeof id !== 'string' || !/^[a-z][a-z0-9_]*$/.test(id)) throw new Error(`Specials.addShape: ${JSON.stringify(id)} is not a shape's name`);
     if (SHAPES.includes(id) || own(ADDED, id)) throw new Error(`Specials.addShape: the shape ${id} is added twice`);
     if (!def || typeof def.tiles !== 'function') throw new Error(`Specials.addShape: ${id} needs tiles(state, a)`);
     for (const k of Object.keys(def)) if (!SHAPE_KEYS.includes(k)) throw new Error(`Specials.addShape: ${id} has no part called ${k}`);
-    for (const k of ['from', 'via']) if (def[k] !== undefined && typeof def[k] !== 'function') throw new Error(`Specials.addShape: ${id}.${k} is not a function`);
+    for (const k of ['from', 'via', 'after']) if (def[k] !== undefined && typeof def[k] !== 'function') throw new Error(`Specials.addShape: ${id}.${k} is not a function`);
     if (def.glass !== undefined && typeof def.glass !== 'boolean') throw new Error(`Specials.addShape: ${id}.glass is not true or false`);
-    ADDED[id] = { tiles: def.tiles, from: def.from || null, via: def.via || null, glass: def.glass === true };
+    ADDED[id] = { tiles: def.tiles, from: def.from || null, via: def.via || null, glass: def.glass === true, after: def.after || null };
     ADDED_ORDER.push(id);
   }
   // Specials.shapes() → [id…]: every shape, those written here first, then those added in order.
@@ -315,7 +319,8 @@ const Specials = (() => {
   // shooter: a, sp, gross, pad, net, x, y, from} (§8.1); an actor in an intact case is struck
   // only by a shape that passes glass (a line). Every hit, and the wakes it causes, comes
   // before any noise: the noise of an exhibit destroyed is held until the last hit
-  // (Noise.hold), then comes the soft noise at a's tile that any attack makes. A call (a
+  // (Noise.hold), then comes the soft noise at a's tile that any attack makes, then what an
+  // added shape's after has its owner do (M4: the Composite's charge). A call (a
   // hook) goes to its archetype's onResolve. Then special {who, sp, hits}; then the perks
   // you hold hear of it (Perks.onResolve, with the mark and atYou, and whether it struck you).
   // The mark is no longer pending once it goes off.
@@ -339,6 +344,8 @@ const Specials = (() => {
         }
       });
       Noise.emit(state, a.x, a.y, 'soft', { k: 'special', by: a.uid }, ev);
+      // An added shape's after (addShape), its owner still standing and the visit going on.
+      if (S && own(ADDED, S.shape) && ADDED[S.shape].after && !a.gone && !state.over) ADDED[S.shape].after(state, a, tel, ev);
       fields.hits = hits;
       struckYou = hits.includes(state.actors[0].uid);
     } else Archetypes.onResolve(state, a, tel, ev);

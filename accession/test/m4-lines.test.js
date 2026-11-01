@@ -266,7 +266,9 @@ function plantLong(X, acc) {
         def('CLAUSES', 'planted_legs', 'legs: charges at you up to {range} tiles in a lane 2 wide for {g} before Padding, never into its case', { range: 'N:CHARGE_RANGE', g: gross.g }),
         def('CLAUSES', 'planted_tail', 'tail: marks the tiles round it for a turn, then strikes everything on them for {g} before Padding', gross)] },
         { parts: [def('CLAUSES', 'planted_grow', 'grows a limb'), def('CLAUSES', 'planted_alarm_part', '{module:planted_alarm|}')] }, {}],
-      flags: ['planted_alarm'] },
+      // (As measured: its planted wake part says the touch, so S.9's record's trigger,
+      // touch_case since M4 COMPOSITE-CORE, is left out.)
+      flags: ['planted_alarm'], trigger: null },
   };
   if (acc === 'S9' && !Object.prototype.hasOwnProperty.call(R.MODULES, 'planted_alarm')) {
     R.define('MODULES', 'planted_alarm', { built: 'M4', sentence: 'A planted alarm.', clause: 'raises the alarm', params: {}, covers: [] });

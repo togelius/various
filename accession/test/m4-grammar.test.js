@@ -342,14 +342,17 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.equal(r.status, 0, r.out); has(r, /strict \(M3\)/);
       // An M4 perk at ready false, planted (the real ones go to true as their packages build them).
       const PLANT = "Registry.define('PERKS', 'planted_perk', { built: 'M4', name: 'Planted', family: 'guarded' });";
+      // An M4 archetype at ready false whose words break the word rules, planted as the
+      // placeholders were (the Composite's words are its own since COMPOSITE-CORE, and the Great
+      // Board's since TABLEAU-CORE, with its "double damage" tied to CP_SUMMON_DMG_PCT, so no
+      // real placeholder is left to show it).
+      const WORDS = "Registry.define('ARCHETYPES', 'planted_words', { built: 'M4', ready: false, clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special.', params: {}, covers: [], tests: [], inv: null });";
       for (const which of [['--strict'], ['--strict=M4']]) {
-        r = lint(PLANT, which);
+        r = lint([PLANT, WORDS], which);
         assert.equal(r.status, 1, which[0]);
         has(r, /--strict: ARCHETYPES\.completing_guardian is at ready false/); has(r, /--strict: PERKS\.planted_perk is at ready false/);
-        // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
-        // (The Great Board's words are its own since TABLEAU-CORE, with its "double damage" tied
-        // to CP_SUMMON_DMG_PCT, so they pass.)
-        has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); hasNot(r, /ARCHETYPES\.mp_tableau: /);
+        // Under --strict every M4 entry meets the word rules: a placeholder's words do not.
+        has(r, /ARCHETYPES\.planted_words: "one limb" states a number in words/); hasNot(r, /ARCHETYPES\.completing_guardian: /); hasNot(r, /ARCHETYPES\.mp_tableau: /);
       }
       r = lint(null, ['--strict=M9']);
       assert.equal(r.status, 1); has(r, /--strict=M9: no such milestone/);

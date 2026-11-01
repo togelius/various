@@ -4,7 +4,10 @@
 // a room for tests that only names pieces in dept.cp (the hall's tests) is held to the wake
 // rule alone.
 //   centrepiece.phase   its pieces share one phase, which never goes back; each phase entered
-//                       in a step has its phase event, in order, and no other phase event comes;
+//                       in a step has its phase event, in order, and no other phase event comes
+//                       but one that changes what it has within the phase it is in (the
+//                       Composite's limbs: walked, left; an Ordinance piece taking on a special:
+//                       inherited), which names the phase it is in then (M4 COMPOSITE-CORE);
 //                       while a piece stands, its phase is at least the one its health gives
 //                       (one more for each of CP_PHASE_PCT, % of its pieces' maximums together,
 //                       that their health has fallen to);
@@ -31,6 +34,8 @@ module.exports = (C) => {
   const phaseOf = s => Math.max(1, ...piecesOf(s).map(a => (a.ax && Number.isInteger(a.ax.phase) ? a.ax.phase : 1)));
   const isPiece = (s, uid) => { const c = cpOf(s); return !!c && Array.isArray(c.uids) && c.uids.includes(uid); };
   const standing = s => piecesOf(s).filter(a => !a.gone);
+  // The phase events' causes that enter no phase (reg/cp-guardian.js, reg/cp-ensemble.js).
+  const WITHIN = ['walked', 'left', 'inherited'];
   // The phase its health gives, from §8.10's words: CP_PHASE_PCT, % of its total health.
   function healthPhase(s) {
     let hp = 0, max = 0;
@@ -48,7 +53,17 @@ module.exports = (C) => {
         const list = piecesOf(post), k = phaseOf(post), was = placed(pre) ? phaseOf(pre) : 1;
         for (const a of list) if (a.ax.phase !== k) return `its pieces are in different phases: ${json(list.map(b => [b.uid, b.ax.phase]))}`;
         if (k < was) return `its phase went back from ${was} to ${k}`;
-        const told = events.filter(e => e.k === 'phase' && isPiece(post, e.who));
+        // A phase event that changes what it has within the phase it is in (the Composite's limbs,
+        // walked or left; a piece taking on a fallen one's special, inherited) enters no phase:
+        // its phase is the one it is in as it comes, and it is no phase entered.
+        const told = [];
+        let cur = was;
+        for (const e of events) {
+          if (e.k !== 'phase' || !isPiece(post, e.who)) continue;
+          if (e.cause && WITHIN.includes(e.cause.k)) { if (e.phase !== cur) return `its ${e.cause.k} phase event says phase ${e.phase} while it is in phase ${cur}`; continue; }
+          told.push(e);
+          cur = e.phase;
+        }
         const want = [];
         for (let p = was + 1; p <= k; p++) want.push(p);
         if (json(told.map(e => e.phase)) !== json(want)) return `it went from phase ${was} to ${k}, but the phase events say ${json(told.map(e => e.phase))}`;

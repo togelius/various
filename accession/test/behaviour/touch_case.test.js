@@ -60,10 +60,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('touch_case: every species with the trigger, at every depth, wakes at once, hunting you, when its case is opened, bashed or broken', () => {
     const list = H.species(C, 'touch_case');
     assert.ok(list.length >= 7, `${list.length} species and depths`);
+    // The case it is, as it is, is a mimic's: the Composite (M4 COMPOSITE-CORE), with the
+    // trigger, guards a case it is not, and its own scenarios touch that case as it stands
+    // (behaviour/completing_guardian.test.js).
+    const mimics = list.filter(x => x.sp.archetype === 'mimic_vitrine');
+    assert.ok(mimics.length >= 7 && list.every(x => x.sp.archetype === 'mimic_vitrine' || x.sp.archetype === 'completing_guardian'), json(list.map(x => x.sp.id)));
     for (const sc of scenarios) {
-      const results = H.sweep(C, sc, list);
+      const on = sc.build === asItIs ? mimics : list, results = H.sweep(C, sc, on);
       assert.equal(json(H.failures(results)), '[]');
-      assert.equal(results.length, list.length);
+      assert.equal(results.length, on.length);
     }
   });
 

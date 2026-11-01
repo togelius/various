@@ -123,11 +123,6 @@ Packs.add({
     { key: 'centre', name: 'The Day Curator’s Case', contents: [{ sp: 'S9.1', count: 2 }, { item: 'S9.11', case: true }] },
     { key: 'coda', name: 'The Night Staff’s Tea Room', contents: [] },
   ],
-  // The treasure case (D-ITEMS, BUILD.md §5.5): the hall's wall case holds the Lamp, its glass
-  // overridden to Security (3), never above the strongest glass the depth's mix holds, so
-  // Laminated at depths 1–2 (LTreasure.glass); lint-registry --report S9 lists it.
-  centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2, signature: 'S9.11', treasure: { case: { glass: 3 } },
-    name: 'The Composite, Assembled From the Round Books',
-    tomb: { maker: 'Mounted by the preparators from every description in Round Books 1–8 that matched no other specimen', date: 'After the Great Reshelving', medium: 'Hide, feathers, horn, wire, carved lime; parts added as descriptions were found', dims: 'H. 2.9 m', credit: 'Accessioned on the night staff’s report' },
-    paragraph: 'Reported in pieces. The preparators built it from the descriptions no other mount accounted for: a neck from Round Book 2, legs from Round Book 6, a tail from a note in a margin. They added each part as its description turned up in the galleries, and they do not believe it is finished. The night staff say it is more complete on nights when more of the court has been walked.' },
+  // The Centrepiece, the Composite, with its treasure case's glass, is the pack's centrepiece
+  // part (content/S9-cp.js; M4 COMPOSITE-CORE moved it there).
 });
