@@ -2,9 +2,10 @@
 // rules/archetypes.js), owned by ARCH-CLOCKWORK. Its registry entry is in js/core/reg/arch-d.js
 // and its sentences in js/core/text/arch-d.js.
 //
-// The rule, as its line says it ("Shows its next move as an arrow and makes it if it still can,
-// else waits; cannot be dazed.", M4 plan A11, D3.12; "else", not A11's "otherwise", to keep
-// M.11's stations' lines within the strip's budget):
+// The rule, as its line says it ("Makes the move its arrow shows if it still can, else waits;
+// cannot be dazed.", M4 plan A11, D3.12; fewer words than A11's "Shows its next move as an
+// arrow and makes it if it still can, otherwise waits", to keep M.11's stations' lines within
+// the strip's budget, MOD-WEATHER's review):
 //   - Its next move is shown (Archetypes.plan, this modifier's plan hook): the move it would
 //     make if it acted now, chosen right after each of its actions and when it wakes, and
 //     kept in a.plan (§4.1) until its next action. A move is one of:

@@ -1,6 +1,6 @@
 // ACCESSION — the clockwork modifier (BUILD.md §5.1, §5.3, §8.2; M4 plan A11, D3.12; ARCH-CLOCKWORK):
-// its line, "Shows its next move as an arrow and makes it if it still can, else waits; cannot be
-// dazed.", for every pack species with it (M.11's stations, M11.2 and M11.12, and A.4's
+// its line, "Makes the move its arrow shows if it still can, else waits; cannot be dazed.", for
+// every pack species with it (M.11's stations, M11.2 and M11.12, and A.4's
 // Countersigning Clerk, A4.5) at depths 1–7, joined up: the real core, real actions only, every
 // invariant checked after every step (arch-d.inv.js's clockwork.plan among them), clone-checked,
 // and rerun with clockwork switched off, which must fail (§5.3 check 3). Beside them, a planted

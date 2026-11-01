@@ -4,7 +4,7 @@
 // a line, written out again here from the clause, reading the state, the events and what the
 // exhibit's arrow showed you at your decision (Archetypes.plan: what the player is shown), never
 // the rule code's own bookkeeping:
-//   clockwork "Shows its next move as an arrow and makes it if it still can, else waits":
+//   clockwork "Makes the move its arrow shows if it still can, else waits":
 //     clockwork.plan, a clockwork exhibit's first action after your decision is the move its
 //     arrow showed you then, or a wait: its step onto the tile shown (or the door it opens
 //     there), its blow at the one shown, its special marked on the tiles shown, its mark going

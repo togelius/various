@@ -129,7 +129,8 @@ function model(C) {
   const numbers = lines => (lines.join(' ').match(/\d+/g) || []).map(Number);
   // The odds among a label's lines: all but a clockwork exhibit's plan line (above), which
   // may only be the last; one anywhere else, or two, throws.
-  const PLAN = /^(Its next move: |If the chime sounded now, it would mark its line: )/;
+  // (A station held fixed would mark nothing, MOD-WEATHER's review: its plan line says so.)
+  const PLAN = /^(Its next move: |If the chime sounded now, it would mark (its line: |nothing: it is fixed in place\.$))/;
   function odds(lines) {
     const at = lines.map((l, i) => PLAN.test(l) ? i : -1).filter(i => i >= 0);
     if (at.length > 1 || (at.length === 1 && at[0] !== lines.length - 1)) throw new Error(`a plan line not last, or more than one: ${JSON.stringify(lines)}`);

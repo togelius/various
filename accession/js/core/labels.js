@@ -265,6 +265,8 @@ const Labels = (() => {
     }
     if (p.k === 'resolve') return said(`its ${named(p.sp)} goes off`);
     if (p.k === 'line') {
+      // A station held fixed (rain, Fixative) neither wakes for its chime nor marks (§5.4).
+      if (Status.has(a, 'fixed')) return 'If the chime sounded now, it would mark nothing: it is fixed in place.';
       const dir = a.route && own(Clauses.COMPASS, a.route.dir) ? ` to the ${Clauses.COMPASS[a.route.dir]}` : '';
       return `If the chime sounded now, it would mark its line: ${Text.tiles(p.tiles.length)}${dir}.`;
     }

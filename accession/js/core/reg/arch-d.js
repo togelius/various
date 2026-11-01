@@ -34,15 +34,15 @@
     params: { SIGHT_EXHIBIT: 'N:SIGHT_EXHIBIT', CONSERVATOR_HEAL_PCT: 'N:CONSERVATOR_HEAL_PCT' }, covers: ['telegraphed', 'special', 'healed'] }, proved(HEALER)));
 
   // Clockwork (M4 plan A11, D3.12; R9's "does it if it still can, otherwise waits"): the move
-  // it shows is the one it makes, if it still can; else it waits. A station's arrow is its line
-  // (D1.10). "else waits", not A11's "otherwise waits": M.11's stations' lines, the longest
-  // with clockwork, then take 14 rows of the strip, its budget, not 15 (m4-lines). Rain on
-  // clockwork is weather_cases' rule (D1.3), on an exhibit flagged with that module (M.11's
-  // gallery station, not the Intro's); its part, set in this clause's slot, is empty (MOD-WEATHER,
-  // decided without play: the station's line has no room for it), so no line says anything of
-  // rain, and the rain's stop is told on the label of a case that holds rain (reg/mod-weather.js).
+  // it shows, as its arrow, is the one it makes, if it still can; else it waits. A station's
+  // arrow is its line (D1.10). "Makes the move its arrow shows … else waits", not A11's "Shows
+  // its next move as an arrow and makes it … otherwise waits", the same rule in fewer words, so
+  // that M.11's gallery station's line, the longest with clockwork, keeps the strip's 14 rows
+  // (m4-lines) with weather_cases' part on it ("Rain stops it.", D1.3: the rain's rule is that
+  // module's, a sentence of its own on the line of an exhibit flagged with it, which with
+  // clockwork switched off is still true; MOD-WEATHER's review, decided in play).
   R.define('MODIFIERS', 'clockwork', Object.assign({ icon: null,
-    clause: 'Shows its next move as an arrow and makes it if it still can, else waits{module:weather_cases|}; cannot be dazed.',
+    clause: 'Makes the move its arrow shows if it still can, else waits; cannot be dazed.',
     params: {}, covers: [] }, proved(CLOCKWORK)));
 
   // Healing by a restore (§4.3's healed): by the healer whose restore it was.
