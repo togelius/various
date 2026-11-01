@@ -245,6 +245,12 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
     if (!Object.prototype.hasOwnProperty.call(e.params, h)) bad(`${where}: {${h}} has no parameter`);
   }
   for (const name of keys(e.params)) if (!holes.includes(name)) bad(`${where}: the parameter ${name} is not in its clause`);
+  // A Centrepiece form's short sentence for its strip (`strip`, Clauses.strip; M4 FU1): a
+  // sentence of its own over the clause's parameters, read by the word rules below.
+  if (e.strip !== undefined) {
+    if (typeof e.strip !== 'string' || !/^[A-Z].*\.$/.test(e.strip)) bad(`${where}: its short sentence for the strip should be a sentence: ${JSON.stringify(e.strip)}`);
+    else for (const m of e.strip.matchAll(/\{([^}]*)\}/g)) if (!own(e.params, m[1])) bad(`${where}: {${m[1]}} in its short sentence for the strip has no parameter`);
+  }
   if (e.special && !R.SPECIALS[e.special]) bad(`${where} has the unknown special ${e.special}`);
   if (e.special && !holes.includes('special')) bad(`${where} has a special but no {special} in its clause`);
   for (const s of e.inflicts || []) { if (!R.STATUSES[s]) bad(`${where} inflicts the unknown status ${s}`); else if (!holes.includes('status:' + s)) bad(`${where} inflicts ${s} but has no {status:${s}} in its clause`); }
@@ -368,7 +374,7 @@ for (const t of R.TABLES) for (const id of R.order(t)) {
   const e = R[t][id], where = `${t}.${id}`;
   if (t === 'MODULES' && e.keywords !== undefined && !(Array.isArray(e.keywords) && e.keywords.every(k => typeof k === 'string' && /^[a-z][a-z ’'-]*[a-z]$/.test(k))))
     bad(`${where}: its keywords ${JSON.stringify(e.keywords)} are not a list of lower-case words`);
-  const templates = [typeof e.clause === 'string' ? unslotted(where, e.clause) : undefined, t === 'MODULES' ? e.sentence : undefined].filter(x => typeof x === 'string');
+  const templates = [typeof e.clause === 'string' ? unslotted(where, e.clause) : undefined, t === 'MODULES' ? e.sentence : undefined, e.strip].filter(x => typeof x === 'string');
   if (!templates.length || !readable(t, e, where)) continue;
   const text = templates.join(' '), bare = text.replace(/\{[^}]*\}/g, '');
   if (e.built === 'M4' && /[0-9]/.test(bare)) bad(`${where}: a digit outside {} in "${text}" (a number is a parameter, filled from its row)`);

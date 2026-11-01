@@ -419,12 +419,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     const K = core({ rec: { form: 'treasure', signature: undefined } });
     for (const d of DEPTHS) assert.match(K.X.Clauses.line(K.rec, { depth: d }), /Its second phase starts at 67% of its full health or less, its third at 34%, for good\. Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall\. /);
+    for (const d of DEPTHS) for (const k of [1, 2, 3]) assert.match(K.X.Clauses.strip(K.rec, { depth: d, phase: k }), new RegExp(`^Phase ${k} of 3\\. Killing it earns nothing: carry the Lamp out\\. `));
     assert.deepEqual(problems, []);
   });
 
   // ---- Its line and the burst ----
 
-  test('every Centrepiece\'s line says its form\'s rule (\'CLAUSES.cp_fight\' or \'CLAUSES.cp_treasure\'), after its archetype\'s, in every phase\'s strip; the burst (\'cp_burst\') reads its gross, and its readout names it with its tiles and its cadence', () => {
+  test('every Centrepiece\'s line says its form\'s rule (\'CLAUSES.cp_fight\' or \'CLAUSES.cp_treasure\'), after its archetype\'s, and every phase\'s strip its short sentence; the burst (\'cp_burst\') reads its gross, and its readout names it with its tiles and its cadence', () => {
     const C = loadCore(), R = C.Registry;
     for (const p of C.Packs.list()) for (const d of DEPTHS) {
       const parts = C.Clauses.of(p.centrepiece, { depth: d }), id = 'cp_' + p.centrepiece.form;
@@ -436,7 +437,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const line = X.Clauses.line(K.rec, { depth: d });
       assert.equal(line, `Walks a tile at a time and strikes from beside you for ${X.Roles.stats('centrepiece', d).dmin}–${X.Roles.stats('centrepiece', d).dmax}. Its second phase starts at 67% of its full health or less, its third at 34%, for good. Hunting you in its hall, it seals you in with it once no one stands in an opening. Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it. `
         + `Marks your tile and the tiles round it while it sees you, then strikes everything on them for ${g(d)} before Padding. From phase 2: marks the tiles round it for a turn, then strikes everything on them for ${X.Roles.at(X.N.ROLE_WARDEN_SPECIAL, d)} before Padding. Wakes when you stay inside your ring or make noise near it.`);
-      for (const k of [1, 2, 3]) assert.ok(X.Clauses.strip(K.rec, { depth: d, phase: k }).includes('Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it.'), `phase ${k}`);
+      // Its strip (FU1): in every phase, the phase, the form's short sentence, what that phase
+      // itself adds, and the rest on its label.
+      const own = [`Marks your tile and the tiles round it while it sees you, then strikes everything on them for ${g(d)} before Padding.`, `Marks the tiles round it for a turn, then strikes everything on them for ${X.Roles.at(X.N.ROLE_WARDEN_SPECIAL, d)} before Padding.`, null];
+      for (const k of [1, 2, 3]) assert.equal(X.Clauses.strip(K.rec, { depth: d, phase: k }), [`Phase ${k} of 3.`, 'Its fall earns the Certificate, unless you have it.', own[k - 1], 'Its label has the rest.'].filter(Boolean).join(' '), `phase ${k}`);
     }
     assert.equal(json([R.SPECIALS.cp_burst.shape, R.SPECIALS.cp_burst.curve, R.CLAUSES.cp_fight.covers, R.CLAUSES.cp_treasure.covers]), json(['burst', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', ['phase', 'stage', 'dropped', 'certificate'], ['phase']]));
     // Its readout, beside it while it hunts: the burst by name, where it strikes, and how often.

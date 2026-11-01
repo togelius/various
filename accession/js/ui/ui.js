@@ -43,7 +43,7 @@ const UI = (() => {
     ['a o c g t e d q r', 'The selected label\'s buttons, each showing its key: Attack or aim, Open, Close, Break the glass, Take (or Take off, Throw), Equip, Drop, Drink or Use, Read'],
     ['r', 'With no Read button: the nearest label'],
     ['Tab, Shift+Tab', 'Move between buttons; Enter or Space presses one'],
-    ['Arrows, Home, End', 'In the Bag, Settings or a sheet: move between its buttons; in "How the museum works", the floor plan or the laptop\'s log: scroll'],
+    ['Arrows, Home, End', 'In the Bag, Settings or a sheet: move between its buttons; in "How the museum works" or the floor plan, and in a long label or the laptop\'s log once Tab reaches it: scroll'],
     ['Backspace', 'Back, in the Bag'],
     ['i, m', 'The Bag, the floor plan; pressed again, closed'], ['1–6', 'Quickslots; on the Window Pole\'s sheet, its choices'],
     ['While aiming', 'Arrows or x move the mark; Enter does it there; Escape stops aiming'],
@@ -337,15 +337,26 @@ const UI = (() => {
       ${l.paragraph ? `<div class="para">${esc(l.paragraph)}</div>` : (l.far ? `<div class="para"><i>${esc(l.far)}</i></div>` : '')}
       <div class="acts">${(l.actions || []).map((a, i) => `<button class="btn" data-label-act="${esc(a.id)}" data-label-index="${i}"${keyAttrs(keys[i])}>${esc(a.text)}</button>`).join('')}<button class="btn" data-close>Close</button></div>
     </div>`;
-    if (had) {
-      const b = keep === 'close' ? els.sheet.querySelector('[data-close]') : keep && els.sheet.querySelector(`[data-label-act="${keep}"]`);
-      if (b) b.focus({ preventScroll: true }); else focusBoard();
-    }
     if (l.closeup) {
       const c = els.sheet.querySelector('.closeup'), img = Sprites.closeup(l.closeup.sprite, l.closeup.dept);
       if (img) { const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0); }
     }
     els.sheet.classList.add('open');
+    // A label longer than its panel (a Centrepiece's whole line, at the largest text) scrolls
+    // with every input (§7.1, §7.2): a swipe, the panel's own scrollbar for a mouse, and the
+    // keys, as the laptop's log does: while it holds more than it shows, Tab reaches the
+    // panel itself, and the arrows, Page Up and Down, Home, End and Space scroll it (input.js)
+    // and never step. Written again (each action), it keeps the focus.
+    scrolls(els.sheet, els.sheet.scrollHeight > els.sheet.clientHeight + 1, 'The label');
+    if (had && had !== els.sheet) {
+      const b = keep === 'close' ? els.sheet.querySelector('[data-close]') : keep && els.sheet.querySelector(`[data-label-act="${keep}"]`);
+      if (b) b.focus({ preventScroll: true }); else focusBoard();
+    } else if (had && !els.sheet.hasAttribute('tabindex')) focusBoard();
+  }
+  // A box that scrolls by the keys while it holds more than it shows (on), or not.
+  function scrolls(box, on, name) {
+    if (on) { box.tabIndex = 0; box.dataset.scrolls = ''; box.setAttribute('role', 'region'); box.setAttribute('aria-label', name); }
+    else { box.removeAttribute('tabindex'); delete box.dataset.scrolls; box.removeAttribute('role'); box.removeAttribute('aria-label'); }
   }
   // Closing empties the panel too, so on a laptop, where it stays on screen, no label with
   // dead buttons is left behind.
@@ -354,6 +365,7 @@ const UI = (() => {
     shown = null; current = null;
     els.sheet.classList.remove('open');
     els.sheet.innerHTML = EMPTY;
+    scrolls(els.sheet, false);
     if (had) focusBoard();
     if (was && handlers.closedLabel) handlers.closedLabel();
   }
