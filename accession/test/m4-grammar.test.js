@@ -505,12 +505,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     has(r, /T9's Intro places S9\.1 \('B'\), which is no species of its pack/);
     has(r, /T9's Intro holds a weather case \('c'\), but teaches only unobserved_motion/);
     hasNot(r, /T9\.3 \('a'\)/);
-    // The teaching instance may carry another module's flag besides the signature's (M.11's
-    // station, stopped by rain, which only a weather case brings and the Intro may not hold);
-    // an exhibit flagged with another module alone may not stand there.
-    r = lint(T9({ intro: { map: ['#####', '#dW.#', '#####'], legend: { d: { sp: 'T9.6' }, W: { sp: 'T9.5' } }, stretch: [], invariants: [] } }));
+    // Nor may the teaching instance carry another module's flag besides the signature's: its line
+    // would state that module's rule in the Intro (M.11's Intro has a station of its own,
+    // M11.12, flagged with the chime alone, for the stations' rain clause).
+    r = lint(T9({ intro: { map: ['#####', '#d..#', '#####'], legend: { d: { sp: 'T9.6' } }, stretch: [], invariants: [] } }));
     assert.equal(r.status, 1);
-    hasNot(r, /T9\.6/); has(r, /T9's Intro places T9\.5 \('W'\), flagged with alarm_network, but teaches only unobserved_motion/);
+    has(r, /T9's Intro places T9\.6 \('d'\), flagged with alarm_network, but teaches only unobserved_motion/);
+    hasNot(r, /flagged with unobserved_motion/);
     // A legend entry in a shape the rule did not foresee is read all the same: a species named
     // in any field, weather anywhere in it.
     r = lint(T9({ intro: { map: ['#####', '#Xy.#', '#####'], legend: { X: { exhibit: { of: 'T9.5' } }, y: { case: { holds: null, weather: 'rain' } } } } }));

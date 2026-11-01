@@ -28,6 +28,13 @@ Packs.add({
       name: 'Logbook Trolley, Self-Propelled',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Oak, iron; logbooks 14–22', dims: 'H. 96 cm', credit: 'Gift of the Retired Line Superintendent' },
       paragraph: 'The trolley carried the day’s logbooks from station to station so that every operator could sign them. Keepers report that it follows the nearest person at a steady walking pace, which on a busy day was the right speed and on a quiet night is not. Logbooks 14 to 22 are still aboard. They record nine years of signals and not one message. Please do not sign them.' },
+    // The First Landing's own station, which the Intro stamp alone places (content/M11-intro.js):
+    // M11.2's pattern, flagged with the signature alone, since the Intro teaches only its
+    // signature module (BUILD.md §5.1, §5.5); the Intro holds no weather case.
+    { id: 'M11.12', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period', flags: ['hourly_demonstration'],
+      name: 'Semaphore Station, First Landing',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable cabinet', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'The station on the landing by the door was where the Workshops trained their apprentices, who learned the timetable here before they were sent down the line. It is the same pattern as the stations beyond, but it stood indoors and dry all its life, and its timetable is kept in the cabinet in front of it. The apprentices learned to wait at the door. The trolley never did.' },
   ],
   // Items (§5.2, §8.5): the sample's equipment (design/samples.md §2.6), trimmed per §5.5.
   // Each keeps the sample's form (Balanced where the sample names none), and a primitive the

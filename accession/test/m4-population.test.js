@@ -278,18 +278,26 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(State.plainData(s), null, `${d.acc} seed ${d.seed}`);
       assert.equal(State.hash(State.clone(s)), State.hash(s));
     }
-    const fields = a => [a.uid, a.sp, a.x, a.y, a.group, a.route, a.guards, a.home];
+    // Every other actor is compared whole; the one removed keeps who and where it is, and is
+    // gone. (It is not compared whole: a removed exhibit gets no archetype init, so a removed
+    // warden guards nothing, where the one present guards its own tile.) Every exhibit is
+    // removed in turn, wardens, stations and patrols among them.
+    const fields = a => [a.uid, a.sp, a.x, a.y, a.group, a.route, a.guards, a.home, a.gone || 0];
     let removals = 0;
+    const kinds = new Set();
     for (const [acc, seed] of [['S9', 3], ['A4', 4], ['M11', 5]]) {
       const base = X.Dept.create(seed, acc, depthOf(seed));
-      for (const gone of exhibitsOf(base).filter((a, i) => i % 2 === 0)) {
-        const s = X.Dept.create(seed, acc, depthOf(seed), { without: [gone.uid] });
-        assert.equal(json(s.actors.map(fields)), json(base.actors.map(fields)), `${acc}: without ${gone.uid}`);
-        assert.equal(X.Actors.byUid(s, gone.uid).gone, 1);
+      for (const gone of exhibitsOf(base)) {
+        const s = X.Dept.create(seed, acc, depthOf(seed), { without: [gone.uid] }), rest = q => q.actors.filter(a => a.uid !== gone.uid).map(fields);
+        assert.equal(json(rest(s)), json(rest(base)), `${acc}: without ${gone.uid}`);
+        const g = X.Actors.byUid(s, gone.uid);
+        assert.equal(json([g.uid, g.sp, g.x, g.y, g.gone]), json([gone.uid, gone.sp, gone.x, gone.y, 1]), `${acc}: ${gone.uid} removed`);
+        kinds.add(gone.arch);
         removals++;
       }
     }
-    assert.ok(removals >= 10, `${removals} removals`);
+    assert.ok(removals >= 20, `${removals} removals`);
+    for (const k of ['tethered_warden', 'patrol_guard', 'demonstrator']) assert.ok(kinds.has(k), `no ${k} was removed`);
   });
 
   test('population is the same under any module switched off: the same exhibits, tiles, groups, routes, cases and items', () => {

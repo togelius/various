@@ -59,11 +59,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // A package that changes a department's start on purpose re-pins these with its reason, as
   // it does the golden runs. Re-pinned by D-INTRO-GEN: layout version 3 grows the Intro to its
   // stamp, so every department's plan, and so its start, moves. Re-pinned by D-STAMPS: each
-  // pack's own stamp (content/*-intro.js) is now its Intro, so every department's plan moves.
-  // A module's state is M4's own (dept.modules, each module as its file defines it: S.9's
-  // alarm_network since MOD-ALARM), so it is left out of the hash and checked apart: the
-  // pack's modules defined so far, in pack order, each on.
-  const M3_START = { 'S9/2': 625162344, 'S9/5': 2684081107, 'A4/2': 1033732929, 'A4/5': 1021234286, 'M11/2': 4263557361, 'M11/5': 373938249 };
+  // pack's own stamp (content/*-intro.js) is now its Intro, so every department's plan moves;
+  // and M.11's again at its review, for the cabinet before its Intro's station. A module's
+  // state is M4's own (dept.modules, each module as its file defines it: S.9's alarm_network
+  // since MOD-ALARM), so it is left out of the hash and checked apart: the pack's modules
+  // defined so far, in pack order, each on.
+  const M3_START = { 'S9/2': 625162344, 'S9/5': 2684081107, 'A4/2': 1033732929, 'A4/5': 1021234286, 'M11/2': 1431932137, 'M11/5': 264312945 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
