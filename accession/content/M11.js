@@ -65,7 +65,7 @@ Packs.add({
     { id: 'M11.10', kind: 'instrument', instrument: 'pin_driver', prims: [{ id: 'acc', cls: 'M' }],
       name: 'The Line Superintendent’s Pocket Heliograph',
       tomb: { maker: 'Made for the First Line Superintendent', date: 'Before the Second Calibration', medium: 'Silvered glass, nickel case; lid engraved with the timetable', dims: 'Diam. 7 cm', credit: 'Gift of the Retired Line Superintendent' },
-      paragraph: 'The Superintendent carried this on the walk down the line, flashing each station in turn and noting the reply. Snapped open, it throws a hard, bright bolt at whatever it is aimed at, and whoever carries it finds their aim a little surer, as the Superintendent’s was. The timetable engraved on the lid is the original. It has never been correct.' },
+      paragraph: 'The Superintendent carried this on the walk down the line, flashing each station in turn and noting the reply. Snapped open, it throws a hard, bright bolt at whatever it is aimed at, and whoever wears it finds their aim a little surer, as the Superintendent’s was. The timetable engraved on the lid is the original. It has never been correct.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
@@ -98,7 +98,7 @@ Packs.add({
   //     Signal Lamp. The sample's two Heliographs stand at the ends of the axis: one in each
   //     axis room, so a fog case can break an axis where the weather is, and so neither stands
   //     often at the west end of s1, whose axis runs along the entrance row into the Intro's
-  //     doorway once its door is open (28 of 700 departments with both in s1, 13 with one,
+  //     doorway once its door is open (23 of 700 departments with both in s1, 11 with one,
   //     every M4 archetype ready; D-LV6 decides whether an axis counts).
   //   - The Logbook Room (the samples' study room) joins the last section (s3): the Signal
   //     Flag. The Logbook Trolley and the Apron stay the Orientation's (M11.5, M11.7).

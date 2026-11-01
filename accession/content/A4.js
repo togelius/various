@@ -23,7 +23,7 @@ Packs.add({
     { id: 'A4.3', sprite: 'copying_bell', archetype: 'herald', role: 'support', modifiers: [], trigger: null,
       name: 'Copying-Room Bell',
       tomb: { maker: 'Supplied to the Ordinance Office', date: 'During the Duplicate Ordinance', medium: 'Bell metal on a cast-iron stand', dims: 'H. 140 cm', credit: 'Transferred from the Ordinance Office' },
-      paragraph: 'The bell was rung whenever a spare was found to be without a spare of its own, and the whole Office stood up. It still rings at the sight of anyone it does not know, and nobody in the Copying Room has ever slept through it.' },
+      paragraph: 'The bell was rung whenever a spare was found to be without a spare of its own, and the whole Office stood up. It still rings at the sight of anyone it does not know, and nobody standing near it has ever slept through it.' },
     { id: 'A4.4', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['marble'], trigger: 'ally_hit', group: 'trustees',
       name: 'Bust of the Proposing Trustee',
       tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
@@ -45,8 +45,12 @@ Packs.add({
   // without L+, perception(M), as Acc(M). The Stamp Moistener is cut: its effect,
   // bolt(water, S), is worth 1, and each instrument the slice has is worth 2.
   // The Repealing Pen (A4.11) is the Signature piece (M4 plan D2.9): the sample's
-  // strike_kind(edge, S), breaker and surprise_bonus(S), 4, as Light {dmg S, breaker, acc S},
-  // 4; the slice has no plaster or paper bonus, so its paragraph names only glass. The
+  // strike_kind(edge, S), breaker and surprise_bonus(S), 4. Its strike_kind(edge, S) makes it
+  // Light, and a Light weapon breaks only Plate glass, which one bash breaks anyway, so the
+  // slice's breaker could do nothing on it (§8.3: breaker never lets a Light weapon break
+  // Laminated or Security glass). So it takes the sample's own fallback without breaker,
+  // strike_kind(edge, S) and surprise_bonus(L), as the Register takes its own: Light
+  // {dmg S, acc L}, 4. Its paragraph says only that: no glass, plaster or paper. The
   // Centrepiece names it (`signature`), so no stand-in places it as loot.
   items: [
     { id: 'A4.6', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'reach', cls: 'M' }],
@@ -65,10 +69,10 @@ Packs.add({
       name: 'Register of Certified Spares, Volume II',
       tomb: { maker: 'Ordinance Office registry', date: 'During the Duplicate Ordinance', medium: 'Paper, bound in green cloth; Volume I missing, its spare also missing', dims: 'H. 34 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'Every original issued under the Ordinance, with every spare made of it, the date, the material, and the clerk responsible. Its readers learned to look for the one detail that tells an original from its spare, and the habit of looking hard stayed with them. The Office considered a forgery and a spare two different things.' },
-    { id: 'A4.11', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'breaker', cls: 'M' }, { id: 'acc', cls: 'S' }],
+    { id: 'A4.11', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'acc', cls: 'L' }],
       name: 'The Repealing Pen',
       tomb: { maker: 'Borrowed from the Ordinance Office counter', date: 'Used once, at the Repeal, after the Second Inventory', medium: 'Steel nib, ebonised holder', dims: 'L. 17 cm', credit: 'Transferred from the Ordinance Office' },
-      paragraph: 'The Trustees signed the Repeal with a pen borrowed from the Office’s own counter, and returned it with a note forbidding any copy to be made. It is light and sharp, a little surer of its mark than a clerk’s hand, and it goes through the glass of a case with less fuss than anything else on the counter. The Office made a spare anyway. The spare is missing.' },
+      paragraph: 'The Trustees signed the Repeal with a pen borrowed from the Office’s own counter, and returned it with a note forbidding any copy to be made. It is light and sharp, and it finds its mark far more surely than a clerk’s hand ever did. The Office made a spare anyway. The spare is missing.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are

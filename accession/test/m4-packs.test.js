@@ -55,6 +55,19 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     A4: { s1: { 'A4.1': 1, 'A4.1a': 3, 'A4.4': 1, 'A4.4a': 2, 'A4.5': 1 }, s2: { 'A4.2': 2, 'A4.3': 1 }, stamp: { 'A4.1': 1, 'A4.1a': 2 } },
     M11: { s1: { 'M11.1': 1, 'M11.3': 1 }, s2: { 'M11.2': 1, 'M11.4': 1, 'M11.1': 1, 'M11.3': 1 }, stamp: { 'M11.12': 1, 'M11.5': 1 } },
   };
+  // And each section's entries as written, with what each asks of its place (an empty case,
+  // a tile beside a case, a case to guard), and its items, in order: an exhibit's or item's
+  // place is part of what the sample says of it (design/samples.md: the originals in their
+  // bays' end cases, the Brooder with its nest and Round Book 9 inside, the Date Stamp in a
+  // case, the Lamp in its case), so a lost `case` or `guards` is a change of the list.
+  const ENTRIES = {
+    S9: { s1: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { item: 'S9.7', case: true }],
+      s2: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { sp: 'S9.2', count: 2 }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }],
+      last: [], centre: [{ sp: 'S9.1', count: 2 }, { item: 'S9.11', case: true }] },
+    A4: { s1: [{ sp: 'A4.1', case: true }, { sp: 'A4.1a', count: 3 }, { sp: 'A4.4', case: true }, { sp: 'A4.4a', count: 2 }, { sp: 'A4.5' }],
+      s2: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3' }, { item: 'A4.6', case: true }], last: [{ item: 'A4.10' }], centre: [] },
+    M11: { s1: [{ sp: 'M11.1' }, { sp: 'M11.3' }], s2: [{ sp: 'M11.2' }, { sp: 'M11.4' }, { sp: 'M11.1' }, { sp: 'M11.3' }], last: [{ item: 'M11.9' }], centre: [] },
+  };
   const SIGNATURE = { S9: 'S9.11', A4: 'A4.11', M11: 'M11.10' };
   const countsOf = contents => { const o = {}; for (const e of contents) if (e.sp !== undefined) o[e.sp] = (o[e.sp] || 0) + (e.count === undefined ? 1 : e.count); return o; };
   const stampOf = pack => { const o = {}; for (const ch of Object.keys(pack.intro.legend).sort()) { const e = pack.intro.legend[ch]; if (e.sp) o[e.sp] = (o[e.sp] || 0) + pack.intro.map.reduce((k, r) => k + r.slice(1).split(ch).length - 1, 0); } return o; };
@@ -68,6 +81,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       for (const g of p.galleries) {
         const want = EXHIBITS[acc][g.key] || {};
         assert.equal(json(sortObj(countsOf(g.contents))), json(sortObj(want)), `${acc} ${g.key}: its exhibits`);
+        if (ENTRIES[acc][g.key]) assert.equal(json(g.contents), json(ENTRIES[acc][g.key]), `${acc} ${g.key}: its entries`);
       }
       // The Intro's exhibits are its stamp's (its gallery lists none, since a pack's own stamp
       // places them, BUILD.md §5.5).
@@ -146,17 +160,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- The Signature pieces (D2.9) ----
 
-  test('each Centrepiece names its Signature piece, and each is what D2.9 makes it: the Lamp observing, the Pen Light with breaker, the Pocket Heliograph a Pin-Driver with Acc', () => {
+  test('each Centrepiece names its Signature piece, and each is what D2.9 makes it: the Lamp observing, the Pen Light with Acc, the Pocket Heliograph a Pin-Driver with Acc', () => {
     const rec = (acc, id) => Packs.get(acc).items.find(it => it.id === id);
     for (const acc of ACCS) assert.equal(Packs.get(acc).centrepiece.signature, SIGNATURE[acc], acc);
     assert.equal(json(['curio', rec('S9', 'S9.11').prims]), json([rec('S9', 'S9.11').kind, [{ id: 'observing', cls: 'L' }]]));
-    assert.equal(json(['weapon', 'light', rec('A4', 'A4.11').prims.map(p => p.id + ':' + p.cls)]), json([rec('A4', 'A4.11').kind, rec('A4', 'A4.11').form, ['dmg:S', 'breaker:M', 'acc:S']]));
+    // The Pen is Light (its sample's strike_kind(edge, S)), so it takes its sample's fallback
+    // without breaker, which could do nothing on a Light weapon (§8.3): Acc L for
+    // surprise_bonus(L).
+    assert.equal(json(['weapon', 'light', rec('A4', 'A4.11').prims.map(p => p.id + ':' + p.cls)]), json([rec('A4', 'A4.11').kind, rec('A4', 'A4.11').form, ['dmg:S', 'acc:L']]));
     assert.equal(json(['instrument', 'pin_driver', rec('M11', 'M11.10').prims]), json([rec('M11', 'M11.10').kind, rec('M11', 'M11.10').instrument, [{ id: 'acc', cls: 'M' }]]));
     // Worn as a single visit's carry, each reads cleanly and does what it says.
     for (const [acc, ref, slot] of [['S9', 'S9.11', 'curio0'], ['A4', 'A4.11', 'weapon'], ['M11', 'M11.10', 'instrument']]) for (const depth of [1, 4, 7]) {
       const s = Dept.create(2, acc, depth, { carry: { items: [{ ref, slot }] } }), d = Kit.describe(s, 'you.c1'), base = Dept.create(2, acc, depth), you = s.actors[0];
       assert.ok(d && d.title === rec(acc, ref).name && !/undefined|NaN|\[object/.test(json(d)), `${ref} d${depth}: ${json(d)}`);
-      if (ref === 'A4.11') assert.equal(json([you.weaponForm, you.breaker]), json(['light', N.BREAKER_BASHES]), ref);
+      if (ref === 'A4.11') assert.equal(json([you.weaponForm, you.breaker, d.bonuses.map(b => `${b.id}:${b.n}`)]), json(['light', 0, [`dmg:${N.BONUS_DMG[0]}`, `acc:${N.BONUS_ACC[2]}`]]), ref);
       if (ref === 'M11.10') assert.equal(you.acc, base.actors[0].acc + N.BONUS_ACC[1], `${ref}: Acc M on top`);
     }
     // The Lamp, taken hooded: lit by use, hooded by use again.
@@ -178,6 +195,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const acc of ACCS) assert.ok(placed(X, acc) > 0, `${acc}: the stand-in never drew it`);
   });
 
+  // The stand-in's second rule (BUILD.md §8.5): no item goes into a case an exhibit stands
+  // in, a removed one included, so removing an exhibit a gallery stands in a case (`without`,
+  // as paired runs do) moves no item: its case is still no place for one, and every room's
+  // places, and so every draw among them, stay as they were.
+  test('removing an exhibit that stands in a case moves no item: the stand-in counts its case as taken all the same', () => {
+    let removals = 0;
+    for (const seed of [1, 2]) {
+      const base = Dept.create(seed, 'A4', depthOf(seed));
+      for (const a of base.actors.filter(q => q.uid !== 'you' && C.Cases.at(base, q.x, q.y) && C.Cases.at(base, q.x, q.y).mimic === null)) {
+        const s = Dept.create(seed, 'A4', depthOf(seed), { without: [a.uid] });
+        assert.equal(json(s.items), json(base.items), `A4 seed ${seed}: without ${a.uid} (${a.sp}, in its case)`);
+        removals++;
+      }
+    }
+    assert.equal(removals, 4, 'each seed\'s two originals in their cases');
+  });
+
   // ---- The paragraph lint of placement (plan D5.5, R26: "a placement claim only where
   // population keeps it") ----
 
@@ -191,9 +225,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     'A4.4': ['under glass'], // "kept under glass": its gallery stands it in a case, and the maze always has one empty (the sweep)
     'M11.12': ['in the cabinet', 'in front of it'], // "kept in the cabinet in front of it": the stamp's low cabinet on its line's first tile (the sweep)
   };
+  // A gallery named as a place ("in the Copying Room"): its name as the pack spells it, after
+  // in, at, into or inside. A.4.3's bell said "nobody in the Copying Room has ever slept
+  // through it", and its call reaches HERALD_RANGE tiles, short of most of the band room it
+  // stands in (199 of 210 A.4 departments, seeds 1–30, had an exhibit there out of its reach).
+  const NAMED = new RegExp(`\\b(in|at|into|inside) the (${Packs.list().flatMap(p => p.galleries.map(g => g.name.replace(/^The /, ''))).join('|')})\\b`);
   function claims(text) {
     const out = [];
     for (const re of PLACEMENT) { const m = re.exec(text); if (m) out.push(m[0].toLowerCase()); }
+    const g = NAMED.exec(text);
+    if (g) out.push(g[0].toLowerCase());
     return out;
   }
   test('the paragraph lint: a paragraph says where its exhibit or item stands only where population keeps it, and the sweep checks each such claim', () => {
@@ -206,7 +247,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const [text, want] of [['Spare (a) of three. For the original, see the case at the end of this row.', 'see the case'],
       ['The overshoes are in the case by the north lectern.', 'in the case'], ['The case on the east wall holds tools.', 'on the east wall'],
       ['Between chimes the station travels its short rail at the side of the gallery and waits.', 'travels its short rail'],
-      ['It keeps the same round, pausing at the same lecterns.', 'pausing at'], ['The original sat behind glass.', 'behind glass']]) {
+      ['It keeps the same round, pausing at the same lecterns.', 'pausing at'], ['The original sat behind glass.', 'behind glass'],
+      ['It still rings, and nobody in the Copying Room has ever slept through it.', 'in the copying room']]) {
       assert.ok(claims(text).includes(want), `${text}: ${json(claims(text))}`);
     }
     // And the sweep's check holds the two claims: A.4.4 out of its case, and M.11.12 with no

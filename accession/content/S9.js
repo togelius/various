@@ -96,20 +96,20 @@ Packs.add({
   //     Overshoes' case is the floor where none is left.
   //   - The Brooders' Bay (the band room, which has 6–16 cases): the Brooder first, so it has
   //     the first pick of a case to guard (its nest, Round Book 9 inside, when one passes the
-  //     take rule: 59% of S.9 departments, 416 of 700, where the court has no case and the
+  //     take rule: 60% of S.9 departments, 420 of 700, where the court has no case and the
   //     coda's pass in 1 of 700; the Lamp Corridor's south cabinets keep its tether, which
   //     needs no sight, out of the safe zone beyond the band room's north wall); the Tortoise
   //     beside a real case, among the cases (DE6); both Waders, on the band room's round; and
   //     the preparators' tools.
   //     The Waders walk the band room, not the court: the court opens onto the Intro along
   //     the entrance row, and a Wader on the court's round sees the Intro's partition doorway,
-  //     which is in the safe zone, once its door is open (16 of 100 departments with one in
+  //     which is in the safe zone, once its door is open (20 of seeds 1–100 with one in
   //     the court; 0 of 700 with both here, doors shut or open).
   //   - The Round-Book Room (the samples' study room) joins the last section: nothing in it is
   //     an exhibit or an item of the slice.
-  //   - The Day Curator's Case (the hall): two Grazers flanking the Lamp's case (the Lamp, the
-  //     Signature piece, in a case: D-ITEMS' treasure case); the Composite is placed by its
-  //     own rule.
+  //   - The Day Curator's Case (the hall): two Grazers, wherever the hall's rules let them
+  //     stand, and the Lamp's case (the Lamp, the Signature piece, in a case: D-ITEMS'
+  //     treasure case); the Composite is placed by its own rule.
   // Item entries are the item placement's (D-ITEMS); `case: true` puts one in an empty case
   // of its room, or on its floor when none is left.
   galleries: [

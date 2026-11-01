@@ -229,9 +229,11 @@ module.exports = ({ test, assert, loadCore }) => {
   // a primitive the slice lacks becomes one it has, of the same budget, and the form stays
   // the sample's, so a flag never becomes a form. The Signature pieces (M4, plan D2.9) are
   // trimmed the same way, last in each list: the Pen's strike_kind(edge, S), breaker and
-  // surprise_bonus(S) as Light {dmg S, breaker, acc S}, 4; the Pocket Heliograph's
-  // bolt(light, L) and flash(S) as a Pin-Driver with Acc(M), 4. The Lamp's toggled light is
-  // a rule of its own, `observing` (§5.5), which has no size and no price.
+  // surprise_bonus(S) make it Light, on which breaker does nothing (§8.3), so it takes the
+  // sample's own fallback without breaker, strike_kind(edge, S) and surprise_bonus(L), as
+  // Light {dmg S, acc L}, 4; the Pocket Heliograph's bolt(light, L) and flash(S) as a
+  // Pin-Driver with Acc(M), 4. The Lamp's toggled light is a rule of its own, `observing`
+  // (§5.5), which has no size and no price.
   const SAMPLES = {
     S9: { kept: { 'S9.7': 2, 'S9.8': 2, 'S9.9': 2, 'S9.10': 3 }, forms: { 'S9.8': 'light' }, cut: [], signature: 'S9.11' },
     A4: { kept: { 'A4.6': 3, 'A4.7': 3, 'A4.8': 2, 'A4.10': 2, 'A4.11': 4 }, forms: { 'A4.6': 'light', 'A4.7': 'heavy', 'A4.11': 'light' }, cut: ['A4.9'], signature: 'A4.11' },
@@ -268,10 +270,16 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(item('M11.6').instrument, 'pin_driver', 'the Hand Lamp: its bolt is the Pin-Driver\'s');
     assert.equal(prims('M11.7'), json(['pad:M']), 'the Apron: armour and resist(light) become Padding');
     assert.equal(prims('M11.9'), json(['dmg:M', 'reach:M']), 'the Signal Flag keeps its reach flag, which the slice has');
-    assert.equal(prims('A4.11'), json(['dmg:S', 'breaker:M', 'acc:S']), 'the Pen: edge is damage, breaker kept, surprise_bonus becomes Acc');
+    assert.equal(prims('A4.11'), json(['dmg:S', 'acc:L']), 'the Pen: the sample\'s fallback without breaker, edge as damage and surprise_bonus(L) as Acc');
     assert.equal(json([item('M11.10').instrument, prims('M11.10')]), json(['pin_driver', json(['acc:M'])]), 'the Pocket Heliograph: its bolt is the Pin-Driver\'s, its flash becomes Acc');
     // No pack weapon takes the Reach form: each sample weapon's form is Light, Heavy or none.
     assert.ok(packs.every(p => p.items.every(it => it.form !== 'reach')), 'a flag never becomes the Reach form');
+    // And no item carries a primitive that can do nothing on it: breaker on a Light weapon
+    // (§8.3: a Light weapon breaks only Plate glass, which one bash breaks anyway, and breaker
+    // never lets it break Laminated or Security glass), as the Pen's sample would have it.
+    const dead = it => it.kind === 'weapon' && it.form === 'light' && it.prims.some(pr => pr.id === 'breaker');
+    for (const p of packs) for (const it of p.items) assert.ok(!dead(it), `${it.id}: breaker on a Light weapon does nothing`);
+    assert.ok(dead({ kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'breaker', cls: 'M' }] }), 'the check sees the Pen as its sample has it');
   });
 
   test('an item\'s paragraph is at most 70 words and says no more than its item does', () => {
@@ -303,14 +311,19 @@ module.exports = ({ test, assert, loadCore }) => {
     none('S9.8', /\balways\b|never miss/i, 'never misses');
     // The Signature pieces: the Lamp lit keeps exhibits near you seen even out of sight, and
     // makes you easier to notice (its ring); it names no case or hall, since you may carry it
-    // anywhere. The Pen names glass only (no plaster or paper bonus in the slice). The
-    // Heliograph makes no one drop anything (no flash).
+    // anywhere. The Pen claims no glass, plaster or paper (a Light weapon breaks only Plate
+    // glass, as any weapon does, §8.3). The Heliograph makes no one drop anything (no flash).
     says('S9.11', /round a corner|out of sight/i, 'says a lit Lamp sees round corners');
     says('S9.11', /easier to notice/i, 'says a lit Lamp gives you away');
     none('S9.11', /\bcase\b|\bhall\b|wide enough to keep a court/i, 'names its place or overstates its reach');
-    none('A4.11', /plaster|paper/i, 'claims a bonus the slice lacks');
-    says('A4.11', /glass/i, 'says breaker');
+    none('A4.11', /plaster|paper|glass/i, 'claims a bonus the slice lacks');
+    says('A4.11', /surely|surer/i, 'says its Acc');
     none('M11.10', /drop|dazed|blind/i, 'flashes');
+    // A bonus counts only while its item is worn (Kit.derive: your weapon, garment, curios
+    // and instrument), never while it is carried in your tote, so no paragraph ties one to
+    // whoever carries the item (the Pocket Heliograph said "whoever carries it").
+    for (const p of packs) for (const it of p.items) none(it.id, /\b(whoever|anyone who|those who) carr(y|ies)\b/i, 'gives its bonus to whoever carries it');
+    assert.ok(/\b(whoever|anyone who|those who) carr(y|ies)\b/i.test('whoever carries it finds their aim a little surer'), 'the check sees the old paragraph');
   });
 
   test('ids are unique: every species, Centrepiece and item across the packs and the shared species', () => {

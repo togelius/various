@@ -30,7 +30,7 @@
 //   no tile of the safe zone lies against the Intro's south wall: the band room beyond that
 //   wall runs the length of the court, and the Brooder may guard a case on its north wall,
 //   whose tether (TETHER_RANGE, which needs no sight) would otherwise reach the vestibule's
-//   last row through the wall, in 89 of 700 S.9 departments (D-PACKS).
+//   last row through the wall, in 82 of 700 S.9 departments (D-PACKS).
 // - near('g', 3): every walk from the entrance to an onward opening passes within 3 tiles of the
 //   Grazer (it passes the door), which LV4 checks on every plan.
 // The floor lamp of the sample is left out: the slice has no light (§5.5).
