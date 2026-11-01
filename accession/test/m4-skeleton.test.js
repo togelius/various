@@ -149,7 +149,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('a planted change to an export\'s neutral result, its arity, its purity or its stub\'s comment is caught', () => {
     const X = loadCore();
-    X.Progress.award = function award(state, how, cause, ev) { return true; };
+    // A keep row (Progress.award is a stub row its package has filled, so only its arity is held).
+    X.Progress.cert = function cert(state) { return { how: 'view', turn: 0 }; };
     X.Hall.inside = (state, x) => false;
     X.Perks.ringDelta = state => 1;
     X.Viewing.apply = (state, action, ev) => { state.turn = 5; return 'no_centrepiece'; };
@@ -166,7 +167,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       return lines.join('\n');
     };
     const got = check(X, unnamed).out;
-    for (const want of ['Progress.award on a fresh test room gives true, not false', 'Hall.inside takes 2 arguments, not 3', 'Perks.ringDelta on a fresh test room gives 1, not 0',
+    for (const want of ['Progress.cert on a fresh test room gives {"how":"view","turn":0}, not null', 'Hall.inside takes 2 arguments, not 3', 'Perks.ringDelta on a fresh test room gives 1, not 0',
       'Viewing.apply changed the test room', 'Hall.onDefeat emitted', 'Labels.ofSheet is missing'].concat(stubbed ? [`${stubbed[0]}: the stub`] : [])) assert.ok(got.some(l => l.startsWith(want)), `not caught: ${want}\n${got.join('\n')}`);
     assert.ok(!got.some(l => l.startsWith('Modules.init')), 'a neutral replacement passes');
     // A filled stub (its line gone from its file) keeps only its arity here.
