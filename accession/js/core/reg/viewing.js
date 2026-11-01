@@ -23,7 +23,9 @@
   R.define('REFUSALS', 'not_at_lectern', refusal());
   R.define('REFUSALS', 'not_asleep', refusal());
   // The dust sheet's refusal (rules/viewing.js's refuser): with the Centrepiece under its sheet,
-  // a view, a blow at a piece it covers, a step into a tile under it, an instrument aimed at one.
+  // a view, a blow at a piece it covers, a step into a tile under it, an instrument aimed at one
+  // (a Solution thrown onto it is not refused: its square reaches whoever stands in it, and no
+  // piece under the sheet).
   R.define('REFUSALS', 'sheeted', refusal());
 
   // A turn of viewing (§8.7): who viewed (you), the Centrepiece viewed (of: its first piece) and
@@ -39,7 +41,7 @@
   // The dust sheet (§4.1, §8.7): a fixture on each tile of the Centrepiece's footprint once a
   // view is complete, which is low furniture.
   R.define('FIXTURES', 'sheet', proved({ icon: null, covers: [], params: {},
-    clause: 'The Centrepiece is under its dust sheet for the night: it no longer wakes, moves or fights, and it cannot be viewed, struck or stepped onto.' }));
+    clause: 'The Centrepiece is under its dust sheet for the night: it no longer wakes, moves or fights, and you cannot view it, strike it, step onto it or aim an instrument at it.' }));
 
   // What your ring does from the reading tile (§8.2, §8.7, D4.18; R9), the last of the lectern's
   // words, as you are now: ring is the ring you would have viewing there (Viewing.ring: your
@@ -50,7 +52,7 @@
   R.define('CLAUSES', 'lectern_ring_reach', proved({ icon: null, covers: ['pip'], params: { ring: RING.ring },
     clause: 'Standing on the reading tile, your ring ({ring}) reaches the Centrepiece, so each turn of viewing adds a pip to it.' }));
   R.define('CLAUSES', 'lectern_ring_lamp', proved({ icon: null, covers: ['pip'], params: RING,
-    clause: 'Standing on the reading tile, your ring ({ring}) does not reach the Centrepiece; a lit Lamp adds {lamp} to it, and then it does, so each turn of viewing adds a pip to it.' }));
+    clause: 'Standing on the reading tile, your ring ({ring}) does not reach the Centrepiece, so viewing adds no pips to it; a lit Lamp makes your ring {lamp} larger, enough to reach the Centrepiece, and then each turn of viewing adds a pip.' }));
   R.define('CLAUSES', 'lectern_ring_short', proved({ icon: null, covers: [], params: { ring: RING.ring },
     clause: 'Standing on the reading tile, your ring ({ring}) does not reach the Centrepiece, so viewing adds no pips to it.' }));
 })();

@@ -93,7 +93,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(T.refusal('already_earned'), 'You have this department’s Certificate already, and a visit gives only one: viewing cannot earn another.');
     assert.equal(T.refusal('not_at_lectern'), 'You can view the Centrepiece only from the reading tile beside its lectern.');
     assert.equal(T.refusal('not_asleep'), 'You can view the Centrepiece only while it sleeps, every piece of it, and it is not asleep now.');
-    assert.equal(T.refusal('sheeted'), 'The Centrepiece is under its dust sheet for the night: it cannot be viewed, struck or stepped onto.');
+    assert.equal(T.refusal('sheeted'), 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it.');
     // Awake and off the reading tile: the tile first, since walking there is the first thing to do.
     let { X: Y, s } = hall(3, { pips: 2, you: [8, 4] });
     H.play(Y, s, [W(6), W(7)], { inv: false });

@@ -97,7 +97,7 @@ module.exports = ({ test, assert, loadCore }) => {
       // Each view told, with the count still to come.
       for (let n = 1; n <= 3; n++) {
         const e = r.steps[n].events.find(x => x.k === 'viewed'), left = 4 - n;
-        const want = `You viewed the Test Centrepiece: ${n} of 4 turns. ${left} more ${left === 1 ? 'turn' : 'turns'} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} its Certificate.${n === 1 ? ' Any other action that takes time starts the count again, and so does its waking.' : ''}`;
+        const want = `You viewed the Test Centrepiece: ${n} of 4 turns. ${left} more ${left === 1 ? 'turn' : 'turns'} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.${n === 1 ? ' Any other action that takes time starts the count again, and so does its waking.' : ''}`;
         if (say(X, s, e) !== want) problems.push(`${tag}: view ${n} reads ${json(say(X, s, e))}`);
         if (!X.Text.log(r.steps[n].events, names(X, s)).includes(want)) problems.push(`${tag}: view ${n} is not in the log`);
         if (e.of !== uids[0] || e.who !== 'you' || e.cause.k !== 'view') problems.push(`${tag}: view ${n} is ${json(e)}`);
@@ -133,7 +133,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.ok(X.Viewing.sheeted(s) && X.Progress.cert(s), `at ${turns}: no sheet or Certificate`);
       const done = r.events.find(e => e.k === 'viewed' && e.n === turns);
       assert.equal(say(X, s, done), `You viewed the Test Centrepiece: ${turns} of ${turns === 1 ? '1 turn' : `${turns} turns`}. The view is complete: a dust sheet now covers it for the night, and it will neither wake nor fight.`);
-      if (turns === 2) assert.equal(say(X, s, r.events.find(e => e.k === 'viewed' && e.n === 1)), 'You viewed the Test Centrepiece: 1 of 2 turns. 1 more turn of viewing in a row while it sleeps earns its Certificate. Any other action that takes time starts the count again, and so does its waking.');
+      if (turns === 2) assert.equal(say(X, s, r.events.find(e => e.k === 'viewed' && e.n === 1)), 'You viewed the Test Centrepiece: 1 of 2 turns. 1 more turn of viewing in a row while it sleeps earns the Certificate. Any other action that takes time starts the count again, and so does its waking.');
     }
   });
 
@@ -183,7 +183,7 @@ module.exports = ({ test, assert, loadCore }) => {
       const K = core(), X = K.X, s = room(K, depth, { items: [LAMP] }), tag = `d${depth}`;
       const words = () => X.Viewing.words(s);
       const hooded = X.Clauses.fill(X.Registry.CLAUSES.lectern_ring_lamp.clause, { ring: 2, lamp: 1 });
-      if (hooded !== 'Standing on the reading tile, your ring (2) does not reach the Centrepiece; a lit Lamp adds 1 to it, and then it does, so each turn of viewing adds a pip to it.') problems.push(`${tag}: ${hooded}`);
+      if (hooded !== 'Standing on the reading tile, your ring (2) does not reach the Centrepiece, so viewing adds no pips to it; a lit Lamp makes your ring 1 larger, enough to reach the Centrepiece, and then each turn of viewing adds a pip.') problems.push(`${tag}: ${hooded}`);
       let r = H.play(X, s, [W(6), V], { inv: 'all', clone: true });
       problems.push(...bad(r, tag));
       if (words()[2] !== hooded || gained(X, s, r.steps[1].events).length || X.Vision.ringRadius(s) !== 2 || X.Viewing.ring(s) !== 2) problems.push(`${tag} hooded: ${json(words())}, ring ${X.Vision.ringRadius(s)}`);
@@ -277,16 +277,96 @@ module.exports = ({ test, assert, loadCore }) => {
       const shot = r.steps[2].events, under = s.dept.cp.uids;
       if (!shot.some(e => e.k === 'used') || !shot.some(e => (e.k === 'damaged' || e.k === 'missed') && (e.who === dummy || e.target === dummy))) problems.push(`${tag}: the bolt ${json(shot)}`);
       if (shot.some(e => under.includes(e.who) || under.includes(e.target) || (e.cause && under.includes(e.cause.at)))) problems.push(`${tag}: the bolt named a piece under the sheet: ${json(shot)}`);
-      if (X.Text.refusal('sheeted') !== 'The Centrepiece is under its dust sheet for the night: it cannot be viewed, struck or stepped onto.') problems.push(`${tag}: ${X.Text.refusal('sheeted')}`);
+      if (X.Text.refusal('sheeted') !== 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it.') problems.push(`${tag}: ${X.Text.refusal('sheeted')}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('around the sheet: a Solution thrown onto it is not refused, and its square reaches whoever stands in it and no piece under it; a fork aimed at it is refused sheeted, as the Pin-Driver is; a beam crosses it, striking you beyond and nothing under it; at depths 1–7', () => {
+    const problems = [];
+    const FORK = { uid: 'fork', kind: 'instrument', form: 'fork', tier: 1, where: { at: 'kit', slot: 'instrument' } };
+    for (const depth of DEPTHS) {
+      const K = core(), X = K.X, tag = `d${depth}`;
+      const sniper = H.species(X, 'axis_sniper')[0].sp;
+      // A dummy asleep by the footprint's north side, out of your ring; a Heliograph in the reading tile's
+      // row beyond the footprint, hunting but first acting at tick 800, after the views.
+      const s = room(K, depth, { items: [FORK], more: [
+        { sp: 'dummy', at: [2, 1], mode: 'dormant', stats: DUMMY, room: 'centre' },
+        { sp: sniper.id, at: [1, 2], mode: 'hunting', next: 800, stats: X.Roles.stats(sniper.role, depth), room: 'centre' }] });
+      s.actors[0].hp = s.actors[0].maxHp = 999;
+      const dummy = s.actors.find(a => a.sp === 'dummy').uid, heliograph = s.actors.find(a => a.sp === sniper.id).uid, under = s.dept.cp.uids.slice();
+      let r = H.play(X, s, [W(6), V, V, V, V], { inv: 'all' });
+      problems.push(...bad(r, tag));
+      r = H.play(X, s, answer(s), { inv: 'all' });
+      if (!X.Viewing.sheeted(s)) { problems.push(`${tag}: not sheeted`); continue; }
+      // A known Fixative, thrown onto the sheet's north-east tile: its square takes in the dummy.
+      X.Consumables.startRun(s);
+      const fx = X.Consumables.make(s, 'fixative', { at: 'floor', x: 6, y: 2 });
+      fx.where = { at: 'tote' }; fx.n = 1; s.you.tote.push(fx.uid);
+      s.run.knownSeals.push(X.Consumables.sealFor(s, 'fixative'));
+      const toss = { a: 'throw', uid: fx.uid, x: 3, y: 2 };
+      if (!X.Step.legal(s).some(a => json(a) === json(toss))) problems.push(`${tag}: a throw onto the sheet is not offered`);
+      r = H.play(X, s, [toss], { inv: 'all', clone: true });
+      problems.push(...bad(r, tag));
+      const fixed = r.events.filter(e => e.k === 'status' && e.id === 'fixed').map(e => e.who);
+      if (json(fixed) !== json([dummy]) || r.events.some(e => e.k === 'refused')) problems.push(`${tag}: the throw ${json(r.events.map(e => [e.k, e.who || e.reason]))}`);
+      // The fork, aimed at a tile under the sheet: refused, and not offered.
+      const fork = { a: 'use', uid: 'fork', x: 3, y: 3 }, before = X.State.hash(s);
+      if (X.Step.legal(s).some(a => json(a) === json(fork))) problems.push(`${tag}: the fork at the sheet is offered`);
+      r = H.play(X, s, [fork], { inv: 'all' });
+      if (json(r.events.map(e => [e.k, e.reason])) !== json([['refused', 'sheeted']]) || X.State.hash(s) !== before) problems.push(`${tag}: the fork answered ${json(r.events)}`);
+      // The Heliograph's beam along the row: over the sheet, to you on the reading tile.
+      r = H.play(X, s, (st, i) => (i < 12 && !st.over ? WAIT : null), { inv: 'all' });
+      problems.push(...bad(r, tag));
+      const marked = r.events.find(e => e.k === 'telegraphed' && e.who === heliograph), hit = r.events.find(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special' && e.cause.by === heliograph);
+      if (!marked || !marked.tiles.some(t => t[0] === 2 && t[1] === 2) || !marked.tiles.some(t => t[0] === 3 && t[1] === 2) || !hit) problems.push(`${tag}: the beam ${json(marked)} ${json(hit)}`);
+      if (r.events.some(e => under.includes(e.who) || under.includes(e.target) || (e.cause && (under.includes(e.cause.by) || under.includes(e.cause.at))))) problems.push(`${tag}: an event named a piece under the sheet`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('the sheet lies over its pieces\' home tiles, as BUILD says, wherever they sleep: a piece asleep off its home (as a pole or "Quiet, Please" can leave one) is gone from where it stands, and its home is covered; a home tile someone else stands on keeps its tile, and stays open once they leave; at depths 1–7', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const K = core({ rec: ENSEMBLE }), X = K.X, tag = `d${depth}`;
+      const s = room(K, depth, { more: [{ sp: 'dummy', at: [10, 4], mode: 'dormant', stats: DUMMY, room: 'centre' }] });
+      const [p1, p2, p3, p4] = X.Centrepiece.pieces(s), d = s.actors.find(a => a.sp === 'dummy');
+      // Planted, as earlier play could leave them: the south-east piece asleep a tile south of
+      // its home, (3,4), and the dummy asleep on the south-west piece's home, which that piece
+      // left for the tile west of it, (1,3).
+      p4.x = 3; p4.y = 4; p3.x = 1; p3.y = 3; d.x = 2; d.y = 3;
+      const r = H.play(X, s, [W(6), V, V, V, V], { inv: 'all', clone: true });
+      problems.push(...bad(r, tag));
+      if (json(views(r)) !== '[1,2,3,4]') { problems.push(`${tag}: views ${json(views(r))}`); continue; }
+      if (![p1, p2, p3, p4].every(a => X.Actors.byUid(s, a.uid).gone) || d.gone) problems.push(`${tag}: who is gone`);
+      const sheets = s.dept.fixtures.filter(f => f.k === 'sheet').map(f => [f.x, f.y, f.of]);
+      if (json(sheets) !== json([[2, 2, p1.uid], [3, 2, p2.uid], [3, 3, p4.uid]])) problems.push(`${tag}: the sheet lies ${json(sheets)}`);
+      const at = (x, y) => s.dept.tiles[y][x];
+      if (json([at(2, 2), at(3, 2), at(3, 3), at(2, 3), at(3, 4), at(1, 3)]) !== json(['f', 'f', 'f', '.', '.', '.'])) problems.push(`${tag}: tiles ${json([at(2, 2), at(3, 2), at(3, 3), at(2, 3), at(3, 4), at(1, 3)])}`);
+      // Once the dummy is off it (moved by hand, as if it walked), its tile is floor in the
+      // sheet's corner, and you can walk onto it.
+      d.x = 1; d.y = 4;
+      const back = H.play(X, s, answer(s).concat([W(5), W(5), W(6), W(6), W(0)]), { inv: 'all' });
+      problems.push(...bad(back, tag));
+      if (s.actors[0].x !== 2 || s.actors[0].y !== 3 || at(2, 3) !== '.' || back.events.some(e => e.k === 'refused')) problems.push(`${tag}: walking to the open tile ${json(back.events.filter(e => e.k === 'refused'))} at ${s.actors[0].x},${s.actors[0].y}`);
     }
     assert.deepEqual(problems, []);
   });
 
   // ---- The lectern ----
 
-  test('the lectern: Dept.create places it with the Centrepiece and only then (no real department places either yet), on the plan\'s lectern tile, and nothing else changes; reading it is free and changes nothing; four views from its reading tile in a real department earn the Certificate', () => {
+  test('the lectern: Dept.create places it with the Centrepiece and only then (no real department places either yet, at any depth, so a view on its reading tile is refused no_centrepiece), on the plan\'s lectern tile, and nothing else changes; reading it is free and changes nothing; four views from its reading tile in a real department earn the Certificate', () => {
     const C = loadCore();
-    for (const p of C.Packs.list()) assert.equal(C.Dept.create(1, p.acc, 3).dept.fixtures.filter(f => f.k === 'lectern').length, 0, `${p.acc} placed a lectern`);
+    // No real department places a Centrepiece yet, so in hand play every view is refused
+    // no_centrepiece and no Certificate can be earned (PG-CORE's ordering constraint: none until
+    // the perk packages and the perk sheet have landed). The package that readies a core
+    // changes this check, having met that constraint.
+    for (const p of C.Packs.list()) for (const depth of DEPTHS) {
+      const s = C.Dept.create(1, p.acc, depth);
+      assert.ok(!s.dept.cp && !s.dept.fixtures.some(f => f.k === 'lectern'), `${p.acc} d${depth} placed a Centrepiece or a lectern`);
+      s.actors[0].x = s.dept.viewTile[0]; s.actors[0].y = s.dept.viewTile[1];
+      assert.equal(json(C.Step.step(s, V).map(e => [e.k, e.reason])), json([['refused', 'no_centrepiece']]), `${p.acc} d${depth}`);
+    }
     for (const acc of ['S9', 'A4', 'M11']) for (const seed of [1, 2, 3]) {
       const K = core(), X = K.X, pack = X.Packs.get(acc), tag = `${acc} seed ${seed}`;
       pack.galleries = [];
@@ -319,29 +399,35 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('the lectern\'s words are true whatever you carry: the gateway label, the rule (FIXTURES \'lectern\'), and the ring you would have viewing on its reading tile, which a view\'s pips bear out: hooded (\'lectern_ring_lamp\'), lit (\'lectern_ring_reach\'), with Soft Soles planted (\'lectern_ring_short\'), lit with Soft Soles, on shards; under the sheet, the sheet\'s (FIXTURES \'sheet\')', () => {
+  test('the lectern\'s words are true whatever you carry: the gateway label, the rule (FIXTURES \'lectern\'), and the ring you would have viewing on its reading tile, which a view\'s pips bear out: hooded (\'lectern_ring_lamp\'), lit (\'lectern_ring_reach\'), with Soft Soles planted (\'lectern_ring_short\'), lit with Soft Soles, on shards, in a quiet garment (which a view does not count), read on the step onto the reading tile; under the sheet, the sheet\'s (FIXTURES \'sheet\')', () => {
     const R = loadCore().Registry;
     const RULE = 'While the Centrepiece sleeps and this department’s Certificate is still to be earned, view it from the reading tile beside the lectern for 4 turns in a row: the last view earns the Certificate and puts the Centrepiece under a dust sheet for the night, so no fight follows. Any other action that takes time starts the count again, and so does its waking.';
-    const SHEET = 'The Centrepiece is under its dust sheet for the night: it no longer wakes, moves or fights, and it cannot be viewed, struck or stepped onto.';
+    const SHEET = 'The Centrepiece is under its dust sheet for the night: it no longer wakes, moves or fights, and you cannot view it, strike it, step onto it or aim an instrument at it.';
     const ring = (id, n) => loadCore().Clauses.fill(R.CLAUSES[id].clause, { ring: n, lamp: 1 });
-    // [what, map, lit, soft soles rank, the ring line, does a view add a pip]
+    // [what, map, lit, soft soles rank, quiet garment, the ring line, does a view add a pip]
     const shards = MAP.map((row, y) => (y === READ[1] ? row.slice(0, READ[0]) + 'x' + row.slice(READ[0] + 1) : row));
+    const QUIET = { uid: 'quiet', kind: 'garment', form: 'standard', tier: 1, where: { at: 'kit', slot: 'garment' }, prims: [{ id: 'quiet', cls: 'M' }] };
     const CASES = [
-      ['hooded', MAP, false, 0, ring('lectern_ring_lamp', 2), false],
-      ['lit', MAP, true, 0, ring('lectern_ring_reach', 3), true],
-      ['Soft Soles 1, hooded', MAP, false, 1, ring('lectern_ring_short', 1), false],
-      ['Soft Soles 2, hooded', MAP, false, 2, ring('lectern_ring_short', 1), false],
-      ['Soft Soles 1, lit', MAP, true, 1, ring('lectern_ring_short', 2), false],
-      ['on shards', shards, false, 0, ring('lectern_ring_reach', 4), true],
+      ['hooded', MAP, false, 0, false, ring('lectern_ring_lamp', 2), false],
+      ['lit', MAP, true, 0, false, ring('lectern_ring_reach', 3), true],
+      ['Soft Soles 1, hooded', MAP, false, 1, false, ring('lectern_ring_short', 1), false],
+      ['Soft Soles 2, hooded', MAP, false, 2, false, ring('lectern_ring_short', 1), false],
+      ['Soft Soles 1, lit', MAP, true, 1, false, ring('lectern_ring_short', 2), false],
+      ['on shards', shards, false, 0, false, ring('lectern_ring_reach', 4), true],
+      ['a quiet garment, hooded', MAP, false, 0, true, ring('lectern_ring_lamp', 2), false],
+      ['a quiet garment, lit', MAP, true, 0, true, ring('lectern_ring_reach', 3), true],
     ];
     const problems = [];
-    for (const [what, map, lit, soft, line, pip] of CASES) {
+    for (const [what, map, lit, soft, quiet, line, pip] of CASES) {
       const K = core(), X = K.X;
       // Soft Soles, planted as its package will build it: your ring 1 smaller a rank.
       X.Perks.add('soft_soles', { ringDelta: (st, rank) => -rank });
-      const s = room(K, 3, { map, you: READ, items: [Object.assign({}, LAMP, lit ? { lit: true } : {})] });
+      const s = room(K, 3, { map, items: [Object.assign({}, LAMP, lit ? { lit: true } : {})].concat(quiet ? [QUIET] : []) });
       if (lit) s.items.find(i => i.uid === 'lamp').lit = true;
       if (soft) s.run.perks.push({ id: 'soft_soles', rank: soft });
+      // The step onto the reading tile (your last action a move, which a quiet garment counts),
+      // then its words, as you would be viewing there.
+      H.play(X, s, [W(6)], { inv: false });
       const got = X.Viewing.words(s);
       if (json(got) !== json([GATEWAY, RULE, line])) problems.push(`${what}: ${json(got)}`);
       // Soft Soles is not built yet (PG-PERKS-A), so the waking invariants, which know no perk,

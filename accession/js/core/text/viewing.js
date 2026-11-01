@@ -15,7 +15,7 @@
     const so = `${w.Name(e.who)} viewed ${w.name(e.of)}: ${e.n} of ${Text.count(T(), 'turn')}.`;
     if (e.n >= T()) return `${so} The view is complete: a dust sheet now covers it for the night, and it will neither wake nor fight.`;
     const left = T() - e.n;
-    const more = ` ${Text.count(left, 'more turn')} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} its Certificate.`;
+    const more = ` ${Text.count(left, 'more turn')} of viewing in a row while it sleeps ${left === 1 ? 'earns' : 'earn'} the Certificate.`;
     return e.n === 1 ? `${so}${more} Any other action that takes time starts the count again, and so does its waking.` : `${so}${more}`;
   }
   Text.define('viewed', viewed);
@@ -26,5 +26,5 @@
   Text.defineRefusal('already_earned', () => 'You have this department’s Certificate already, and a visit gives only one: viewing cannot earn another.');
   Text.defineRefusal('not_at_lectern', () => 'You can view the Centrepiece only from the reading tile beside its lectern.');
   Text.defineRefusal('not_asleep', () => 'You can view the Centrepiece only while it sleeps, every piece of it, and it is not asleep now.');
-  Text.defineRefusal('sheeted', () => 'The Centrepiece is under its dust sheet for the night: it cannot be viewed, struck or stepped onto.');
+  Text.defineRefusal('sheeted', () => 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it.');
 })();

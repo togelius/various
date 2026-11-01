@@ -156,7 +156,9 @@ const Viewing = (() => {
 
   // The `sheeted` refusal (§4.2; Actions.addRefuser): with the Centrepiece under its dust
   // sheet, a view; a blow at one of the pieces it covers (attack(uid)); a step or bump into a
-  // tile under it (move(dir)); an instrument aimed at a tile under it (use(uid, x, y)).
+  // tile under it (move(dir)); an instrument aimed at a tile under it (use(uid, x, y)). A
+  // Solution thrown onto it (throw) is not refused: a throw is aimed at a tile, and its square
+  // (§8.6) reaches whoever stands in it and nothing under the sheet, whose pieces are gone.
   Actions.addRefuser((state, action) => {
     const c = Hall.cp(state);
     if (!c || !c.sheet || !action) return null;
