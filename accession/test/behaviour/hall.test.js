@@ -147,6 +147,35 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('Hall.addCheck: an added check runs at each boundary after the seal\'s own step (it sees the hall sealed at the boundary it seals, and open at the one it opens), in the order added, and none once the visit is over', () => {
+    const X = loadCore(), seen = [];
+    X.Hall.addCheck('probe_a', state => seen.push(['a', state.turn, !!state.dept.cp.sealed]));
+    X.Hall.addCheck('probe_b', state => seen.push(['b', state.turn, !!state.dept.cp.sealed]));
+    assert.throws(() => X.Hall.addCheck('probe_a', () => {}), /added twice/);
+    const s = hall(X, 3);
+    H.play(X, s, [wait, wait], { inv: 'all' });
+    assert.equal(json(seen), json([['a', 1, true], ['b', 1, true], ['a', 2, true], ['b', 2, true]]));
+    X.Hall.onDefeat(s, []);
+    seen.length = 0;
+    s.over = { k: 'left', turn: s.turn };
+    X.Hall.boundary(s, []);
+    assert.equal(json(seen), '[]');
+  });
+
+  test('a body that covers an opening with any of its tiles (a 2×2 piece standing half in a double archway) keeps the shutters open, and the hall says so', () => {
+    const map = MAP.slice(); map[1] = '#.......,...#';
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const big = { sp: 'dummy', at: [7, 1], size: 2, mode: 'dormant', statuses: [{ id: 'fixed', turns: 9999 }], stats: BODY };
+      const s = hall(C, depth, { map, you: [4, 4], piece: { at: [1, 4] }, more: [big] });
+      const r = H.play(C, s, Array(3).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const w = stages(r.events, 'waiting');
+      if (C.Clock.sealed(s) || w.length !== 1 || w[0].cause.by !== s.actors[2].uid) problems.push(`d${depth}: sealed ${C.Clock.sealed(s)}, waiting ${json(w)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
   test('a planted module\'s turn rules run at every boundary while the hall is sealed (step 8 is not stopped)', () => {
     const X = loadCore(), R = X.Registry;
     R.define('MODULES', 'planted_bell', { built: 'M4', sentence: 'A planted rule acts each turn.' });
@@ -259,17 +288,26 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   test('a hurt by the Centrepiece restarts the quiet count, at the boundary after it, whenever it falls; a hurt by another exhibit does not', () => {
     // A blow in the gap after a boundary (as an exhibit's action after it): the turn it falls
     // in ends at the next boundary, from which the count starts again.
-    const run = (by, at) => {
+    const run = (by, at, shooter) => {
       const s = hall(C, 3, { more: [{ sp: 'dummy', at: [10, 3], mode: 'dormant', stats: BODY }] });
       const ev = [];
       for (let i = 1; i <= 2 * N_LIFT && !ev.some(e => e.k === 'stage' && e.stage === 'unsealed'); i++) {
         for (const e of C.Step.step(s, wait)) ev.push(e);
-        if (s.turn === at) C.Combat.hurt(s, s.actors[0], 1, { k: 'attack', by, at: 'you', chance: 50, roll: 1, raw: 1, pad: 0, how: { kind: 'melee' }, from: [1, 4] }, ev);
+        if (s.turn !== at) continue;
+        // A blow; or, with a shooter, its bolt that a reflector (by) sent back (Ranged's cause).
+        const cause = shooter ? { k: 'reflected', by, shooter, chance: 50, roll: 1, how: { kind: 'bolt' }, range: 3, raw: 1, pad: 0, from: [1, 4] }
+          : { k: 'attack', by, at: 'you', chance: 50, roll: 1, raw: 1, pad: 0, how: { kind: 'melee' }, from: [1, 4] };
+        C.Combat.hurt(s, s.actors[0], 1, cause, ev);
       }
       return stages(ev, 'unsealed').map(e => e.turn);
     };
     assert.equal(json(run('T0.3.room.1', 30)), json([31 + N_LIFT]));
     assert.equal(json(run('T0.3.room.2', 30)), json([1 + N_LIFT]));
+    // A piece's bolt sent back by a reflector hurts you as the piece's: the count restarts; a
+    // reflector's sending back another exhibit's does not.
+    assert.equal(json(run('T0.3.room.2', 30, 'T0.3.room.1')), json([31 + N_LIFT]));
+    assert.equal(json(run('T0.3.room.1', 30, 'T0.3.room.2')), json([31 + N_LIFT]));
+    assert.equal(json(run('T0.3.room.2', 30, 'you')), json([1 + N_LIFT]));
     // A hurt inside the boundary, before the hall's step (a status at step 2), counts for the
     // turn that boundary ends.
     const s = hall(C, 3), ev = [];
@@ -323,6 +361,24 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const count = s.dept.clock.count;
       r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
       if (stages(r.events).length || s.dept.clock.count !== count + 4) problems.push(`d${depth}: after the Ticket ${json(stages(r.events).map(e => e.stage))}, count ${s.dept.clock.count}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a Ticket read while the hall is not sealed (it waits on an opening, or you are outside it) says nothing of the hall and changes nothing of it: no shutters open, no piece healed or sent back by it', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) for (const where of ['waiting', 'outside']) {
+      const dummy = { sp: 'dummy', at: [8, 2], mode: 'dormant', statuses: [{ id: 'fixed', turns: 9999 }], stats: BODY };
+      const s = where === 'waiting' ? hall(C, depth, { you: [6, 3], more: [dummy], piece: { hp: 20, maxHp: 60 } }) : hall(C, depth, { you: [10, 2], piece: { hp: 20, maxHp: 60 } });
+      C.Consumables.startRun(s);
+      const tk = C.Consumables.make(s, 'ticket', { at: 'tote' });
+      s.run.knownSeals.push(C.Consumables.sealFor(s, 'ticket'));
+      let r = H.play(C, s, [wait], { inv: 'all' });
+      if (C.Clock.sealed(s) || (where === 'waiting') !== !!s.dept.cp.waiting) { problems.push(`d${depth} ${where}: ${json(s.dept.cp)}`); continue; }
+      r = H.play(C, s, [{ a: 'use', uid: tk.uid }, wait], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} ${where}`));
+      const told = r.events.filter(e => e.cause && e.cause.k === 'hall');
+      if (told.length || tilesAt(s) !== ',S' || s.actors[1].hp !== 20) problems.push(`d${depth} ${where}: ${json(told)} ${tilesAt(s)} hp ${s.actors[1].hp}`);
     }
     assert.deepEqual(problems, []);
   });
