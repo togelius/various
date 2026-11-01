@@ -101,11 +101,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json([1, 2, 3, 4, 5, 6, 7].map(Text.grade)), json(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']));
     assert.equal(Text.grade(9), 'IX'); assert.equal(Text.grade(14), 'XIV'); assert.equal(Text.grade(40), 'XL'); assert.equal(Text.grade(1999), 'MCMXCIX');
     for (const bad of [0, -1, 2.5, '3', null, undefined, 4000]) assert.throws(() => Text.grade(bad), /not a grade/, json(bad));
-    // The grade's sentence is the badge's (§8.7: "Handling Clearance, Grade IV").
+    // The grade's sentence is the badge's (§8.7: "Handling Clearance, Grade IV"), and a
+    // Certificate's raise says the maximum health it adds (§8.7: each part in the log).
     for (let g = 1; g <= N.GRADE_MAX; g++) {
       const s = Text.event({ k: 'grade', turn: 1, grade: g, cause: { k: 'certificate' } });
-      assert.equal(s, `Your Handling Clearance is now Grade ${Text.grade(g)}.`);
-      assert.doesNotMatch(s, /\d/, s);
+      assert.equal(s, `Your Handling Clearance is now Grade ${Text.grade(g)}, and your maximum health is ${N.HP_PER_GRADE} higher.`);
+      assert.doesNotMatch(s, /Grade \d/, s);
+      assert.equal(Text.event({ k: 'grade', turn: 1, grade: g }), `Your Handling Clearance is now Grade ${Text.grade(g)}.`);
     }
   });
 
@@ -209,7 +211,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (!clean(s) || !/^[A-Z“]/.test(s) || !/[.)]$/.test(s)) bad.push('not a clean sentence: ' + at);
       else if (ONE.test(s)) bad.push('"1 …s": ' + at);
       else if (RAW.test(s)) bad.push('a raw id: ' + at);
-      else if (k === 'grade' && /\d/.test(s)) bad.push('an arabic grade: ' + at);
+      else if (k === 'grade' && /Grade \d|\d+ Grade|grade \d/i.test(s)) bad.push('an arabic grade: ' + at);
     }
     assert.deepEqual(bad.slice(0, 10), []);
     assert.ok(n > 3000, `${n} sentences`);
