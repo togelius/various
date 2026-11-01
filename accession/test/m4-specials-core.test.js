@@ -89,13 +89,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const [id, def, why] of [['ring', { tiles }, /twice/], ['burst', { tiles }, /twice/], ['Bad Name', { tiles }, /not a shape/], ['planted_a', {}, /needs tiles/],
       ['planted_b', { tiles, reach: 3 }, /no part called reach/], ['planted_c', { tiles, from: 4 }, /not a function/], ['planted_d', { tiles, glass: 'yes' }, /not true or false/]])
       assert.throws(() => S.addShape(id, def), why, id);
-    // The shapes the rule files add as they load, after the burst: the Wader's alarm (MOD-ALARM).
+    // The shapes the rule files add as they load, after the burst: the Wader's alarm (MOD-ALARM),
+    // the chime's line (MOD-CHIME).
     const loaded = S.shapes();
     assert.equal(json(loaded.slice(0, 4)), json(['ring', 'call', 'line', 'burst']));
     S.addShape('planted_ok', { tiles });
     assert.throws(() => S.addShape('planted_ok', { tiles }), /twice/);
     assert.equal(json(S.shapes()), json(loaded.concat(['planted_ok'])));
     assert.ok(loaded.includes('alarm'));
+    assert.ok(loaded.includes('demo_line'));
     assert.equal(json(S.SHAPES), json(['ring', 'call', 'line']), 'the written shapes, as before');
     assert.throws(() => S.tiles(room(X, OPEN, [2, 2], []), { x: 1, y: 1 }, 'planted_none'), /no shape/);
   });

@@ -31,14 +31,19 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['ARCHETYPES', 'completing_guardian', 'cp-guardian', 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.'],
     ['ARCHETYPES', 'mp_ensemble', 'cp-ensemble', 'Several pieces share one health pool. When a piece falls, the others take on its special.'],
     ['ARCHETYPES', 'mp_tableau', 'cp-tableau', 'Stays in its frame and alternates shown lines and bursts; takes double damage while it summons.'],
-    ['MODIFIERS', 'clockwork', 'arch-d', 'Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.'],
+    // MOD-CHIME left out M2's "; rain stops it for 2 turns": once the station's archetype was
+    // built, its line's clauses met the word rules (a bare digit), and the rain rule is M.11's
+    // weather flag's (M4 plan D1.3).
+    ['MODIFIERS', 'clockwork', 'arch-d', 'Shows its next move as an arrow and cannot be dazed.'],
     ['TRIGGERS', 'period', 'mod-chime', 'wakes on the chime to perform, then sleeps again'],
     ['MODULES', 'unobserved_motion', 'mod-unobserved', 'The animals move only when you cannot see them.'],
     // Reworded by MOD-ALARM's review: M2's "then the whole court is awake" claimed more than the
     // call does, since the Centrepiece and a mimic sleep on.
     ['MODULES', 'alarm_network', 'mod-alarm', 'The waders raise the alarm when they see you; then every sleeping exhibit in the department that can hear, but the Centrepiece, wakes.'],
     ['MODULES', 'copies_weaken', 'mod-copies', 'When an original is broken, its spares lose heart.'],
-    ['MODULES', 'hourly_demonstration', 'mod-chime', 'On the chime, the stations exchange signals down the length of the gallery.'],
+    // Reworded by MOD-CHIME: M2's "the stations exchange signals down the length of the gallery"
+    // said neither that a line is marked first nor that it strikes.
+    ['MODULES', 'hourly_demonstration', 'mod-chime', 'On the chime, every station marks its line across its room, and two turns later the line strikes everything on it.'],
     ['MODULES', 'weather_cases', 'mod-weather', 'Some cases hold weather. Break one, and the weather gets out.'],
     ['WAKE_CAUSES', 'period', 'mod-chime', null],
     ['WAKE_CAUSES', 'alarm', 'mod-alarm', null],
@@ -283,11 +288,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const stride = { k: 'module', turn: 3, id: 'unobserved_motion', rule: 'stride', who: 'x.2', n: 2, cause: { k: 'unobserved_motion' } };
     const chime = { k: 'module', turn: 3, id: 'hourly_demonstration', rule: 'chime', turns: 2, cause: { k: 'hourly_demonstration' } };
     const seen = uid => uid === 'x.1';
-    assert.equal(json(Text.log([stride, chime], NAMES, seen)), json(['The chime sounded: the stations’ lines strike in 2 turns.']));
+    assert.equal(json(Text.log([stride, chime], NAMES, seen)), json(['The chime sounded: any line marked at it strikes in 2 turns.']));
     assert.equal(json(Text.log([stride], NAMES, uid => uid === 'x.2')), json(['The Long-Necked Grazer moved 2 tiles while you could not see it.']));
     // A stride that names no mover is never told, in view or not: it could be one you did not see.
     const anon = Object.assign({}, stride); delete anon.who;
-    for (const vis of [undefined, () => true, () => false]) assert.equal(json(Text.log([anon, chime], NAMES, vis)), json(['The chime sounded: the stations’ lines strike in 2 turns.']));
+    for (const vis of [undefined, () => true, () => false]) assert.equal(json(Text.log([anon, chime], NAMES, vis)), json(['The chime sounded: any line marked at it strikes in 2 turns.']));
     // Of the spares, only those in view are counted.
     assert.equal(json(Text.log([weaken('x.1', 'o.1'), weaken('x.2', 'o.1'), weaken('x.3', 'o.1')], NAMES, uid => uid !== 'x.3')), json(['An original was destroyed, and 2 of its spares lost heart.']));
     // A fresh context: a group by key, in place of the first; twice and a non-function throw.
@@ -336,7 +341,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         assert.equal(r.status, 1, which[0]);
         has(r, /--strict: ARCHETYPES\.unobserved_mover is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
-        has(r, /MODIFIERS\.clockwork: a digit outside \{\}/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
+        has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
       }
       r = lint(null, ['--strict=M9']);
       assert.equal(r.status, 1); has(r, /--strict=M9: no such milestone/);
@@ -400,15 +405,21 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // But not where a player reads it at false. A module's panel sentence is read on its panel,
     // its banner and in the log while the module is on, whatever its readiness (the real ones
     // are at false); a clause at false is read on the line of every species population can place
-    // (its archetype M3's or past false): A.4's Countersigning Clerk shows clockwork's
-    // placeholder once its archetype, conservator_healer, is at 'unit'.
+    // (its archetype M3's or past false): A.4's Countersigning Clerk shows its modifiers'
+    // placeholders once its archetype, conservator_healer, is at 'unit'. (Its clockwork is on
+    // M.11's station's line too, whose archetype MOD-CHIME built, and lost its digit then: a
+    // planted modifier at false, on the Clerk alone, stands in for it.)
     r = lint(["Registry.MODULES.copies_weaken.sentence = 'Every three turns, its spares lose heart.';",
       "Registry.define('MODULES', 'planted_quiet', { built: 'M4', sentence: 'Every 3 turns, a bell.' });"]);
     assert.equal(r.status, 1);
     has(r, /MODULES\.copies_weaken: "three" states a number in words/); has(r, /MODULES\.planted_quiet: a digit outside \{\}/);
-    r = lint("Object.assign(Registry.ARCHETYPES.conservator_healer, { ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' });");
+    const tick = ["Registry.define('MODIFIERS', 'planted_tick', { built: 'M4', ready: false, clause: 'Ticks for 2 turns.', params: {}, covers: [], tests: [], inv: null });",
+      "Packs.get('A4').species.find(sp => sp.archetype === 'conservator_healer').modifiers.push('planted_tick');"];
+    r = lint(tick);
+    hasNot(r, /MODIFIERS\.planted_tick: a digit outside \{\}/);
+    r = lint(tick.concat(["Object.assign(Registry.ARCHETYPES.conservator_healer, { ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' });"]));
     assert.equal(r.status, 1);
-    has(r, /MODIFIERS\.clockwork: a digit outside \{\} in "Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns\."/);
+    has(r, /MODIFIERS\.planted_tick: a digit outside \{\} in "Ticks for 2 turns\."/);
     hasNot(r, /ARCHETYPES\.(demonstrator|unobserved_mover|patrol_guard)/);
     // An M3 template keeps its words: a number in words is an M4 rule, as the digit rule is.
     r = lint("Registry.MODIFIERS.marble.clause = 'Moves at half speed, twice as slow, one turn at a time.';");

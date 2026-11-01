@@ -132,7 +132,9 @@ module.exports = C => {
           const i = tel ? tel.tiles.findIndex(t => t[0] === c.x && t[1] === c.y) : -1;
           const via = i >= 0 && tel.via ? tel.via[i] : null;
           if (i >= 0 && (c.k === 'reflected') !== (via !== null)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y} as ${c.k}${c.k === 'reflected' ? ` by ${c.by}` : ''}, but its mark there was ${via ? `sent back by ${via}` : 'on its way out'}`;
-          if (c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
+          // (A line marked within the step, a due line, has no mark before it to say which
+          // reflector sent it back: its owner's mark is checked only against one shown before.)
+          if (i >= 0 && c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
           if (e.who !== 'you') continue;
           // Whether this was a due line: shown before the step with its due tick, or marked
           // during the step as one (its telegraphed event's cause.due).

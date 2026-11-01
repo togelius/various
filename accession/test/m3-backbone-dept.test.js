@@ -42,7 +42,10 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.equal(json([s.dept.fixtures, s.dept.surfaces, s.dept.highlights, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], [], [], null, 1, []]), where);
       } else {
         assert.ok(Array.isArray(s.dept.fixtures) && Array.isArray(s.dept.highlights), where);
-        assert.equal(json([s.dept.surfaces, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], null, grade, []]), where);
+        // M4: a department holds the state of each of its pack's modules a file has defined
+        // (M.11's hourly_demonstration since MOD-CHIME), on, counting from entry.
+        const mods = C.Packs.get(where).modules.filter(m => C.Modules.defined(m.id)).map(m => ({ id: m.id, role: m.role, on: true, since: 0, params: m.params || {} }));
+        assert.equal(json([s.dept.surfaces, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], null, grade, mods]), where);
       }
       assert.equal(json(s.you), json({ kit: { weapon: 'you.w', garment: 'you.g', curio: [null, null], instrument: null }, tote: [] }), where);
       for (const it of s.items) assert.equal(sorted(Object.keys(it)), sorted(ITEM), `${where}: ${it.uid}`);

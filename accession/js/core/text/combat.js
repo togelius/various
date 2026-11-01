@@ -4,13 +4,14 @@
 'use strict';
 (() => {
   const isInt = v => Number.isInteger(v);
-  // A special's name in a sentence, from its shape (the registry's SPECIALS): a ring of blows,
-  // a beam or a call; one whose entry names itself (noun: the Wader's alarm, M4) by that name;
+  // A special's name in a sentence: the noun its registry entry gives (SPECIALS[sp].noun: M4's
+  // Wader's alarm, the chime's line), else from its shape, a ring of blows, a beam or a call;
   // any other is "its special".
   const SHAPE = { ring: 'ring of blows', line: 'beam', call: 'call' };
   const spName = sp => {
     const S = typeof sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, sp) ? Registry.SPECIALS[sp] : null;
-    return S && typeof S.noun === 'string' ? S.noun : S && SHAPE[S.shape] ? SHAPE[S.shape] : 'special';
+    if (S && typeof S.noun === 'string' && S.noun) return S.noun;
+    return S && SHAPE[S.shape] ? SHAPE[S.shape] : 'special';
   };
   // The arithmetic of the damage: raw less Padding, with the floor when it applied.
   const sum = (raw, pad, floor) => `${raw} − ${pad} Padding${isInt(floor) ? `, at least ${floor}` : ''}`;
@@ -98,9 +99,11 @@
   const used = (e, w) => e.cancelled ? `${whose(w, e.who)} ${spName(e.sp)} was called off.` : `${w.Name(e.who)} used its ${spName(e.sp)}${struck(e.hits)}.`;
   Text.define('special', used);
   Text.defineCause('special', 'special', used);
-  // Why a mark was called off (§8.1): its owner was fixed or destroyed, or stopped hunting
-  // (it lost you, was quieted, went back to sleep, or you left by the Ticket).
-  const WHY = { fixed: 'it was fixed in place', died: 'it was destroyed' };
+  // Why a mark was called off (§8.1): its owner was fixed or destroyed, went to sleep (asleep:
+  // M4's station, which marks while awake, quieted to sleep), or stopped hunting (it lost you,
+  // was quieted, or you left by the Ticket): only a change that leaves it in no mode to mark
+  // calls one off (Wake.setMode), and a hunter is the only one that marks in no mode but hunting.
+  const WHY = { fixed: 'it was fixed in place', died: 'it was destroyed', asleep: 'it went to sleep' };
   Text.defineCause('special', 'cancel', (e, w) => `${whose(w, e.who)} ${spName(e.sp)} was called off: ${WHY[e.cause.why] || 'it stopped hunting you'}.`);
 
   // Waiting, resting and sitting are left out of the log, as waits were before M3.

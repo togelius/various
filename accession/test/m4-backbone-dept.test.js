@@ -62,8 +62,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // pack's own stamp (content/*-intro.js) is now its Intro, so every department's plan moves;
   // and M.11's again at its review, for the cabinet before its Intro's station. A module's
   // state is M4's own (dept.modules, each module as its file defines it: S.9's alarm_network
-  // since MOD-ALARM), so it is left out of the hash and checked apart: the pack's modules
-  // defined so far, in pack order, each on.
+  // since MOD-ALARM, M.11's hourly_demonstration since MOD-CHIME), so it is left out of the
+  // hash and checked apart: the pack's modules defined so far, in pack order, each on.
   const M3_START = { 'S9/2': 625162344, 'S9/5': 2684081107, 'A4/2': 1033732929, 'A4/5': 1021234286, 'M11/2': 1431932137, 'M11/5': 264312945 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {

@@ -55,7 +55,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // ---- The form ----
   test('Modules.define refuses what is not the form: an unknown module, effect, part or kind, a rule with no name or listening to module events, a hook not named bespoke, the registry\'s words given twice', () => {
     const X = loadCore(), M = X.Modules, R = X.Registry;
-    // The slice's modules their own files have defined so far (alarm_network, MOD-ALARM).
+    // The slice's modules their own files have defined so far (alarm_network, MOD-ALARM;
+    // hourly_demonstration, MOD-CHIME).
     const real = M.defined(), realBespoke = M.bespoke();
     R.define('MODULES', 'planted_m', { built: 'M4', sentence: 'A planted rule.' });
     const ok = { rule: 'r', on: 'waited', do: [flag('n', 1)] };
@@ -126,13 +127,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   test('every department is as it was while its modules are not defined: dept.modules holds only those defined, in pack order, off under rulesOff', () => {
-    // Defined by its file so far: S.9's alarm_network (MOD-ALARM); none of A.4's or M.11's.
+    // Defined by their files so far: those of the slice's modules whose packages have built them.
     for (const acc of ['S9', 'A4', 'M11']) {
-      const d = C.Dept.create(4, acc, 3);
-      assert.equal(json(d.dept.modules), acc === 'S9' ? json([{ id: 'alarm_network', role: 'secondary', on: true, since: 0, params: {} }]) : '[]', acc);
+      const d = C.Dept.create(4, acc, 3), want = C.Packs.get(acc).modules.filter(m => C.Modules.defined(m.id)).map(m => ({ id: m.id, role: m.role, on: true, since: 0, params: m.params || {} }));
+      assert.equal(json(d.dept.modules), json(want), acc);
     }
     const X = loadCore(), inits = [];
-    X.Modules.define('unobserved_motion', { init: (state, p, m) => inits.push([m.id, m.on]) });
+    for (const id of ['alarm_network', 'unobserved_motion']) if (!X.Modules.defined(id)) X.Modules.define(id, { init: (state, p, m) => inits.push([m.id, m.on]) });
     const d = X.Dept.create(4, 'S9', 3), o = X.Dept.create(4, 'S9', 3, { rulesOff: ['alarm_network'] });
     assert.equal(json(d.dept.modules), json([{ id: 'unobserved_motion', role: 'signature', on: true, since: 0, params: {} }, { id: 'alarm_network', role: 'secondary', on: true, since: 0, params: {} }]));
     assert.equal(json(o.dept.modules.map(m => [m.id, m.on])), json([['unobserved_motion', true], ['alarm_network', false]]));

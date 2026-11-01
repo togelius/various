@@ -430,7 +430,10 @@ const Specials = (() => {
   //   - a due line, if its boundary comes at or before your next decision (a boundary runs
   //     before anyone who acts at its tick), whether it is marked already or will be marked
   //     before then by a module (Modules.threat: the chime's lines before the chime sounds,
-  //     §8.1, D7.3), so a long action is never begun without warning of one.
+  //     §8.1, D7.3), so a long action is never begun without warning of one. A line not yet
+  //     marked is asked of Modules.threat on the state as it was before the action, never the
+  //     copy: what the action's roll changes (a reflector it destroys, say) cannot change the
+  //     forecast, which says every tile the line could take when it is marked.
   // dmg is what the mark shows: its gross through your Padding now, which is what goes off,
   // since your stats change only when your action is done. A due line's answer also gives
   // its special (sp) and the tick it goes off (due), since a module's line has no mark yet.
@@ -443,7 +446,8 @@ const Specials = (() => {
   // before the action is looked at, so the answer gives nothing away:
   //   - a mark whose owner the action destroys still counts, because whether a blow
   //     destroys is not known before it is made, so a destroying blow and a miss give the
-  //     same answer; so does a line a module would mark for that owner;
+  //     same answer; so does a line a module would mark for that owner (a module's forecast
+  //     is read from the state before the action);
   //   - an action with a consumable whose kind you have not identified (Consumables.known)
   //     is judged as if it left you where you are and called nothing off, so the answer
   //     does not tell you what the consumable is. Only its cost is the action's own.
@@ -492,12 +496,11 @@ const Specials = (() => {
       } else if (Actors.scheduled(a) && a.next < decision && hasTile(t.tiles, x, y)) found.push({ at: a.next, late: 1, i, hit: hit(a.uid, t.gross, t.sp, null) });
     }
     // The module marks due by your next decision (Modules.threat gives those due before the
-    // tick it is given, so it is given the tick after your decision): from the copy, and, for
-    // an owner the action destroyed, from the state as it was.
+    // tick it is given, so it is given the tick after your decision), read from the state as
+    // it was before the action: nothing the action's outcome changes (an owner, or a
+    // reflector, its blow destroys) changes them.
     const index = uid => { for (let i = 1; i < state.actors.length; i++) if (state.actors[i].uid === uid) return i; return state.actors.length; };
-    const lost = uid => { const i = index(uid); return i < state.actors.length && i < seen.actors.length && !state.actors[i].gone && seen.actors[i].gone; };
-    const forecast = Modules.threat(seen, decision + 1).map(moduleMark);
-    if (seen !== state) for (const m of Modules.threat(state, decision + 1).map(moduleMark)) if (lost(m.by)) forecast.push(m);
+    const forecast = Modules.threat(state, decision + 1).map(moduleMark);
     for (const m of forecast) {
       if (m.due > decision || pending.has(`${m.by} ${m.sp} ${m.due}`) || !hasTile(m.tiles, x, y)) continue;
       pending.add(`${m.by} ${m.sp} ${m.due}`);

@@ -1,7 +1,8 @@
 // The generic wake clause, "Wakes when you stay inside your ring or make noise near it."
 // (BUILD.md §8.2, §5.3), for every species whose line ends with it, at every depth 1–7: the
-// ring's pips wake it hunting, a noise's pips wake it awake and send it to look, and outside
-// both it sleeps on. Each run is clone-checked, with every invariant after every step.
+// ring's pips wake it hunting (awake, for one that never hunts: M4's station, §8.2), a noise's
+// pips wake it awake and send it to look, and outside both it sleeps on. Each run is
+// clone-checked, with every invariant after every step.
 const H = require('./_harness.js');
 
 module.exports = ({ test, assert, loadCore }) => {
@@ -29,7 +30,8 @@ module.exports = ({ test, assert, loadCore }) => {
     expect(r) {
       const a = r.state.actors[1], pips = pipsOf(r, a.uid);
       if (json(pips.map(e => [e.turn, e.pips, e.cause.k, e.cause.dist, e.cause.r])) !== json([[1, 1, 'ring', 3, 3], [2, 2, 'ring', 3, 3], [3, 3, 'ring', 3, 3]])) return `its pips were ${json(pips.map(e => [e.turn, e.pips, e.cause]))}`;
-      if (a.mode !== 'hunting' || !a.woke || a.woke.turn !== 3 || a.woke.cause.k !== 'ring') return `after ${PIPS} turns in your ring it is ${a.mode}, story ${json(a.woke)}`;
+      const mode = C.Archetypes.huntsOnSight(r.state, a) ? 'hunting' : 'awake';
+      if (a.mode !== mode || !a.woke || a.woke.turn !== 3 || a.woke.cause.k !== 'ring') return `after ${PIPS} turns in your ring it is ${a.mode}, story ${json(a.woke)}`;
       return null;
     },
   });
@@ -90,10 +92,12 @@ module.exports = ({ test, assert, loadCore }) => {
     },
   });
 
+  // A species that never hunts (M4's station, §8.2) is never set out hunting.
+  const HUNTERS = LIST.filter(l => C.Archetypes.huntsOnSight(null, { arch: l.sp.archetype, mods: l.sp.modifiers || [] }));
   for (const sc of [ring, noise, outside, placed]) {
     test(`wake: ${sc.name}, for every species and depth`, () => {
       assert.ok(LIST.length >= 7 * 10, `${LIST.length / 7} species`);
-      const results = H.sweep(C, sc, LIST);
+      const results = H.sweep(C, sc, sc === placed ? HUNTERS : LIST);
       assert.equal(json(H.failures(results)), '[]');
     });
   }

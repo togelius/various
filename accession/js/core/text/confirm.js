@@ -14,7 +14,8 @@
 //             goes off before your next decision (Specials.threat): data {by, shape, dmg,
 //             stay, marked?, due?, more?}: its owner, its special's shape and the number it
 //             deals you; whether you stay where you are; marked (false only for a due line
-//             not yet marked, such as one a chime still to come will mark: D7.3), due (it
+//             not yet marked, such as one a chime still to come will mark: D7.3, said as a
+//             line that can strike there, since its tiles are fixed only when marked), due (it
 //             goes off at a turn boundary); and more, the others that strike that tile before
 //             your next decision, each {by, shape, dmg, marked?, due?}, in the order they go
 //             off;
@@ -36,7 +37,7 @@
   // The others that strike the tile before your next decision, after the first.
   function others(list, nameOf) {
     if (!Array.isArray(list) || !list.length) return '';
-    const one = h => `${whose(h, nameOf)}’s ${what(h)}, dealing ${h.dmg}${h.marked === false ? ' (not yet marked)' : ''}`;
+    const one = h => `${whose(h, nameOf)}’s ${what(h)}, dealing ${h.dmg}${h.marked === false ? ' (not yet marked: it can reach there)' : ''}`;
     return ` ${list.length === 1 ? 'Another goes' : 'More go'} off there before your next turn: ${list.map(one).join('; ')}.`;
   }
   // How a sealed hall's shutters open (rules/hall.js; text/hall.js says the same).
@@ -55,9 +56,11 @@
     // come) is named as its owner will mark it, so the sheet never calls an unmarked tile marked.
     threat: (d, nameOf) => {
       const who = whose(d, nameOf), sp = what(d), more = others(d.more, nameOf);
+      // A line not yet marked has no tiles yet: they are fixed when it is marked, and the
+      // threat warns of every tile it could take then (§8.1, D7.3), so it says it can strike.
       if (d.marked === false) {
-        return { title: d.stay ? `Stay where ${an(sp)} will strike?` : `Step where ${an(sp)} will strike?`, yes: d.stay ? 'Stay' : 'Step there',
-          line: `${cap(who)} will mark its ${sp} on that tile, and it goes off before your next turn: it would deal you ${d.dmg}, with no roll.${more}` };
+        return { title: d.stay ? `Stay where ${an(sp)} can strike?` : `Step where ${an(sp)} can strike?`, yes: d.stay ? 'Stay' : 'Step there',
+          line: `${cap(who)} is to mark its ${sp} before your next turn; it can reach that tile, and it goes off before then: it would deal you ${d.dmg}, with no roll.${more}` };
       }
       return { title: d.stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', yes: d.stay ? 'Stay' : 'Step onto it',
         line: `${cap(who)}’s ${sp} goes off on that tile before your next turn: it would deal you ${d.dmg}, with no roll.${more}` };

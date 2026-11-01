@@ -510,11 +510,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const marked = C.Text.confirm('threat', { by: 'x.1', shape: 'line', dmg: 6, stay: true, marked: true, due: false }, nameOf);
     assert.equal(json(marked), json({ title: 'Stay on the marked tile?', yes: 'Stay', line: 'The Signal Station’s beam goes off on that tile before your next turn: it would deal you 6, with no roll.' }));
     const due = C.Text.confirm('threat', { by: 'x.1', shape: 'planted_row', dmg: 7, stay: true, marked: false, due: true }, nameOf);
-    assert.equal(json(due), json({ title: 'Stay where a line will strike?', yes: 'Stay', line: 'The Signal Station will mark its line on that tile, and it goes off before your next turn: it would deal you 7, with no roll.' }));
+    // (A line not yet marked has no tiles yet, and the threat warns of every tile it could take:
+    // so it "can" strike there, MOD-CHIME.)
+    assert.equal(json(due), json({ title: 'Stay where a line can strike?', yes: 'Stay', line: 'The Signal Station is to mark its line before your next turn; it can reach that tile, and it goes off before then: it would deal you 7, with no roll.' }));
     const step = C.Text.confirm('threat', { by: 'x.1', shape: null, dmg: 7, stay: false, marked: false, due: true,
       more: [{ by: 'x.2', shape: 'ring', dmg: 3, marked: true, due: false }, { by: 'x.3', shape: null, dmg: 2, marked: false, due: true }] }, nameOf);
-    assert.equal(json(step), json({ title: 'Step where a line will strike?', yes: 'Step there',
-      line: 'The Signal Station will mark its line on that tile, and it goes off before your next turn: it would deal you 7, with no roll. More go off there before your next turn: the Warden’s ring of blows, dealing 3; an exhibit’s line, dealing 2 (not yet marked).' }));
+    assert.equal(json(step), json({ title: 'Step where a line can strike?', yes: 'Step there',
+      line: 'The Signal Station is to mark its line before your next turn; it can reach that tile, and it goes off before then: it would deal you 7, with no roll. More go off there before your next turn: the Warden’s ring of blows, dealing 3; an exhibit’s line, dealing 2 (not yet marked: it can reach there).' }));
     const one = C.Text.confirm('threat', { by: 'x.2', shape: 'ring', dmg: 3, stay: false, more: [{ by: 'x.1', shape: 'line', dmg: 6 }] }, nameOf);
     assert.match(one.line, /with no roll\. Another goes off there before your next turn: the Signal Station’s beam, dealing 6\.$/);
     for (const c of [marked, due, step, one]) assert.ok(clean(c.title) && clean(c.yes) && clean(c.line) && /^[A-Z].*\.$/.test(c.line), json(c));
@@ -569,8 +571,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const dmg = S.net(S.info(s, 'planted_due').gross, s.actors[0].pad);
     const before = ask(s, equip);
     assert.ok(before, 'the equip is warned of');
-    assert.equal(before.title, 'Stay where a line will strike?');
-    assert.equal(before.line, `An exhibit will mark its line on that tile, and it goes off before your next turn: it would deal you ${dmg}, with no roll.`);
+    assert.equal(before.title, 'Stay where a line can strike?');
+    assert.equal(before.line, `An exhibit is to mark its line before your next turn; it can reach that tile, and it goes off before then: it would deal you ${dmg}, with no roll.`);
     // After the chime has marked it: a marked tile.
     const u = make();
     X.Step.step(u, { a: 'wait' }); X.Step.step(u, { a: 'wait' });

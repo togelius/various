@@ -497,10 +497,14 @@ module.exports = ({ test, assert, loadCore }) => {
   // (test/m4-backbone.test.js drives them).
   test('the M4 hooks are present and neutral; the stubs Wave 1 fills are present, with their signatures; every archetype and modifier file is registered', () => {
     const X = loadCore(), s = X.TestRoom.create(1), ev = [], h = State.hash(s), a = s.actors[1];
-    // W1-WAKE-A's file: the chime (Wake.perform, Wake.resleep). Vision.observed, with no Lamp
-    // lit, is your sight: a tile of the exhibit in your line of sight within SIGHT_PLAYER.
-    X.Wake.perform(s, a, { k: 'period' }, ev); X.Wake.resleep(s, a, ev);
-    assert.equal(State.hash(s), h, 'Wake.perform and Wake.resleep change nothing'); assert.equal(ev.length, 0);
+    // W1-WAKE-A's file: the chime (Wake.perform, Wake.resleep), MOD-CHIME's since, which the
+    // test room never calls (no station, no chime): behaviour/demonstrator.test.js and
+    // behaviour/hourly_demonstration.test.js drive them; resleep leaves one not performing as
+    // it is. Vision.observed, with no Lamp lit, is your sight: a tile of the exhibit in your line
+    // of sight within SIGHT_PLAYER.
+    assert.equal(X.Wake.perform.length, 4); assert.equal(X.Wake.resleep.length, 3);
+    assert.equal(X.Wake.resleep(s, a, ev), false);
+    assert.equal(State.hash(s), h, 'Wake.resleep changes nothing for one not performing'); assert.equal(ev.length, 0);
     const vis = X.Vision.visible(s);
     for (const b of s.actors.slice(1)) assert.equal(X.Vision.observed(s, b), Actors.footprint(b).some(([x, y]) => vis[y * s.dept.w + x] === 1), `Vision.observed ${b.uid}`);
     // W1-WAKE-B's file: the alarm's hold on returning, Single File, Vanishing Act. With no
@@ -527,7 +531,7 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.ok(X.Archetypes.added(id), id);
     for (const id of ['glass', 'old_repair', 'marble', 'plaster']) assert.ok(X.Archetypes.addedModifier(id), id);
     // Every M3 archetype in the registry has its file, and an M4 one once its package has
-    // built it (past ready false: patrol_guard, MOD-ALARM's), and not before.
+    // built it (past ready false: patrol_guard, MOD-ALARM's; demonstrator, MOD-CHIME's), and not before.
     for (const id of X.Registry.order('ARCHETYPES')) assert.equal(X.Archetypes.added(id), X.Registry.ARCHETYPES[id].built === 'M3' || X.Registry.ARCHETYPES[id].ready !== false, id);
   });
 };
