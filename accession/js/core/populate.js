@@ -556,8 +556,11 @@ const Populate = (() => {
     //   - has for posts the free tiles nearest its strip's corners, north-west, north-east,
     //     south-east, south-west, each once, and the Wader starts the visit on the first;
     //   - leaves out a post the Wader's walk would stall on for good (its way there blocked
-    //     only by exhibits that stand still: Patrol.timeline's stuck), and is fixed again
-    //     without it, until every Wader walks its whole round.
+    //     only by exhibits that stand still: Patrol.timeline's stuck), or the post it started
+    //     on if it never left it, and is fixed again without it, until every Wader walks its
+    //     whole round;
+    //   - when its strip gives it fewer than two posts, is the whole half's round instead
+    //     (the free tiles nearest the half's corners), once.
     // A Wader left with fewer than two posts keeps no round (route null), which the log says.
     // No draw.
     const mouths = intro && Array.isArray(intro.openings) ? intro.openings : [];
@@ -570,17 +573,20 @@ const Populate = (() => {
     const rounds = [];
     for (const { rm, list } of walkers.values()) {
       const half = farHalf(rm, mouths), mine = (x, y) => list.some(a => Actors.covers(a, x, y));
-      list.forEach((a, j) => {
-        const box = strip(half, j, list.length), free = floorOf(rm).filter(([x, y]) => (!covered(x, y) || mine(x, y)) && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]);
-        const posts = [];
+      const postsOf = box => {
+        const free = floorOf(rm).filter(([x, y]) => (!covered(x, y) || mine(x, y)) && x >= box[0] && x <= box[2] && y >= box[1] && y <= box[3]), posts = [];
         for (const [cx, cy] of [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]]) {
           let best = null;
           for (const t of free) if (!best || Grid.chebyshev(t[0], t[1], cx, cy) < Grid.chebyshev(best[0], best[1], cx, cy)) best = t;
           if (best && !posts.some(p => p[0] === best[0] && p[1] === best[1])) posts.push(best.slice());
         }
-        rounds.push({ rm, a, posts });
-      });
+        return posts;
+      };
+      // Its strip's round; one left with fewer than two posts, the whole half's (once).
+      list.forEach((a, j) => rounds.push({ rm, a, posts: postsOf(strip(half, j, list.length)), wider: list.length > 1 ? () => postsOf(half) : null }));
     }
+    const widen = r => { if (r.posts.length < 2 && r.wider) { r.posts = r.wider(); r.wider = null; say(r.rm, `${r.a.uid} walks the whole half's round: its strip's has fewer than two posts`); } };
+    rounds.forEach(widen);
     // Each Wader on its first post, walking its round; or none.
     const walk = r => {
       if (r.posts.length < 2) { r.a.route = null; return; }
@@ -603,8 +609,11 @@ const Populate = (() => {
       for (const p of stuck) {
         const r = rounds.find(q => q.a.uid === p.uid);
         if (!r || !r.a.route) continue;
-        const gone = r.posts.splice(p.stuck.post, 1)[0];
+        // One that never left the post it started on is walled in there: that post goes.
+        const trapped = p.at.every(q => q.x === p.at[0].x && q.y === p.at[0].y);
+        const gone = r.posts.splice(trapped ? 0 : p.stuck.post, 1)[0];
         say(r.rm, `${r.a.uid}'s round leaves out its post at ${gone[0]},${gone[1]}: its walk there would stall`);
+        widen(r);
         walk(r);
       }
     }
