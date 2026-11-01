@@ -67,6 +67,68 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(r.events.filter(e => e.k === 'moved').map(e => e.turn)), json([0, 1, 2, 3]));
   });
 
+  // ---- On its plinth (§8.2; S.9's Intro stamp stands its Grazer on one) ----
+  // The Lamp Corridor's map (content/S9-intro.js: the Grazer's plinth at 11,3, staggered columns,
+  // the partition's door shut, you behind it). Hunting you where it last knew you were, beyond
+  // the columns, it steps off its plinth, searches there, goes home, steps back onto its plinth,
+  // settles back in and sleeps there: 2 tiles a turn with unobserved_motion on, a tile a turn
+  // with it off (AI's walk, a plodder's). Every invariant holds after every step, the exhibits'
+  // walking rule among them (modes_exhibit_steps: no step onto a plinth but its own home).
+  const CORRIDOR = ['################', '#.......|......#', '#.......|......#', '#.......|..p...#', '#.......|......#', '#.......|.o.o..#', '#.......+......#', '#.......|......#', '#.......|......#', '#.......|.o....#', '#.......|......#', '################'];
+  const onPlinth = on => H.scenario({
+    name: `standing on its plinth, it steps off it, and back onto it going home, and sleeps there (unobserved_motion ${on ? 'on' : 'off'})`,
+    id: 'unobserved_mover', clone: true,
+    build: (params, sp, depth, opts) => room({ seed: opts.seed, rulesOff: on ? opts.rulesOff : opts.rulesOff.concat([ID]) },
+      { depth, map: CORRIDOR, you: [2, 6], exhibits: [{ sp: sp.id, at: [11, 3], mode: 'hunting', lastKnown: [13, 9], stim: 0, stats: Roles.stats(sp.role, depth) }] }, true),
+    actions: waits(40),
+    expect(r) {
+      const g = grazer(r.start), end = r.state.actors.find(b => b.uid === g.uid), steps = r.events.filter(e => e.k === 'moved' && e.who === g.uid);
+      if (json(g.home) !== '[11,3]') return `its home is ${json(g.home)}`;
+      if (!steps.length || json(steps[0].from) !== '[11,3]' || steps[0].turn !== 0) return 'it did not step off its plinth at once';
+      if (!steps.some(e => json(e.to) === '[13,9]')) return 'it never reached the tile where it last knew you were';
+      const back = steps[steps.length - 1];
+      if (json(back.to) !== '[11,3]') return `its last step was to ${json(back.to)}, not back onto its plinth`;
+      if (steps.slice(1, -1).some(e => Grid.ch(r.start.dept, e.to[0], e.to[1]) !== '.')) return 'it walked onto a tile that is not floor';
+      const settled = r.events.filter(e => e.k === 'returned' && e.who === g.uid && e.cause.x === 11 && e.cause.y === 3).map(e => e.phase);
+      if (json(settled) !== json(['arrived', 'reinstalled'])) return `at home it ${json(settled)}`;
+      if (end.mode !== 'dormant' || end.x !== 11 || end.y !== 3) return `it ended ${end.mode} at ${end.x},${end.y}`;
+      const per = new Map();
+      for (const e of steps) per.set(e.turn, (per.get(e.turn) || 0) + 1);
+      const most = on ? N.UNOBSERVED_STEP : 1;
+      if ([...per.values()].some(k => k > most) || ![...per.values()].includes(most)) return `steps a turn ${json([...per.entries()])}, not up to ${most}`;
+      return null;
+    },
+  });
+  test('standing on its plinth, it steps off it and back onto it going home, and sleeps there: 2 tiles a turn, or a tile a turn with the module off', () => {
+    for (const on of [true, false]) { const sc = onPlinth(on); ok(H.sweep(C, sc, list()), sc.name); }
+  });
+
+  // No exhibit steps onto a plinth that is not its home, nor walks across one: the Grazer whose
+  // home is the floor beyond a row of plinths, with a gap at the row's end, walks round by the
+  // gap; and the walking rule's invariant fails a step onto any other plinth.
+  test('no exhibit steps onto a plinth but its own home, nor across one; the walking rule\'s invariant says so', () => {
+    // You wait in a pocket walled off from the row, out of its sight and it out of yours.
+    const ROW = ['############', '#........#.#', '#ppppppp.#.#', '#........#.#', '############'];
+    for (const on of [true, false]) {
+      const s = room({ seed: 1, rulesOff: on ? [] : [ID] }, { depth: 3, map: ROW, you: [10, 2], exhibits: [{ sp: 'S9.1', at: [1, 3], home: [1, 1], mode: 'returning', stim: 0, stats: Roles.stats('ambusher', 3) }] }, true);
+      const r = H.play(C, s, waits(30));
+      assert.deepEqual(r.violations.map(v => v.text), []);
+      const steps = r.events.filter(e => e.k === 'moved' && e.who === s.actors[1].uid);
+      assert.ok(steps.every(e => Grid.ch(s.dept, e.to[0], e.to[1]) === '.'), json(steps.map(e => e.to)));
+      assert.ok(steps.some(e => e.to[0] === 8 && e.to[1] === 2), 'it went round by the gap');
+      assert.equal(json([s.actors[1].x, s.actors[1].y]), '[1,1]');
+    }
+    // The invariant, on a step made by hand onto a plinth that is not its home, and onto its home
+    // plinth past a corner.
+    const Inv = require('../../tools/invariants.js'), check = Inv.checker(C, Inv.select(C, ['modes_exhibit_steps']));
+    const s = room({ seed: 1, rulesOff: [] }, { depth: 3, map: ROW, you: [10, 2], exhibits: [{ sp: 'S9.1', at: [3, 1], home: [3, 2], mode: 'awake', stim: 0, stats: Roles.stats('ambusher', 3) }] }, true);
+    const moved = (to, home) => { const pre = State.clone(s), post = State.clone(s), a = post.actors[1]; a.home = home; const ev = [{ k: 'moved', turn: 0, tick: 0, who: a.uid, from: [a.x, a.y], to }]; a.x = to[0]; a.y = to[1]; return check(pre, { a: 'wait' }, ev, post).map(v => v.inv); };
+    assert.equal(json(moved([3, 2], [3, 2])), '[]', 'onto its home plinth');
+    assert.equal(json(moved([2, 2], [3, 2])), json(['modes_exhibit_steps']), 'onto another plinth');
+    assert.equal(json(moved([4, 2], [3, 2])), json(['modes_exhibit_steps']), 'onto another plinth');
+    assert.equal(json(moved([2, 2], [2, 2])), json(['modes_exhibit_steps']), 'onto its home plinth past a corner');
+  });
+
   // ---- Its wake region (plan A8), for D-LV6's safe zone and the runner ----
   // What a Grazer actually sees over `turns` turns, played joined up with you never seen by it
   // (its sight of you switched off, in a core of its own): every tile you could stand on (as at
@@ -173,5 +235,68 @@ module.exports = ({ test, assert, loadCore }) => {
       }
     }
     assert.ok(n >= 12, `${n} Grazers`);
+  });
+
+  // The same, played with you walking about (opening and closing doors on the way, so that it
+  // is seen at some of its actions and not at others, and its walks wait, step into view and
+  // stop): on the Lamp Corridor's map, the Grazer at home on its plinth or away from it (going
+  // home onto it, sent to look, searching), and in S.9 departments. Each run's walk is drawn
+  // on a generator of the test's own, from the legal moves, waits, opens and closes.
+  function seenWalking(s, uid, turns, seed) {
+    if (!unseen) { unseen = loadCore(); unseen.AI.sees = () => false; }
+    const X = unseen, play = X.State.clone(s), from = [], act = X.AI.act, until = s.tick + turns * N.TICKS_PER_TURN;
+    X.AI.act = (st, b, ev) => { if (b.uid === uid && st.tick <= until) from.push({ x: b.x, y: b.y, tiles: st.dept.tiles.slice() }); return act(st, b, ev); };
+    let lcg = seed * 2654435761 % 2147483648;
+    try {
+      for (let t = 0; t <= turns && !play.over && play.tick <= until; t++) {
+        const legal = X.Step.legal(play).filter(a => ['move', 'wait', 'open', 'close'].includes(a.a));
+        lcg = (lcg * 1103515245 + 12345) % 2147483648;
+        X.Step.step(play, legal[lcg % legal.length]);
+      }
+    } finally { X.AI.act = act; }
+    const a = s.actors.find(b => b.uid === uid), m = s.dept, out = new Set();
+    for (const p of from) for (let y = Math.max(0, p.y - N.SIGHT_EXHIBIT); y <= Math.min(m.h - 1, p.y + N.SIGHT_EXHIBIT); y++) for (let x = Math.max(0, p.x - N.SIGHT_EXHIBIT); x <= Math.min(m.w - 1, p.x + N.SIGHT_EXHIBIT); x++) {
+      if (!Grid.disc(x - p.x, y - p.y, N.SIGHT_EXHIBIT) || (x === a.x && y === a.y) || !Grid.walkable(m, x, y) || Grid.closedDoor(m, x, y)) continue;
+      if (Grid.los({ w: m.w, h: m.h, tiles: p.tiles, surfaces: [] }, p.x, p.y, x, y)) out.add(x + ',' + y);
+    }
+    return { seen: out, stood: from.map(p => p.x + ',' + p.y) };
+  }
+  test('awake, its wake region holds every tile it sees when played with you walking about: on its plinth, going home onto it, and in S.9 departments', () => {
+    const starts = [['awake', [11, 3], { target: [13, 9] }], ['awake', [11, 3], { target: [2, 2] }], ['returning', [13, 9], {}], ['returning', [9, 1], {}], ['returning', [3, 6], {}],
+      ['searching', [12, 1], { lastKnown: [5, 9] }], ['reinstalling', [10, 4], {}]];
+    let runs = 0, plinth = 0;
+    for (const on of [true, false]) for (const [mode, at, more] of starts) for (const turns of [2, 4, 6, N.SAFE_ZONE_TURNS]) for (let seed = 1; seed <= 3; seed++) {
+      const s = room({ seed, rulesOff: on ? [] : [ID] }, { depth: 1 + (seed + turns) % 7, map: CORRIDOR, you: [2 + seed, 2 + 2 * seed], exhibits: [Object.assign({ sp: 'S9.1', at, home: [11, 3], mode, stim: 0, stats: Roles.stats('ambusher', 3) }, more)] }, true);
+      const a = grazer(s), R = regionOf(s, a, turns), { seen, stood } = seenWalking(s, a.uid, turns, seed * 31 + turns);
+      assert.deepEqual(outside(seen, R), [], `${on ? 'on' : 'off'}, ${mode} at ${at}, ${turns} turns, seed ${seed}: tiles it saw outside its region`);
+      runs++;
+      if (stood.slice(1).includes('11,3') && at.join(',') !== '11,3') plinth++;
+    }
+    assert.ok(runs >= 100 && plinth >= 10, `${runs} runs, ${plinth} back on its plinth within the time`);
+    // Its plinth at the mouth of a corridor that no walk enters but over the plinth: going home
+    // onto it, it sees from the plinth alone down the corridor, further than from anywhere else
+    // it could stand; its region holds those tiles.
+    const NICHE = ['####################', '#....###############', '#....###############', '#....p.............#', '#....###############', '#....#.............#', '####################'];
+    for (const on of [true, false]) for (const turns of [3, 5, N.SAFE_ZONE_TURNS]) {
+      const s = room({ seed: 1, rulesOff: on ? [] : [ID] }, { depth: 3, map: NICHE, you: [8, 5], exhibits: [{ sp: 'S9.1', at: [2, 2], home: [5, 3], mode: 'returning', stim: 0, stats: Roles.stats('ambusher', 3) }] }, true);
+      const a = grazer(s), R = regionOf(s, a, turns), { seen, stood } = seenOver(s, a.uid, turns);
+      if (stood.includes('5,3')) assert.ok(seen.has('13,3'), `${turns} turns: from its plinth it saw down the corridor`);
+      assert.equal(R.has('13,3'), stood.includes('5,3'), `${on ? 'on' : 'off'}, ${turns} turns: the corridor seen from its plinth alone`);
+      assert.deepEqual(outside(seen, R), [], `${on ? 'on' : 'off'}, ${turns} turns: tiles it saw outside its region`);
+    }
+    const X = loadCore();
+    X.Packs.get('S9').galleries = JSON.parse(json(GALLERIES));
+    let n = 0;
+    for (let seed = 1; seed <= 4; seed++) {
+      const s = X.Dept.create(seed, 'S9', 1 + ((seed - 1) % 7));
+      for (const a of s.actors.filter(b => b.arch === 'unobserved_mover')) {
+        const w = X.State.clone(s), b = w.actors.find(o => o.uid === a.uid), goal = X.AI.wanderGoal(w, b);
+        X.Wake.wake(w, b, 'awake', { k: 'noise', x: goal[0], y: goal[1], dist: 1 }, [], { target: goal });
+        const R = regionOf(w, b, N.SAFE_ZONE_TURNS), { seen } = seenWalking(w, b.uid, N.SAFE_ZONE_TURNS, seed);
+        assert.deepEqual(outside(seen, R), [], `seed ${seed}, ${a.uid}: tiles it saw outside its region`);
+        n++;
+      }
+    }
+    assert.ok(n >= 8, `${n} Grazers`);
   });
 };

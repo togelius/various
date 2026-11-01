@@ -19,7 +19,8 @@
 // its quickest (each step at what a step costs it now, UNOBSERVED_STEP a turn while the module
 // acts on it, else a tile a turn; no status slowing it), whatever it does on the way (an exhibit
 // walking only while unseen, or going home and back to sleep, stands on no tile it could not
-// walk to), and seeing through every door, since one may be opened by then (an ordinary door
+// walk to, but for its home plinth, which it steps back onto: AI's walk, §8.2), and seeing
+// through every door, since one may be opened by then (an ordinary door
 // by anyone, a shutter by the hall lifting). Sleeping again at home within the time, its ring
 // lies within that sight (RING_MOVING walking tiles are fewer than SIGHT_EXHIBIT). In an
 // intact case it only waits: its own tile. Hunting you, none: it has found you. It draws on
@@ -40,6 +41,18 @@
     // Every door and shutter open: each may be by then, to walk through and to see through.
     const open = Object.assign({}, m, { surfaces: [], tiles: m.tiles.map(row => row.replace(/[+Z]/g, "'")) });
     const reach = Grid.distances(open, [[a.x, a.y]], n, null, 'exhibit');
+    // Its home on a plinth (a tile no walk enters, §8.2), which it steps back onto going
+    // home: one step beyond a tile beside it from which that step is allowed (the diagonal
+    // rule is the same both ways).
+    if (a.home && (a.size || 1) === 1) {
+      const [hx, hy] = a.home, hi = hy * m.w + hx;
+      if (reach[hi] < 0 && Grid.hold(open, hx, hy) && !Grid.walkable(open, hx, hy) && Grid.ch(open, hx, hy) !== 'v')
+        for (let d = 0; d < 8; d++) {
+          if (!Grid.canStep(open, hx, hy, d, 'exhibit')) continue;
+          const v = reach[(hy + Grid.DY[d]) * m.w + hx + Grid.DX[d]];
+          if (v >= 0 && v + 1 <= n && (reach[hi] < 0 || v + 1 < reach[hi])) reach[hi] = v + 1;
+        }
+    }
     const r = N.SIGHT_EXHIBIT, s = a.size || 1, on = new Uint8Array(m.w * m.h), out = [];
     const mine = (x, y) => x >= a.x && y >= a.y && x < a.x + s && y < a.y + s;
     for (let k = 0; k < reach.length; k++) {

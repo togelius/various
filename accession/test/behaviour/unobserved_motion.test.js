@@ -35,12 +35,20 @@ module.exports = ({ test, assert, loadCore }) => {
     return false;
   }
   // A core whose AI.act notes, as each Grazer's action begins, its tick, turn and tile, its
-  // mode, and whether you can see it then (acts), in the state the scenario built and plays
-  // (watching; not its clone-checked twin), cleared as each scenario builds its room.
+  // mode, and whether you can see it then (acts), and as it ends whether you can see it then
+  // (after), in the state the scenario built and plays (watching; not its clone-checked twin),
+  // cleared as each scenario builds its room.
   let acts = [], watching = null;
   function watched() {
     const X = loadCore(), act = X.AI.act;
-    X.AI.act = (s, a, ev) => { if (s === watching && a.arch === 'unobserved_mover') acts.push({ uid: a.uid, tick: s.tick, turn: s.turn, at: [a.x, a.y], mode: a.mode, seen: sees(X, s, a) }); return act(s, a, ev); };
+    X.AI.act = (s, a, ev) => {
+      if (s !== watching || a.arch !== 'unobserved_mover') return act(s, a, ev);
+      const rec = { uid: a.uid, tick: s.tick, turn: s.turn, at: [a.x, a.y], mode: a.mode, seen: sees(X, s, a) };
+      acts.push(rec);
+      const c = act(s, a, ev);
+      rec.after = sees(X, s, a);
+      return c;
+    };
     return X;
   }
   const W = watched();
@@ -76,8 +84,11 @@ module.exports = ({ test, assert, loadCore }) => {
       if (st.length > N.UNOBSERVED_STEP) return `turn ${turn}: ${st.length} steps`;
       const into = xs.findIndex((x, k) => k > 0 && x.seen);
       if (into > 0 && xs.length > into) return `turn ${turn}: it acted again after a step brought it into your sight`;
-      const seenAfter = k => { const j = mine.indexOf(xs[k]); return j + 1 < mine.length ? mine[j + 1].seen : null; };
-      const intoView = xs.some((x, k) => st.some(e => e.tick === x.tick) && seenAfter(k) === true && (k + 1 >= xs.length));
+      // A step that ended in your sight (judged as the step ends, where you stand then) is its
+      // last action of the turn.
+      const stepped = x => st.some(e => e.tick === x.tick), last = xs.findIndex(x => stepped(x) && x.after);
+      if (last >= 0 && last + 1 < xs.length) return `turn ${turn}: it acted again after a step brought it into your sight`;
+      const intoView = last >= 0;
       if (!intoView && !blows.length && walks(turn) && st.length !== N.UNOBSERVED_STEP) return `turn ${turn}: out of your sight it took ${st.length} steps, not ${N.UNOBSERVED_STEP}`;
     }
     return null;
@@ -254,22 +265,22 @@ module.exports = ({ test, assert, loadCore }) => {
 
   // ---- The Lamp Corridor: S.9's Intro stamp, its staggered columns ----
   // The stamp's map (content/S9-intro.js, D-STAMPS: "you can see it from some tiles of that way
-  // and not from others"), with the Grazer awake beside its plinth (on it, it could not step
-  // off: no exhibit's walk starts from a tile it cannot walk), hunting you: you walk east along
-  // the entrance row from the door, then wait at the far end. It moves on the turns a column
-  // hides it, and only then.
+  // and not from others"), with the Grazer awake on its plinth, its home, hunting you: you walk
+  // east along the entrance row from the door, then wait at the far end. It steps off its
+  // plinth and moves on the turns a column hides it, and only then.
   const CORRIDOR = ['################', '#.......|......#', '#.......|......#', '#.......|..p...#', '#.......|......#', '#.......|.o.o..#', "#.......'......#", '#.......|......#', '#.......|......#', '#.......|.o....#', '#.......|......#', '################'];
   const corridor = H.scenario({
     name: 'in the Lamp Corridor, walking past it, it moves only on the turns a column hides it from you',
     id: 'MODULES.' + ID, clone: true,
-    build: (params, sp, depth, opts) => room(opts, { depth, map: CORRIDOR, you: [8, 6], exhibits: [hunter(sp, depth, [11, 4], [8, 6])] }),
+    build: (params, sp, depth, opts) => room(opts, { depth, map: CORRIDOR, you: [8, 6], exhibits: [hunter(sp, depth, [11, 3], [8, 6])] }),
     actions: (s, i) => i < 6 ? { a: 'move', dir: 2 } : i < 14 ? { a: 'wait' } : null,
     expect(r) {
       const g = grazer(r.start), mine = acts.filter(x => x.uid === g.uid);
       const p = paced(r, g.uid, turn => !r.events.some(e => e.k === 'attacked' && e.by === g.uid && e.turn <= turn));
       if (p) return p;
       if (!mine.some(x => x.seen) || !mine.some(x => !x.seen)) return `it was ${mine.every(x => x.seen) ? 'always' : 'never'} in your sight: the columns taught nothing`;
-      if (!r.events.some(e => e.k === 'moved' && e.who === g.uid)) return 'it never moved';
+      const steps = r.events.filter(e => e.k === 'moved' && e.who === g.uid);
+      if (!steps.length || json(steps[0].from) !== '[11,3]') return 'it never stepped off its plinth';
       return null;
     },
   });
