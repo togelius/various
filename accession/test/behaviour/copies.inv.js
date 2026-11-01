@@ -1,17 +1,19 @@
 // ACCESSION — invariants of copies_weaken, the weakened spares (BUILD.md §5.3 check 1, §5.4;
 // MOD-COPIES), checked after every step of every scenario, monkey, soak and bot run
 // (tools/invariants.js). Each states a part of the module's clause, "When its group's original
-// is destroyed, each spare and any body split from one loses {COPY_WEAKEN_PCT}% of its health
-// and damage, never its last point (blows then {weak}), and {COPY_WEAKEN_ACC} Acc, and is
-// slowed until you leave", written out again here from the clause and §5.4, not from the rule
-// code:
+// is destroyed, each spare loses {COPY_WEAKEN_PCT}% of its health and damage, never its last
+// point (blows then {weak}), and {COPY_WEAKEN_ACC} Acc, and is slowed until you leave" (each
+// body of a spare: a body split from one is the spare, and the panel sentence says so),
+// written out again here from the clause and §5.4, not from the rule code:
 //   copies.when      the module's events come only while it is on, and a spare loses heart
 //                    only once the last body of its original's line has been destroyed, in
 //                    this step, before it is told: no earlier (a splitting original falls with
 //                    its last body), and only a spare of that original whose line says so;
 //   copies.all       when an original falls, every body then present that copies it and whose
 //                    line says so loses heart, at once: each spare and each body split from
-//                    one, once each; and a body split from one later is slowed too;
+//                    one, once each; and a body split later from one that lost heart is
+//                    slowed too, and only such a body (an original gone without being
+//                    destroyed never fell);
 //   copies.loss      a body that loses heart loses COPY_WEAKEN_PCT% of its maximum health and
 //                    of each end of its damage (at least 1, never below 1) and COPY_WEAKEN_ACC
 //                    Acc, and is slowed for the rest of the visit, its slowing's cause naming
@@ -116,11 +118,16 @@ module.exports = (C) => {
         for (const e of splits) {
           const b = find(post, e.who), r = b ? copies(post, b) : null;
           if (!b || r === null || !says(post, b, r)) continue;
-          // The fall came first: before the step, or at an earlier event of it.
-          const at = events.indexOf(e), before = lineOf(pre, r).length > 0 && lineOf(pre, r).every(c => c.gone);
-          const fellFirst = before || (fell.has(r) && fell.get(r) < at);
+          // It is slowed when the body it split from had lost heart before it was made: in an
+          // earlier step (that body has held slowed for the rest of the visit since), or earlier
+          // in this one (its weakening, or its own slowing as a split, told before). An original
+          // gone without being destroyed (options.without, a dust sheet) never fell, so a body
+          // split from its spare is not.
+          const at = events.indexOf(e), from = e.cause.from, was = find(pre, from);
+          const before = !!was && (was.statuses || []).some(x => x.id === 'slowed' && x.perm === true);
+          const now = events.some((f, j) => j < at && f.k === 'module' && f.id === ID && f.who === from && (f.rule === 'weaken' || f.rule === 'split'));
           const n = told(b.uid, 'split').length;
-          if (n !== (fellFirst ? 1 : 0)) return `${b.uid} split from ${e.cause.from} ${fellFirst ? 'after' : 'before'} ${r} fell, and was told slowed ${n} time(s)`;
+          if (n !== (before || now ? 1 : 0)) return `${b.uid} split from ${from}, which ${before || now ? 'had' : 'had not'} lost heart, and was told slowed ${n} time(s)`;
         }
         return null;
       },

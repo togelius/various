@@ -6,9 +6,10 @@
 // js/core/text/mod-copies.js. Owned by MOD-COPIES.
 //
 // The rule (§5.4; M4 plan MO5, D1.4–D1.5), as the line of each exhibit it acts on says it:
-// "When its group's original is destroyed, each spare and any body split from one loses
-// {COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then {weak}), and
-// {COPY_WEAKEN_ACC} Acc, and is slowed until you leave."
+// "When its group's original is destroyed, each spare loses {COPY_WEAKEN_PCT}% of its health
+// and damage, never its last point (blows then {weak}), and {COPY_WEAKEN_ACC} Acc, and is
+// slowed until you leave." A spare's split bodies are the spare (below), so "each spare" is
+// each of its bodies; the panel sentence says so in full.
 //   - A copy group is an original and its spares. Population makes them (§4.1, plan DE5): a
 //     spare is an exhibit whose species copies another of its pack (copyOf), and its original
 //     is the exhibit of its group instance (actor.group, `<group>@<roomKey>`: one a room, the
@@ -35,7 +36,11 @@
 //     from a body that lost heart was made with that body's weakened numbers (the splitter
 //     copies them) but with no statuses (§8.1), so it is slowed for the rest of the visit too:
 //     its module event {rule: 'split', who}, then the `status` effect. Its numbers are not
-//     weakened again.
+//     weakened again. The body it split from tells whether it lost heart: one that did holds
+//     slowed for the rest of the visit, which nothing else gives an exhibit (a half starts
+//     with no statuses, and no rule takes a status off an exhibit). An original gone without
+//     being destroyed (options.without, a dust sheet) never fell, so its spares never lost
+//     heart, and a body split from one is not slowed (its line's "destroyed" never happened).
 // With the module off (rulesOff, or a visit without it) none of this happens: an original's
 // fall changes nothing (and no line carries the module's part).
 //
@@ -152,13 +157,13 @@ const CopiesWeaken = (() => {
         who: (state, e) => typeof e.who === 'string' && e.who !== 'you' && fallen(state, firstOf(e.who)) ? spares(state, firstOf(e.who)) : [],
         cause: byDeath,
         do: [{ k: 'tier', pct: N.COPY_WEAKEN_PCT, acc: N.COPY_WEAKEN_ACC }, Object.assign({ cause: (state, e) => Object.assign({ k: ID }, byDeath(state, e)) }, slowed)] },
-      // A body split from one that had lost heart: made with its weakened numbers, it is
-      // slowed too.
+      // A body split from one that had lost heart (it holds slowed for the rest of the visit,
+      // above): made with its weakened numbers, it is slowed too.
       { rule: 'split', on: 'woke',
         who(state, e) {
-          if (!e.cause || e.cause.k !== 'summoned' || e.cause.how !== 'split' || typeof e.who !== 'string') return [];
-          const a = find(state, e.who), uid = a && !a.gone ? originalOf(state, a) : null;
-          return uid !== null && fallen(state, uid) && takesPart(state, a, uid) ? [a] : [];
+          if (!e.cause || e.cause.k !== 'summoned' || e.cause.how !== 'split' || typeof e.who !== 'string' || typeof e.cause.from !== 'string') return [];
+          const a = find(state, e.who), from = find(state, e.cause.from), uid = a && !a.gone ? originalOf(state, a) : null;
+          return uid !== null && fallen(state, uid) && !!from && Status.perm(from, 'slowed') && takesPart(state, a, uid) ? [a] : [];
         },
         cause: (state, e, m, a) => ({ by: originalOf(state, a) }),
         do: [Object.assign({ cause: (state, e, m, a) => ({ k: ID, by: originalOf(state, a) }) }, slowed)] },

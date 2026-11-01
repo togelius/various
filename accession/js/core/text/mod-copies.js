@@ -7,7 +7,10 @@
 // (the module events, by their original, cause.by), and their slowing in one line (the status
 // events, likewise). Both are events about the spare (who), so a spare out of view is neither
 // told nor counted (module and status events are logged only while their exhibit is in view),
-// and the log never gives away a weakening you could not see.
+// and the log never gives away a weakening you could not see. A spare split in bodies (a
+// splitter's halves, each its own event) is one spare: the line counts spares, and says how
+// many bodies they are when that is more ("its spare, in 2 bodies, lost heart"), since a half
+// is a split of the spare, never another spare.
 'use strict';
 (() => {
   const RULES = {
@@ -22,10 +25,18 @@
   // their reason only with the spares of the same original (cause.by), so two originals
   // destroyed in one step are two lines; another rule of the module is never told with them.
   const original = e => e.cause && typeof e.cause.by === 'string' ? e.cause.by : '';
+  // The spares a group's events are about, each a line of bodies (its first body's uid, up to
+  // the first slash: a half's uid is <body uid>/<k>), in the order told; and ", in 3 bodies,"
+  // when they are more bodies than spares.
+  const spares = events => { const out = []; for (const e of events) { const l = String(e.who).split('/')[0]; if (!out.includes(l)) out.push(l); } return out; };
+  const inBodies = (events, n) => events.length > n ? `, in ${Text.count(events.length, 'body', 'bodies')},` : '';
   // (A group is two or more, and only the spares in view are told.)
-  Text.defineGroup('module', 'copies_weaken', events => original(events[0])
-    ? `An original was destroyed, and ${events.length} of its spares lost heart.`
-    : `${Text.count(events.length, 'spare')} lost heart, each because its original was destroyed.`,
+  Text.defineGroup('module', 'copies_weaken', events => {
+    const n = spares(events).length, b = inBodies(events, n);
+    return original(events[0])
+      ? `An original was destroyed, and ${n === 1 ? 'its spare' : `${n} of its spares`}${b} lost heart.`
+      : `${Text.count(n, 'spare')}${b} lost heart, each because its original was destroyed.`;
+  },
   e => e.rule === 'weaken' && e.who !== undefined ? original(e) : null);
 
   // The slowing, for the rest of the visit (a status put on with turns 'perm': its event says
@@ -39,6 +50,11 @@
   Text.defineCause('status', 'copies_weaken', (e, w) => e.on
     ? `${w.Name(e.who)} ${w.is(e.who)} now ${words(e.id)}${lasts(e)}${does(e, false)}: the original of its copy group was destroyed.`
     : `${w.Name(e.who)} ${w.is(e.who)} no longer ${words(e.id)}.`);
-  Text.defineGroup('status', 'copies_weaken', events => `${Text.count(events.length, 'spare')} are now ${words(events[0].id)}${lasts(events[0])}${does(events[0], true)}: their original was destroyed.`,
+  Text.defineGroup('status', 'copies_weaken', (events, w) => {
+    const l = spares(events), b = inBodies(events, l.length);
+    return l.length === 1
+      ? `${w.Name(l[0])}${b} is now ${words(events[0].id)}${lasts(events[0])}${does(events[0], true)}: the original of its copy group was destroyed.`
+      : `${Text.count(l.length, 'spare')}${b} are now ${words(events[0].id)}${lasts(events[0])}${does(events[0], true)}: their original was destroyed.`;
+  },
     e => e.on && e.who !== undefined && e.who !== 'you' && original(e) ? `${original(e)}\n${e.id}\n${e.turns}` : null);
 })();

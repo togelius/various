@@ -1,18 +1,19 @@
 // ACCESSION — the module copies_weaken (BUILD.md §5.4; M4 plan MO5, D1.4–D1.5; MOD-COPIES): its
 // part on the lines of the species flagged with it, "When its group's original is destroyed,
-// each spare and any body split from one loses {COPY_WEAKEN_PCT}% of its health and damage,
-// never its last point (blows then {weak}), and {COPY_WEAKEN_ACC} Acc, and is slowed until you
-// leave", and its panel sentence. Joined up: the real core, real actions only, every invariant
-// checked after every step (copies.inv.js among them), clone-checked where it says so. The
-// main scenario runs for every pack species whose line carries the part (A.4's Seated Clerk,
-// original and spare) at depths 1–7, and is rerun with the module switched off, when it must
-// fail (§5.3 check 3). What a spare loses is worked out here from §5.4, not from the module's
-// code. Also: who is told (a spare out of view is not), a splitting original that falls only
-// with its last body and a spare's split bodies (on a core whose Proposing Trustees are flagged:
-// A.4's are not yet, below), a Centrepiece's group (CopiesWeaken.addGroup), the Intro at depth
-// 1 where A.4 teaches it, departments with copy groups placed by population, the spare's line
-// against its weakened blow, the slowing for the rest of the visit (status_timing's perm), the
-// words and the form, and planted faults, each caught.
+// each spare loses {COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then
+// {weak}), and {COPY_WEAKEN_ACC} Acc, and is slowed until you leave" (each body of a spare: a
+// body split from one is the spare), and its panel sentence. Joined up: the real core, real
+// actions only, every invariant checked after every step (copies.inv.js among them),
+// clone-checked where it says so. The main scenario runs for every pack species whose line
+// carries the part (A.4's Seated Clerks and Proposing Trustees, each original and spare) at
+// depths 1–7, and is rerun with the module switched off, when it must fail (§5.3 check 3). What
+// a spare loses is worked out here from §5.4, not from the module's code. Also: who is told (a
+// spare out of view is not), a splitting original that falls only with its last body and a
+// spare's split bodies (the Trustees), an original gone without being destroyed (never fallen),
+// a Centrepiece's group (CopiesWeaken.addGroup), the Intro at depth 1 where A.4 teaches it,
+// departments with copy groups placed by population, the spare's line against its weakened
+// blow, the slowing for the rest of the visit (status_timing's perm), the words and the form,
+// and planted faults, each caught.
 'use strict';
 const H = require('./_harness.js');
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
@@ -27,15 +28,6 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // What §5.4 says a number keeps: it loses COPY_WEAKEN_PCT% of itself, at least 1, never below 1.
   const lose = v => v > 1 ? Math.max(1, v - Math.max(1, Int.pct(v, N.COPY_WEAKEN_PCT))) : v;
   const span = (lo, hi) => lo === hi ? String(lo) : `${lo}–${hi}`;
-  // A core whose Proposing Trustees (splitters) are flagged too, as A.4's Seated Clerks are: the
-  // pack leaves them out for now, since the spare's line has no room for the part (§5.3's
-  // budget; see the trustees' test below), so the splits are shown on these.
-  function flaggedCore() {
-    const X = loadCore();
-    for (const id of ['A4.4', 'A4.4a']) X.Packs.species('A4', id).flags = [ID];
-    return X;
-  }
-  const T = flaggedCore();
   // A copy group's two species for sp, original's and spare's: sp's own and its copy's.
   function pair(X, sp) {
     if (sp.copyOf) return { orig: X.Packs.species('A4', sp.copyOf), spare: sp };
@@ -48,7 +40,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const depth = o.depth || 1;
     const exhibits = o.exhibits.map(e => Object.assign({ sp: e.sp.id || e.sp, at: e.at, group: e.group === undefined ? null : e.group, mode: e.mode || 'dormant',
       stats: e.stats || X.Roles.stats((e.sp.role || 'fodder'), depth) }, e.extra || {}));
-    const s = H.room(X, opts.seed || 1, { acc: 'A4', depth, map: o.map, you: o.you, exhibits }, { rulesOff: opts.rulesOff, invulnerable: true });
+    const s = H.room(X, opts.seed || 1, { acc: 'A4', depth, map: o.map, you: o.you, exhibits }, { rulesOff: opts.rulesOff, without: opts.without, invulnerable: true });
     for (const [i, v] of o.set || []) Object.assign(s.actors[i], v);
     if (o.before) o.before(s);
     X.Modules.init(s, X.Packs.get('A4'));
@@ -125,9 +117,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       return null;
     },
   });
-  const list = () => { const l = H.species(C, 'MODULES.copies_weaken'); assert.ok(l.length >= 14, `${l.length} species and depths`); return l; };
+  const list = () => { const l = H.species(C, 'MODULES.copies_weaken'); assert.ok(l.length >= 28, `${l.length} species and depths`); return l; };
   test('an original destroyed: each spare of its group, and no other, loses its share of health and damage (never its last point) and Acc, and is slowed until you leave; the line states its weakened blow; for every pack species with the part at depths 1–7, and failing with the module off', () => {
-    assert.deepEqual([...new Set(list().map(x => x.sp.id))], ['A4.1', 'A4.1a']);
+    assert.deepEqual([...new Set(list().map(x => x.sp.id))], ['A4.1', 'A4.1a', 'A4.4', 'A4.4a']);
     ok(H.sweep(C, main, list()), main.name);
   });
 
@@ -144,7 +136,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     actions: [{ a: 'attack', uid: 'A4.1.room.1' }],
     expect(r, params, sp, depth) {
       const [, o, near, far] = r.start.actors, e0 = r.steps[0].events, s = r.state;
-      if (o.uid !== 'A4.1.room.1' && depth === 1) return `the original is ${o.uid}`;
+      if (r.steps[0].action.uid !== o.uid || !e0.some(e => e.k === 'died' && e.who === o.uid)) return `your blow did not destroy the original ${o.uid}`;
       if (told(e0, 'weaken').map(e => e.who).join() !== [near.uid, far.uid].join()) return `${json(told(e0, 'weaken'))} lost heart`;
       const inView = new Set(C.ViewModel.derive(s, {}).actors.map(a => a.uid));
       if (!inView.has(near.uid) || inView.has(far.uid)) return 'the room does not hide the far spare';
@@ -173,7 +165,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(said.includes(`2 spares are now slowed until you leave (each action takes ${N.SPEED_SLOW_PCT}% of its usual time): their original was destroyed.`), json(said));
   });
 
-  // ---- Splits (on a core whose Proposing Trustees, splitters, are flagged) ----
+  // ---- Splits (A.4's Proposing Trustees, splitters) ----
+  const T = C;
   const trustees = () => { const out = []; for (const id of ['A4.4', 'A4.4a']) for (const depth of H.DEPTHS) out.push({ sp: T.Packs.species('A4', id), depth, acc: 'A4' }); return out; };
   // Your surprise blow's damage at a body, after its Padding (it always hits, §8.1).
   const surprise = (X, s, a) => Math.max(N.DMG_MIN_ON_HIT, X.Combat.surpriseRaw(s.actors[0]) - a.pad);
@@ -244,6 +237,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (!r.steps[0].events.some(e => e.k === 'woke' && e.who === half1)) return 'your first blow did not split the spare';
       const at = told(r.steps[fall].events, 'weaken').map(e => e.who);
       if (json(at) !== json([b.uid, half1])) return `when the original fell, ${json(at)} lost heart, not the spare and its split body`;
+      // The log counts the spare once, in its bodies: a half is a split of the spare, never
+      // another spare (both are in view in the open room).
+      const names = T.Labels.nameOf(r.state), name = names(b.uid), said = T.Text.log(r.steps[fall].events, names, () => true);
+      const want = ['An original was destroyed, and its spare, in 2 bodies, lost heart.',
+        `${name.charAt(0).toUpperCase() + name.slice(1)}, in 2 bodies, is now slowed until you leave (each action takes ${N.SPEED_SLOW_PCT}% of its usual time): the original of its copy group was destroyed.`];
+      if (!want.every(l => said.includes(l))) return `the log at the fall says ${json(said)}`;
       const made = r.steps.findIndex(st => st.events.some(e => e.k === 'woke' && e.who === half2));
       if (made <= fall) return `the spare's second split came at step ${made}, not after the fall at ${fall}`;
       const second = r.steps[made].events;
@@ -262,21 +261,60 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ok(H.sweep(T, splitSpare, trustees()), splitSpare.name);
   });
 
-  // ---- A.4's Proposing Trustees, as the pack has them now ----
-  // Their lines have no room for the module's part (§5.3: the phone's strip, 14 rows; the
-  // spare's line takes all 14 with its four clauses), so the pack does not flag them, and the
-  // rule leaves them alone: no line says they lose heart, and none do.
-  test('A.4\'s Proposing Trustees are not flagged (no room on the spare\'s line), and the rule leaves them alone; flagged, they would lose heart', () => {
-    for (const id of ['A4.4', 'A4.4a']) assert.ok(!(Packs.species('A4', id).flags || []).includes(ID), id);
-    for (const [X, want] of [[C, 0], [T, 1]]) {
+  // ---- A.4's Proposing Trustees, flagged ----
+  // Both are flagged, so their lines carry the part (the spare is not the sample's plaster cast:
+  // with the part, a cast's line would pass the phone's 14 rows, §5.3's length and §5.5; its
+  // Medium names no plaster). Unflagged, the rule would leave them alone, and no line says so.
+  test('A.4\'s Proposing Trustees are flagged, the spare no plaster cast, and both lines carry the part; unflagged, the rule leaves them alone', () => {
+    for (const id of ['A4.4', 'A4.4a']) assert.ok((Packs.species('A4', id).flags || []).includes(ID), id);
+    assert.equal(json(Packs.species('A4', 'A4.4a').modifiers), '[]');
+    assert.ok(!/plaster/i.test(Packs.species('A4', 'A4.4a').tomb.medium.replace(/\bafter the \w+/gi, '')));
+    const U = loadCore();
+    for (const id of ['A4.4', 'A4.4a']) U.Packs.species('A4', id).flags = [];
+    for (const [X, want] of [[C, 1], [U, 0]]) {
       const g = pair(X, X.Packs.species('A4', 'A4.4a')), s = room(X, {}, { depth: 2, map: OPEN, you: [2, 2], exhibits: [
         { sp: g.orig, at: [3, 2], group: 'trustees@s1', stats: X.Roles.stats('brute', 2) }, { sp: g.spare, at: [11, 4], group: 'trustees@s1', stats: X.Roles.stats('brute', 2) }],
         set: [[1, { hp: 1, maxHp: 1 }]] });
       const r = H.play(X, s, [{ a: 'attack', uid: s.actors[1].uid }]);
       assert.deepEqual(r.violations.map(v => v.text), []);
       assert.equal(told(r.events, 'weaken').length, want);
-      assert.equal(X.Clauses.line(X.Packs.species('A4', 'A4.4a'), { depth: 2 }).includes('lose'), !!want);
+      for (const id of ['A4.4', 'A4.4a']) assert.equal(X.Clauses.line(X.Packs.species('A4', id), { depth: 2 }).includes('original is destroyed'), !!want, id);
     }
+  });
+
+  // ---- An original gone without being destroyed never falls ----
+  // A visit without the Trustee's original (options.without: made, then removed, as the sims'
+  // counterfactual does; a dust sheet removes so too): its spare never loses heart, and a body
+  // split from the spare is not slowed, since nothing destroyed its original; the log never says
+  // so. Its spare, split, then struck down as any exhibit: every invariant holds.
+  const removed = H.scenario({
+    name: 'an original removed without being destroyed never falls: its spare does not lose heart, and a body split from the spare is not slowed',
+    id: 'MODULES.copies_weaken', clone: true,
+    holdsWithout: 'it shows what the rule leaves alone: with the module off, nothing loses heart either',
+    build(params, sp, depth, opts) {
+      const g = pair(C, sp);
+      // The original is the room's first exhibit: its uid is the one Setup gives it.
+      const probe = room(C, opts, { depth, map: OPEN, you: [3, 2], exhibits: [{ sp: g.orig, at: [10, 4], group: 'trustees@s1' }, { sp: g.spare, at: [4, 2], group: 'trustees@s1' }] });
+      return room(C, Object.assign({}, opts, { without: [probe.actors[1].uid] }), { depth, map: OPEN, you: [3, 2], exhibits: [
+        { sp: g.orig, at: [10, 4], group: 'trustees@s1' }, { sp: g.spare, at: [4, 2], group: 'trustees@s1' }],
+        before: s => { const b = s.actors[2], h = surprise(C, s, b) + 40; b.hp = b.maxHp = h; } });
+    },
+    actions: (s, i) => { const b = s.actors[2]; return lineOf(s, b.uid).every(a => a.gone) || i > 100 ? null : fight(C, uid => uid === b.uid || uid.startsWith(b.uid + '/'))(s); },
+    cap: 120,
+    expect(r) {
+      const [, o, b] = r.start.actors, s = r.state;
+      if (!o.gone) return 'the original was not removed';
+      if (!r.events.some(e => e.k === 'woke' && e.was === null && e.cause.k === 'summoned' && e.cause.from === b.uid)) return 'the spare never split';
+      const mine = r.events.filter(e => (e.k === 'module' && e.id === ID) || (e.k === 'status' && e.cause && e.cause.k === ID));
+      if (mine.length) return `the rule acted on a group whose original was never destroyed: ${json(mine.map(e => [e.k, e.rule || e.id, e.who]))}`;
+      if (lineOf(s, b.uid).some(a => (a.statuses || []).length)) return `a body of the spare holds ${json(lineOf(s, b.uid).map(a => a.statuses))}`;
+      const said = Text.log(r.events, Labels.nameOf(s), () => true);
+      if (said.some(l => /lost heart|original was destroyed|original of its copy group/.test(l))) return `the log says ${json(said.filter(l => /heart|original/.test(l)))}`;
+      return null;
+    },
+  });
+  test('an original gone without being destroyed (a visit without it) never falls: its spare, split and struck down, never loses heart and no body of it is slowed, at depths 1–7', () => {
+    ok(H.sweep(C, removed, trustees().filter(x => x.sp.id === 'A4.4a')), removed.name);
   });
 
   // ---- A Centrepiece's group (CopiesWeaken.addGroup) ----
@@ -440,16 +478,34 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.match(check(fresh, [{ k: 'status', turn: s.turn, who: b.uid, id: 'slowed', on: true, turns: 2, cause: { k: 'status', id: 'slowed' } }], made), /never put on so/);
   });
 
+  // A spare already slowed for some turns (no rule of the slice slows an exhibit for turns yet;
+  // put on here by hand, as a later rule might) that loses heart is slowed for the rest of the
+  // visit from the start it had: the record turns perm, with no end, and keeps its start.
+  test('a spare already slowed for some turns that loses heart is slowed for the rest of the visit, from the start it had: status_timing holds it', () => {
+    const g = pair(C, Packs.species('A4', 'A4.4a')), s = room(C, {}, { depth: 2, map: OPEN, you: [2, 2], exhibits: [{ sp: g.orig, at: [3, 2], group: 'g@s' }, { sp: g.spare, at: [11, 4], group: 'g@s', mode: 'hunting' }], set: [[1, { hp: 1, maxHp: 1 }]] });
+    const b = s.actors[2];
+    Status.apply(s, b, 'slowed', 3, { k: 'status', id: 'slowed' }, []);
+    Status.settle(s);
+    const was = json(b.statuses.find(x => x.id === 'slowed'));
+    assert.ok(Number.isInteger(JSON.parse(was).until), was);
+    const r = H.play(C, s, (st, i) => i === 0 ? { a: 'attack', uid: st.actors[1].uid } : i < 8 ? { a: 'wait' } : null, { inv: ['status_timing', 'copies.when', 'copies.all', 'copies.loss'] });
+    assert.deepEqual(r.violations.map(v => v.text), []);
+    const now = b.statuses.find(x => x.id === 'slowed');
+    assert.equal(json(now), json({ id: 'slowed', until: null, turns: null, from: JSON.parse(was).from, perm: true }));
+    assert.equal(Status.left(s, b, 'slowed'), null);
+  });
+
   // ---- The words ----
-  test('its words: the panel sentence, the part on both clerks\' lines at depths 1–7 with the module on, none with it off, every log sentence plain, and its form for the validation log (both rules the form\'s, nothing bespoke)', () => {
+  test('its words: the panel sentence, the part on the clerks\' and the Trustees\' lines at depths 1–7 with the module on, none with it off, every log sentence plain, and its form for the validation log (both rules the form\'s, nothing bespoke)', () => {
     assert.equal(C.Clauses.sentence(ID, { depth: 4 }), `When an original is destroyed, its spares lose heart: each, and any body split from one, loses ${N.COPY_WEAKEN_PCT}% of its health and damage and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`);
-    for (const id of ['A4.1', 'A4.1a']) for (const depth of H.DEPTHS) {
-      const sp = Packs.species('A4', id), s = Roles.stats(sp.role, depth), part = `When its group’s original is destroyed, each spare and any body split from one loses ${N.COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then ${span(lose(s.dmin), lose(s.dmax))}), and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`;
+    for (const id of ['A4.1', 'A4.1a', 'A4.4', 'A4.4a']) for (const depth of H.DEPTHS) {
+      const sp = Packs.species('A4', id), s = Roles.stats(sp.role, depth), part = `When its group’s original is destroyed, each spare loses ${N.COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then ${span(lose(s.dmin), lose(s.dmax))}), and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`;
       assert.ok(C.Clauses.line(sp, { depth }).includes(part), `${id} at ${depth}: ${C.Clauses.line(sp, { depth })}`);
       for (const ctx of [{ depth, rulesOff: [ID] }, { depth, modules: [] }]) assert.ok(!/lose|heart|spare/.test(C.Clauses.line(sp, ctx)), `${id} at ${depth}, off: ${C.Clauses.line(sp, ctx)}`);
     }
     // spare:DMG: an original's line states its spares' weakened blow; a species of no copy group has none.
     assert.equal(C.Clauses.value('spare:DMG', Packs.species('A4', 'A4.1'), 5), C.Clauses.value('spare:DMG', Packs.species('A4', 'A4.1a'), 5));
+    assert.equal(C.Clauses.value('spare:DMG', Packs.species('A4', 'A4.4'), 5), C.Clauses.value('spare:DMG', Packs.species('A4', 'A4.4a'), 5));
     assert.throws(() => C.Clauses.value('spare:DMG', Packs.species('A4', 'A4.2'), 1), /copy group/);
     assert.throws(() => C.Clauses.value('spare:HP', Packs.species('A4', 'A4.1a'), 1), /only DMG/);
     // The log, one of each and groups of two and seven, in view and not.
@@ -460,6 +516,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(Text.log([w('weaken', 'x.1', 'o.1'), st('x.1', 'o.1'), w('weaken', 'x.2', 'o.1'), st('x.2', 'o.1')], names)),
       json(['An original was destroyed, and 2 of its spares lost heart.', `2 spares are now slowed until you leave (each action takes ${N.SPEED_SLOW_PCT}% of its usual time): their original was destroyed.`]));
     assert.equal(json(Text.log([w('weaken', 'x.1', 'o.1'), st('x.1', 'o.1')], names, uid => uid !== 'x.1')), '[]');
+    // A spare split in bodies is one spare (a half is a split of it): counted once, its bodies said.
+    assert.equal(json(Text.log([w('weaken', 'x.1', 'o.1'), st('x.1', 'o.1'), w('weaken', 'x.1/1', 'o.1'), st('x.1/1', 'o.1'), w('weaken', 'x.2', 'o.1'), st('x.2', 'o.1')], names)),
+      json(['An original was destroyed, and 2 of its spares, in 3 bodies, lost heart.', `2 spares, in 3 bodies, are now slowed until you leave (each action takes ${N.SPEED_SLOW_PCT}% of its usual time): their original was destroyed.`]));
     assert.equal(Text.event(Object.assign(w('split', 'x.1', 'o.1'), { who: undefined }), names), null);
     // Its form: two rules of the form's effects, nothing hand-written.
     assert.equal(json(Modules.form(ID)), json({ rules: [{ rule: 'weaken', on: 'died', do: ['tier', 'status'], telegraph: null }, { rule: 'split', on: 'woke', do: ['status'], telegraph: null }], bespoke: [] }));
@@ -480,9 +539,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       vm.runInContext(src, ctx, { filename: f });
     }
     if (!applied) throw new Error(`the plant does not apply to ${file}: ${from}`);
-    const X = vm.runInContext('({' + names.join(',') + '})', ctx);
-    for (const id of ['A4.4', 'A4.4a']) X.Packs.species('A4', id).flags = [ID];
-    return X;
+    return vm.runInContext('({' + names.join(',') + '})', ctx);
   }
   const RULE = 'js/core/rules/modules/copies_weaken.js', CL = 'js/core/clauses.js';
   const plants = [
@@ -495,6 +552,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['an unflagged group takes part', RULE, 'return !!o && Modules.flagged(state, b, ID) && Modules.flagged(state, o, ID);', 'return !!o;', null, 'trustees', /lost heart|copies.when|weaken/],
     ['the weakening names no original (cause.by)', RULE, 'const byDeath = (state, e) => ({ by: firstOf(e.who) });', 'const byDeath = (state, e) => ({});', main, 'A4.1a', /cause|original|log/],
     ['the line states the blow before the weakening', CL, "const s = Roles.stats(role, depth), a = weakened(s.dmin), b = weakened(s.dmax);", "const s = Roles.stats(role, depth), a = s.dmin, b = s.dmax;", main, 'A4.1a', /blows then/],
+    ['a body split from a spare whose original was removed, never destroyed, is slowed', RULE, " && !!from && Status.perm(from, 'slowed')", '', removed, 'A4.4a', /never destroyed|copies\.all/],
+    ['the Trustees\' line states the blow before the weakening', CL, "const s = Roles.stats(role, depth), a = weakened(s.dmin), b = weakened(s.dmax);", "const s = Roles.stats(role, depth), a = s.dmin, b = s.dmax;", main, 'A4.4a', /blows then/],
   ];
   test('planted faults in the rule, its words and its line are each caught: by its invariants or by its scenarios', () => {
     for (const [what, file, from, to, sc, id, want] of plants) {
@@ -509,11 +568,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         assert.ok(f && want.test(f), `${what}: ${f}`);
         continue;
       }
-      const sp = X.Packs.species('A4', id), real = id === 'A4.4' || id === 'A4.4a' ? T : C;
+      const sp = X.Packs.species('A4', id), real = C;
       assert.equal(H.run(real, sc, real.Packs.species('A4', id), 3, { seed: 1 }).failure, null, `${what}: the scenario passes on the real core`);
       const f = H.run(X, sc, sp, 3, { seed: 1 }).failure;
       assert.ok(f && want.test(f), `${what}: ${f}`);
     }
-    assert.ok(plants.length >= 9, `${plants.length} plants`);
+    assert.ok(plants.length >= 11, `${plants.length} plants`);
   });
 };
