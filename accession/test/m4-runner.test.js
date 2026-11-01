@@ -633,6 +633,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.match(lines[0], /^M11: 3 seeds \(1–3\)/);
     assert.match(lines[1], /^ {2}pass at 80%: {2}\(a\) [\d.]+% {2}\(b\) [\d.]+% {2}\(c\) [\d.]+%$/);
     assert.match(lines[2], /^ {2}pass at 50%/);
-    assert.ok(lines.some(l => /not placed yet: M11\.2 \(demonstrator, clockwork\); M11\.12 \(demonstrator, clockwork\); M11\.11 \(the Centrepiece, mp_tableau\)/.test(l)));
+    // The stations are placed once clockwork is ready (ARCH-CLOCKWORK); the Centrepiece waits.
+    assert.ok(lines.some(l => /not placed yet: M11\.11 \(the Centrepiece, mp_tableau\)$/.test(l)), lines.join('\n'));
   });
 };
