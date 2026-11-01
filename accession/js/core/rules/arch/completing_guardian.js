@@ -2,14 +2,17 @@
 // §5.1, §5.3, §5.5, §8.1; rules/archetypes.js), added with the hooks every Centrepiece shares
 // (Centrepiece.hooks: its specials in turn, its phases, its fall). Its registry entry is in
 // js/core/reg/cp-guardian.js, its sentences in js/core/text/cp-guardian.js and its record in
-// content/S9-cp.js. Owned by COMPOSITE-CORE; COMPOSITE-PHASES adds its phases and the treasure
-// (the seal, the carry-out, the leave-heal, phase 2's limb).
+// content/S9-cp.js. COMPOSITE-CORE built its core; COMPOSITE-PHASES its phases (phase 2's and
+// phase 3's limbs, the alarm, the crest), the leave-heal and the touch it records for its
+// treasure's seal (rules/treasure.js: the seal, the carry-out, the dust sheet over its case).
 //
 // The rule, as its line says it (design/samples.md §3.8, trimmed; M4 plan D3.5, decided without
 // play; revisit once M4 is playable):
 //   - It guards the Lamp's case: at its init it takes the hall's case (LTreasure.caseOf) as what
 //     it guards (`guards`), and its record's trigger, touch_case, wakes it at once, hunting, when
 //     that case is opened or bashed (Cases.touch touches what guards a case as what stands in it).
+//     The first such touch is recorded (onTouched: dept.cp.touched {turn}), from which its
+//     treasure's seal counts (rules/treasure.js).
 //   - It never leaves its hall: mayStep refuses any step that would put a tile of its footprint
 //     outside it (Hall.inside), so neither a rule nor the Window Pole moves it out.
 //   - While you stand outside the hall it starts no fight with you: its limbs' shapes mark
@@ -22,26 +25,45 @@
 //     does, but only within its hall: a noise beyond it, which no step of it reaches, leaves it
 //     wandering its hall until it goes back undisturbed (AI's awake), so its line says it goes
 //     back only of it hunting or searching for you.
+//   - The leave-heal (a hall check, guardian_left, at every turn boundary): a boundary that finds
+//     you outside its hall (an opening is outside it) after one that found you inside it while
+//     it hunted you (a.ax.chased, true while the last boundary did, absent otherwise) is your
+//     leaving it while it hunts you: it regains GUARDIAN_LEAVE_HEAL_PCT% of its maximum health
+//     (healed, cause left) and drops its last limb (phase, cause left {limb}). A Ticket read
+//     while it hunts you is a leaving too. Its phase never goes back (§8.7), and walking gives a
+//     dropped limb back only for galleries walked after (a.ax.grown keeps those it has given).
 //   - Its limbs (Guardian.LIMBS, its specials: a.ax.specials, in the order grown: its neck, its
-//     legs, its tail) come in part from the galleries you have walked (Guardian.galleries): one
-//     for every GUARDIAN_PER_STAGE of them, in LIMBS' order, but walking grows only its neck and
-//     its legs (Guardian.WALKED; and never more than GUARDIAN_STAGE_MAX), never its tail: S.9's
-//     departments hold five gallery rooms, so walking every one of them gives it two limbs, and
-//     its line promises no tail from walking it could never give (M4 COMPOSITE-CORE's review,
-//     decided without play; revisit once M4 is playable). Its tail, and the crest, are left to
-//     COMPOSITE-PHASES (phase 2's limb, plan D3.5). It has those it is due when it is placed,
-//     with no event; then at every turn boundary (a hall check, Hall.addCheck), each limb newly
-//     due grows, told by a phase event in the phase it is in (cause walked {n}, stage, gained).
-//     a.ax.stage is how many limbs it has; a.ax.grown how many your walking has given it, so a
-//     limb it loses (COMPOSITE-PHASES' leave-heal) comes back only with more galleries walked.
+//     legs, its tail, its crest; always the first so many of LIMBS) come in part from the
+//     galleries you have walked (Guardian.galleries): one for every GUARDIAN_PER_STAGE of them,
+//     in LIMBS' order, but walking grows only its neck and its legs (Guardian.WALKED; and never
+//     more than GUARDIAN_STAGE_MAX), never its tail: S.9's departments hold five gallery rooms,
+//     so walking every one of them gives it two limbs, and its line promises no tail from walking
+//     it could never give (M4 COMPOSITE-CORE's review, decided without play; revisit once M4 is
+//     playable). It has those it is due when it is placed, with no event; then at every turn
+//     boundary (a hall check, guardian_limbs), each limb newly due grows, told by a phase event
+//     in the phase it is in (cause walked {n}, stage, gained). Each of its phases from the second
+//     grows its next limb (onPhase: LIMBS[its stage], while it has fewer than GUARDIAN_STAGE_MAX;
+//     phase, cause limb), so its tail and its crest come only from its phases (plan D3.5's limb
+//     at phase 2, and the sample's stage at phase 3; COMPOSITE-PHASES, decided without play;
+//     revisit once M4 is playable). a.ax.stage is how many limbs it has; a.ax.grown how many
+//     your walking has given it.
 //   - Each limb is a special, marked in turn (Centrepiece.act, every CP_SPECIAL_EVERY of its
-//     actions), only while you stand in its hall on one of the tiles it would mark, each for a
-//     Centrepiece's gross (cp:): its neck (cp_sweep, shape sweep) the tiles round it on your side;
-//     its legs (cp_charge, shape charge) a lane as wide as it toward you, up to CHARGE_RANGE rows,
-//     of tiles of its hall it could step onto, so never through a case (the Lamp's least of all:
-//     the lane stops short of it); its tail (cp_ring, shape tail) all the tiles round it. When
-//     the legs' mark goes off it strikes everything on the lane, then (the shape's after) runs
-//     along the lane, row by row, as far as the lane goes or until someone stands in its way.
+//     actions), only while you stand in its hall on one of the tiles it would mark: its neck
+//     (cp_sweep, shape sweep) the tiles round it on your side; its legs (cp_charge, shape charge)
+//     a lane as wide as it toward you, up to CHARGE_RANGE rows, of tiles of its hall it could
+//     step onto, so never through a case (the Lamp's least of all: the lane stops short of it);
+//     its tail (cp_ring, shape tail) all the tiles round it; each strikes for a Centrepiece's
+//     gross (cp:), and when the legs' mark goes off it strikes everything on the lane, then (the
+//     shape's after) runs along the lane, row by row, as far as the lane goes or until someone
+//     stands in its way. Its crest (cp_call, shape crest) is a call, as a herald's is: it marks
+//     the tiles within HERALD_RANGE of it, and when it goes off (onResolve) every sleeping
+//     exhibit on them that can hear, but a Centrepiece's piece, wakes awake, sent to look at
+//     your tile (cause herald, by it; one in an intact case wakes in it and stays there).
+//   - The alarm: from its second phase, with alarm_network on (its record is flagged with it),
+//     while it hunts you in its hall and sees you, with no alarm shown or running
+//     (AlarmNetwork.mayShow), it shows the alarm on its own tiles (the Wader's special, alarm),
+//     at an action of its own at which none of its limbs is marked; its next action sets it off
+//     (onResolve: AlarmNetwork.call, the crash and the wakes), and the module raises it.
 //   - Otherwise it fights as every exhibit does (AI.byMode): it strikes from beside you.
 // Nothing here draws on a stream.
 'use strict';
@@ -52,8 +74,9 @@ const Guardian = (() => {
   // grows no more: S.9's departments hold five gallery rooms (completing_guardian.test.js
   // measures them), which give two limbs, so its line names these two and no other.
   const WALKED = ['cp_sweep', 'cp_charge'];
-  // All its limbs, in the order it has them: those walking grows, then its tail.
-  const LIMBS = WALKED.concat(['cp_ring']);
+  // All its limbs, in the order it has them: those walking grows, then its tail and its crest,
+  // which only its phases grow.
+  const LIMBS = WALKED.concat(['cp_ring', 'cp_call']);
   // The four directions a lane runs in: N, E, S, W (Grid.DX, Grid.DY's indices).
   const SIDES = [0, 2, 4, 6];
 
@@ -77,6 +100,8 @@ const Guardian = (() => {
   // The most limbs walking gives it: those it grows by walking (WALKED), and never more than
   // GUARDIAN_STAGE_MAX.
   const most = () => Math.min(N.GUARDIAN_STAGE_MAX, WALKED.length);
+  // The most limbs it has in all: GUARDIAN_STAGE_MAX, and no more than LIMBS names.
+  const all = () => Math.min(N.GUARDIAN_STAGE_MAX, LIMBS.length);
   // Guardian.stage(a) → int: how many limbs it has (a.ax.stage, 0 when absent).
   const stage = a => a && a.ax && isInt(a.ax.stage) ? a.ax.stage : 0;
 
@@ -102,6 +127,36 @@ const Guardian = (() => {
       if (!a.ax.specials.includes(sp)) a.ax.specials.push(sp);
       if (ev) Causes.emit(state, ev, 'phase', { who: a.uid, phase: Centrepiece.phase(state), stage: k + 1, gained: sp }, { k: 'walked', n });
     }
+  }
+
+  // Guardian.gain(state, a, ev): a phase it entered (its second or third) grows its next limb:
+  // the next it lacks (LIMBS[its stage]) joins its specials, while it has fewer than `all`,
+  // told by a phase event in the phase it is in (who, phase, stage, gained; cause limb).
+  // Nothing for one fallen, or once the visit is over.
+  function gain(state, a, ev) {
+    if (!isMine(state, a) || a.gone || state.over) return;
+    const k = stage(a);
+    if (k >= all()) return;
+    const sp = LIMBS[k];
+    a.ax.stage = k + 1;
+    if (!Array.isArray(a.ax.specials)) a.ax.specials = [];
+    if (!a.ax.specials.includes(sp)) a.ax.specials.push(sp);
+    Causes.emit(state, ev, 'phase', { who: a.uid, phase: Centrepiece.phase(state), stage: k + 1, gained: sp }, { k: 'limb' });
+  }
+  // Guardian.leave(state, a, ev): you left its hall while it hunted you: it regains
+  // GUARDIAN_LEAVE_HEAL_PCT% of its maximum health (healed, cause left; nothing when it is whole)
+  // and drops its last limb, the one it grew last (LIMBS[its stage − 1]), told by a phase event
+  // in the phase it is in (who, phase, stage; cause left {limb}); none with no limb. a.ax.grown
+  // is kept, so walking gives a limb back only for galleries walked after.
+  function leave(state, a, ev) {
+    if (!isMine(state, a) || a.gone || state.over) return;
+    Health.heal(state, a, Int.pct(a.maxHp, N.GUARDIAN_LEAVE_HEAL_PCT), { k: 'left' }, ev);
+    const k = stage(a);
+    if (k < 1) return;
+    const sp = LIMBS[k - 1];
+    a.ax.stage = k - 1;
+    a.ax.specials = (Array.isArray(a.ax.specials) ? a.ax.specials : []).filter(id => id !== sp);
+    Causes.emit(state, ev, 'phase', { who: a.uid, phase: Centrepiece.phase(state), stage: k - 1 }, { k: 'left', limb: sp });
   }
 
   // ---- Its limbs' shapes (Specials.addShape) ----
@@ -169,6 +224,15 @@ const Guardian = (() => {
       return onTiles(state, t) ? t : [];
     },
   });
+  // Its crest: a call's tiles (those an exhibit could stand on within HERALD_RANGE of it), while
+  // you stand in its hall on one of them. When it goes off, its call (onResolve).
+  Specials.addShape('crest', {
+    tiles(state, a) {
+      if (!youInHall(state)) return [];
+      const t = Specials.tiles(state, a, 'call');
+      return onTiles(state, t) ? t : [];
+    },
+  });
 
   // Its charge, once its legs' mark has gone off (Specials' after): it steps along the marked
   // lane, row by row (Step.moveInto: a moved event each, then AI.afterStep, as every exhibit's
@@ -213,6 +277,51 @@ const Guardian = (() => {
     return true;
   }
 
+  // Its case is touched (Cases.touch: opened or bashed; never Solvent): the first touch's turn
+  // is its hall's (dept.cp.touched {turn}), from which its treasure's seal counts.
+  function onTouched(state, a) {
+    const c = Hall.cp(state);
+    if (!isMine(state, a) || !c || c.touched) return;
+    c.touched = { turn: state.turn };
+  }
+
+  // Each phase it enters from its second grows its next limb (Centrepiece.hooks' onPhase).
+  function onPhase(state, k, ev) {
+    if (k < 2) return;
+    for (const a of Centrepiece.pieces(state)) if (a.arch === ID) gain(state, a, ev);
+  }
+
+  // From its second phase, hunting you in its hall and seeing you, with alarm_network on for it
+  // and no alarm shown or running (AlarmNetwork.mayShow), it shows the alarm on its own tiles
+  // (the special alarm, its shape the Wader's), if it may mark (Specials.canMark); otherwise
+  // null.
+  function showAlarm(state, a, ev) {
+    if (a.mode !== 'hunting' || Centrepiece.phase(state) < 2 || !AI.sees(state, a) || !AlarmNetwork.mayShow(state, a)) return null;
+    const t = Specials.tiles(state, a, 'alarm');
+    return Specials.canMark(state, a, 'alarm', t) ? Specials.mark(state, a, 'alarm', t, ev) : null;
+  }
+  // A mark of its own goes off that deals no damage: the alarm's call (AlarmNetwork.call: the
+  // crash, then the wakes; the module then raises the alarm on the special event), or its
+  // crest's call: each sleeping exhibit, in spawn order, but itself and a Centrepiece's pieces,
+  // any of whose tiles is marked, wakes awake, sent to look at your tile now (cause herald, with
+  // its uid and their distance; how: 'case' for one in an intact case, which wakes in it and
+  // stays there, §8.3); a pipless one (a mimic) hears nothing (Wake.wake refuses it).
+  function onResolve(state, a, tel, ev) {
+    if (!isMine(state, a) || !tel) return;
+    if (tel.sp === 'alarm') { AlarmNetwork.call(state, a, ev); return; }
+    if (tel.sp !== 'cp_call') return;
+    const you = state.actors[0], target = [you.x, you.y];
+    const marked = (x, y) => tel.tiles.some(t => t[0] === x && t[1] === y);
+    for (let i = 1; i < state.actors.length; i++) {
+      const b = state.actors[i];
+      if (b === a || b.gone || b.mode !== 'dormant' || Actors.centrepiece(b)) continue;
+      if (!Actors.footprint(b).some(([x, y]) => marked(x, y))) continue;
+      const cause = { k: 'herald', by: a.uid, dist: Actors.between(a, b), x: target[0], y: target[1] };
+      if (Cases.encased(state, b)) cause.how = 'case';
+      Wake.wake(state, b, 'awake', cause, ev, { target });
+    }
+  }
+
   // Hunting you while you stand outside its hall and it sees you: it walks back to its place
   // (home, anchor first) and waits there, in the same mode.
   function holdBack(state, a, ev) {
@@ -220,21 +329,34 @@ const Guardian = (() => {
     const t = AI.towards(state, a, a.home, 'anchor', ev);
     return t !== null ? t : AI.wait(state, a, ev);
   }
-  // Its own turn, after its limbs (Centrepiece.hooks): while you stand outside its hall and it
-  // hunts or searches for you, it starts no fight with you (above); otherwise null, and it acts
-  // by its mode.
+  // Its own turn, after its limbs (Centrepiece.hooks): in its hall with you, the alarm, from its
+  // second phase (showAlarm); while you stand outside its hall and it hunts or searches for you,
+  // it starts no fight with you (above); otherwise null, and it acts by its mode.
   function act(state, a, ev) {
-    if (!isMine(state, a) || youInHall(state) || (a.mode !== 'hunting' && a.mode !== 'searching')) return null;
+    if (!isMine(state, a)) return null;
+    if (youInHall(state)) return showAlarm(state, a, ev);
+    if (a.mode !== 'hunting' && a.mode !== 'searching') return null;
     if (a.mode === 'hunting' && AI.sees(state, a)) return holdBack(state, a, ev);
     Wake.setMode(state, a, 'returning', { k: 'outside' }, ev);
     return null;
   }
 
-  Archetypes.add(ID, Centrepiece.hooks(ID, { init, mayStep, act }));
-  // At every turn boundary (step 6, after the hall's own seal), the limbs newly due grow.
+  Archetypes.add(ID, Centrepiece.hooks(ID, { init, mayStep, act, onTouched, onResolve, onPhase }));
+  // At every turn boundary (step 6, after the hall's own seal): first the leave-heal, a
+  // boundary finding you outside its hall after one that found you in it while it hunted you
+  // (a.ax.chased); then the limbs newly due grow.
+  Hall.addCheck('guardian_left', (state, ev) => {
+    const you = state.actors[0], inside = !you.gone && Hall.inside(state, you.x, you.y);
+    for (const a of Centrepiece.pieces(state)) {
+      if (a.arch !== ID || a.gone) continue;
+      if (a.ax.chased && !inside) leave(state, a, ev);
+      if (inside && a.mode === 'hunting') a.ax.chased = true;
+      else delete a.ax.chased;
+    }
+  });
   Hall.addCheck('guardian_limbs', (state, ev) => {
     for (const a of Centrepiece.pieces(state)) if (a.arch === ID) grow(state, a, ev);
   });
 
-  return { LIMBS: LIMBS.slice(), WALKED: WALKED.slice(), galleries, stage, grow, lane };
+  return { LIMBS: LIMBS.slice(), WALKED: WALKED.slice(), galleries, stage, grow, gain, leave, lane };
 })();

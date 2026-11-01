@@ -1,6 +1,7 @@
 // ACCESSION — S.9's Centrepiece, the Composite (completing_guardian; BUILD.md §5.3, §5.5, §8.1,
 // §8.3, §8.7; M4 plan A8, D3.5, D3.14, decided without play; revisit once M4 is playable): its
-// record (content/S9-cp.js), its core (rules/arch/completing_guardian.js) and its line. Its core
+// record (content/S9-cp.js), its core (rules/arch/completing_guardian.js) and its line (its phases,
+// the leave-heal, the alarm, the crest and its treasure are completing_guardian-phases.test.js'). Its core
 // stays at ready false, so no department places it: these tests place the real record with
 // Centrepiece.place in rooms with a hall (the harness's rooms), and in S.9's own departments with
 // the core planted ready, every invariant checked after every step (centrepiece.inv.js among
@@ -32,7 +33,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const LINES = require(path.join(root, 'test/m4-lines.test.js'));
   const C = loadCore(), { N } = C;
   const WAIT = { a: 'wait' };
-  const LIMBS = ['cp_sweep', 'cp_charge', 'cp_ring'], WALKED = ['cp_sweep', 'cp_charge'];
+  // Its limbs: those that strike (neck, legs, tail), walking's two among them; its crest, a call,
+  // is the fourth (completing_guardian-phases.test.js).
+  const LIMBS = ['cp_sweep', 'cp_charge', 'cp_ring'], WALKED = ['cp_sweep', 'cp_charge'], ALL_LIMBS = LIMBS.concat(['cp_call']);
 
   // The hall (x 1–11, y 1–7) with the Lamp's case in its south-west corner (1,7), its one way in
   // an archway (12,2) from a gallery east of it (x 13–15, y 1–7), and four one-tile rooms below
@@ -94,20 +97,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Its record and its placement ----
 
-  test('its record (content/S9-cp.js): one 2×2 body of the role centrepiece, a treasure whose Signature piece is the Lamp in its Security case, woken by touch_case; phase 1 says how its limbs grow, phase 3 that its specials come more often; its core at ready false, added with the shared rules, so no department of the game places it', () => {
+  test('its record (content/S9-cp.js): one 2×2 body of the role centrepiece, a treasure whose Signature piece is the Lamp in its Security case, woken by touch_case, flagged with alarm_network; phase 1 says how its limbs grow, phases 2 and 3 that each grows its next limb (phase 2 with the alarm\'s slot), phase 3 that its specials come more often; its core at ready false, added with the shared rules, so no department of the game places it', () => {
     const pack = C.Packs.get('S9'), rec = pack.centrepiece;
     C.Centrepiece.check(rec, pack);
-    assert.equal(json([rec.id, rec.archetype, rec.role, rec.form, rec.size, rec.signature, rec.trigger, rec.treasure, rec.sprite, rec.phases, rec.specials, rec.pieces]),
+    assert.equal(json([rec.id, rec.archetype, rec.role, rec.form, rec.size, rec.signature, rec.trigger, rec.treasure, rec.sprite, rec.phases, rec.specials, rec.pieces, rec.flags]),
       json(['S9.12', 'completing_guardian', 'centrepiece', 'treasure', 2, 'S9.11', 'touch_case', { case: { glass: 3 } }, 'composite',
-        [{ parts: ['CLAUSES.guardian_limbs'] }, {}, { parts: ['CLAUSES.guardian_quick'] }], undefined, undefined]));
+        [{ parts: ['CLAUSES.guardian_limbs'] }, { parts: ['CLAUSES.guardian_grow_alarm'] }, { parts: ['CLAUSES.guardian_grow', 'CLAUSES.guardian_quick'] }], undefined, undefined, ['alarm_network']]));
     assert.equal(C.Registry.ARCHETYPES.completing_guardian.ready, false);
     assert.equal(C.Populate.ready(rec), false);
     assert.ok(C.Centrepiece.wired('completing_guardian'), 'its core is added with the shared rules');
     assert.equal(C.LTreasure.of(pack).id, 'S9.11');
     assert.equal(json([1, 2, 3, 7].map(d => C.LTreasure.glass(pack, d))), json([2, 2, 3, 3]), 'Laminated at depths 1–2, Security beyond');
-    // Its line names three limbs, and says walking grows two of them, which the cap holds.
-    assert.equal(json([C.Guardian.LIMBS, C.Guardian.WALKED]), json([LIMBS, WALKED]));
-    assert.ok(N.GUARDIAN_STAGE_MAX >= LIMBS.length && N.GUARDIAN_PER_STAGE >= 1);
+    // Its line names four limbs, and says walking grows two of them; the cap holds all four.
+    assert.equal(json([C.Guardian.LIMBS, C.Guardian.WALKED]), json([ALL_LIMBS, WALKED]));
+    assert.ok(N.GUARDIAN_STAGE_MAX >= ALL_LIMBS.length && N.GUARDIAN_PER_STAGE >= 1);
     for (const depth of [1, 4, 7]) for (const seed of [1, 2]) assert.equal(C.Hall.cp(C.Dept.create(seed, 'S9', depth)), null, `S9 seed ${seed} depth ${depth} placed its Centrepiece`);
   });
 
@@ -453,12 +456,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Its fall ----
 
-  test('its death awards nothing, joined up in S.9\'s departments (its core planted ready, seed 1 at depths 1–7, clone-checked at depth 4): struck down beside it, no Signature piece drops, no Certificate comes, your grade and perks stay as they were, the Lamp stays in its case; and with a seal planted for its treasure, its fall lifts the seal (why treasure) and nothing else', () => {
-    const problems = [], cores = [readyCore(), readyCore()];
+  test('its death awards nothing, joined up in S.9\'s departments (its core planted ready, seed 1 at depths 1–7, clone-checked at depth 4): struck down beside it, no Signature piece drops, no Certificate comes, your grade and perks stay as they were, the Lamp stays in its case; and with its hall sealed by its treasure\'s seal (its case touched TREASURE_SEAL_TURNS turns before, planted; or its health at TREASURE_SEAL_HP_PCT% as it falls), its fall lifts the seal (why treasure) and nothing else', () => {
+    const problems = [], X = readyCore();
     for (const depth of DEPTHS) for (const sealed of [false, true]) {
-      const X = cores[sealed ? 1 : 0];
-      if (sealed && depth === 1) X.Hall.defineSeal('treasure', (s, c) => { const b = X.Actors.byUid(s, c.uids[0]); return b && !b.gone && b.mode === 'hunting' ? { why: 'touched' } : null; });
       const s = X.Dept.create(1, 'S9', depth, { invulnerable: true }), a = composite(X, s), tag = `d${depth}${sealed ? ' sealed' : ''}`;
+      if (sealed) s.dept.cp.touched = { turn: s.turn - N.TREASURE_SEAL_TURNS };
       a.maxHp = 30; a.hp = 30;
       // Beside it, inside its hall.
       let spot = null;
@@ -470,8 +472,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (!a.gone) { problems.push(`${tag}: it still stands (${a.hp})`); continue; }
       const k = r.steps.findIndex(st => st.events.some(e => e.k === 'died' && e.who === a.uid)), after = r.steps[k].events.slice(r.steps[k].events.findIndex(e => e.k === 'died' && e.who === a.uid) + 1);
       const gave = after.filter(e => ['dropped', 'certificate', 'grade', 'perk'].includes(e.k) || (e.k === 'stage' && e.stage === 'unsealed'));
-      if (json(gave.map(e => e.k === 'stage' ? `${e.stage}:${e.cause.why}` : e.k)) !== json(sealed ? ['unsealed:treasure'] : [])) problems.push(`${tag}: its fall gave ${json(gave)}`);
-      if (sealed && !r.events.some(e => e.k === 'stage' && e.stage === 'sealed')) problems.push(`${tag}: the planted seal never closed`);
+      // Sealed as it fell: by the touch planted, or else by its health (34% or less at a turn's
+      // end before its last blow), whichever the fight gave.
+      const shut = r.events.filter(e => e.k === 'stage' && e.stage === 'sealed');
+      if (json(gave.map(e => e.k === 'stage' ? `${e.stage}:${e.cause.why}` : e.k)) !== json(shut.length ? ['unsealed:treasure'] : [])) problems.push(`${tag}: its fall gave ${json(gave)}`);
+      if (sealed && json(shut.map(e => e.cause.why)) !== json(['touched'])) problems.push(`${tag}: the seal after its touch ${json(shut)}`);
+      if (!sealed && shut.some(e => e.cause.why !== 'hurt')) problems.push(`${tag}: sealed ${json(shut)}`);
       if (s.dept.cert || s.run.grade !== grade || json(s.run.perks) !== perks || (s.run.certificates || []).length || json(s.items.find(i => i.ref === 'S9.11')) !== lamp) problems.push(`${tag}: after its fall ${json([s.dept.cert, s.run.grade, s.run.certificates])}`);
       if (r.events.some(e => ['certificate', 'grade', 'dropped'].includes(e.k))) problems.push(`${tag}: ${json(r.events.filter(e => ['certificate', 'grade', 'dropped'].includes(e.k)))}`);
     }
@@ -481,50 +487,66 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // ---- Its line ----
 
   // Its whole line at a depth, from BUILD's sentences: §5.5's Composite, §5.3's form rule
-  // (cp_treasure), its phase parts and the wake and trigger clauses.
+  // (cp_treasure), its phase parts (phase 2's with alarm_network's part, the Wader's words, while
+  // the module is on, "chases you as before" while it is off) and the wake and trigger clauses.
   const span = (lo, hi) => lo === hi ? String(lo) : `${lo}–${hi}`;
-  function wantLine(d) {
+  const ALARM = `chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes, sent to look where you stood; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back and no other alarm is raised, and the bell, or after it the night watch, comes up to ${N.ALARM_CLOCK_ADVANCE} turns sooner`;
+  const PHASE2 = alarm => `it grows its next limb, and in its hall it ${alarm ? ALARM : 'chases you as before'}`;
+  function wantLine(d, alarm = true) {
     const r = C.Roles.stats('centrepiece', d), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', d);
-    return ['Its case is the Lamp’s, which it guards; it never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place.',
+    return ['Its case is the Lamp’s, which it guards, and a view that puts it under its dust sheet closes that case too.',
+      'It never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place.',
+      `Leave its hall while it hunts you, and it regains ${N.GUARDIAN_LEAVE_HEAL_PCT}% of its full health and drops its last limb.`,
+      `Hunting you in its hall, it seals you in with it once no one stands in an opening, from ${N.TREASURE_SEAL_TURNS} turns after its case is opened or bashed, or while its health is ${N.TREASURE_SEAL_HP_PCT}% of its full health or less.`,
       `It strikes from beside you for ${span(r.dmin, r.dmax)}.`,
-      `Its limbs’ specials come in turn, each marked only while you stand on one of its tiles, then striking everything on them for ${g} before Padding: its neck marks the tiles round it on your side; its legs, a lane as wide as it toward you, up to ${N.CHARGE_RANGE} tiles and never through a case, then it charges down the lane, stopping short of anyone in it; its tail, all the tiles round it.`,
+      `Its limbs, in the order it grows them, are specials that come in turn, each marked only while you stand on one of its tiles: its neck marks the tiles round it on your side, its legs a lane as wide as it toward you, up to ${N.CHARGE_RANGE} tiles and never through a case, and its tail all the tiles round it, each then striking everything on them for ${g} before Padding, and its legs then charge down the lane, stopping short of anyone in it; its crest marks every tile within ${N.HERALD_RANGE} tiles of it, then wakes every sleeping exhibit on them that can hear (never a Centrepiece), which come to look where you stood.`,
       `Its second phase starts at ${N.CP_PHASE_PCT[0]}% of its full health or less, its third at ${N.CP_PHASE_PCT[1]}%, for good.`,
       'Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall.',
       `It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other.`,
-      `From phase 3: it marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`,
+      `From phase 2: ${PHASE2(alarm)}.`,
+      `From phase 3: it grows its next limb; it marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`,
       'Wakes when you stay inside your ring or make noise near it; wakes at once, hunting you, when its case is opened or bashed.'].join(' ');
   }
   const TREASURE = 'Killing it earns nothing: carry the Lamp out.', REST = 'Its label has the rest.';
-  const wantStrip = k => [`Phase ${k} of 3.`, TREASURE,
+  const cap1 = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const wantStrip = (k, alarm = true) => [`Phase ${k} of 3.`, TREASURE,
     ...(k === 1 ? [`It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other.`]
-      : k === 3 ? [`It marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`] : []), REST].join(' ');
+      : k === 2 ? [`${cap1(PHASE2(alarm))}.`]
+      : [`It grows its next limb; it marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`]), REST].join(' ');
 
-  test('its line (\'ARCHETYPES.completing_guardian\', \'CLAUSES.cp_treasure\', \'CLAUSES.guardian_limbs\', \'CLAUSES.guardian_quick\') says that it guards the Lamp\'s case and never leaves its hall, what each limb marks and deals, that killing it earns nothing, and how its limbs grow, in plain words; its strip, in every phase, says the treasure\'s rule and its phase\'s own part within the budget (m4-lines\' model), the limbs\' growth in phase 1, at depths 1–7; its words hold no digit; its label\'s odds name each limb', () => {
+  test('its line (\'ARCHETYPES.completing_guardian\', \'CLAUSES.cp_treasure\', \'CLAUSES.guardian_limbs\', \'CLAUSES.guardian_grow_alarm\', \'CLAUSES.guardian_grow\', \'CLAUSES.guardian_quick\') says that it guards the Lamp\'s case, which its dust sheet closes too, and never leaves its hall, the leave-heal, its treasure\'s seal, what each limb marks and deals, that killing it earns nothing, and how its limbs grow, in plain words; its strip, in every phase, with alarm_network on and off, says the treasure\'s rule and its phase\'s own part within the budget (m4-lines\' model): the limbs\' growth in phase 1, the next limb and the alarm in phase 2, the next limb and its quicker specials in phase 3, at depths 1–7; its words hold no digit; its label\'s odds name each limb', () => {
     const rec = C.Packs.get('S9').centrepiece, problems = [];
-    for (const d of DEPTHS) {
-      if (C.Clauses.line(rec, { depth: d }) !== wantLine(d)) problems.push(`d${d}: ${C.Clauses.line(rec, { depth: d })}`);
+    for (const d of DEPTHS) for (const alarm of [true, false]) {
+      const ctx = { depth: d, rulesOff: alarm ? [] : ['alarm_network'] };
+      if (C.Clauses.line(rec, ctx) !== wantLine(d, alarm)) problems.push(`d${d}${alarm ? '' : ' alarm off'}: ${C.Clauses.line(rec, ctx)}`);
       for (const k of [1, 2, 3]) {
-        const t = C.Clauses.strip(rec, { depth: d, phase: k });
-        if (t !== wantStrip(k)) problems.push(`d${d} phase ${k}: ${t}`);
+        const t = C.Clauses.strip(rec, Object.assign({ phase: k }, ctx));
+        if (t !== wantStrip(k, alarm)) problems.push(`d${d} phase ${k}${alarm ? '' : ' alarm off'}: ${t}`);
         if (LINES.rows(t) > LINES.METRICS.budgetRows) problems.push(`d${d} phase ${k}: ${LINES.rows(t)} rows`);
       }
     }
+    // Phase 2's strip with the alarm takes the budget's rows; without it, few.
+    assert.equal(json([1, 2, 3].map(k => LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: k })))), json([7, 14, 5]));
+    assert.equal(LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: 2, rulesOff: ['alarm_network'] })), 4);
     // The whole line is long (the label scrolls, FU1).
     assert.ok(LINES.rows(C.Clauses.line(rec, { depth: 7 })) > LINES.METRICS.budgetRows);
     const R = C.Registry;
-    for (const [t, id] of [['ARCHETYPES', 'completing_guardian'], ['CLAUSES', 'guardian_limbs'], ['CLAUSES', 'guardian_quick'], ['SPECIALS', 'cp_sweep'], ['SPECIALS', 'cp_charge'], ['SPECIALS', 'cp_ring']]) {
+    for (const [t, id] of [['ARCHETYPES', 'completing_guardian'], ['CLAUSES', 'guardian_limbs'], ['CLAUSES', 'guardian_quick'], ['CLAUSES', 'guardian_grow_alarm'], ['CLAUSES', 'guardian_grow'], ['SPECIALS', 'cp_sweep'], ['SPECIALS', 'cp_charge'], ['SPECIALS', 'cp_ring'], ['SPECIALS', 'cp_call']]) {
       const cl = R[t][id].clause;
       if (/[0-9]/.test(cl.replace(/\{[^}]*\}/g, ''))) problems.push(`${t}.${id}: a digit outside a parameter`);
       if (t === 'ARCHETYPES' ? !/^[A-Z].*\.$/.test(cl) : /^[A-Z]|\.$/.test(cl)) problems.push(`${t}.${id}: "${cl}"`);
     }
     assert.equal(json(LIMBS.map(id => [R.SPECIALS[id].noun, R.SPECIALS[id].shape, R.SPECIALS[id].curve, R.SPECIALS[id].effect])),
       json([['neck', 'sweep', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage'], ['legs', 'charge', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage'], ['tail', 'tail', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage']]));
+    // Its crest is a call: no damage, a herald's reach.
+    assert.equal(json(['noun', 'shape', 'curve', 'effect', 'range'].map(k => R.SPECIALS.cp_call[k])), json(['crest', 'crest', null, 'hook', 'HERALD_RANGE']));
     // Its label: the line whole, and its odds readout's line for each limb it has (its tail
     // planted, as no walking grows it).
     const s = room(4, { walked: ALL }), a = composite(C, s), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4);
     a.ax.specials = LIMBS.slice(); a.ax.stage = LIMBS.length;
     const l = C.Labels.of(s, a.uid);
-    assert.equal(l.behaviour, wantLine(4));
+    // (A room for tests runs no module, so its label reads phase 2's part with alarm_network off.)
+    assert.equal(l.behaviour, wantLine(4, false));
     for (const noun of ['neck', 'legs', 'tail']) assert.ok(l.odds.some(x => x.startsWith(`Its ${noun} would deal you ${Math.max(N.DMG_MIN_ON_HIT, g - s.actors[0].pad)} (${g} before your Padding)`)), `${noun}: ${json(l.odds)}`);
     assert.deepEqual(problems, []);
   });
