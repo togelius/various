@@ -268,9 +268,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   test('the hall\'s checks register once each, in order; a Centrepiece\'s pieces come from dept.cp through Hall.cp', () => {
-    // (After the checks the rule files add as they load: the Composite's limbs, COMPOSITE-CORE.)
+    // (After the checks the rule files add as they load: the Composite's limbs, M4 COMPOSITE-CORE;
+    // the Ordinance's gallery hook and spent shatter, M4 ENSEMBLE-PHASES.)
     const X = loadCore(), f = () => {}, g = () => {}, loaded = X.Hall.added().map(([id]) => id);
-    assert.equal(json(loaded), json(['guardian_limbs']));
+    assert.equal(json(loaded), json(['guardian_limbs', 'mp_ensemble']));
     X.Hall.addCheck('planted_one', f); X.Hall.addCheck('planted_two', g);
     assert.equal(json(X.Hall.added().slice(loaded.length).map(([id, fn]) => [id, fn === f || fn === g])), json([['planted_one', true], ['planted_two', true]]));
     assert.throws(() => X.Hall.addCheck('planted_one', f), /twice/);

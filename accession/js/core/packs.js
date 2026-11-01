@@ -77,8 +77,8 @@ const Packs = (() => {
   const sharedList = () => shareds.slice();
 
   // The species record an actor was made from (a.sp): the department's own species first,
-  // then its Centrepiece (or a piece of it), then a shared species, then any pack's species or
-  // Centrepiece (or piece) with that id (a room for tests or an arena may stand one pack's
+  // then its Centrepiece (or a piece or attachment of it), then a shared species, then any pack's
+  // species or Centrepiece (or piece or attachment) with that id (a room for tests or an arena may stand one pack's
   // species in another place; ids are unique across the packs, which lint-registry checks);
   // null for an actor with none (you, or the test room's dummies). Labels, the view model,
   // policies and Setup.room read species through this.
@@ -107,9 +107,14 @@ const Packs = (() => {
   // the piece gives them (PIECE_WORDS: its name, sprite, tombstone and paragraph) and the
   // piece's id, so each piece's label names it, while its rules and its Behaviour line are its
   // Centrepiece's. A piece that gives no words of its own and names no id is the record itself.
+  // An attachment (`attachments`: an exhibit its Centrepiece's rules make in its hall, no piece
+  // of it; A.4's Senior Countersigning Clerk, M4 ENSEMBLE-PHASES) is a species of its own, its
+  // record as it is, by its id.
   const PIECE_WORDS = ['name', 'sprite', 'tomb', 'paragraph'];
   function pieceOf(cp, sp) {
     if (!cp) return null;
+    const att = Array.isArray(cp.attachments) ? cp.attachments.find(x => x && x.id === sp) : undefined;
+    if (att) return att;
     const q = Array.isArray(cp.pieces) ? cp.pieces.find(x => x && (x.id || cp.id) === sp) : undefined;
     if (!q) return cp.id === sp ? cp : null;
     if (sp === cp.id && !PIECE_WORDS.some(k => q[k] !== undefined)) return cp;
