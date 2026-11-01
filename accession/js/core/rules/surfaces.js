@@ -1,12 +1,17 @@
-// ACCESSION — surfaces on the floor (BUILD.md §8.1, §8.6): a Fumigant cloud, plaster dust.
-// Each is { kind, x, y, size, until, by } in dept.surfaces, in the order laid, covering the
-// size × size square centred on its tile (Grid.covers); a sight-blocking kind
+// ACCESSION — surfaces on the floor (BUILD.md §8.1, §8.6): a Fumigant cloud, plaster dust, and
+// M4's fog and rain. Each is { kind, x, y, size, until, by } in dept.surfaces, in the order laid,
+// covering the size × size square centred on its tile (Grid.covers); a sight-blocking kind
 // (Registry.SURFACES[kind].blocksSight) blocks line of sight across it (Grid.los), both ways,
-// and stops a beam (Ranged.beam). W0e built add, at and expiry; W1-STATUS owns the file after
-// M3's Wave 0 and adds what a surface does at turn boundary step 1:
+// and stops a beam (Ranged.beam). W0e built add, at and expiry; W1-STATUS owned the file after
+// M3's Wave 0 and added what a surface does at turn boundary step 1; MOD-WEATHER owns it in M4:
 //   fumigant  each sleeping exhibit inside it loses 1 pip a turn (Wake.addPips, cause
 //             fumigant: at most one a turn, however many clouds cover it);
-//   dust      nothing but blocking sight.
+//   dust      nothing but blocking sight;
+//   fog       nothing but blocking sight (M4, weather_cases: let out of a case, §5.4);
+//   rain      nothing at a boundary, and it blocks no sight and is not a loud floor; as it is
+//             laid (its surface event), weather_cases' rule rain_stop stops the exhibits
+//             flagged with that module that stand in it (rules/modules/weather_cases.js), so
+//             its stop is the module's, in the form of §5.4, not a surface's effect here.
 'use strict';
 const Surfaces = (() => {
   // Lay a surface of `kind` centred on (x, y), size tiles a side, for `turns` turns, made by
