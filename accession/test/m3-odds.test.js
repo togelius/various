@@ -7,7 +7,11 @@
 // body's any-hit rule, a splitter's halves (the hits on it and on every half it splits off),
 // an old repair's doubled side, the kiter's shots (its only attack), Reach, each special's
 // line, and no surprise line for an exhibit in an intact case, which no blow of yours
-// reaches. m2.test.js uses the same model (module.exports.model).
+// reaches. m2.test.js uses the same model (module.exports.model). M4 (ARCH-CLOCKWORK): the
+// healer "never strikes" and its restore "heals an exhibit within" its reach, SIGHT_EXHIBIT; a
+// station "has no blow"; and a clockwork exhibit's next move in words (its plan line, last
+// among the lines, which test/behaviour/clockwork.test.js holds) is no part of the odds:
+// odds(lines) leaves it out, at most one, and only as the last line.
 'use strict';
 
 // The independent model, for a core context C.
@@ -21,8 +25,8 @@ function model(C) {
   // The role curves (§8.1): anchored at depths 1, 4 and 8, linear between, rounded down.
   const curve = (v, d) => d <= 1 ? v[0] : d <= 4 ? v[0] + Math.floor((v[1] - v[0]) * (d - 1) / 3) : d <= 8 ? v[1] + Math.floor((v[2] - v[1]) * (d - 4) / 4) : v[2];
   // What each archetype is said to do (§8.1, §5.5): no blow, falls to any hit, shoots, its special.
-  const NO_BLOW = ['axis_sniper'], ANY_HIT = ['mote_swarm'], SHOOTS = ['kiter'], SPLITS = ['splitter'];
-  const SPECIAL = { axis_sniper: 'line', tethered_warden: 'ring', herald: 'call' };
+  const NO_BLOW = ['axis_sniper', 'conservator_healer', 'demonstrator'], ANY_HIT = ['mote_swarm'], SHOOTS = ['kiter'], SPLITS = ['splitter'];
+  const SPECIAL = { axis_sniper: 'line', tethered_warden: 'ring', herald: 'call', conservator_healer: 'heal' };
   // An old repair's side (§5.5): damage from that compass point or its two neighbours, as
   // seen from the body's nearest tile, is doubled.
   const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], VEC = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
@@ -106,6 +110,7 @@ function model(C) {
     if (sp === 'ring') { const g = curve(N.ROLE_WARDEN_SPECIAL, depth); nums.push(Math.max(1, g - you.pad), g, N.ROLE_WARDEN_SPECIAL_EVERY); lines++; }
     if (sp === 'line') { const g = curve(N.ROLE_ARTILLERY_SPECIAL, depth); nums.push(Math.max(1, g - you.pad), g, N.AXIS_BEAM_RANGE); lines++; }
     if (sp === 'call') { nums.push(N.HERALD_RANGE); lines++; }
+    if (sp === 'heal') { nums.push(N.SIGHT_EXHIBIT); lines++; }
     return { nums, lines, blow, toIt, mine: [Math.min(...m), Math.max(...m)], surprise: sur, halves };
   }
   // The Attack button a label should offer (§7.1): one exactly when step() takes the blow,
@@ -122,7 +127,15 @@ function model(C) {
     return [{ id: 'attack', text, act: { a: 'attack', uid: a.uid } }];
   }
   const numbers = lines => (lines.join(' ').match(/\d+/g) || []).map(Number);
-  return { expected, button, takes, numbers, curve, lineage, encased, NO_BLOW, ANY_HIT, SHOOTS, SPLITS, SPECIAL, Registry };
+  // The odds among a label's lines: all but a clockwork exhibit's plan line (above), which
+  // may only be the last; one anywhere else, or two, throws.
+  const PLAN = /^(Its next move: |If the chime sounded now, it would mark its line: )/;
+  function odds(lines) {
+    const at = lines.map((l, i) => PLAN.test(l) ? i : -1).filter(i => i >= 0);
+    if (at.length > 1 || (at.length === 1 && at[0] !== lines.length - 1)) throw new Error(`a plan line not last, or more than one: ${JSON.stringify(lines)}`);
+    return at.length ? lines.slice(0, -1) : lines.slice();
+  }
+  return { expected, button, takes, numbers, odds, PLAN, curve, lineage, encased, NO_BLOW, ANY_HIT, SHOOTS, SPLITS, SPECIAL, Registry };
 }
 
 module.exports = ({ test, assert, loadCore }) => {

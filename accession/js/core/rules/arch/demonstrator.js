@@ -6,7 +6,9 @@
 // The rule, as its line says it ("Stands fixed on its tile, never hunts you and has no blow."):
 //   - It never steps (mayStep: false, so neither a rule nor the Window Pole moves it) and never
 //     strikes: whatever it is doing, its own action is a wait (act). Its pending line, if it
-//     has one, waits for its boundary as every due line does (AI.act, §8.1).
+//     has one, waits for its boundary as every due line does (AI.act, §8.1). So its label
+//     gives it no blow (readout: noBlow, as the axis_sniper's and the healer's; M4
+//     ARCH-CLOCKWORK's review, once M.11's stations were placed).
 //   - It never hunts (huntsOnSight: false). Seeing you, it only knows where you are; and
 //     wherever another exhibit would start to hunt (your ring, a blow, a bell), it goes awake
 //     instead (Wake.wake and Wake.setMode, §8.2), stands on its tile and still acts only on the
@@ -42,6 +44,7 @@
   const mayStep = () => false;
   const huntsOnSight = () => false;
   const marksAwake = () => true;
+  const readout = () => [{ k: 'noBlow' }];
 
   function wakeRegion(state, a, turns) {
     if (!HourlyDemonstration.strikesWithin(state, a, turns)) return [];
@@ -51,5 +54,5 @@
     return out;
   }
 
-  Archetypes.add('demonstrator', { init, act, mayStep, huntsOnSight, marksAwake, wakeRegion });
+  Archetypes.add('demonstrator', { init, act, mayStep, huntsOnSight, marksAwake, wakeRegion, readout });
 })();

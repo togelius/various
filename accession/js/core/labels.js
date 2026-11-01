@@ -224,29 +224,42 @@ const Labels = (() => {
     if (plan) lines.push(planLine(state, a, plan.plan));
     return lines;
   }
-  // A clockwork exhibit's next move, as its arrow shows it (Archetypes.readout's {k: 'plan',
-  // plan}: Clockwork.shown, M4): a step (its compass side), a blow at whom, a mark (its
-  // special, on whose tile), its mark going off, or a wait; a station's arrow is its line, the
-  // tiles it would mark if the chime sounded now (its direction, route.dir).
+  // A clockwork exhibit's next move, in words (Archetypes.readout's {k: 'plan', plan}:
+  // Clockwork.shown, M4): a step (its compass side, or a tile no longer beside it, after
+  // something moved it, which it cannot make), a blow at whom, a mark (its special, on whose
+  // tile), its mark going off, or a wait; a station's arrow is its line, the tiles it would mark
+  // if the chime sounded now (its direction, route.dir). The words never speak of the arrow,
+  // so they are true whether or not the board draws it (VM-2D draws it), and they name only an
+  // exhibit you see (a tile of it in view, as the view model lists it: Vision.visible's rule)
+  // that shows as itself, so a label never tells you who stands where you cannot see.
   const SIDE = [[0, -1, 'N'], [1, -1, 'NE'], [1, 0, 'E'], [1, 1, 'SE'], [0, 1, 'S'], [-1, 1, 'SW'], [-1, 0, 'W'], [-1, -1, 'NW']];
+  function inView(state, b) {
+    const you = state.actors[0];
+    if (b.uid === 'you') return true;
+    if (b.gone || Archetypes.present(state, b) !== null) return false;
+    return Actors.footprint(b).some(([x, y]) => Grid.disc(x - you.x, y - you.y, N.SIGHT_PLAYER) && Grid.los(state.dept, you.x, you.y, x, y));
+  }
   function planLine(state, a, p) {
-    const who = uid => uid === 'you' ? 'you' : nameOf(state)(uid) || 'an exhibit';
     const named = sp => spNoun(sp) || (own(Registry.SPECIALS, sp) && own(SPECIAL, Registry.SPECIALS[sp].shape) ? SPECIAL[Registry.SPECIALS[sp].shape] : 'special');
+    const said = what => `Its next move: ${what}.`;
     if (p.k === 'step') {
       const s = SIDE.find(([dx, dy]) => a.x + dx === p.to[0] && a.y + dy === p.to[1]);
-      return `Its next move, shown by its arrow: a step ${s ? Clauses.COMPASS[s[2]] : 'beside it'}.`;
+      return said(s ? `a step ${Clauses.COMPASS[s[2]]}` : 'a step onto a tile no longer beside it, which it cannot make');
     }
-    if (p.k === 'strike') return `Its next move, shown by its arrow: a blow at ${who(p.at)}.`;
+    if (p.k === 'strike') {
+      const b = Actors.byUid(state, p.at);
+      return said(p.at === 'you' ? 'a blow at you' : b && inView(state, b) && nameOf(state)(b.uid) ? `a blow at ${nameOf(state)(b.uid)}` : 'a blow');
+    }
     if (p.k === 'mark') {
-      const b = p.tiles.length ? Actors.at(state, p.tiles[0][0], p.tiles[0][1], a) : null;
-      return `Its next move, shown by its arrow: its ${named(p.sp)}, marked on ${b ? `the tile of ${who(b.uid)}` : Text.tiles(p.tiles.length)}.`;
+      const b = p.tiles.length ? Actors.at(state, p.tiles[0][0], p.tiles[0][1], a) : null, name = b && b.uid !== 'you' && inView(state, b) ? nameOf(state)(b.uid) : null;
+      return said(`its ${named(p.sp)}, marked on ${b && b.uid === 'you' ? 'your tile' : name ? `the tile of ${name}` : Text.tiles(p.tiles.length)}`);
     }
-    if (p.k === 'resolve') return `Its next move, shown by its arrow: its ${named(p.sp)} goes off.`;
+    if (p.k === 'resolve') return said(`its ${named(p.sp)} goes off`);
     if (p.k === 'line') {
       const dir = a.route && own(Clauses.COMPASS, a.route.dir) ? ` to the ${Clauses.COMPASS[a.route.dir]}` : '';
-      return `Its arrow shows its line: ${Text.tiles(p.tiles.length)}${dir}, the line it would mark if the chime sounded now.`;
+      return `If the chime sounded now, it would mark its line: ${Text.tiles(p.tiles.length)}${dir}.`;
     }
-    return 'Its next move, shown by its arrow: a wait.';
+    return said('a wait');
   }
 
   // The Behaviour line (§5.3), with its numbers at the department's depth, leaving out the

@@ -72,10 +72,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
           a.statuses = [];
           for (const [who, id] of st) Status.apply(s, who === 'you' ? you : a, id, 5, { k: 'status', id }, []);
           Status.settle(s);
-          const l = Labels.of(s, a.uid), e = M.expected(s, you, a), got = M.numbers(l.odds);
+          const l = Labels.of(s, a.uid), e = M.expected(s, you, a), odds = M.odds(l.odds), got = M.numbers(odds);
           const where = `${acc} d${depth} ${a.uid} ${form} hp ${you.hp} ${mode} ${JSON.stringify(st)} ${a.hp}/${a.maxHp}`;
           assert.deepEqual(got, e.nums, `${where}: ${l.odds.join(' ')}`);
-          assert.equal(l.odds.length, e.lines, where);
+          assert.equal(odds.length, e.lines, where);
           if (!e.blow) ran.add('no-blow'); if (ANY_HIT.includes(a.arch)) ran.add('any-hit');
           // The Attack button, exactly when step() takes the blow (so not while you are
           // fixed, nor at an exhibit in an intact case, which is m3-cases's).
@@ -112,7 +112,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const s = Dept.create(depth * 11, acc, depth), you = s.actors[0];
       for (const a of s.actors.slice(1)) {
         if (disguised(s, a)) { assert.equal(Labels.of(s, a.uid), null, a.uid); continue; }
-        const l = Labels.of(s, a.uid), e = M.expected(s, you, a), got = M.numbers(l.odds);
+        const l = Labels.of(s, a.uid), e = M.expected(s, you, a), got = M.numbers(M.odds(l.odds));
         assert.deepEqual(got, e.nums, `${acc} depth ${depth} ${a.uid}: ${l.odds.join(' ')}`);
         // An exhibit with no blow shows neither a blow's Acc nor its damage among its
         // pictograms (§8.1, the odds readout; §8.8), since it never uses them; one with a blow shows both.
