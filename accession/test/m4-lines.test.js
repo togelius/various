@@ -312,12 +312,14 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (let mask = 1; mask < (1 << flags.length); mask++) out.push(flags.filter((f, i) => mask & (1 << i)));
     return out;
   }
+  // A pack's gallery lines' species: its species and its Centrepiece's attachments (M4: an
+  // exhibit a Centrepiece sets out beside it, a species of its own, Packs.speciesFor, whose
+  // line its strip shows whole as a gallery line's), and the shared species.
+  const galleryOf = X => [].concat(...X.Packs.list().map(p => p.species.concat(p.centrepiece && Array.isArray(p.centrepiece.attachments) ? p.centrepiece.attachments : [])), X.Packs.sharedList());
   // Every line the strip may show of core X's packs, as [where, text]: each gallery line
   // whole, and each Centrepiece's strip in each of its phases.
   function shown(X) {
-    const out = [], gallery = [];
-    for (const p of X.Packs.list()) for (const sp of p.species) gallery.push(sp);
-    for (const sp of X.Packs.sharedList()) gallery.push(sp);
+    const out = [], gallery = galleryOf(X);
     for (const sp of gallery) for (const depth of DEPTHS) for (const off of switches(sp))
       out.push([`${sp.id} at depth ${depth}${off.length ? ', ' + off.join(' and ') + ' off' : ''}`, X.Clauses.line(sp, { depth, rulesOff: off })]);
     // A Centrepiece has three phases (one past each threshold of CP_PHASE_PCT), whatever
@@ -525,7 +527,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('a gallery line\'s strip is its whole line, unchanged, at every depth, with each modifier and module off, a phase given or not', () => {
     let n = 0;
-    const gallery = [].concat(...C.Packs.list().map(p => p.species), C.Packs.sharedList());
+    const gallery = galleryOf(C);
+    assert.ok(gallery.some(sp => sp.id === 'M11.11a') && gallery.some(sp => sp.id === 'M11.11b'));
     for (const sp of gallery) for (const depth of DEPTHS) for (const off of switches(sp)) {
       const whole = C.Clauses.line(sp, { depth, rulesOff: off });
       assert.equal(C.Clauses.strip(sp, { depth, rulesOff: off }), whole, `${sp.id} ${depth}`);

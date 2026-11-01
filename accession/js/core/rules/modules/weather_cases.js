@@ -167,7 +167,8 @@ const WeatherCases = (() => {
   }
   // What a case's label says of the weather it holds (Labels' case): what gets out, how large,
   // for how long and what it does; for rain, which exhibits it stops and for how long, each
-  // named as Labels names it mid-sentence (a name that starts "The" keeps one "the": M4
+  // kind once, in spawn order, named as the log names it (Labels.nameOf, the one helper every
+  // sentence names an exhibit with: a name that starts "The" keeps one "the", M4
   // TABLEAU-PHASES' Repeater Arm, "the Board’s Repeater Arm").
   function words(state, f) {
     const w = held(state, f);
@@ -175,9 +176,10 @@ const WeatherCases = (() => {
     const square = `${Text.tiles(N.WEATHER_SIZE)} a side`, turns = Text.count(N.WEATHER_TURNS, 'turn');
     if (w === 'fog') return [`It holds fog: opened, broken or dissolved, it lets it out, ${square}, for ${turns}, and the fog blocks sight.`];
     const out = [`It holds rain: opened, broken or dissolved, it lets it out, ${square}, for ${turns}.`];
-    const list = stops(state);
-    if (list.length) {
-      const names = list.map(sp => 'the ' + sp.name.replace(/^The /, '')), one = list.length === 1;
+    const name = Labels.nameOf(state), names = [];
+    for (const a of flagged(state)) { const n = name(a.uid); if (n && !names.includes(n)) names.push(n); }
+    if (names.length) {
+      const one = names.length === 1;
       out.push(`While ${names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0]} ${one ? 'stands' : 'stand'} in rain, and for ${Text.count(N.RAIN_STOP_TURNS, 'turn')} after, ${one ? 'it only waits' : 'each only waits'}, and any mark ${one ? 'it has' : 'one has'} made is called off.`);
     }
     return out;
