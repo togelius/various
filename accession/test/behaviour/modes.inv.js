@@ -19,7 +19,9 @@
 //                               Vanishing Act, M4), and then after no fewer than it says
 //                               (Perks.loseTrack, the perks' dispatcher, not the AI's);
 //   modes_exhibit_steps         every step an exhibit takes is one step of the exhibits'
-//                               walking rule (Grid.canStep(…, 'exhibit') for its footprint),
+//                               walking rule (Grid.canStep(…, 'exhibit') for its footprint,
+//                               on the map as it stood then: a hall's shutters closing or
+//                               opening later in the step do not count),
 //                               or a one-tile exhibit's step onto its own home that is a
 //                               plinth (M4: §8.2, a tile it can stand on but no walk enters,
 //                               never a vitrine), by the same diagonal rule;
@@ -38,6 +40,18 @@ module.exports = (C) => {
   // that moves an actor otherwise must give its moved event a cause.
   const isStep = e => e.k === 'moved' && e.cause === undefined;
   const dirOf = (dx, dy) => { for (let d = 0; d < 8; d++) if (Grid.DX[d] === dx && Grid.DY[d] === dy) return d; return -1; };
+  // The map as it stood when the step's i-th event came: the map after the step, but with a
+  // Centrepiece hall's openings as they were then, since its shutters close (stage sealed) or
+  // open (unsealed) at a boundary later in the step (§4.1; M4 A13); nothing else an exhibit
+  // steps by changes within a step but to let it walk more.
+  function mapAt(pre, post, events, i) {
+    const cp = post.dept.cp || pre.dept.cp, hall = e => e.k === 'stage' && e.cause && e.cause.k === 'hall' && (e.stage === 'sealed' || e.stage === 'unsealed');
+    const next = cp ? events.slice(i + 1).find(hall) : null;
+    if (!next) return post.dept;
+    const rows = post.dept.tiles.slice();
+    for (const o of cp.openings || []) rows[o.y] = rows[o.y].slice(0, o.x) + (next.stage === 'sealed' ? o.ch : 'Z') + rows[o.y].slice(o.x + 1);
+    return Object.assign({}, post.dept, { tiles: rows });
+  }
 
   return [
     {
@@ -112,19 +126,20 @@ module.exports = (C) => {
       applies: exhibit,
       check(pre, events, post, ctx) {
         const a = ctx.actor, s = a.size || 1;
-        for (const e of events) {
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i];
           if (!isStep(e) || e.who !== a.uid) continue;
           const dx = e.to[0] - e.from[0], dy = e.to[1] - e.from[1], d = dirOf(dx, dy);
           if (d < 0) return `it moved from ${e.from} to ${e.to}, which is not one step`;
           // Onto its home, a plinth: from a tile that is not an intact case's, the diagonal
           // rule kept (both tiles beside the corner walkable for an exhibit).
-          const m = post.dept, [x0, y0] = e.from, [x1, y1] = e.to;
+          const m = mapAt(pre, post, events, i), [x0, y0] = e.from, [x1, y1] = e.to;
           if (s === 1 && a.home && a.home[0] === x1 && a.home[1] === y1 && Grid.hold(m, x1, y1) && !Grid.walkable(m, x1, y1) && Grid.ch(m, x1, y1) !== 'v') {
             if (Grid.ch(m, x0, y0) === 'v' || (dx !== 0 && dy !== 0 && !(Grid.walkable(m, x1, y0, 'exhibit') && Grid.walkable(m, x0, y1, 'exhibit')))) return `its step from ${e.from} onto its home plinth at ${e.to} breaks the exhibits' walking rule`;
             continue;
           }
           for (let ty = 0; ty < s; ty++) for (let tx = 0; tx < s; tx++)
-            if (!Grid.canStep(post.dept, e.from[0] + tx, e.from[1] + ty, d, 'exhibit')) return `its step from ${e.from} to ${e.to} breaks the exhibits' walking rule`;
+            if (!Grid.canStep(m, e.from[0] + tx, e.from[1] + ty, d, 'exhibit')) return `its step from ${e.from} to ${e.to} breaks the exhibits' walking rule`;
         }
         return null;
       },

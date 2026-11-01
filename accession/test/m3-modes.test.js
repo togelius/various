@@ -327,4 +327,29 @@ module.exports = ({ test, assert, loadCore }) => {
     bites('modes_exhibit_steps', by((X, s, a, ev) => { X.Causes.emit(s, ev, 'moved', { who: a.uid, from: [a.x, a.y], to: [a.x - 2, a.y] }); a.x -= 2; return X.AI.wait(s, a, ev); }), X => mk(X, [ex([10, 3])]), 1);
     bites('plodder_one_thing', by((X, s, a, ev) => { X.Combat.strike(s, a, s.actors[0], ev); return X.Combat.strike(s, a, s.actors[0], ev); }), X => mk(X, [ex([3, 2], { mode: 'hunting' })]), 1);
   });
+
+  test('modes_exhibit_steps judges a step on the map as it stood then: a hall\'s shutters closing at the boundary later in the step do not make a step past its opening a broken one; a step past a shutter already shut does', () => {
+    // A hall (x 6–12) whose three archways (x 5) get shutters; an exhibit on the archway (5,3)
+    // steps north-east to (6,2), past the corner tiles (6,3) and (5,2), the second an archway;
+    // then, at the boundary, the hall seals and (5,2) is a shutter. CP1's soak met it: S.9 seed 2012 depth 5 (a Hopper leaving an opening as the shutters
+    // closed behind it), with a test Centrepiece planted.
+    const inv = require('../tools/invariants.js').select(C, ['modes_exhibit_steps'])[0];
+    const MAP = ['##############', '#....,.......#', '#....,.......#', '#....,.......#', '##############'];
+    const s = H.room(C, 1, { acc: 'T0', depth: 1, map: MAP, you: [9, 2], exhibits: [ex([5, 3], { mode: 'hunting' })],
+      rooms: [{ key: 'centre', role: 'centre', x0: 6, y0: 1, x1: 12, y1: 3 }, { key: 's1', role: 'section', x0: 1, y0: 1, x1: 4, y1: 3 }] }, {});
+    // The hall's record as the check reads it (its openings; no piece is needed for that).
+    s.dept.cp = { uids: [], room: 'centre', openings: [{ x: 5, y: 1, ch: ',' }, { x: 5, y: 2, ch: ',' }, { x: 5, y: 3, ch: ',' }], form: 'fight', sealed: null, touched: false, sheet: null, treasure: null };
+    const a = s.actors[1], pre = C.State.clone(s), post = C.State.clone(s);
+    post.actors[1].x = 6; post.actors[1].y = 2;
+    for (const o of post.dept.cp.openings) post.dept.tiles[o.y] = post.dept.tiles[o.y].slice(0, o.x) + 'Z' + post.dept.tiles[o.y].slice(o.x + 1);
+    const step = { k: 'moved', who: a.uid, from: [5, 3], to: [6, 2], turn: 0, tick: 0 }, sealed = { k: 'stage', stage: 'sealed', turn: 1, tick: 100, cause: { k: 'hall', why: 'touched' } };
+    const ctx = { uid: a.uid, actor: post.actors[1], before: pre.actors[1] };
+    assert.equal(inv.check(pre, [step, sealed], post, ctx), null, 'the step came before the shutters closed');
+    assert.match(inv.check(pre, [sealed, step], post, ctx), /breaks the exhibits' walking rule/, 'the shutters were shut when it stepped');
+    // Lifted later in the step: before the lift, a step past a shut opening is still broken.
+    const lifted = { k: 'stage', stage: 'unsealed', turn: 1, tick: 100, cause: { k: 'hall', why: 'quiet' } }, open = C.State.clone(s);
+    open.actors[1].x = 6; open.actors[1].y = 2;
+    for (const o of pre.dept.cp.openings) pre.dept.tiles[o.y] = pre.dept.tiles[o.y].slice(0, o.x) + 'Z' + pre.dept.tiles[o.y].slice(o.x + 1);
+    assert.match(inv.check(pre, [step, lifted], open, { uid: a.uid, actor: open.actors[1], before: pre.actors[1] }), /breaks the exhibits' walking rule/, 'it stepped before the shutters opened');
+  });
 };
