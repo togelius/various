@@ -41,8 +41,10 @@
   // Why a pip came or went.
   R.defineCause('pip', 'ring', { fields: { dist: 'int', r: 'int' } });
   // A noise names its source: who made it (if anyone did) and its tile. The tile is optional
-  // only for callers that give a noise cause by hand; Wake.hear always gives it.
-  const heard = { by: 'uid?', dist: 'int', cls: 'str', x: 'int?', y: 'int?' };
+  // only for callers that give a noise cause by hand; Wake.hear always gives it. how:
+  // 'stands' for one heard by an exhibit that never steps (M4's stations), which it sends
+  // nowhere.
+  const heard = { by: 'uid?', dist: 'int', cls: 'str', x: 'int?', y: 'int?', how: 'str?' };
   R.defineCause('pip', 'noise', { fields: heard });
   R.defineCause('pip', 'axis', { fields: { dist: 'int' } });
   R.defineCause('pip', 'decay', { fields: {} });

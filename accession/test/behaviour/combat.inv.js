@@ -129,16 +129,23 @@ module.exports = C => {
           const e = events[n];
           if (e.k !== 'damaged' || !ownerOf(e.cause)) continue;
           const c = e.cause, owner = ownerOf(c), o = byUid(pre, owner), tel = o && o.telegraph;
-          const i = tel ? tel.tiles.findIndex(t => t[0] === c.x && t[1] === c.y) : -1;
-          const via = i >= 0 && tel.via ? tel.via[i] : null;
-          if (i >= 0 && (c.k === 'reflected') !== (via !== null)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y} as ${c.k}${c.k === 'reflected' ? ` by ${c.by}` : ''}, but its mark there was ${via ? `sent back by ${via}` : 'on its way out'}`;
-          // (A line marked within the step, a due line, has no mark before it to say which
-          // reflector sent it back: its owner's mark is checked only against one shown before.)
-          if (i >= 0 && c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
+          // The mark it went off as: one its owner made within the step (a due line, marked and
+          // gone off within one long action of yours: the owner's last telegraphed event before
+          // this), else the one shown before the step. A mark made within the step names no
+          // reflector (its event gives only its tiles), so only its tiles are checked; one shown
+          // before is checked tile by tile, way out and way back.
+          const marked = events.slice(0, n).filter(t => t.k === 'telegraphed' && t.who === owner && t.cause && t.cause.k === 'special').pop();
+          if (marked) {
+            if (!marked.tiles.some(t => t[0] === c.x && t[1] === c.y)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y}, which the mark it made in the step does not hold`;
+          } else {
+            const i = tel ? tel.tiles.findIndex(t => t[0] === c.x && t[1] === c.y) : -1;
+            const via = i >= 0 && tel.via ? tel.via[i] : null;
+            if (i >= 0 && (c.k === 'reflected') !== (via !== null)) return `${owner}'s ${c.sp} struck ${e.who} at ${c.x},${c.y} as ${c.k}${c.k === 'reflected' ? ` by ${c.by}` : ''}, but its mark there was ${via ? `sent back by ${via}` : 'on its way out'}`;
+            if (c.k === 'reflected' && via !== c.by) return `${owner}'s ${c.sp} at ${c.x},${c.y} is named ${c.by}'s, but its mark there was sent back by ${via}`;
+          }
           if (e.who !== 'you') continue;
           // Whether this was a due line: shown before the step with its due tick, or marked
           // during the step as one (its telegraphed event's cause.due).
-          const marked = events.slice(0, n).filter(t => t.k === 'telegraphed' && t.who === owner && t.cause && t.cause.k === 'special').pop();
           const due = marked ? (Number.isInteger(marked.cause.due) ? marked.cause.due : null) : tel && Number.isInteger(tel.due) ? tel.due : null;
           if (due !== null) {
             const w = warning().find(h => h.by === owner && h.due === due && h.x === c.x && h.y === c.y);

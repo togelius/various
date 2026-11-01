@@ -38,9 +38,10 @@
   };
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
-    // Woken by a noise, it sets off to look where the noise was.
-    const then = k === 'noise' ? ', and set off to look' : '';
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then}.`);
+    // Woken by a noise, it sets off to look where the noise was, unless it never steps (a
+    // station, M4: its cause says how: 'stands').
+    const then = e => k === 'noise' && !(e.cause && e.cause.how === 'stands') ? ', and set off to look' : '';
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then(e)}.`);
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${because(e, w)}.` : `${w.Name(e.who)} began hunting you: ${because(e, w)}.`);
   }
 

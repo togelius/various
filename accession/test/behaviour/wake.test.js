@@ -1,7 +1,8 @@
 // The generic wake clause, "Wakes when you stay inside your ring or make noise near it."
 // (BUILD.md §8.2, §5.3), for every species whose line ends with it, at every depth 1–7: the
 // ring's pips wake it hunting (awake, for one that never hunts: M4's station, §8.2), a noise's
-// pips wake it awake and send it to look, and outside both it sleeps on. Each run is
+// pips wake it awake and send it to look (where it stands, for the station, which never
+// steps), and outside both it sleeps on. Each run is
 // clone-checked, with every invariant after every step.
 const H = require('./_harness.js');
 
@@ -52,7 +53,10 @@ module.exports = ({ test, assert, loadCore }) => {
     expect(r) {
       const a = r.state.actors[2], pips = pipsOf(r, a.uid);
       if (json(pips.map(e => [e.turn, e.pips, e.cause.k, e.cause.by, e.cause.dist, e.cause.cls])) !== json([0, 1, 2].map(t => [t, t + 1, 'noise', 'you', 3, 'soft']))) return `its pips were ${json(pips.map(e => [e.turn, e.pips, e.cause]))}`;
-      if (a.mode !== 'awake' || json(a.target) !== json([2, 2]) || !a.woke || a.woke.cause.k !== 'noise') return `after ${PIPS} noises it is ${a.mode}, looking at ${json(a.target)}, story ${json(a.woke)}`;
+      // One that never hunts never steps either (M4's station, §8.2): it wakes where it stands,
+      // with nowhere to look, and its cause says so.
+      const stands = !C.Archetypes.huntsOnSight(r.state, a), look = stands ? null : [2, 2];
+      if (a.mode !== 'awake' || json(a.target) !== json(look) || !a.woke || a.woke.cause.k !== 'noise' || (a.woke.cause.how === 'stands') !== stands) return `after ${PIPS} noises it is ${a.mode}, looking at ${json(a.target)}, story ${json(a.woke)}`;
       if (r.events.some(e => e.k === 'hunting' && e.who === a.uid)) return 'noise woke it hunting';
       return null;
     },

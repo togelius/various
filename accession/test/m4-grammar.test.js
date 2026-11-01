@@ -267,7 +267,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       'The Lantern-Crop Wader raised the alarm: for 30 turns, sleeping exhibits keep their pips, no exhibit goes back to its place for being left undisturbed or done searching, and no other alarm can be raised.']));
     // One alone is told by its own sentence.
     assert.equal(json(Text.log([woke('x.1', 'alarm')], NAMES)), json([Text.event(woke('x.1', 'alarm'), NAMES)]));
-    assert.equal(Text.log([woke('x.1', 'period'), woke('x.2', 'period')], NAMES)[0], 'At the chime, 2 stations woke to mark their lines.');
+    assert.equal(Text.log([woke('x.1', 'period'), woke('x.2', 'period')], NAMES)[0], '2 stations woke for the chime.');
     // An original's spares (cause.by, the original) in one line; two originals' in two; with no
     // original named, a line true of any number of them; another rule of the module alone.
     const weaken = (uid, by) => ({ k: 'module', turn: 3, id: 'copies_weaken', rule: 'weaken', who: uid, cause: by ? { k: 'copies_weaken', by } : { k: 'copies_weaken' } });
@@ -280,8 +280,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // One made awake (no was) did not wake: it is not counted among the alarm's or the chime's.
     for (const c of ['alarm', 'period']) {
       const made = Object.assign(woke('x.3', c), { was: null });
-      assert.equal(json(Text.log([woke('x.1', c), made, woke('x.2', c)], NAMES).map(l => / was already awake: /.test(l) ? 'alone' : l.replace(/\d/, 'N'))),
-        json([c === 'alarm' ? 'The alarm woke N exhibits, and they set off to look where you were.' : 'At the chime, N stations woke to mark their lines.', 'alone']), c);
+      assert.equal(json(Text.log([woke('x.1', c), made, woke('x.2', c)], NAMES).map(l => / was already awake[: ]/.test(l) ? 'alone' : l.replace(/\d/, 'N'))),
+        json([c === 'alarm' ? 'The alarm woke N exhibits, and they set off to look where you were.' : 'N stations woke for the chime.', 'alone']), c);
     }
     // A module event about an exhibit out of view is not told (an unobserved mover's stride
     // gives nothing away); one about no exhibit is (the chime).
