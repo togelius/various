@@ -247,6 +247,34 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
   });
 
+  test('its beam needs its sight, as its line says ("while it sees you"): hunting you in its row from behind columns it cannot see past, it marks no beam, and so no burst; and the log names each special by its noun (its beam, its burst, a summons gained), never "its special"; at depths 2 and 6', () => {
+    // Columns (7,3) and (7,4) stand between its footprint and you (8,3): a beam would run (6,3).
+    const CMAP = ['###############', '#.........#...#', '#.........,...#', '#......o..#...#', '#......o..#...#', '#.........S...#', '#.........#...#', '###############'];
+    for (const depth of [2, 6]) {
+      const s = room(depth, { map: CMAP, you: [8, 3] }), b = board(C, s), tag = `d${depth}`;
+      blow(C, s, b, 1);
+      assert.ok(b.mode === 'hunting' && !C.AI.sees(s, b), `${tag}: it is ${b.mode}, seeing you ${C.AI.sees(s, b)}`);
+      assert.equal(json(C.Tableau.line(s, b)), '[]', `${tag}: its beam would take tiles it cannot see you along`);
+      const r = H.play(C, s, Array(N.LOSE_TRACK_TURNS - 1).fill(WAIT), { inv: 'all' });
+      assert.deepEqual(bad(r, tag), []);
+      assert.ok(b.mode === 'hunting' && b.acts >= 2 * N.CP_SPECIAL_EVERY[0] && marksOf(r, b.uid).length === 0, `${tag}: ${b.mode}, ${b.acts} actions, it marked ${json(marksOf(r, b.uid))}`);
+    }
+    // In its row and its sight: its beam, then its burst, each named so when marked and used.
+    const s = room(4, { you: [8, 3] }), b = board(C, s), Name = C.Labels.nameOf(s)(b.uid).replace(/^the/, 'The');
+    blow(C, s, b, 1);
+    const r = H.play(C, s, Array(10).fill(WAIT), { inv: 'all' });
+    const said = r.steps.flatMap(st => log(C, s, st.events)).filter(l => l.startsWith(Name));
+    for (const sp of ['beam', 'burst']) {
+      assert.ok(said.some(l => l.startsWith(`${Name} marks `) && l.includes(` for its ${sp}: ${gross(4)} before your Padding, at its next action.`)), `its ${sp} marked: ${json(said)}`);
+      assert.ok(said.some(l => l.startsWith(`${Name} used its ${sp}: it struck you`)), `its ${sp} used: ${json(said)}`);
+    }
+    assert.ok(!said.some(l => /its special/.test(l)), json(said));
+    // The phase that gives its summons names it ("a summons", its noun), not "a new special".
+    const t = room(4, { you: [6, 3] }), tb = board(C, t);
+    const ph = toPhase2(C, t, tb).find(e => e.k === 'phase');
+    assert.equal(say(C, t, ph), `${Name} is now in phase 2 of 3, and has a summons: the Centrepiece’s health has fallen to ${N.CP_PHASE_PCT[0]}% of its full health or below.`);
+  });
+
   // ---- Its summons ----
 
   test('its summons marks up to CP_SUMMON[1] free tiles of its hall beside it, nearest where it last knew you were (ties in row-major order), and none with fewer than CP_SUMMON[0] free: never a tile someone stands on, an opening of the hall or a tile outside it', () => {
@@ -259,6 +287,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(tiles()), json([[3, 4], [3, 5]]));
     b.lastKnown = [6, 1];
     assert.equal(json(tiles()), json([[6, 2], [5, 2]].sort((p, q) => p[1] - q[1] || p[0] - q[0])));
+    // Nearest as an exhibit walks, any of 8 ways (Chebyshev, BUILD §8.1): from (8,1), (6,2) and
+    // (6,3) are each 2 steps off, (5,2) 3; counted 4 ways (5,2) would tie (6,3) and come first.
+    b.lastKnown = [8, 1];
+    assert.equal(json(tiles()), json([[6, 2], [6, 3]]));
     // Taken tiles are passed over; with one free, it marks one; with none, it cannot mark.
     const fixed = (x, y) => C.Actors.spawn(s, Object.assign({}, Roles.stats('fodder', 3), { uid: `dummy.${x}.${y}`, sp: 'M11.5', x, y, mode: 'dormant' }));
     const ring = [];
@@ -439,6 +471,22 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(json([b.mode, b.target, e && e.cause.how, e && e.x, e && e.y]), json(['awake', AT, 'stands', AT[0], AT[1]]));
       assert.equal(say(C, s, e), `${Name} heard a soft noise 2 tiles away, and is awake where it stands.`);
     }
+    // With Vanishing Act, it stops hunting at its first action out of your sight (vanished), and
+    // keeps watch where it stands; then settles there and sleeps, as above.
+    for (const acc of ['M11', 'A4']) {
+      const s = room(3, { acc, you: [13, 6] }), b = board(C, s), Name = C.Labels.nameOf(s)(b.uid).replace(/^the/, 'The');
+      s.run.perks = [{ id: 'vanishing_act', rank: 1 }];
+      blow(C, s, b, 1);
+      const r = H.play(C, s, st => board(C, st).mode === 'dormant' ? null : WAIT, { inv: 'all', cap: 40 });
+      problems.push(...bad(r, `${acc} vanished`), ...story(C, s, r, b.uid, `${acc} vanished`));
+      const lost = r.events.find(e => e.k === 'lost' && e.who === b.uid);
+      if (!lost || lost.cause.k !== 'vanished' || lost.cause.how !== 'stands') problems.push(`${acc} vanished: ${json(lost)}`);
+      else if (say(C, s, lost) !== `${Name} lost sight of you and stops hunting at once, keeping watch where it stands: Vanishing Act.`) problems.push(`${acc} vanished: "${say(C, s, lost)}"`);
+    }
+    // One that may not go back to sleep (no home, or it never sleeps) stays awake where it stands
+    // once it stops keeping watch (alerted, searched): never "wanders".
+    const kept = { k: 'alerted', turn: 9, who: 'x', from: 'searching', to: 'awake', x: 4, y: 3, cause: { k: 'searched', how: 'stands' } };
+    assert.equal(C.Text.event(kept, () => 'the dummy'), 'The dummy stopped keeping watch for you, and stays awake where it stands, for it does not go back to sleep.');
     // A hunter that steps keeps its story (a sentence that names how: 'stands' only for one).
     const e = { k: 'lost', turn: 9, who: 'x', from: 'hunting', to: 'searching', cause: { k: 'out_of_sight', turns: 8 } };
     assert.equal(C.Text.event(e, () => 'the dummy'), 'The dummy lost you: it has not seen you for 8 turns, and searches where it last knew you were.');
