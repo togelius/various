@@ -11,7 +11,7 @@
 //       - no sleeper's axis (Wake.onAxis) or tether (Wake.inTether) holds you;
 //       - no exhibit that would stir hears a door beside the zone opened (Noise.reach,
 //         NOISE_SOFT): a sleeper, or one awake that would come to look (Wake.hear: not one
-//         that never hunts, a station, nor one in a case);
+//         that never steps, Wake.stands, nor one in a case);
 //     and, on seeds 1–ORACLE_SEEDS of each depth (they cost more):
 //       - no sleeper is inside your ring there (Vision.ringDist, at RING_MOVING, RING_LOUD_FLOOR
 //         more on a loud floor, and LAMP_RING more in a department whose pack holds a curio
@@ -49,7 +49,7 @@ module.exports = C => {
     // in the cheaper pass, the sleepers with an axis or a tether.
     const asked = ex.filter(a => !Archetypes.pipless(s, a) && (full || (a.mode === 'dormant' && (a.trigger === 'axis' || a.trigger === 'tether'))));
     // Who would stir on hearing a door: a sleeper, or one awake that would come to look.
-    const hearers = ex.filter(a => a.mode !== 'hunting' && !Archetypes.pipless(s, a) && (a.mode === 'dormant' || (Archetypes.huntsOnSight(s, a) && !Cases.encased(s, a))));
+    const hearers = ex.filter(a => a.mode !== 'hunting' && !Archetypes.pipless(s, a) && (a.mode === 'dormant' || (!Wake.stands(s, a) && !Cases.encased(s, a))));
     for (const open of [false, true]) {
       const v = view(s, open), vm = v.dept, where = open ? ' (doors open)' : '', heard = new Set(), me = asked.length ? withYou(v) : null;
       const reach = new Map(lines.map(a => [a.uid, HourlyDemonstration.reach(v, a, s.turn + T)]));

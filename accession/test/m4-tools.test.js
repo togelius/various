@@ -456,7 +456,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   }
   const USES = `module.exports = {
   about: 'M.11 at depth 1 as a run starts: a Restoration kit used at its first chance, waits, then the wander policy',
-  start: { seed: 12, dept: 'M11', depth: 1, carry: 'start' },
+  start: { seed: 121, dept: 'M11', depth: 1, carry: 'start' },
   cap: 60,
   next(C, state, ctx) {
     if (ctx.i >= 50) return null;
@@ -480,11 +480,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(Golden.definition('uses', g.uses), again.def);
     // 50 actions: at layout version 3 the wider Intro brings the first Restoration kit within
     // reach later (it was used at action 44 of seed 116, not inside 40; it is at action 41 of
-    // seed 121 at depth 1 with the gallery lists, and at action 47 of seed 12 with the stations).
+    // seed 121 at depth 1 with the gallery lists, and at action 47 of seed 12 with the stations;
+    // with M.11's Logbook Trolley a column further east, D-LV6's review, seed 12's wander never
+    // reaches one inside 50, and seed 121's uses it at action 45).
     assert.ok(g.uses.actions.length > 10 && g.uses.actions.length <= 50);
     assert.ok(g.uses.actions.some(a => a.a === 'use'));
     assert.equal(g.uses.hash, C.Replay.play(again.def).hash);
-    assert.deepEqual(g.uses.start, { seed: 12, dept: 'M11', depth: 1, carry: 'start' });
+    assert.deepEqual(g.uses.start, { seed: 121, dept: 'M11', depth: 1, carry: 'start' });
     assert.equal(Golden.check(C, file, { recipes: dir }).bad, 0);
     // Pending: --record keeps a run's reason, or takes a new one; it stays checked by its story.
     Golden.markPending(file, 'rules moving', ['uses']);

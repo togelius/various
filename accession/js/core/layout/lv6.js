@@ -27,7 +27,8 @@
 //     door beside a tile of it you stand on, a soft noise at the door, Noise.reach): a sleeper
 //     that hears it gains a pip (one a turn, so PIPS_TO_WAKE turns of it wake it), and an
 //     awake exhibit goes to look at the door, in the zone (Wake.hear), unless it never steps
-//     (an exhibit that never hunts, a station) or only waits in its case, when it never comes;
+//     (Wake.stands: a station, which never hunts; the Great Board and the Ordinance's pieces,
+//     which hunt but stand fixed) or only waits in its case, when it never comes;
 //   - your ring at its largest there: on a loud floor, RING_LOUD_FLOOR wider (Vision.actionRing
 //     reads the tile you stand on, so only from that tile); and where this department holds a
 //     curio with `observing` (S.9's Lamp, which a visitor may wear lit from the start, plan
@@ -252,8 +253,8 @@ const LV6 = (() => {
       if (dormant && a.trigger === 'axis' && nearAny(z, a, N.AXIS_RANGE)) monotone(a, 'axis', v => axisHits(v, z, a));
       if (dormant && a.trigger === 'tether' && Array.isArray(a.guards) && near(z, a.guards[0], a.guards[1], N.TETHER_RANGE)) monotone(a, 'tether', v => tetherHits(v, z, a));
       // A door's noise: a sleeper gains a pip; an awake exhibit goes to look, unless it never
-      // steps (it never hunts: Wake.hear has it stand) or waits in its case.
-      const looks = a.mode === 'dormant' || (Archetypes.huntsOnSight(state, a) && !Cases.encased(state, a));
+      // steps (Wake.stands, as Wake.hear asks) or waits in its case.
+      const looks = a.mode === 'dormant' || (!Wake.stands(state, a) && !Cases.encased(state, a));
       if (doors.length && looks && a.mode !== 'hunting' && !Archetypes.pipless(state, a) && nearAny(z, a, N.NOISE_SOFT + 1)) monotone(a, 'noise', v => noiseHits(v, a, doors, reachOf));
       // The larger rings: a loud floor's, from its own tiles; then the lit Lamp's.
       if (dormant && loud && nearAny(z, a, N.RING_MOVING + N.RING_LOUD_FLOOR))
