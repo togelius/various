@@ -17,7 +17,10 @@
 //     a case no opening reaches; a rejected attempt reseeds; and over S.9's seeds, its
 //     reseed rate, the first-attempt share and the fallbacks;
 //   - the curation follow-up (js/core/layout/curate.js): a treasure's hall has its wall case
-//     deep in the hall, and without it most first plans would be rejected;
+//     beside the guardian, far enough from every opening, and not always on the same side,
+//     never so deep that the Lamp cannot be carried out before the seal; without it most first
+//     plans would be rejected; M1's locality holds for S.9's plans curated so; the certified
+//     fallback's case keeps the treasure rule at every depth;
 //   - the case with the test-only Centrepiece core (as ARCH-CP-CORE's and PG-VIEW's tests make
 //     one) standing as S.9's Composite: the case, the Lamp in it and its walk as the hall's
 //     openings give them, the items as without it; the case bashed open, the Lamp taken, worn
@@ -269,7 +272,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(found.g.attempt > k && !found.g.fallback && LTreasure.check(found.g.state, null) === null, json([found.seed, found.g.attempt]));
   });
 
-  test('over S.9\'s seeds the treasure validator turns down few first plans: at least 90% of departments come from the first layout attempt, at most 1% fall back; without the curation of a treasure\'s hall (its wall case deep in it) most first plans would be turned down', () => {
+  test('over S.9\'s seeds the treasure validator turns down few first plans: at least 90% of departments come from the first layout attempt, at most 1% fall back; a treasure\'s hall has its wall case beside the guardian, far enough from every opening, on any side of it, never too deep to carry the Lamp out before the seal, and without that curation most first plans would be turned down', () => {
     let n = 0, first = 0, fallbacks = 0, rejected = 0, attempts = 0;
     for (let depth = 1; depth <= 7; depth++) for (let seed = 1; seed <= 15; seed++) {
       const g = Dept.generate(seed, 'S9', depth);
@@ -281,31 +284,92 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     console.log(`  S.9, ${n} departments: ${first} from the first attempt, ${fallbacks} fallbacks, ${rejected} plans turned down by the treasure validator in ${attempts} attempts`);
     assert.ok(first * 10 >= n * 9 && fallbacks * 100 <= n && rejected * 10 <= attempts, `${first} ${fallbacks} ${rejected}`);
     // Each plan's hall case, as the first plan that passes layout has it, with and without the
-    // treasure hall's curation (planted: Layout's flag cleared before curation).
+    // treasure hall's curation (planted: Layout's flag cleared before curation): its walk from
+    // the hall's openings and its distance from the footprint (each tile's Chebyshev distance to
+    // the 2×2 footprint at plan.cpl), as a case beside the guardian has them.
+    const fromFootprint = ([x, y], [px, py]) => Math.max(x < px ? px - x : Math.max(0, x - px - 1), y < py ? py - y : Math.max(0, y - py - 1));
     const share = X => {
-      let ok = 0, total = 0, gap = true;
+      let ok = 0, total = 0, beside = 0, gap = true, most = 0;
+      const sides = new Set();
       for (let depth = 1; depth <= 7; depth++) for (let seed = 1; seed <= 10; seed++) {
         const plan = X.Layout.generate('sculpture_court', 0, seed, { acc: 'S9', depth }).plan, hall = plan.rooms.find(r => r.role === 'centre');
         const m = { w: plan.w, h: plan.h, tiles: plan.tiles.map(r => r.replace(/C/g, '.')), roomOf: plan.roomOf };
         const cases = [];
         for (let y = hall.y0; y <= hall.y1; y++) for (let x = hall.x0; x <= hall.x1; x++) if (plan.roomOf[y][x] === hall.id && m.tiles[y][x] === 'v') cases.push([x, y]);
         total++;
-        if (cases.length === 1 && caseWalkAt(m, hall, cases[0][0], cases[0][1]).walk >= N.LAMP_CASE_MIN_WALK) ok++;
-        const [px, py] = plan.cpl, [x, y] = cases[0];
-        if (Math.max(x < px ? px - x : Math.max(0, x - px - 1), y < py ? py - y : Math.max(0, y - py - 1)) < 3) gap = false;
+        const w = cases.length === 1 ? caseWalkAt(m, hall, cases[0][0], cases[0][1]).walk : -1;
+        if (w >= N.LAMP_CASE_MIN_WALK) ok++;
+        most = Math.max(most, w);
+        const g = fromFootprint(cases[0], plan.cpl);
+        if (g < 3) gap = false;
+        if (g === 3) beside++;
+        // Which side of the guardian it stands on, so a case is not always in the same place.
+        const [x, y] = cases[0], [px, py] = plan.cpl;
+        sides.add(`${x < px ? 'W' : x > px + 1 ? 'E' : ''}${y < py ? 'N' : y > py + 1 ? 'S' : ''}`);
       }
-      return { ok, total, gap };
+      return { ok, total, beside, gap, most, sides: sides.size };
     };
     const real = share(C), P = loadCore(), curate = P.LCurate.curate;
     P.LCurate.curate = (L, ...a) => { L.meta.treasure = false; return curate(L, ...a); };
     const plain = share(P);
-    console.log(`  S.9's first plans with the hall's case at walk ${N.LAMP_CASE_MIN_WALK}+: ${real.ok} of ${real.total} curated as a treasure's hall, ${plain.ok} of ${plain.total} without`);
+    console.log(`  S.9's first plans with the hall's case at walk ${N.LAMP_CASE_MIN_WALK}+: ${real.ok} of ${real.total} curated as a treasure's hall, ${plain.ok} of ${plain.total} without; curated, ${real.beside} beside the guardian (3 tiles from its footprint), the farthest at walk ${real.most}, on ${real.sides} sides of it`);
     assert.ok(real.ok * 10 >= real.total * 9 && real.gap, json(real));
     assert.ok(plain.ok * 2 < plain.total, json(plain));
+    // Beside the guardian (design/samples.md §3.8: it stands over the case), as near as the gap
+    // allows in most halls, and never so deep that a visitor could not carry the Lamp out
+    // before the hall seals, TREASURE_SEAL_TURNS turns after the case is touched: from the first
+    // bash, the rest of a Security case's GLASS_BASHES, a take, and walk − 1 steps from beside
+    // the case to the opening, one turn each.
+    assert.ok(real.beside * 10 >= real.total * 9, json(real));
+    assert.ok((N.GLASS_BASHES[2] - 1) + 1 + (real.most - 1) <= N.TREASURE_SEAL_TURNS, json(real));
+    // Not always the same place: the shuffle that chooses any hall's case chooses among the
+    // tiles as near the guardian.
+    assert.ok(real.sides >= 3, json(real));
     // Only a treasure's hall is curated so: A.4's and M.11's plans are as they were.
     for (const acc of ['A4', 'M11']) for (let seed = 1; seed <= 5; seed++) {
       const p = Packs.get(acc).programme;
       assert.equal(json(Layout.generate(p, 0, seed, { acc, depth: depthOf(seed) }).plan.tiles), json(P.Layout.generate(p, 0, seed, { acc, depth: depthOf(seed) }).plan.tiles), `${acc} seed ${seed}`);
+    }
+  });
+
+  test('a treasure\'s hall keeps M1\'s locality (re-curating another room changes none of its tiles) and its case is drawn among its equals by the hall\'s own shuffle, and S.9\'s certified fallback keeps the treasure rule: every validator accepts it at each depth, the Lamp in the hall\'s case at least LAMP_CASE_MIN_WALK from every opening', () => {
+    // M1's locality (BUILD.md §11; tools/layout-sweep.js --locality, which names no pack, so
+    // never curates a treasure's hall): the hall's case is chosen from the hall's own tiles and
+    // its doorways, so perturbing another room's curation leaves the hall as it was.
+    let compared = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const depth = depthOf(seed), a = Layout.generate('sculpture_court', 0, seed, { acc: 'S9', depth });
+      for (const target of a.plan.rooms.filter(r => r.role !== 'staff' && !r.tags.includes('filled'))) {
+        const b = Layout.generate('sculpture_court', 0, seed, { acc: 'S9', depth, perturbRoom: target.id });
+        if (b.attempt !== a.attempt) continue;
+        compared++;
+        for (let y = 0; y < a.plan.h; y++) for (let x = 0; x < a.plan.w; x++) if (a.plan.roomOf[y][x] !== target.id) assert.equal(b.plan.tiles[y][x], a.plan.tiles[y][x], `seed ${seed}: re-curating room ${target.id} changed ${x},${y}`);
+      }
+    }
+    assert.ok(compared >= 12, `${compared} rooms re-curated`);
+    // The shuffle that chooses any hall's case breaks the ties among the tiles as near the
+    // guardian (BUILD.md §5.5), so the hall's own curation stream, perturbed, moves its case in
+    // a good share of halls (a fixed order among equals would never move it).
+    const caseAt = plan => { const h = plan.rooms.find(r => r.role === 'centre'); for (let y = h.y0; y <= h.y1; y++) for (let x = h.x0; x <= h.x1; x++) if (plan.roomOf[y][x] === h.id && plan.tiles[y][x] === 'v') return `${x},${y}`; return null; };
+    let hallsPerturbed = 0, moved = 0;
+    for (let depth = 1; depth <= 7; depth++) for (let seed = 1; seed <= 4; seed++) {
+      const a = Layout.generate('sculpture_court', 0, seed, { acc: 'S9', depth }), hall = a.plan.rooms.find(r => r.role === 'centre');
+      const b = Layout.generate('sculpture_court', 0, seed, { acc: 'S9', depth, perturbRoom: hall.id });
+      if (b.attempt !== a.attempt) continue;
+      hallsPerturbed++;
+      if (caseAt(a.plan) !== caseAt(b.plan)) moved++;
+    }
+    assert.ok(hallsPerturbed >= 20 && moved * 5 >= hallsPerturbed, `${moved} of ${hallsPerturbed} hall cases moved with the hall's curation stream perturbed`);
+    // Every layout attempt rejected but the certified fallback, which is taken whatever the
+    // validators say: they must say nothing.
+    const X = loadCore(), gen = X.Layout.generate;
+    X.Layout.generate = (p, size, seed, opts) => gen(p, size, seed, Object.assign({}, opts, { accept: r => (r.fallback ? opts.accept(r) : { id: 'planted', reason: 'planted', tiles: [] }) }));
+    for (let depth = 1; depth <= 7; depth++) {
+      const g = X.Dept.generate(depth, 'S9', depth), s = g.state, f = X.LTreasure.caseOf(s), lamp = s.items.find(i => i.ref === 'S9.11');
+      assert.ok(g.fallback, `depth ${depth}`);
+      assert.equal(g.rejected, null, `depth ${depth}: ${json(g.rejected)}`);
+      assert.equal(json([lamp.where, f.holds, f.glass, f.loan]), json([{ at: 'case', x: f.x, y: f.y }, lamp.uid, depth <= 2 ? 2 : 3, false]), `depth ${depth}`);
+      assert.ok(caseWalkAt(s.dept, hallOf(s), f.x, f.y).walk >= N.LAMP_CASE_MIN_WALK, `depth ${depth}`);
     }
   });
 

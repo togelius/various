@@ -1,11 +1,12 @@
 // ACCESSION — the treasure case (BUILD.md §5.5, §8.5; M4 plan A10, D-ITEMS). A treasure's
 // Centrepiece (S.9's Composite) guards its Signature piece (the Day Curator's Lamp) in its
-// hall's wall case: the one case curation stands in a hall, deep in a treasure's hall
-// (js/core/layout/curate.js). Here, read by the item placement (Kit.place) and by the
-// Centrepiece's own rules: which case it is, its glass (the pack's override, listed by
-// `lint-registry --report`), and the validator: the case at least LAMP_CASE_MIN_WALK walking
-// tiles from every opening of the hall, or the layout reseeds. This is the only place that
-// rule is written. It registers with Populate.addValidator('treasure', …) from here.
+// hall's wall case: the one case curation stands in a hall, in a treasure's hall beside its
+// guardian and far enough from its openings (js/core/layout/curate.js). Here, read by the
+// item placement (Kit.place) and by the Centrepiece's own rules: which case it is, its glass
+// (the pack's override, listed by `lint-registry --report`), and the validator: the case at
+// least LAMP_CASE_MIN_WALK walking tiles from every opening of the hall, or the layout
+// reseeds. This is the only place that rule is judged (curation only aims at it). It
+// registers with Populate.addValidator('treasure', …) from here.
 //
 // A pack's treasure is its Centrepiece's Signature piece when the Centrepiece's form is
 // 'treasure' and its hall's gallery (key 'centre') lists it (`{item, case: true}`); a pack with
