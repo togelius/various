@@ -447,10 +447,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // ---- The stand-in (a pack with no gallery list): its groups are the species' ----
   test('in a department placed by the stand-in (no gallery list), the clerks are one group by their species\' group: the original destroyed, its spare loses heart', () => {
-    const s = C.Dept.create(1, 'A4', 3, { invulnerable: true }), o = s.actors.find(a => a.sp === 'A4.1'), b = s.actors.find(a => a.sp === 'A4.1a');
-    assert.equal(json([o.group, b.group, CW.originalOf(s, b)]), json(['clerks', 'clerks', o.uid]));
+    // A.4 with no gallery list (D-PACKS gives it one), so the stand-in places it.
+    const X = loadCore();
+    delete X.Packs.get('A4').galleries;
+    const s = X.Dept.create(1, 'A4', 3, { invulnerable: true }), o = s.actors.find(a => a.sp === 'A4.1'), b = s.actors.find(a => a.sp === 'A4.1a');
+    assert.equal(json([o.group, b.group, X.CopiesWeaken.originalOf(s, b)]), json(['clerks', 'clerks', o.uid]));
     const ev = [];
-    C.Combat.die(s, o, { k: 'attack', by: 'you' }, ev);
+    X.Combat.die(s, o, { k: 'attack', by: 'you' }, ev);
     assert.equal(json(told(ev, 'weaken').map(e => e.who)), json([b.uid]));
   });
 
