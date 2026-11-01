@@ -458,10 +458,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(r.status, 1);
     has(r, new RegExp(`GLASS\\.${orphan} is referenced by no pack, by none of its scenario files \\(m4-grammar\\.test\\.js\\) and by no arena stamp`));
     hasNot(r, /planted_m4_named is referenced/); hasNot(r, /planted_m4_waiting is referenced/);
-    // Under --strict=M4 every M4 id is held to it: a module is referenced by the pack that
-    // holds it; a wake cause no scenario names yet is not (the chime's, until MOD-CHIME).
-    r = lint(null, ['--strict=M4']);
-    hasNot(r, /MODULES\.[a-z_]+ is referenced/); has(r, /WAKE_CAUSES\.period is referenced by no pack/);
+    // Under --strict=M4 every M4 id is held to it, one still waiting at ready false too: a
+    // module is referenced by the pack that holds it; the chime's wake cause by its scenario
+    // files (since MOD-CHIME); a planted one that nothing names is not.
+    r = lint(["Registry.define('GLASS', 'planted_m4_waiting', { built: 'M4' });"], ['--strict=M4']);
+    hasNot(r, /MODULES\.[a-z_]+ is referenced/); hasNot(r, /WAKE_CAUSES\.period is referenced/);
+    has(r, /GLASS\.planted_m4_waiting is referenced by no pack, by none of its scenario files \(none\) and by no arena stamp/);
   });
 
   tmpTest('lint-registry fails a flag a species\' department does not hold, and malformed keywords', () => {
