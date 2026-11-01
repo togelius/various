@@ -4,7 +4,9 @@
 // M4's W0e added the modules' parts and the {module:<id>|<fallback>} slot (a rule a module
 // gives an exhibit is written once, in the module's part, so no line says it while the
 // module is off: plan A11, Q3), `cp:` parameters, a Centrepiece's phases and its strip by
-// phase (Q10), and a module's panel sentence (Clauses.sentence). Frozen until LABELS-M4.
+// phase (Q10), and a module's panel sentence (Clauses.sentence). M4's FU1 made a
+// Centrepiece's strip short in every phase (the plan's amendment after ARCH-CP-CORE: its
+// whole line takes up to 23 of the strip's 14 rows). Frozen until LABELS-M4.
 'use strict';
 const Clauses = (() => {
   // The event kinds any exhibit may cause or suffer. They need no clause of their own;
@@ -233,10 +235,25 @@ const Clauses = (() => {
   }
 
   // The words a Centrepiece's phases add (Q10): a phase's parts read "From phase 2: …"; those
-  // of phase 1 hold from the start, and read as a sentence of their own.
+  // of phase 1 hold from the start, and read as a sentence of their own. A Centrepiece's strip
+  // names its phase ("Phase 2 of 3.") and ends "Its label has the rest."
   const FROM_PHASE = k => `From phase ${k}: `;
-  const REST = (k, n) => `Phase ${k} of ${n}: its label has the rest.`;
+  const PHASE_OF = (k, n) => `Phase ${k} of ${n}.`;
+  const REST = 'Its label has the rest.';
   const sentenceOf = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // What one phase's parts say, joined: "marks …; calls …." (no "From phase k:").
+  const said = (parts, k) => parts.filter(p => !p.within && p.phase === k).map(p => p.text.replace(/\.$/, '')).join('; ');
+  // A Centrepiece is a record with a form (§5.5); it has a phase for its full health and one
+  // past each threshold of CP_PHASE_PCT, whatever its record's phases list (Centrepiece's
+  // LAST), and its record lists at most that many. Anything else has the phases it lists.
+  const isCentrepiece = sp => typeof sp.form === 'string';
+  function phaseCount(sp) {
+    const listed = phasesOf(sp).length;
+    if (!isCentrepiece(sp)) return listed;
+    const n = 1 + N.CP_PHASE_PCT.length;
+    if (listed > n) throw new Error(`Clauses: ${sp.id} lists ${listed} phases, and a Centrepiece has ${n}`);
+    return n;
+  }
 
   // The line from parts (those of Clauses.of, or a strip's): the archetype's and modifiers'
   // sentences and the modules' own, then each phase's, then the wake clause with the special
@@ -247,10 +264,7 @@ const Clauses = (() => {
     const out = parts.filter(p => p.kind !== 'wake' && p.kind !== 'trigger' && p.phase === undefined).map(p => p.text);
     const phases = [];
     for (const p of parts) if (p.phase !== undefined && !phases.includes(p.phase)) phases.push(p.phase);
-    for (const k of phases.sort((a, b) => a - b)) {
-      const said = parts.filter(p => p.phase === k).map(p => p.text.replace(/\.$/, '')).join('; ') + '.';
-      out.push(k === 1 ? sentenceOf(said) : FROM_PHASE(k) + said);
-    }
+    for (const k of phases.sort((a, b) => a - b)) out.push(k === 1 ? sentenceOf(said(parts, k)) + '.' : FROM_PHASE(k) + said(parts, k) + '.');
     if (wake && trig) out.push(wake.text.replace(/\.$/, '') + '; ' + trig.text + '.');
     else if (wake || trig) out.push((wake || trig).text);
     return out.join(' ');
@@ -258,23 +272,39 @@ const Clauses = (() => {
   // The Behaviour line, whole (the label's).
   const line = (sp, ctx) => join(of(sp, ctx));
 
+  function checkPhase(sp, phase) {
+    const n = phaseCount(sp);
+    if (!Number.isInteger(phase) || phase < 1 || phase > Math.max(1, n)) throw new Error(`Clauses: ${sp.id} has no phase ${phase} (${n} phases)`);
+    return n;
+  }
   // Clauses.phaseParts(sp, phase, ctx) → the parts of a Centrepiece's line that hold in that
   // phase: those of no phase, and those of the phases up to it (a rule a phase adds holds
   // from then on).
   function phaseParts(sp, phase, ctx) {
-    const n = phasesOf(sp).length;
-    if (!Number.isInteger(phase) || phase < 1 || phase > Math.max(1, n)) throw new Error(`Clauses: ${sp.id} has no phase ${phase} (${n} phases)`);
+    checkPhase(sp, phase);
     return of(sp, ctx).filter(p => p.phase === undefined || p.phase <= phase);
   }
-  // Clauses.strip(sp, ctx) → what the strip shows (Q10): for a Centrepiece with phases, given
-  // its phase (ctx.phase), the rules that hold in that phase, then "Phase 2 of 3: its label
-  // has the rest." when a later phase adds any; otherwise the whole line, which a gallery
-  // line always is.
+  // Clauses.strip(sp, ctx) → what the strip shows: a gallery line, whole; a Centrepiece's
+  // (Q10, as the plan's amendment after ARCH-CP-CORE decided it, without play; revisit once
+  // M4 is playable), in each phase k of its n (ctx.phase, which it must be given), four
+  // things only, so it fits the strip in every phase however long its line:
+  //   - "Phase k of n.";
+  //   - its form's short sentence, the `strip` of its form's entry (CLAUSES.cp_fight: "Its
+  //     fall earns the Certificate, unless you have it."), filled as its clause is;
+  //   - the parts its line adds for phase k itself (its "From phase k: …", as a sentence of
+  //     its own; phase 1's, what it has from the start), with its modules and modifiers on or
+  //     off as for the line; none where phase k adds nothing. What earlier phases added still
+  //     holds, and with its archetype's rule, its form's whole rule and its wake, is on its
+  //     label;
+  //   - "Its label has the rest.", which is always true: the label shows the whole line.
   function strip(sp, ctx) {
-    const n = phasesOf(sp).length, k = ctx && ctx.phase;
-    if (!n || k === undefined || k === null) return line(sp, ctx);
-    const shown = phaseParts(sp, k, ctx), left = of(sp, ctx).some(p => p.phase !== undefined && p.phase > k);
-    return join(shown) + (left ? ' ' + REST(k, n) : '');
+    if (!isCentrepiece(sp)) return line(sp, ctx);
+    const k = ctx ? ctx.phase : undefined;
+    if (k === undefined || k === null) throw new Error(`Clauses: ${sp.id} is a Centrepiece, so its strip needs its phase (ctx.phase)`);
+    const n = checkPhase(sp, k), c = ctxOf(ctx), id = 'cp_' + sp.form, e = entry('CLAUSES', id);
+    if (typeof e.strip !== 'string') throw new Error(`Clauses: CLAUSES.${id} has no short sentence for a Centrepiece's strip (strip)`);
+    const short = part('clause', id, e, sp, c, null, null, e.strip).text, own_ = said(of(sp, ctx), k);
+    return [PHASE_OF(k, n), short].concat(own_ ? [sentenceOf(own_) + '.'] : [], [REST]).join(' ');
   }
 
   // Clauses.sentence(id, {depth, params}) → module id's panel sentence (§5.4: "a template over

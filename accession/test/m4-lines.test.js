@@ -14,6 +14,13 @@
 //     label in a visit that does not run it (Modules.active);
 //   - `cp:` parameters; a Centrepiece's phases, its whole line and its strip by phase (Q10);
 //     a module's panel sentence (Clauses.sentence);
+//   - (M4 FU1, the plan's amendment after ARCH-CP-CORE, decided without play) a Centrepiece's
+//     strip, in every phase of its three: "Phase k of 3.", its form's short sentence, what
+//     that phase itself adds, and "Its label has the rest."; held to the budget in every
+//     phase at depths 1–7 with each module and modifier on and off, its label keeping the
+//     whole line; the long lines ARCH-CP-CORE's review measured (the three Centrepieces as
+//     the plan describes them, 21–23 rows whole) planted in a test core, each strip within
+//     the budget; a planted long phase part fails in its own phase alone;
 //   - lint-registry's reading of slots in both forms (fallback and module on), `cp:`, module
 //     sentences and clauses, and phase parts, on planted faults.
 // The metrics hold only while Chromium lays the strip out in the font they were measured in:
@@ -230,6 +237,42 @@ function rows(text) {
   return n;
 }
 
+// ---- The measured long lines (M4 FU1) ----
+// ARCH-CP-CORE's review built long lines from the plan's descriptions of the three
+// Centrepieces (§5.5) and measured them with this model at depth 7: 19–23 rows whole, against
+// the strip's 14, which is why a Centrepiece's strip shows its phase alone. plantLong(X, acc)
+// plants one on pack acc's Centrepiece in core X ({Registry, Packs, Modules}: a test core, or
+// a page check-longlabel opens), as its archetype, wake and phase parts, planted registry
+// entries in those lines' words (their numbers filled at the depth: cp: and N:), and returns
+// the record. Written to stand alone, so a check can send its source to a page.
+function plantLong(X, acc) {
+  const R = X.Registry, cp = X.Packs.get(acc).centrepiece, gross = { g: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT' };
+  const def = (table, id, clause, params, more) => { if (!Object.prototype.hasOwnProperty.call(R[table], id)) R.define(table, id, Object.assign({ built: 'M4', clause, params: params || {}, covers: [] }, more || {})); return `${table}.${id}`; };
+  const arch = (id, clause, wake) => { def('ARCHETYPES', id, clause, {}, wake ? { wake } : {}); return id; };
+  const L = {
+    M11: { archetype: arch('planted_board', 'Never moves; its beam and its burst take turns, and it takes double damage while its summons is marked.'),
+      phases: [{ parts: [def('CLAUSES', 'planted_beam', 'aims along a row or column for a turn, shown, then fires a beam up to {range} tiles that passes through glass, for {g} before your Padding', { range: 'N:AXIS_BEAM_RANGE', g: gross.g }), 'SPECIALS.cp_burst'] },
+        { parts: [def('CLAUSES', 'planted_call', 'marks the free tiles beside it for a turn, then calls a body onto them'), def('CLAUSES', 'planted_arm', 'its Repeater Arm joins it')] },
+        { parts: [def('CLAUSES', 'planted_bodies', 'calls two bodies'), def('CLAUSES', 'planted_dish', 'its Board Dish sends beams back')] }] },
+    A4: { archetype: arch('planted_ordinance', 'Four pieces, each with its own share of its health; its phases count them together. When a piece falls, the next takes on its special. Each original you broke in the galleries cost it 8% of its health, up to 24%.'),
+      phases: [{ parts: [def('CLAUSES', 'planted_copies', 'its copies mark your tile and the tiles round it while they see you, then strike everything on them for {g} before Padding', gross)] },
+        { parts: [def('CLAUSES', 'planted_clerk', 'the Senior Countersigning Clerk joins it, restoring 25% of a piece\'s health, shown for one action')] },
+        { parts: [def('CLAUSES', 'planted_shatter', 'shatters every case in its hall')] }] },
+    S9: { archetype: arch('planted_composite', 'Stands over the Lamp\'s case and never leaves its hall. Grows a limb for every 2 galleries you have walked, up to 4; leaving its hall while it hunts you heals it fully and drops a limb. Its hall seals 12 turns after you touch the case, or at 34% of its health.',
+      def('CLAUSES', 'planted_touch', 'Wakes when you touch its case.').slice(8)),
+      phases: [{ parts: [def('CLAUSES', 'planted_neck', 'neck: sweeps the tiles round it on your side for {g} before Padding', gross),
+        def('CLAUSES', 'planted_legs', 'legs: charges at you up to {range} tiles in a lane 2 wide for {g} before Padding, never into its case', { range: 'N:CHARGE_RANGE', g: gross.g }),
+        def('CLAUSES', 'planted_tail', 'tail: marks the tiles round it for a turn, then strikes everything on them for {g} before Padding', gross)] },
+        { parts: [def('CLAUSES', 'planted_grow', 'grows a limb'), def('CLAUSES', 'planted_alarm_part', '{module:planted_alarm|}')] }, {}],
+      flags: ['planted_alarm'] },
+  };
+  if (acc === 'S9' && !Object.prototype.hasOwnProperty.call(R.MODULES, 'planted_alarm')) {
+    R.define('MODULES', 'planted_alarm', { built: 'M4', sentence: 'A planted alarm.', clause: 'raises the alarm', params: {}, covers: [] });
+    X.Modules.define('planted_alarm', {});
+  }
+  return Object.assign(cp, L[acc]);
+}
+
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore(), json = JSON.stringify;
   const DEPTHS = [1, 2, 3, 4, 5, 6, 7];
@@ -273,10 +316,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const sp of X.Packs.sharedList()) gallery.push(sp);
     for (const sp of gallery) for (const depth of DEPTHS) for (const off of switches(sp))
       out.push([`${sp.id} at depth ${depth}${off.length ? ', ' + off.join(' and ') + ' off' : ''}`, X.Clauses.line(sp, { depth, rulesOff: off })]);
+    // A Centrepiece has three phases (one past each threshold of CP_PHASE_PCT), whatever
+    // its record lists.
+    const phases = 1 + X.N.CP_PHASE_PCT.length;
     for (const p of X.Packs.list()) {
       const cp = p.centrepiece;
       if (!cp) continue;
-      const phases = Array.isArray(cp.phases) && cp.phases.length ? cp.phases.length : 1;
       for (const depth of DEPTHS) for (const off of switches(cp)) for (let phase = 1; phase <= phases; phase++)
         out.push([`${cp.id}'s strip in phase ${phase} at depth ${depth}${off.length ? ', ' + off.join(' and ') + ' off' : ''}`, X.Clauses.strip(cp, { depth, rulesOff: off, phase })]);
     }
@@ -292,7 +337,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Math.max(...list.map(([, t]) => rows(t))), METRICS.budgetRows);
   });
 
-  test('a planted long line fails the budget, as does a Centrepiece\'s strip too long in one phase, and a character never measured', () => {
+  test('a planted long line fails the budget, as does a Centrepiece\'s phase part too long for its strip, in its own phase alone, and a character never measured', () => {
     const X = loadCore(), M = X.Packs.species('M11', 'M11.1');
     const longer = X.Clauses.line(M, { depth: 7 }) + ' It also strikes twice.';
     assert.equal(rows(longer), METRICS.budgetRows + 1);
@@ -304,13 +349,18 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const got = over(shown(X));
     assert.ok(got.some(l => /^M11\.1 at depth 7: 1[5-9] rows$/.test(l)), json(got));
     assert.ok(!got.some(l => /M11\.1 at depth 7, planted_long off/.test(l)), 'switched off, it fits');
-    // A Centrepiece whose third phase says too much: its strip fails in phase 3 alone.
-    const Y = loadCore(), cp = Y.Packs.get('M11').centrepiece, R = Y.Registry;
-    R.define('CLAUSES', 'planted_p2', { built: 'M4', clause: 'it summons a body from its frame', params: {}, covers: [] });
-    R.define('CLAUSES', 'planted_p3', { built: 'M4', clause: Array(30).fill('it strikes every tile of its hall').join(', '), params: {}, covers: [] });
-    cp.phases = [{}, { parts: ['CLAUSES.planted_p2'] }, { parts: ['CLAUSES.planted_p3'] }];
-    const bad = over(shown(Y));
-    assert.ok(bad.length && bad.every(l => /^M11\.11's strip in phase 3/.test(l)), json(bad));
+    // A Centrepiece's phase part that says too much: its strip fails in that phase alone, at
+    // every depth (the strip shows only what its own phase adds, so not in the phase after);
+    // its label still shows the whole line.
+    for (const k of [1, 2, 3]) {
+      const Y = loadCore(), cp = Y.Packs.get('M11').centrepiece, R = Y.Registry;
+      R.define('CLAUSES', 'planted_part', { built: 'M4', clause: 'it summons a body from its frame', params: {}, covers: [] });
+      R.define('CLAUSES', 'planted_long', { built: 'M4', clause: Array(30).fill('it strikes every tile of its hall').join(', '), params: {}, covers: [] });
+      cp.phases = [1, 2, 3].map(j => ({ parts: [j === k ? 'CLAUSES.planted_long' : 'CLAUSES.planted_part'] }));
+      const bad = over(shown(Y));
+      assert.equal(json(bad.map(l => l.replace(/ at depth \d: \d+ rows$/, ''))), json(DEPTHS.map(() => `M11.11's strip in phase ${k}`)), json(bad));
+      assert.ok(Y.Clauses.line(cp, { depth: 1 }).includes('it strikes every tile of its hall, it strikes'));
+    }
     assert.throws(() => rows('Strikes for 4 → 9.'), /"→" \(U\+2192\) has no measured advance/);
   });
 
@@ -404,36 +454,103 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     R.define('CLAUSES', 'planted_quick', { built: 'M4', clause: 'its specials come every {n} actions', params: { n: 'N:CP_SPECIAL_EVERY[1]' }, covers: [] });
     return Object.assign({}, X.Packs.get('M11').centrepiece, { phases: [{ parts: ['SPECIALS.planted_burst'] }, { parts: ['SPECIALS.planted_summon'] }, { parts: ['CLAUSES.planted_quick'] }] });
   }
-  test('a Centrepiece\'s phases: its whole line says each phase\'s rules ("From phase 2: …"), and its strip the rules of its phase, then "Phase 2 of 3: its label has the rest."', () => {
+  const FIGHT = 'Its fall earns the Certificate, unless you have it.', TREASURE = 'Killing it earns nothing: carry the Lamp out.', REST = 'Its label has the rest.';
+  test('a Centrepiece\'s phases: its label\'s whole line says each phase\'s rules ("From phase 2: …"); its strip, in each phase, "Phase k of 3.", its form\'s short sentence, what that phase itself adds, and "Its label has the rest."', () => {
     const X = loadCore(), cp = centrepiece(X), g = X.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4), base = X.Clauses.line(X.Packs.get('M11').centrepiece, { depth: 4 });
     const [arch, wake] = [base.slice(0, base.indexOf(' Wakes')), base.slice(base.indexOf(' Wakes') + 1)];
     const p1 = `Marks the tiles round it, then strikes them for ${g}.`, p2 = 'From phase 2: calls a body out of its frame.', p3 = `From phase 3: its specials come every ${X.N.CP_SPECIAL_EVERY[1]} actions.`;
     assert.equal(X.Clauses.line(cp, { depth: 4 }), [arch, p1, p2, p3, wake].join(' '));
-    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 1 }), [arch, p1, wake, 'Phase 1 of 3: its label has the rest.'].join(' '));
-    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 2 }), [arch, p1, p2, wake, 'Phase 2 of 3: its label has the rest.'].join(' '));
-    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 3 }), X.Clauses.line(cp, { depth: 4 }), 'nothing is left for the label in the last phase');
-    assert.equal(X.Clauses.strip(cp, { depth: 4 }), X.Clauses.line(cp, { depth: 4 }), 'with no phase given, the whole line');
+    // Each phase's strip: its own part only (phase 3's not phase 2's, which still holds and
+    // is on the label), in the words its line gives it, as a sentence of its own.
+    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 1 }), ['Phase 1 of 3.', FIGHT, p1, REST].join(' '));
+    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 2 }), ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST].join(' '));
+    assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 3 }), ['Phase 3 of 3.', FIGHT, `Its specials come every ${X.N.CP_SPECIAL_EVERY[1]} actions.`, REST].join(' '));
+    // A phase that adds nothing, or a Centrepiece whose record lists no phases (each of the
+    // three today): the phase, the form and the rest. Its phases are its health's three.
+    const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }] });
+    assert.equal(json([1, 2, 3].map(k => X.Clauses.strip(two, { depth: 4, phase: k }))), json([['Phase 1 of 3.', FIGHT, REST], ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST], ['Phase 3 of 3.', FIGHT, REST]].map(w => w.join(' '))));
+    for (const p of X.Packs.list()) for (const k of [1, 2, 3]) assert.equal(X.Clauses.strip(p.centrepiece, { depth: 7, phase: k }), [`Phase ${k} of 3.`, p.centrepiece.form === 'fight' ? FIGHT : TREASURE, REST].join(' '), `${p.acc} ${k}`);
     // (cp_fight: the form's rule every Centrepiece's line carries, in no phase.)
     assert.equal(json(X.Clauses.phaseParts(cp, 2, { depth: 4 }).map(p => [p.id, p.phase === undefined ? null : p.phase])), json([['mp_tableau', null], ['cp_fight', null], ['planted_burst', 1], ['planted_summon', 2], ['wake', null]]));
     assert.equal(json(X.Clauses.of(cp, { depth: 4 }).filter(p => p.phase).map(p => [p.kind, p.id, p.phase])), json([['special', 'planted_burst', 1], ['special', 'planted_summon', 2], ['clause', 'planted_quick', 3]]));
-    // A phase with nothing to add leaves nothing for the label.
-    const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }, {}] });
-    assert.equal(X.Clauses.strip(two, { depth: 4, phase: 2 }), X.Clauses.line(two, { depth: 4 }));
-    // Nor does a phase whose part is a module's alone, with that module off: its slot's
-    // fallback is empty, so the part says nothing and is not on the line (no "From phase 2: ."
-    // and no rest claimed for the label); on, it is the module's part, from phase 2.
+    // A phase whose part is a module's alone, with that module off: its slot's fallback is
+    // empty, so the part says nothing and is not on the line (no "From phase 2: ."), and its
+    // strip adds nothing; on, it is the module's part, from phase 2, and phase 2's strip says it.
     const M = loadCore(), msp = planted(M, { entry: { clause: 'calls the court awake' } });
     M.Registry.define('CLAUSES', 'planted_alarm_part', { built: 'M4', clause: '{module:planted_mod|}', params: {}, covers: [] });
     const mcp = Object.assign({}, M.Packs.get('M11').centrepiece, { flags: msp.flags, phases: [{}, { parts: ['CLAUSES.planted_alarm_part'] }] });
-    const whole = M.Clauses.line(mcp, { depth: 4, rulesOff: ['planted_mod'] });
-    assert.equal(json([whole.includes('From phase'), M.Clauses.strip(mcp, { depth: 4, phase: 1, rulesOff: ['planted_mod'] }) === whole]), json([false, true]));
+    assert.ok(!M.Clauses.line(mcp, { depth: 4, rulesOff: ['planted_mod'] }).includes('From phase'));
+    assert.equal(M.Clauses.strip(mcp, { depth: 4, phase: 2, rulesOff: ['planted_mod'] }), ['Phase 2 of 3.', FIGHT, REST].join(' '));
+    assert.equal(M.Clauses.strip(mcp, { depth: 4, phase: 2, modules: [] }), ['Phase 2 of 3.', FIGHT, REST].join(' '), 'a visit that does not run it');
     assert.ok(M.Clauses.line(mcp, { depth: 4 }).includes(' From phase 2: calls the court awake. '), M.Clauses.line(mcp, { depth: 4 }));
-    assert.ok(M.Clauses.strip(mcp, { depth: 4, phase: 1 }).endsWith(' Phase 1 of 2: its label has the rest.'));
+    assert.equal(M.Clauses.strip(mcp, { depth: 4, phase: 2 }), ['Phase 2 of 3.', FIGHT, 'Calls the court awake.', REST].join(' '));
     for (const [phases, why] of [['x', /phases are not a list/], [[7], /phase 1 is not a record/], [[{ parts: ['planted_summon'] }], /is not 'TABLE\.id'/],
       [[{ parts: ['SPECIALS.none'] }], /SPECIALS has no none/], [[{ parts: ['GLASS.planted'] }], /is not 'TABLE\.id'/], [[{ parts: ['MODULES.alarm_network'] }], /is not 'TABLE\.id'/]])
       assert.throws(() => X.Clauses.line(Object.assign({}, cp, { phases }), { depth: 4 }), why, json(phases));
-    assert.throws(() => X.Clauses.strip(cp, { depth: 4, phase: 4 }), /has no phase 4/);
+    // What cannot be: a phase past its third, or none given (the strip never shows a
+    // Centrepiece's whole line); a record listing four phases; a form with no short sentence.
+    assert.throws(() => X.Clauses.strip(cp, { depth: 4, phase: 4 }), /has no phase 4 \(3 phases\)/);
+    assert.throws(() => X.Clauses.strip(two, { depth: 4, phase: 0 }), /has no phase 0/);
+    assert.throws(() => X.Clauses.strip(cp, { depth: 4 }), /M11\.11 is a Centrepiece, so its strip needs its phase/);
     assert.throws(() => X.Clauses.phaseParts(cp, 0, { depth: 4 }), /has no phase 0/);
+    assert.throws(() => X.Clauses.strip(Object.assign({}, cp, { phases: [{}, {}, {}, {}] }), { depth: 4, phase: 1 }), /lists 4 phases, and a Centrepiece has 3/);
+    const Z = loadCore();
+    delete Z.Registry.CLAUSES.cp_fight.strip;
+    assert.throws(() => Z.Clauses.strip(Z.Packs.get('M11').centrepiece, { depth: 4, phase: 1 }), /CLAUSES\.cp_fight has no short sentence/);
+  });
+
+  test('a form\'s short sentence for the strip: one beside each form\'s clause (cp_fight, cp_treasure), a sentence filled as its clause is, true where the clause is: a fight\'s fall earns the Certificate unless you have it; a treasure\'s guardian\'s earns nothing', () => {
+    const R = C.Registry;
+    assert.equal(json(['fight', 'treasure'].map(f => R.CLAUSES['cp_' + f].strip)), json([FIGHT, TREASURE]));
+    for (const f of ['fight', 'treasure']) {
+      const e = R.CLAUSES['cp_' + f];
+      assert.match(e.strip, /^[A-Z][^{}]*\.$/);
+      // Its words are the clause's: the clause says the same, at more length.
+      assert.ok(f === 'fight' ? /earns the Certificate, unless you have it\.$/.test(e.clause) : /earns nothing: carry the treasure it guards out of the hall\.$/.test(e.clause), e.clause);
+    }
+    // Filled as the clause is: a placeholder in it takes the entry's parameters.
+    const X = loadCore();
+    X.Registry.CLAUSES.cp_fight.strip = 'Its phases start at {first}% and {second}%.';
+    assert.equal(X.Clauses.strip(X.Packs.get('M11').centrepiece, { depth: 2, phase: 1 }), `Phase 1 of 3. Its phases start at ${X.N.CP_PHASE_PCT[0]}% and ${X.N.CP_PHASE_PCT[1]}%. ${REST}`);
+    X.Registry.CLAUSES.cp_fight.strip = 'Its {nothing} earns.';
+    assert.throws(() => X.Clauses.strip(X.Packs.get('M11').centrepiece, { depth: 2, phase: 1 }), /\{nothing\} has no value/);
+  });
+
+  test('a gallery line\'s strip is its whole line, unchanged, at every depth, with each modifier and module off, a phase given or not', () => {
+    let n = 0;
+    const gallery = [].concat(...C.Packs.list().map(p => p.species), C.Packs.sharedList());
+    for (const sp of gallery) for (const depth of DEPTHS) for (const off of switches(sp)) {
+      const whole = C.Clauses.line(sp, { depth, rulesOff: off });
+      assert.equal(C.Clauses.strip(sp, { depth, rulesOff: off }), whole, `${sp.id} ${depth}`);
+      assert.equal(C.Clauses.strip(sp, { depth, rulesOff: off, phase: 2 }), whole, `${sp.id} ${depth}`);
+      n++;
+    }
+    assert.ok(n >= 22 * 7, String(n));
+  });
+
+  // ---- The measured long lines ----
+  test('the long lines ARCH-CP-CORE\'s review measured (the Great Board, the Ordinance and the Composite as the plan describes them), planted in a test core: 23, 22 and 21 rows whole at depth 7, against the budget\'s 14; each one\'s strip within the budget in every phase at depths 1–7, its module on and off; its label the whole line, its strips together saying every phase\'s part', () => {
+    const X = loadCore(), cps = ['M11', 'A4', 'S9'].map(acc => plantLong(X, acc));
+    assert.equal(json(cps.map(cp => [cp.id, cp.form])), json([['M11.11', 'fight'], ['A4.12', 'fight'], ['S9.12', 'treasure']]));
+    const whole = cps.map(cp => rows(X.Clauses.line(cp, { depth: 7 })));
+    assert.equal(json(whole), json([23, 22, 21]));
+    const list = shown(X), strips = list.filter(([where]) => /'s strip in phase/.test(where));
+    assert.equal(strips.length, 7 * 3 * (1 + 1 + 2), 'the Composite\'s module on and off');
+    assert.equal(json(over(list)), '[]');
+    // The rows each strip takes, at its longest over depths 1–7 (as reported).
+    const most = cps.map(cp => [1, 2, 3].map(k => Math.max(...strips.filter(([w]) => w.startsWith(`${cp.id}'s strip in phase ${k} `)).map(([, t]) => rows(t)))));
+    assert.equal(json(most), json([[9, 5, 4], [6, 6, 4], [9, 3, 3]]));
+    // The Great Board at depth 7: each phase's strip, and its label.
+    const gb = cps[0], line = X.Clauses.line(gb, { depth: 7 }), g = X.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 7);
+    const own = [`Aims along a row or column for a turn, shown, then fires a beam up to ${X.N.AXIS_BEAM_RANGE} tiles that passes through glass, for ${g} before your Padding; marks your tile and the tiles round it while it sees you, then strikes everything on them for ${g} before Padding.`,
+      'Marks the free tiles beside it for a turn, then calls a body onto them; its Repeater Arm joins it.', 'Calls two bodies; its Board Dish sends beams back.'];
+    assert.equal(json([1, 2, 3].map(k => X.Clauses.strip(gb, { depth: 7, phase: k }))), json(own.map((o, i) => [`Phase ${i + 1} of 3.`, FIGHT, o, REST].join(' '))));
+    assert.ok(line.includes(own[0]) && line.includes('From phase 2: ' + own[1].charAt(0).toLowerCase() + own[1].slice(1)) && line.includes('From phase 3: ' + own[2].charAt(0).toLowerCase() + own[2].slice(1)), line);
+    // The Composite's phase 2, its module on and off.
+    const cs = cps[2];
+    assert.equal(X.Clauses.strip(cs, { depth: 3, phase: 2 }), ['Phase 2 of 3.', TREASURE, 'Grows a limb; raises the alarm.', REST].join(' '));
+    assert.equal(X.Clauses.strip(cs, { depth: 3, phase: 2, rulesOff: ['planted_alarm'] }), ['Phase 2 of 3.', TREASURE, 'Grows a limb.', REST].join(' '));
+    assert.equal(X.Clauses.strip(cs, { depth: 3, phase: 3 }), ['Phase 3 of 3.', TREASURE, REST].join(' '));
   });
 
   test('a Centrepiece\'s phase part from CLAUSES is a part of kind clause, which the scenario harness takes for \'CLAUSES.<id>\', so its scenario sweeps the Centrepiece', () => {
@@ -454,7 +571,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   // ---- lint-registry ----
-  test('lint-registry reads slots, cp: and module sentences: a slot naming no module or not parsing, a digit in a fallback, and a sentence\'s parameter undefined fail; a good slot and cp: pass', () => {
+  test('lint-registry reads slots, cp:, module sentences and a form\'s short sentence for the strip: a slot naming no module or not parsing, a digit in a fallback, a sentence\'s parameter undefined, and a short sentence that is none, has a hole or a digit fail; a good slot and cp: pass', () => {
     const { spawnSync } = require('node:child_process'), os = require('node:os');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-m4-lines-'));
     try {
@@ -488,6 +605,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         mod('planted_lm3', '{module:planted_lm|Walks}.'), "Packs.species('S9', 'S9.3').flags = ['planted_lm2'];",
         entry('CLAUSES', 'planted_phase_ok', 'it calls a body out of its frame'), entry('CLAUSES', 'planted_phase_bad', 'It strikes every tile round it.'),
         "Packs.get('M11').centrepiece.phases = [{}, { parts: ['CLAUSES.planted_phase_ok', 'CLAUSES.planted_phase_bad'] }];",
+        // A form's short sentence for the strip (FU1): one that is no sentence, one with a
+        // placeholder that has no parameter, one stating a number as a digit.
+        entry('CLAUSES', 'planted_form_low', 'Its fall ends it.', { strip: 'its fall earns the Certificate' }),
+        entry('CLAUSES', 'planted_form_hole', 'Its fall ends it.', { strip: 'Its fall earns {what}.' }),
+        entry('CLAUSES', 'planted_form_digit', 'Its fall ends it.', { strip: 'Its fall earns 2 Certificates.' }),
       ]);
       assert.equal(r.status, 1);
       for (const want of [/ARCHETYPES\.planted_nomod: its slot names planted_none, which is no module/, /ARCHETYPES\.planted_open: Clauses: the slot for unobserved_motion is never closed/,
@@ -496,9 +618,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         /ARCHETYPES\.planted_low: its clause should be a sentence with its module on: "moves only while unseen\."/,
         /MODULES\.planted_lm3: a module's clause holds a module slot/,
         /MODULES\.planted_lm2: its clause is a sentence of its own on S9\.3's line \(no clause of it has a slot for planted_lm2\)/,
-        /CLAUSES\.planted_phase_bad: its clause should continue "From phase k: …" \(M11\.11's phase 2\): "It strikes every tile round it\."/])
+        /CLAUSES\.planted_phase_bad: its clause should continue "From phase k: …" \(M11\.11's phase 2\): "It strikes every tile round it\."/,
+        /CLAUSES\.planted_form_low: its short sentence for the strip should be a sentence: "its fall earns the Certificate"/,
+        /CLAUSES\.planted_form_hole: \{what\} in its short sentence for the strip has no parameter/, /CLAUSES\.planted_form_digit: a digit outside \{\}/])
         assert.match(r.out, want);
-      assert.doesNotMatch(r.out, /planted_phase_ok|ARCHETYPES\.planted_glue: its clause should be a sentence:/);
+      assert.doesNotMatch(r.out, /planted_phase_ok|ARCHETYPES\.planted_glue: its clause should be a sentence:|CLAUSES\.cp_(fight|treasure)/);
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
 };
@@ -559,6 +683,7 @@ function compare(m) {
 }
 module.exports.measure = measure;
 module.exports.compare = compare;
+module.exports.plantLong = plantLong;
 module.exports.METRICS = METRICS;
 if (require.main === module) {
   (async () => {
