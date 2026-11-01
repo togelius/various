@@ -86,7 +86,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['Status.define', 2, R + 'status.js', ['W0c', 'function define(id, rule) {}'], X => X.Status.define('planted', {}), undefined],
     ['Modules.on', 2, R + 'modules.js', null, (X, s) => X.Modules.on(s, 'unobserved_motion'), false],
     ['Modules.offFor', 2, R + 'modules.js', null, X => X.Modules.offFor(PACK, []), []],
-    ['Modules.init', 2, R + 'modules.js', null, (X, s) => X.Modules.init(s, PACK), undefined],
+    // MOD-WEATHER: init gives each module's init the layout attempt's stream key (…/a<k>).
+    ['Modules.init', 3, R + 'modules.js', null, (X, s) => X.Modules.init(s, PACK), undefined],
     ['Modules.pipsDecay', 1, R + 'modules.js', null, (X, s) => X.Modules.pipsDecay(s), true],
     ['Modules.mayReturn', 2, R + 'modules.js', null, (X, s) => X.Modules.mayReturn(s, s.actors[1]), true],
     ['Modules.threat', 2, R + 'modules.js', null, (X, s) => X.Modules.threat(s, 10000), []],
@@ -154,7 +155,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     X.Hall.inside = (state, x) => false;
     X.Perks.ringDelta = state => 1;
     X.Viewing.apply = (state, action, ev) => { state.turn = 5; return 'no_centrepiece'; };
-    X.Modules.init = (state, pack) => {};
+    X.Modules.init = (state, pack, base) => {};
     X.Hall.onDefeat = (state, ev) => { ev.push({ k: 'planted' }); };
     delete X.Labels.ofSheet;
     // The first row whose stub is still in its file has its filler's name taken out of the

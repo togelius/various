@@ -94,8 +94,9 @@ const Dept = (() => {
   // starting kit of the carry's tier (Kit.start) and the items the carry gives (Setup.carry);
   // the department's items, kits and treasure (Kit.place, from the gallery list, else the
   // stand-in); the run's seals (Consumables.startRun); the consumables and their labels
-  // (Consumables.place); the panels (Panels.place); the modules
-  // (Modules.init); your stats (Kit.settle), so that the validators see them. Your grade, its
+  // (Consumables.place); the panels (Panels.place); the modules (Modules.init, given the
+  // attempt's stream key, r.base, for a module's placement draws: weather_cases'
+  // …/a<k>/weather); your stats (Kit.settle), so that the validators see them. Your grade, its
   // health and the grade you came in with are the carry's, and so are the run's perks. The
   // three placement calls share one local holder, pop, so a room's `${base}/room/<key>/populate`
   // stream runs on from cases to items to consumables instead of starting again for each (§3.2).
@@ -122,7 +123,7 @@ const Dept = (() => {
     Consumables.startRun(state);
     Consumables.place(state, r.base, pop);
     Panels.place(state, plan, pack);
-    Modules.init(state, pack);
+    Modules.init(state, pack, r.base);
     Kit.settle(state);
     return { state, short };
   }

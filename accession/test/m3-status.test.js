@@ -391,7 +391,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(/^[a-z]/.test(text) && !/\.$/.test(text) && !/undefined|NaN|\[object/.test(text), text);
     }
     const surf = { fumigant: [`${N.FUMIGANT_SIZE} tiles`, `${N.FUMIGANT_TURNS} turns`, 'pip'], dust: [`${N.PLASTER_DUST_SIZE} tiles`, `${N.PLASTER_DUST_TURNS} turns`] };
-    for (const id of R.order('SURFACES')) {
+    // M3's two; M4's fog and rain (reg/mod-weather.js) come after them, each proved by its own
+    // package's tests (behaviour/weather_cases.test.js).
+    const m3s = R.order('SURFACES').filter(id => R.SURFACES[id].built === 'M3');
+    assert.equal(json(m3s), json(Object.keys(surf)));
+    assert.equal(json(R.order('SURFACES').slice(0, m3s.length)), json(m3s));
+    for (const id of m3s) {
       const e = R.SURFACES[id], text = Clauses.fill(e.clause, Clauses.params(e.params, null, { depth: 1 }));
       assert.equal(json([e.ready, e.inv, e.blocksSight, N[e.size] > 0, N[e.turns] > 0]), json([true, 'status', true, true, true]), id);
       for (const w of surf[id]) assert.ok(text.includes(w), `${id}: "${text}" names ${w}`);

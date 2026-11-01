@@ -26,9 +26,13 @@
 //                `shown` naming another rule of the module or a special; data for the
 //                validation log and the module's words (§5.4), which the interpreter does
 //                not act on: what shows it is that rule or that special's mark
-//   init(state, pack, m)   sets the module's state as the department is made, whether or not
-//                          the module is switched off (switched off, it makes its draws and
-//                          discards them, so population is the same, plan A10)
+//   init(state, pack, m, base)  sets the module's state as the department is made, whether or
+//                          not the module is switched off (switched off, it makes its draws
+//                          and discards them, so population is the same, plan A10); base is
+//                          the layout attempt's stream key (…/d<depth>/a<k>, §3.2), under
+//                          which a module's placement draws are named (weather_cases':
+//                          …/a<k>/weather), or undefined for a room not made by a layout
+//                          attempt (a room for tests), where it draws nothing
 //   bespoke: [name…]       the hand-written parts, for the validation log (Modules.bespoke);
 //                          each hook below that a module gives must be named in it, and a
 //                          hook's name in it must be one the module gives:
@@ -72,7 +76,8 @@
 //                                   special, gross a whole number, due the boundary tick it
 //                                   goes off, after now and before untilTick; anything else
 //                                   throws
-//   Modules.init(state, pack)       each module's state and init, in pack order (Dept.create)
+//   Modules.init(state, pack, base) each module's state and init, in pack order (Dept.create,
+//                                   which gives the layout attempt's stream key, base)
 //   Modules.on(state, id) → bool    is module id present in the visit and not switched off
 //   Modules.offFor(pack, met) → [id]   the pack's modules a first visit switches off, given
 //                                   the modules met (M5's; shipped unwired, §8.9)
@@ -210,11 +215,14 @@ const Modules = (() => {
     return Rng.stream(state, `module/${id}/${state.dept.acc}/d${state.dept.depth || 1}`);
   }
 
-  // Modules.init(state, pack): as a department is made (plan A10, step 12), each of the pack's
-  // modules, in pack order, gets its state, {id, role, on, since, params}, appended to
-  // dept.modules, and then its init. A module no rule file has defined yet is left absent: its
-  // rules are not built, so nothing acts and no line may say it does (A3, A10's readiness).
-  function init(state, pack) {
+  // Modules.init(state, pack, base): as a department is made (plan A10, step 12), each of the
+  // pack's modules, in pack order, gets its state, {id, role, on, since, params}, appended to
+  // dept.modules, and then its init, given base, the layout attempt's stream key (Dept.create
+  // gives it; a room for tests gives none, undefined). A module no rule file has defined yet is
+  // left absent: its rules are not built, so nothing acts and no line may say it does (A3,
+  // A10's readiness).
+  function init(state, pack, base) {
+    if (base !== undefined && (typeof base !== 'string' || !base)) throw new Error(`Modules.init: the layout attempt's stream key ${JSON.stringify(base)} is not a path`);
     const list = entries(state);
     if (!state.dept || !Array.isArray(state.dept.modules)) throw new Error('Modules.init: the state has no dept.modules');
     for (const pm of (pack && pack.modules) || []) {
@@ -223,7 +231,7 @@ const Modules = (() => {
       if (list.some(m => m.id === pm.id)) throw new Error(`Modules.init: ${pm.id} is already in the visit`);
       const m = { id: pm.id, role: pm.role || null, on: !Options.off(state, pm.id), since: state.turn, params: Causes.copy(pm.params || {}, `${pm.id}.params`) };
       list.push(m);
-      if (DEFS[pm.id].init) DEFS[pm.id].init(state, pack, m);
+      if (DEFS[pm.id].init) DEFS[pm.id].init(state, pack, m, base);
     }
   }
 

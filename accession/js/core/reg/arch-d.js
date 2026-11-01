@@ -37,9 +37,10 @@
   // it shows is the one it makes, if it still can; else it waits. A station's arrow is its line
   // (D1.10). "else waits", not A11's "otherwise waits": M.11's stations' lines, the longest
   // with clockwork, then take 14 rows of the strip, its budget, not 15 (m4-lines). Rain on
-  // clockwork is weather_cases' part (D1.3), set in this clause's slot only on the line of an
-  // exhibit flagged with that module (M.11's gallery station, not the Intro's), which says
-  // nothing of rain while it is off or not yet built: the Intro lint holds it (m4-intro).
+  // clockwork is weather_cases' rule (D1.3), on an exhibit flagged with that module (M.11's
+  // gallery station, not the Intro's); its part, set in this clause's slot, is empty (MOD-WEATHER,
+  // decided without play: the station's line has no room for it), so no line says anything of
+  // rain, and the rain's stop is told on the label of a case that holds rain (reg/mod-weather.js).
   R.define('MODIFIERS', 'clockwork', Object.assign({ icon: null,
     clause: 'Shows its next move as an arrow and makes it if it still can, else waits{module:weather_cases|}; cannot be dazed.',
     params: {}, covers: [] }, proved(CLOCKWORK)));

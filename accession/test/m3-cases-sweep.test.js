@@ -125,8 +125,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         const lo = LOCKS[t.glass][0], hi = Math.min(LOCKS[t.glass][1], depth + 1);
         t.lock = hi < lo ? lo : r.int(lo, hi); t.loan = false;
       }
-      // What a case holds is the item rules' (W1-KIT); everything else is as drawn.
-      assert.equal(json(mine.map(f => Object.assign({}, f, f.k === 'case' ? { holds: null } : {}))), json(want), `${acc} d${depth} s${seed}`);
+      // What a case holds is the item rules' (W1-KIT), and the weather it holds weather_cases'
+      // (M4, MOD-WEATHER: test/behaviour/weather_cases.test.js); everything else is as drawn.
+      const drawn = f => { const c = Object.assign({}, f, f.k === 'case' ? { holds: null } : {}); delete c.weather; return c; };
+      assert.equal(json(mine.map(drawn)), json(want), `${acc} d${depth} s${seed}`);
       for (const f of mine) assert.equal(m.tiles[f.y][f.x], f.k === 'case' ? 'v' : 'S');
       cases += mine.filter(f => f.k === 'case').length; doors += mine.filter(f => f.k === 'staff').length;
       // Every number is unique.

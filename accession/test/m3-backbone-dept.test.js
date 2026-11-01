@@ -352,7 +352,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (let t = 1; t <= 5; t++) { Step.step(s, { a: 'wait' }); there.push(s.dept.surfaces.length); }
     assert.equal(json(there), json([1, 1, 1, 0, 0]), 'there at the boundaries of turns 1–3, cleared at turn 4');
     assert.ok(Grid.los(s.dept, 1, 2, 9, 2));
-    assert.throws(() => Surfaces.add(s, 'fog', 1, 1, 3, 3, null, []), /no surface fog/);
+    assert.throws(() => Surfaces.add(s, 'planted_mist', 1, 1, 3, 3, null, []), /no surface planted_mist/);
     assert.throws(() => Surfaces.add(s, 'dust', 1, 1, 0, 3, null, []));
   });
 

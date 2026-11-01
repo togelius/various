@@ -325,7 +325,10 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('population is the same under any module switched off: the same exhibits, tiles, groups, routes, cases and items', () => {
     const { X } = built();
-    const fields = s => json([s.actors.map(a => [a.uid, a.sp, a.x, a.y, a.group, a.route, a.guards, a.home]), s.dept.fixtures, s.dept.tiles, s.items, s.dept.rooms]);
+    // (A case's weather is weather_cases' own, which its init gives only while it is on, from the
+    // same draws either way, MOD-WEATHER: so the cases are compared without it.)
+    const cases = s => s.dept.fixtures.map(f => { const c = Object.assign({}, f); delete c.weather; return c; });
+    const fields = s => json([s.actors.map(a => [a.uid, a.sp, a.x, a.y, a.group, a.route, a.guards, a.home]), cases(s), s.dept.tiles, s.items, s.dept.rooms]);
     let pairs = 0;
     for (const acc of ACCS) for (let seed = 1; seed <= 6; seed++) {
       const base = fields(X.Dept.create(seed, acc, depthOf(seed)));

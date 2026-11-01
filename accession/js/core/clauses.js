@@ -290,11 +290,13 @@ const Clauses = (() => {
 
   // The line from parts (those of Clauses.of, or a strip's): the archetype's and modifiers'
   // sentences and the modules' own, then each phase's, then the wake clause with the special
-  // trigger's clause joined to it ("…near it; wakes at once when …").
+  // trigger's clause joined to it ("…near it; wakes at once when …"). A part that says nothing
+  // (a module's part that is empty, weather_cases' on M.11's station, set as a sentence of its
+  // own where the slot that holds it is switched off with its modifier) adds no sentence.
   function join(all) {
     const parts = all.filter(p => !p.within);
     const wake = parts.find(p => p.kind === 'wake'), trig = parts.find(p => p.kind === 'trigger');
-    const out = parts.filter(p => p.kind !== 'wake' && p.kind !== 'trigger' && p.phase === undefined).map(p => p.text);
+    const out = parts.filter(p => p.kind !== 'wake' && p.kind !== 'trigger' && p.phase === undefined && p.text !== '').map(p => p.text);
     const phases = [];
     for (const p of parts) if (p.phase !== undefined && !phases.includes(p.phase)) phases.push(p.phase);
     for (const k of phases.sort((a, b) => a - b)) out.push(k === 1 ? sentenceOf(said(parts, k)) + '.' : FROM_PHASE(k) + said(parts, k) + '.');

@@ -73,6 +73,9 @@ const Pictograms = (() => {
     staggered: ['........', 'x...x...', '.x.x.x..', '..x...x.', '.......x', 'x...x...', '.x.x.x..', '..x...x.'],
     fumigant:  ['........', '..xx....', '.xxxx.x.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '........', '........'],
     dust:      ['x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.'],
+    // M4's weather (reg/mod-weather.js): fog in drifting bands, rain in falling streaks
+    fog:       ['........', 'xxx..xxx', '...xx...', '........', '.xxx.xxx', 'x...x...', '........', 'xxxxxxxx'],
+    rain:      ['.x...x..', '.x...x..', '...x...x', '...x...x', '.x...x..', '.x...x..', '...x...x', '...x...x'],
   };
   // Each pictogram's colour is a key of the reserved semantic set (BUILD.md §8.8, §9.1):
   // hostile, hazard, readable, item or player. Stat figures are 'readable'.
@@ -88,7 +91,7 @@ const Pictograms = (() => {
     seal_anchor: 'item', seal_key: 'item', seal_bell: 'item', seal_hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
-    staggered: 'hazard',
+    staggered: 'hazard', fog: 'hazard', rain: 'hazard',
   };
   const colourOf = (id, override) => override || ART.palettes.semantic[COLOUR[id]];
 

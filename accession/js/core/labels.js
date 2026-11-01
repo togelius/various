@@ -441,6 +441,9 @@ const Labels = (() => {
   // glass's clauses); what you can do to it now with your grade and weapon; its tombstone,
   // which carries its accession number. A mimic in its disguise gives exactly what a real
   // empty case with its glass, lock and loan gives, but no number: its one tell (§8.3, D3.10).
+  // A shut case that holds weather (M4, weather_cases, WeatherCases.held) is "A case of fog"
+  // (or rain) where it would be "An empty case", and says first what it lets out and what that
+  // does (WeatherCases.words), which its strip shows too.
   // null for a fixture that is not a case, or a revealed mimic's.
   const ST = { open: 'An open case', broken: 'A broken case', dissolved: 'A case with its glass dissolved' };
   function ofCase(state, f) {
@@ -452,15 +455,15 @@ const Labels = (() => {
     // An exhibit standing in it, seen through the glass, is named; a mimic in its disguise is
     // the case itself, not something in it.
     const inside = shut ? state.actors.find(a => !a.gone && a.uid !== 'you' && Actors.covers(a, d.x, d.y) && Archetypes.present(state, a) === null) : null;
-    const sp = inside ? speciesOf(state, inside) : null;
+    const sp = inside ? speciesOf(state, inside) : null, weather = WeatherCases.held(state, f);
     let title;
     if (inside) title = `A case, with ${sp ? midName(inside, sp) : 'an exhibit'} inside`;
-    else if (shut) title = what ? `A case: ${what}` : d.loan ? 'A case: its object is on loan elsewhere' : 'An empty case';
+    else if (shut) title = what ? `A case: ${what}` : d.loan ? 'A case: its object is on loan elsewhere' : weather ? `A case of ${weather}` : 'An empty case';
     else title = (own(ST, d.st) ? ST[d.st] : 'A case') + (what ? `: ${what}` : '');
     const pictos = [{ icon: 'glass', text: `${d.glassName || 'unknown'} glass` }, { icon: 'lock', text: grade(d.lock) }];
     if (shut && d.hits > 0) pictos.push({ icon: 'shards', text: `cracked, ${d.hits} of ${count(d.need, 'bash', 'bashes')}` });
     if (held) pictos.push({ icon: itemIcon(state, held), text: held.kind });
-    const lines = [];
+    const lines = WeatherCases.words(state, f);
     if (shut) {
       // A lock above your grade opens only with the grades your perks add (Cases.lockGrade).
       const g = yourGrade(state);

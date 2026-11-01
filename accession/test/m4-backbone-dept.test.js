@@ -75,12 +75,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // Copying-Room Bell stands apart. Re-pinned by D-ITEMS: the item placement (Kit.place) puts
   // each item a gallery lists in its gallery's room and draws only the rest of §8.5's counts,
   // S.9's Lamp lies in its treasure case, and S.9's hall has its wall case curated deep in it.
+  // The weather M.11's cases hold (MOD-WEATHER: weather_cases' own, written by its init onto
+  // the cases, A3) is the module's state too, left out likewise.
   const M3_START = { 'S9/2': 4158820198, 'S9/5': 493658256, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 948057416, 'M11/5': 235815564 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
       eq(m3.dept.modules.map(m => [m.id, m.on]), C.Packs.get(acc).modules.filter(m => C.Modules.defined(m.id)).map(m => [m.id, true]), `${key}: its modules`);
       m3.dept.modules = [];
+      for (const f of m3.dept.fixtures) delete f.weather;
       assert.equal(State.hash(m3), M3_START[key], `${key}: carry 'start' is M3's start`);
       eq([s.run.grade, s.actors[0].maxHp, s.items[0].tier, s.items[1].tier], [1, 20, 1, 1], key);
       // The plan, the cases and the exhibits do not depend on the visitor; the items may, since

@@ -123,9 +123,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // M4 plan A5: each kind M4 adds (with its fields) or adds causes to, and those causes. A
   // module's events take their module's id as their cause.
-  // (copies_weaken's split: MOD-COPIES' second rule, a body split from a spare that lost heart.)
+  // (copies_weaken's split: MOD-COPIES' second rule, a body split from a spare that lost heart;
+  // weather_cases' release is two rules, on case_opened and on glass_broke, MOD-WEATHER.)
   const MODULE_RULES = { unobserved_motion: ['stride'], alarm_network: ['alarm_shown', 'call', 'alarm_over'], copies_weaken: ['weaken', 'split'],
-    hourly_demonstration: ['chime', 'line', 'blocked', 'settle'], weather_cases: ['release', 'rain_stop'] };
+    hourly_demonstration: ['chime', 'line', 'blocked', 'settle'], weather_cases: ['release_opened', 'release_broken', 'rain_stop'] };
   const A5 = {
     certificate: { fields: ['acc', 'how'], causes: ['defeat', 'view', 'treasure'] },
     grade: { fields: ['grade'], causes: ['certificate'] },
