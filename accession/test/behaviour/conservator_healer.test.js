@@ -156,6 +156,17 @@ module.exports = ({ test, assert, loadCore }) => {
       r = play(s, [{ a: 'wait' }]);
       const healed = r.events.filter(e => e.k === 'healed');
       assert.equal(json(healed.map(e => [e.who, e.amount])), json([[s.actors[3].uid, Math.min(Int.pct(fod, N.CONSERVATOR_HEAL_PCT), 2)]]));
+      // You on its marked tile: never restored (only an exhibit standing there is, as its line
+      // says), and no warning to stand there, since the mark deals no damage (Specials.threat).
+      s = make();
+      play(s, [{ a: 'wait' }]);
+      s.actors[2].x = 11; s.actors[0].x = 8; s.actors[0].y = 3; s.actors[0].hp = 500;
+      assert.equal(Specials.threat(s, { a: 'move', dir: 2 }), null, 'stepping onto its mark');
+      r = play(s, [{ a: 'move', dir: 2 }]);
+      assert.equal(json([s.actors[0].x, s.actors[0].y]), json([9, 3]));
+      assert.ok(r.events.some(e => e.k === 'special' && e.who === s.actors[1].uid && e.sp === 'restore'), json(r.events.map(e => e.k)));
+      assert.ok(!r.events.some(e => e.k === 'healed'), json(r.events.filter(e => e.k === 'healed')));
+      assert.equal(s.actors[0].hp, 500);
       // Fixed before it goes off: called off, and no one is restored.
       s = make();
       play(s, [{ a: 'wait' }]);

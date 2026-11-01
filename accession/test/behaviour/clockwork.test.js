@@ -63,7 +63,9 @@ module.exports = ({ test, assert, loadCore }) => {
           const line = HourlyDemonstration.line(r.start, a).map(key);
           if (!d.plan || d.plan.k !== 'line' || json(d.plan.tiles.map(key)) !== json(line) || !line.length) return `at decision ${i} its arrow showed ${json(d.plan)}, not its line ${json(line)}`;
           const dir = C.Clauses.COMPASS[r.start.actors[1].route.dir];
-          if (!d.odds.some(l => l === `Its arrow shows its line: ${Text.tiles(line.length)} to the ${dir}, the line it would mark if the chime sounded now.`)) return `its label said ${json(d.odds)}`;
+          if (!d.odds.some(l => l === `If the chime sounded now, it would mark its line: ${Text.tiles(line.length)} to the ${dir}.`)) return `its label said ${json(d.odds)}`;
+          // It has no blow (its archetype's clause), so its label says nothing of its hitting you.
+          if (d.odds.some(l => /chance to hit you/.test(l))) return `its label gives it a blow: ${json(d.odds)}`;
         }
         if (r.events.some(e => (e.k === 'moved' && e.who === uid) || (e.k === 'attacked' && e.by === uid))) return 'a station stepped or struck';
         return null;
@@ -72,7 +74,7 @@ module.exports = ({ test, assert, loadCore }) => {
       // Decision 1: its restore on the ally beside you, shown, and said on its label.
       const d1 = seen[1];
       if (!d1.plan || d1.plan.k !== 'mark' || d1.plan.sp !== 'restore' || json(d1.plan.tiles) !== json([[x.x, x.y]])) return `at decision 1 its arrow showed ${json(d1.plan)}, not its restore on ${key([x.x, x.y])}`;
-      if (!d1.odds.includes(`Its next move, shown by its arrow: its restore, marked on the tile of ${Labels.nameOf(r.start)(x.uid)}.`)) return `its label said ${json(d1.odds)}`;
+      if (!d1.odds.includes(`Its next move: its restore, marked on the tile of ${Labels.nameOf(r.start)(x.uid)}.`)) return `its label said ${json(d1.odds)}`;
       // Your blow destroys it; the healer cannot make its move, and waits.
       const s1 = r.steps[1].events;
       if (!s1.some(e => e.k === 'died' && e.who === x.uid)) return 'your blow did not destroy the ally';
@@ -197,12 +199,15 @@ module.exports = ({ test, assert, loadCore }) => {
     const a = s.actors[1], said = () => Labels.of(s, a.uid).odds.slice(-1)[0];
     const name = Labels.nameOf(s)(s.actors[2].uid);
     const cases = [
-      [{ k: 'step', to: [9, 2] }, 'Its next move, shown by its arrow: a step north-east.'],
-      [{ k: 'step', to: [7, 3] }, 'Its next move, shown by its arrow: a step west.'],
-      [{ k: 'strike', at: 'you' }, 'Its next move, shown by its arrow: a blow at you.'],
-      [{ k: 'mark', sp: 'restore', tiles: [[10, 3]] }, `Its next move, shown by its arrow: its restore, marked on the tile of ${name}.`],
-      [{ k: 'resolve', sp: 'restore' }, 'Its next move, shown by its arrow: its restore goes off.'],
-      [{ k: 'wait' }, 'Its next move, shown by its arrow: a wait.'],
+      [{ k: 'step', to: [9, 2] }, 'Its next move: a step north-east.'],
+      [{ k: 'step', to: [7, 3] }, 'Its next move: a step west.'],
+      [{ k: 'step', to: [6, 3] }, 'Its next move: a step onto a tile no longer beside it, which it cannot make.'],
+      [{ k: 'strike', at: 'you' }, 'Its next move: a blow at you.'],
+      [{ k: 'mark', sp: 'restore', tiles: [[10, 3]] }, `Its next move: its restore, marked on the tile of ${name}.`],
+      [{ k: 'mark', sp: 'restore', tiles: [[3, 3]] }, 'Its next move: its restore, marked on your tile.'],
+      [{ k: 'mark', sp: 'restore', tiles: [[12, 5]] }, 'Its next move: its restore, marked on 1 tile.'],
+      [{ k: 'resolve', sp: 'restore' }, 'Its next move: its restore goes off.'],
+      [{ k: 'wait' }, 'Its next move: a wait.'],
     ];
     for (const [plan, words] of cases) {
       a.plan = plan;
@@ -211,6 +216,19 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.ok(!/undefined|NaN|\[object|\bnull\b/.test(said()));
     }
     assert.equal(json(Archetypes.plan(s, Object.assign(a, { plan: { k: 'step', to: [9, 2] } })).tiles), json([[9, 2]]));
+    // Its words never name an exhibit you cannot see: behind a wall, or a mimic in its disguise
+    // (a case to everything you see), its restore is marked on "1 tile".
+    const walled = H.room(C, 1, { acc: 'A4', depth: 4, map: ROW.map((r, y) => y >= 1 && y <= 5 ? r.slice(0, 6) + '#' + r.slice(7) : r), you: [3, 3], rooms: SECTION,
+      exhibits: [{ sp: 'A4.5', at: [5, 3], mode: 'hunting', stats: Roles.stats('support', 4) }, hurt('A4.1', [10, 3], 4, 2)] }, {});
+    walled.actors[1].plan = { k: 'mark', sp: 'restore', tiles: [[10, 3]] };
+    assert.equal(Labels.of(walled, walled.actors[1].uid).odds.slice(-1)[0], 'Its next move: its restore, marked on 1 tile.');
+    walled.dept.tiles = walled.dept.tiles.map(r => r.slice(0, 6) + '.' + r.slice(7)).map((r, y) => y === 0 || y === 6 ? '#'.repeat(16) : r);
+    assert.equal(Labels.of(walled, walled.actors[1].uid).odds.slice(-1)[0], `Its next move: its restore, marked on the tile of ${Labels.nameOf(walled)(walled.actors[2].uid)}.`, 'the wall gone, it is named');
+    const present = C.Archetypes.present;
+    try {
+      C.Archetypes.present = (state, b) => b === walled.actors[2] ? 'case' : present(state, b);
+      assert.equal(Labels.of(walled, walled.actors[1].uid).odds.slice(-1)[0], 'Its next move: its restore, marked on 1 tile.', 'one showing as something else');
+    } finally { C.Archetypes.present = present; }
     assert.equal(json(Archetypes.plan(s, Object.assign(a, { plan: { k: 'strike', at: 'you' } })).tiles), json([[3, 3]]));
     // Asleep: nothing shown, and no line on its label.
     a.mode = 'dormant';
