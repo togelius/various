@@ -445,9 +445,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     hasNot(r, /REFUSALS\.planted_unit is/);
     // 'corner' is made to happen in behaviour/refusals.test.js, which names it in quotes.
     hasNot(r, /REFUSALS\.corner/);
-    // Under --strict, every refusal of the milestones it checks: no_centrepiece waits on PG-VIEW.
-    r = lint(null, ['--strict=M4']);
-    has(r, /REFUSALS\.no_centrepiece is at ready "unit", but no test\/behaviour\/refusals\*\.test\.js file/);
+    // Under --strict, every refusal of the milestones it checks, one at 'unit' too (a planted
+    // one: PG-VIEW made no_centrepiece happen in behaviour/refusals-view.test.js).
+    r = lint("Registry.define('REFUSALS', 'planted_unit_strict', { built: 'M4', ready: 'unit', tests: ['m4-grammar.test.js'], inv: 'system' }); Text.defineRefusal('planted_unit_strict', () => 'Planted.');", ['--strict=M4']);
+    has(r, /REFUSALS\.planted_unit_strict is at ready "unit", but no test\/behaviour\/refusals\*\.test\.js file/);
+    hasNot(r, /REFUSALS\.no_centrepiece is/);
   });
 
   tmpTest('lint-registry holds an M4 id past ready false to §5.1\'s reference rule, as an M3 one: a pack, a scenario file or an arena stamp names it', () => {

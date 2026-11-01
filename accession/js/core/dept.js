@@ -89,7 +89,8 @@ const Dept = (() => {
   // you have walked (your first, dept.walked: a department visit's only); the cases
   // (Cases.place); the exhibits (Populate.exhibits); options.without marks its actors gone,
   // then each archetype's init (Setup.settleActors); the Centrepiece (Centrepiece.place: only
-  // for a pack with a gallery list, once its core is past ready false, plan A10); your
+  // for a pack with a gallery list, once its core is past ready false, plan A10) and its
+  // lectern, a fixture on the plan's lectern tile (Viewing.place, M4's PG-VIEW); your
   // starting kit of the carry's tier (Kit.start) and the items the carry gives (Setup.carry);
   // the stand-in equipment and kits (Kit.standIn); the run's seals (Consumables.startRun);
   // the stand-in consumables (Consumables.standIn); the panels (Panels.place); the modules
@@ -113,7 +114,7 @@ const Dept = (() => {
     Cases.place(state, plan, r.base, pop);
     const short = Populate.exhibits(state, plan, pack, r.base, r.log);
     Setup.settleActors(state, 1);
-    if (pack.galleries !== undefined && pack.centrepiece && Populate.ready(pack.centrepiece)) Centrepiece.place(state, plan, pack);
+    if (pack.galleries !== undefined && pack.centrepiece && Populate.ready(pack.centrepiece)) { Centrepiece.place(state, plan, pack); Viewing.place(state); }
     Kit.start(state, 'balanced', v.tier);
     Setup.carry(state, carried(pack, v));
     Kit.standIn(state, r.base, pop);

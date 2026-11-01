@@ -72,7 +72,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       if (json(s.dept.cp.openings) !== json(OPENINGS)) problems.push(`d${depth}: the openings keep ${json(s.dept.cp.openings)}`);
       if (s.dept.clock.pausedSince !== hunt.turn || s.dept.clock.count !== hunt.turn - 1) problems.push(`d${depth}: the clock ${json(s.dept.clock)} after a seal at turn ${hunt.turn}`);
       const words = say(C, s, sealed[0]);
-      if (!/^Shutters closed over the hall’s openings, since the training dummy is hunting you: .* They open once the Centrepiece has gone 50 turns without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket\.$/.test(words)) problems.push(`d${depth}: ${words}`);
+      if (!/^Shutters closed over the hall’s openings, since the training dummy is hunting you: .* They open once the Centrepiece has gone 50 turns without hurting you or ending a turn beside you, once it falls or goes under its dust sheet or none of it is left in the hall, or when you read a Re-admission Ticket\.$/.test(words)) problems.push(`d${depth}: ${words}`);
     }
     assert.deepEqual(problems, []);
   });
@@ -554,7 +554,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(C.Hall.entering(s, step)), json({ by: 'T0.3.room.1', form: 'fight', seals: true }));
     const c = C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s));
     assert.equal(json(c), json({ title: 'Step into the Centrepiece’s hall?', yes: 'Step in',
-      line: `The Great Board is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: shutters close over its openings, the clock stops, and you do not recover health; they open once the Centrepiece has gone ${N_LIFT} turns without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket.` }));
+      line: `The Great Board is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: shutters close over its openings, the clock stops, and you do not recover health; they open once the Centrepiece has gone ${N_LIFT} turns without hurting you or ending a turn beside you, once it falls or goes under its dust sheet or none of it is left in the hall, or when you read a Re-admission Ticket.` }));
     // Not a step in: a wait, a step along the gallery, a step from inside, a bump into an exhibit.
     assert.equal(C.Hall.entering(s, wait), null);
     assert.equal(C.Hall.entering(s, { a: 'move', dir: 2 }), null);

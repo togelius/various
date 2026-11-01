@@ -197,8 +197,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(cp.openings.length >= 1, `${acc} seed ${seed}: a hall with no way in`);
       staff += cp.openings.filter(o => o.ch === 'S').length;
       for (const [x, y] of X.Actors.footprint(a)) assert.ok(X.Hall.inside(s, x, y));
-      // Everything else as the department made without it: the actors before it, items, tiles, streams.
-      const strip = st => ({ actors: st.actors.filter(b => !(st.dept.cp && st.dept.cp.uids.includes(b.uid))), items: st.items, tiles: st.dept.tiles, rng: st.rng, fixtures: st.dept.fixtures });
+      // Everything else as the department made without it: the actors before it, items, tiles,
+      // streams, the fixtures but its lectern, which comes with it (Viewing.place, PG-VIEW).
+      const strip = st => ({ actors: st.actors.filter(b => !(st.dept.cp && st.dept.cp.uids.includes(b.uid))), items: st.items, tiles: st.dept.tiles, rng: st.rng,
+        fixtures: st.dept.fixtures.filter(f => f.k !== 'lectern') });
       assert.equal(json(strip(s)), json(strip(plain)), `${acc} seed ${seed}: placing it changed the rest of the department`);
     }
     assert.ok(staff >= 1, 'no hall in these seeds has a staff door, so none was seen shuttered with the rest');

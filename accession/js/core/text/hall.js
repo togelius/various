@@ -20,7 +20,7 @@
   const AGAIN = ['quiet', 'alone'];
   const lift = e => own(LIFT, e.cause.why) ? `: ${LIFT[e.cause.why](e)}` : '';
   // While a hall is sealed, the clock's count and regeneration stop (§8.4).
-  const opens = `They open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket.`;
+  const opens = `They open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or goes under its dust sheet or none of it is left in the hall, or when you read a Re-admission Ticket.`;
   const since = (e, w) => e.cause.why === 'hunt' && e.cause.by !== undefined && e.cause.by !== 'you' ? `, since ${w.name(e.cause.by)} is hunting you` : '';
   const STAGES = {
     sealed: (e, w) => `Shutters closed over the hall’s openings${since(e, w)}: it is sealed, and while it is, the clock is stopped and you do not recover health. ${opens}`,

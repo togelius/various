@@ -41,7 +41,7 @@
     return ` ${list.length === 1 ? 'Another goes' : 'More go'} off there before your next turn: ${list.map(one).join('; ')}.`;
   }
   // How a sealed hall's shutters open (rules/hall.js; text/hall.js says the same).
-  const opens = () => `they open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or none of it is left in the hall, or when you read a Re-admission Ticket`;
+  const opens = () => `they open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or goes under its dust sheet or none of it is left in the hall, or when you read a Re-admission Ticket`;
   const shut = 'shutters close over its openings, the clock stops, and you do not recover health';
   const more = n => n === 1 ? '1 more breaks it' : `${n} more break it`;
   const SAY = {
