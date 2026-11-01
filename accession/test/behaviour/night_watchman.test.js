@@ -4,7 +4,9 @@
 // The clause: "Comes for you across the whole department, always knowing where you are, and
 // strikes from beside you for {dmg}; it is never caught by surprise. Staff doors stop it:
 // when it cannot reach you, it waits as near to you as it can. If defeated, another comes
-// {WATCHMAN_RETURN} turns later." Then: the invariants catch planted faults.
+// when the clock has counted {WATCHMAN_RETURN} more turns." Then: the invariants catch planted
+// faults. (A sealed hall stops the clock's count, so the next comes later in turns:
+// test/behaviour/hall.test.js plays that.)
 const H = require('./_harness.js');
 
 module.exports = ({ test, assert, loadCore }) => {
@@ -194,7 +196,7 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('night_watchman: "If defeated, another comes {WATCHMAN_RETURN} turns later"', () => {
+  test('night_watchman: "If defeated, another comes when the clock has counted {WATCHMAN_RETURN} more turns"', () => {
     sweep(H.scenario({
       name: 'another comes {WATCHMAN_RETURN} turns after it falls', id: 'night_watchman', clone: true,
       // A Watchman already in the night watch, beside you, on its last health.

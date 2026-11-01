@@ -9,7 +9,7 @@
 
   R.define('ARCHETYPES', 'night_watchman', { icon: null,
     clause: 'Comes for you across the whole department, always knowing where you are, and strikes from beside you for {dmg}; it is never caught by surprise. ' +
-      'Staff doors stop it: when it cannot reach you, it waits as near to you as it can. If defeated, another comes {WATCHMAN_RETURN} turns later.',
+      'Staff doors stop it: when it cannot reach you, it waits as near to you as it can. If defeated, another comes when the clock has counted {WATCHMAN_RETURN} more turns.',
     params: { dmg: 'role:DMG', WATCHMAN_RETURN: 'N:WATCHMAN_RETURN' }, covers: ['attacked', 'missed', 'entered'],
     ready: true, tests: TESTS, inv: 'night_watchman' });
 

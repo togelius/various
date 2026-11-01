@@ -476,13 +476,14 @@ const Bag = (() => {
     else if (!rooms.length) say = `You have read a Floor Plan here, so all of the department is drawn; every Highlight has been taken.${here}`;
     else say = `You have read a Floor Plan here, so all of the department is drawn. The ${rooms.length === 1 ? 'room whose Highlight has' : 'rooms whose Highlights have'} not been taken ${rooms.length === 1 ? 'is' : 'are'} outlined: ${and}.${here}`;
     return `<p class="bag-where map-say">${esc(say)}</p><div class="map-box"><canvas class="bag-map" role="img" aria-label="${esc(say)}"></canvas></div>
-      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: a band across the tile, with a dot on a staff door. Cases: a framed square, filled while shut.${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
+      <p class="map-key">You: the ringed square. Exits: the crossed tiles; the entrance: the slashed one. Doors: a band across the tile, with a dot on a staff door. Cases: a framed square, filled while shut.${vm.tiles.some(r => r.includes('Z')) ? ' Shutters: a striped tile.' : ''}${vm.plan && vm.plan.length ? ' Rooms with a Highlight: the dashed outlines, with their numbers.' : ''}</p>`;
   }
   // Each tile's tint, and for a door, a staff door or a case a shape too, so colour is never
   // the only sign (§7.2): a door is a band across its tile, a staff door's band has a dark dot,
-  // a shut case is a filled frame and an opened or broken one an empty frame (the exits'
-  // crosses and the entrance's slash are drawn in drawMap). null: nothing is drawn there.
-  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#7d8f96', pool: '#6f93bd', thing: '#8f8573', dark: '#15131a' };
+  // a shut case is a filled frame and an opened or broken one an empty frame, a hall's shutter
+  // (M4) is striped across, never a wall (the exits' crosses and the entrance's slash are
+  // drawn in drawMap). null: nothing is drawn there.
+  const MAP = { wall: '#5b5563', floor: '#cfc6b3', door: '#a8743a', staff: '#7c5a9a', glass: '#7fb2c8', open: '#7d8f96', pool: '#6f93bd', thing: '#8f8573', dark: '#15131a', shutter: '#b9c6d6' };
   function tileLook(ch) {
     const t = Grid.TILES[ch];
     if (!t) return null;
@@ -491,11 +492,13 @@ const Bag = (() => {
     if (ch === 'v') return { fill: MAP.glass, shape: 'frame', ink: MAP.dark };
     if ('uk'.includes(ch)) return { fill: MAP.floor, shape: 'frame', ink: MAP.open };
     if (ch === 'w') return { fill: MAP.pool, shape: '' };
+    if (ch === 'Z') return { fill: MAP.shutter, shape: 'stripes', ink: MAP.dark };
     return { fill: t.walk ? MAP.floor : t.see ? MAP.thing : MAP.wall, shape: '' };
   }
   function drawShape(x, look, X, Y, px) {
     if (look.shape.includes('band')) { const b = Math.max(1, Math.round(px * 0.4)); x.fillStyle = look.ink; x.fillRect(X, Y + Math.floor((px - b) / 2), px, b); }
     if (look.shape.includes('dot')) { const d = Math.max(1, Math.round(px * 0.3)), o = Math.floor((px - d) / 2); x.fillStyle = MAP.dark; x.fillRect(X + o, Y + o, d, d); }
+    if (look.shape === 'stripes') { const b = Math.max(1, Math.round(px / 6)); x.fillStyle = look.ink; for (let i = 1; i <= 3; i++) x.fillRect(X, Y + Math.round(px * i / 4) - Math.floor(b / 2), px, b); }
     if (look.shape === 'frame') { const w = Math.max(1, Math.round(px / 5)); x.strokeStyle = look.ink; x.lineWidth = w; x.strokeRect(X + w / 2, Y + w / 2, px - w, px - w); }
   }
   function drawMap(vm) {

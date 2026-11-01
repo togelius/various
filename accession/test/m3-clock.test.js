@@ -263,7 +263,7 @@ module.exports = ({ test, assert, loadCore }) => {
         curve(N.ROLE_WARDEN_PAD, depth), curve(dm.map(r => r[0]), depth), curve(dm.map(r => r[1]), depth)];
       assert.equal(json([w.uid, w.hp, w.maxHp, w.acc, w.eva, w.pad, w.dmin, w.dmax]), json([`T0.${depth}.watch.1`, ...want]), `depth ${depth}`);
       const line = C.Clauses.line(Packs.shared('night_watchman'), { depth }), dmg = want[5] === want[6] ? String(want[5]) : `${want[5]}–${want[6]}`;
-      assert.ok(line.includes(`strikes from beside you for ${dmg}`) && line.includes(`another comes ${N.WATCHMAN_RETURN} turns later`) && clean(line), line);
+      assert.ok(line.includes(`strikes from beside you for ${dmg}`) && line.includes(`another comes when the clock has counted ${N.WATCHMAN_RETURN} more turns`) && clean(line), line);
     }
   });
 

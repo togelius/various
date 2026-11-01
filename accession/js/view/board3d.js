@@ -9,6 +9,8 @@ const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
   const PLAIN = ['.', ','];
+  // A hall's shutter's two colours (M4), topdown.js's: a light steel and a near-black rib.
+  const SHUTTER = { steel: '#b9c6d6', rib: '#161a21' };
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -157,7 +159,7 @@ const Board3D = (() => {
         // as tall as the walls, ribbed across its top and its south face, so it reads as shut
         // by its shape as well as its colour, never as an open way.
         if (ch === 'Z') {
-          const steel = C('#8796a8'), rib = C('#2b323b'), lid = H.wall + 0.004;
+          const steel = C(SHUTTER.steel), rib = C(SHUTTER.rib), lid = H.wall + 0.004;
           block(so, x, y, x + 1, y + 0.97, 0, H.wall, steel, scale(steel, 0.85), oid);
           for (let j = 0; j < 3; j++) { const z = y + 0.2 + 0.25 * j; quad(so, [[x + 0.04, lid, z], [x + 0.96, lid, z], [x + 0.96, lid, z + 0.08], [x + 0.04, lid, z + 0.08]], rib, oid); }
           for (let j = 0; j < 4; j++) { const h0 = 0.12 + 0.27 * j; block(so, x + 0.04, y + 0.97, x + 0.96, y + 1.0, h0, h0 + 0.08, rib, rib, oid); }

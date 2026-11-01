@@ -442,9 +442,12 @@ const Cases = (() => {
   // A fixture's label data (§8.8), for Labels: for a case {k, x, y, num, room, glass,
   // glassName, lock, hits, need, st, loan, holds, canOpen, canBreak, blows, rules}; for a
   // staff door {k, x, y, grade, open, canOpen, rules}; else null. A mimic in its disguise
-  // gives what a real case gives, with num null. A revealed mimic's case gives null.
+  // gives what a real case gives, with num null. A revealed mimic's case gives null, and so
+  // does a staff door under a hall's shutter (M4, §8.4), as staffView leaves it out: a label
+  // open on it closes, and never says that your grade opens it.
   function describe(state, f) {
     if (!f) return null;
+    if (f.k === 'staff' && Grid.ch(state.dept, f.x, f.y) === 'Z') return null;
     if (f.k === 'staff') return { k: 'staff', x: f.x, y: f.y, grade: f.grade, open: Grid.ch(state.dept, f.x, f.y) === 's', canOpen: gradeOf(state) >= f.grade, rules: rules(state, f) };
     if (f.k !== 'case' || f.st === 'revealed') return null;
     const g = Registry.order('GLASS').find(id => Registry.GLASS[id].n === f.glass);
