@@ -3,7 +3,11 @@
 // skeleton made it; M4's Wave 0 (W0a) moved here the sentences of the period wake cause (told in
 // the past, as every waking is), and gave the module's rules theirs, and a chime's stations one
 // line in the log. The module's sound is a chime, never "the bell", which is the clock's (§5.4).
-// MOD-CHIME fills the rest.
+// MOD-CHIME built the rules these tell: a station's line marked (its own sentence is combat's
+// telegraphed, which calls it a line: the registry's noun) is due at the multiple; one that
+// would overlap a mark already lying is blocked; one that woke for the chime settles at the
+// multiple, after its line has gone off. (A woke event of the chime with no `was`, told
+// "was already awake", is never made: the chime wakes only a station asleep, Wake.perform.)
 'use strict';
 (() => {
   const isInt = Number.isInteger;
@@ -16,8 +20,9 @@
     e => e.was == null ? null : '');
 
   const RULES = {
-    chime: e => isInt(e.turns) ? `The chime sounded: the stations’ lines strike in ${Text.count(e.turns, 'turn')}.` : 'The chime sounded.',
-    line: (e, w) => `${w.Name(e.who)} marked its line.`,
+    // Any line marked at it: a station held fixed, or whose line another mark blocks, marks none.
+    chime: e => isInt(e.turns) ? `The chime sounded: any line marked at it strikes in ${Text.count(e.turns, 'turn')}.` : 'The chime sounded.',
+    line: (e, w) => `${w.Name(e.who)} marked its line at the chime.`,
     blocked: (e, w) => `${w.Name(e.who)} did not mark its line: another mark already lies on it.`,
     settle: (e, w) => `${w.Name(e.who)} went back to sleep, with the pips it had.`,
   };

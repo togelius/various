@@ -1,15 +1,24 @@
 // ACCESSION — waking and modes (BUILD.md §8.2): waking, the changes of mode, pips, the ring
 // pip, hearing, decay, the special triggers (`axis`, `tether`, `ally_hit`), "Quiet, Please"
-// and the Re-admission Ticket's losing you. Owned by W1-WAKE-A.
+// and the Re-admission Ticket's losing you. Owned by W1-WAKE-A; M4's MOD-CHIME owns it now,
+// and added the chime's performance (the period trigger: Wake.perform, Wake.resleep) and the
+// exhibit that never hunts (a station).
 //
-// Two functions change an exhibit's mode, and nothing else does:
+// These functions change an exhibit's mode, and nothing else does:
 //   Wake.wake     takes a sleeping exhibit out of dormant: it resets what belongs to one
 //                 waking (sawYou, acts, its archetype's per-waking ax), costs a beat, and
 //                 starts its story (woke, and hunted if it hunts);
 //   Wake.setMode  every other change: it resets nothing, so "has not seen you since it last
-//                 woke" (§8.1) means since it last left dormant.
+//                 woke" (§8.1) means since it last left dormant;
+//   Wake.perform  a chime's waking (M4): Wake.wake into awake, keeping the pips the station
+//                 had (ax.perform);
+//   Wake.resleep  its going back to sleep where it stands, with those pips.
 // A pipless exhibit (a mimic in its disguise) gains no pips, hears nothing and is woken
 // only by damage, its case touched or its case dissolved (§8.2).
+// An exhibit whose archetype never hunts on sight (Archetypes.huntsOnSight false: M4's
+// stations, which never hunt at all, §5.4) goes awake wherever another would start to hunt
+// (Wake.wake and Wake.setMode take 'hunting' as 'awake' for it, with nothing to look at), so
+// your ring, a blow, a bell or a broken case wakes it awake, and it is never hunting.
 'use strict';
 const Wake = (() => {
   // Causes and tiles are copied in as plain data (Causes.copy: anything else stops with an error).
@@ -30,6 +39,7 @@ const Wake = (() => {
   function wake(state, a, mode, cause, ev, opts) {
     if (mode !== 'hunting' && mode !== 'awake') throw new Error(`Wake.wake: ${a.uid} cannot wake into ${mode}`);
     if (a.gone || a.mode !== 'dormant') return false;
+    if (mode === 'hunting' && !hunts(state, a)) mode = 'awake';
     if (Archetypes.pipless(state, a) && !PIPLESS_WAKES.includes(cause && cause.k)) return false;
     opts = opts || {};
     const story = copy(cause, 'woke.cause');
@@ -58,14 +68,23 @@ const Wake = (() => {
   //     returned {phase: 'reinstalled'};
   //   every other change (hunting → searching, searching → returning, awake → returning,
   //     hunting → awake, awake → dormant, …): lost {who, from, to}.
-  // Leaving hunting cancels a pending telegraph (Specials.cancel), before the change's own
-  // event; only a hunter marks a special (Specials.canMark). A sleeping exhibit is
-  // woken with Wake.wake, never here. Returns false if nothing changed.
+  // A change that leaves it in no mode to mark (Specials.marking: hunting, or awake for an
+  // exhibit that marks while awake, a station) cancels its pending telegraph (Specials.cancel),
+  // before the change's own event, with the change's cause as why, or 'asleep' when it goes
+  // to sleep; a change that leaves it marking (a station sent awake to look somewhere else)
+  // leaves its mark as it is. An exhibit that never hunts asked to hunt goes awake instead
+  // (above): from awake, that changes nothing. Going to sleep ends a performance (ax.perform):
+  // it sleeps with the pips this change leaves it. A sleeping exhibit is woken with
+  // Wake.wake, never here. Returns false if nothing changed.
   function setMode(state, a, mode, cause, ev, opts) {
     if (!MODES.includes(mode)) throw new Error(`Wake.setMode: no mode ${mode}`);
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
     if (a.gone) return false;
     opts = opts || {};
+    if (mode === 'hunting' && !hunts(state, a)) {
+      mode = 'awake';
+      if (a.mode !== 'awake' && opts.target === undefined) opts = Object.assign({}, opts, { target: [a.x, a.y] });
+    }
     const story = copy(cause, 'hunting.cause');
     const from = a.mode, retarget = from === 'awake' && mode === 'awake' && !!opts.target;
     if (from === mode && !retarget) return false;
@@ -75,7 +94,8 @@ const Wake = (() => {
     if (opts.lastKnown !== undefined) a.lastKnown = copy(opts.lastKnown);
     a.mode = mode;
     a.stim = state.turn;
-    if (mode !== 'hunting' && a.telegraph) Specials.cancel(state, a, (cause && cause.k) || 'mode', ev);
+    if (mode === 'dormant' && a.ax && a.ax.perform) delete a.ax.perform;
+    if (a.telegraph && !Specials.marking(state, a)) Specials.cancel(state, a, mode === 'dormant' ? 'asleep' : (cause && cause.k) || 'mode', ev);
     if (mode === 'hunting') {
       if (opts.lastKnown === undefined) a.lastKnown = yourTile(state);
       a.hunted = { turn: state.turn, cause: story };
@@ -93,7 +113,8 @@ const Wake = (() => {
   }
 
   // Wake.toHunting(state, a, cause, ev): into a hunt, waking it first if it sleeps (damage
-  // always wakes, straight to hunting, §8.2). Combat.hurt calls it.
+  // always wakes, straight to hunting, §8.2; an exhibit that never hunts, awake). Combat.hurt
+  // calls it.
   function toHunting(state, a, cause, ev, opts) {
     return a.mode === 'dormant' ? wake(state, a, 'hunting', cause, ev, opts) : setMode(state, a, 'hunting', cause, ev, opts);
   }
@@ -151,7 +172,11 @@ const Wake = (() => {
   // walking distance and the radius in the cause); its `axis` trigger (a pip while you stand
   // in its row or column within AXIS_RANGE, in its sight: Wake.onAxis); its `tether` trigger
   // (all its pips at once while you are within TETHER_RANGE of what it guards: Wake.inTether).
-  // Each is applied in that order, so if the ring's pip is the third, the ring woke it.
+  // Each is applied in that order, so if the ring's pip is the third, the ring woke it. Then
+  // the `period` trigger (M4, the chime's): each station still asleep whose chime this boundary
+  // is (HourlyDemonstration.chimesAt), not held fixed, in spawn order, wakes for its
+  // performance (Wake.perform, cause period), keeping its pips; one the ring woke just now was
+  // awake before the chime.
   function boundary(state, ev) {
     let f = null;
     const due = [];
@@ -170,6 +195,9 @@ const Wake = (() => {
       if (d.axis >= 0) addPips(state, d.a, 1, { k: 'axis', dist: d.axis }, ev);
       if (d.tether) addPips(state, d.a, N.PIPS_TO_WAKE, tetherCause(state, d.a), ev);
     }
+    if (!state.dept.modules.length) return;
+    const chimed = state.actors.filter((a, i) => i > 0 && a.mode === 'dormant' && !Status.has(a, 'fixed') && HourlyDemonstration.chimesAt(state, a, state.turn));
+    for (const a of chimed) perform(state, a, { k: 'period' }, ev);
   }
 
   // The `axis` trigger (§8.2): you stand in a's row or column, within AXIS_RANGE of one of
@@ -328,9 +356,36 @@ const Wake = (() => {
     }
   }
 
-  // [M4] The chime: a period exhibit performs, then sleeps again with the pips it had.
-  function perform(state, a, cause, ev) {}
-  function resleep(state, a, ev) {}
+  // The chime (M4, §5.4): a station performs, then sleeps again with the pips it had.
+  // Wake.perform(state, a, cause, ev) → bool: a sleeping exhibit (not pipless) wakes awake for
+  // its performance (Wake.wake, with cause, a period cause: its story, the beat, woke {who, was:
+  // 'dormant', mode: 'awake'}), keeping the pips it had in ax.perform = {pips, turn} (the turn
+  // it woke). false, changing nothing, if it is not asleep or cannot be woken so.
+  function perform(state, a, cause, ev) {
+    if (a.gone || a.mode !== 'dormant' || Archetypes.pipless(state, a)) return false;
+    const pips = a.pips;
+    if (!wake(state, a, 'awake', cause, ev)) return false;
+    a.ax.perform = { pips, turn: state.turn };
+    return true;
+  }
+  // Wake.resleep(state, a, ev) → bool: an exhibit awake for its performance (ax.perform) goes
+  // back to sleep where it stands, with the pips it kept, stirred now (stim: its decay counts
+  // from here), its performance over. Its line, which goes off before it sleeps, is no longer
+  // pending; were one still pending it would be called off (asleep). It emits nothing: the
+  // module's settle event, before it, says so. false, changing nothing, for one not performing.
+  function resleep(state, a, ev) {
+    if (a.gone || a.mode !== 'awake' || !a.ax || !a.ax.perform) return false;
+    const pips = a.ax.perform.pips;
+    delete a.ax.perform;
+    a.mode = 'dormant';
+    a.target = null;
+    if (a.telegraph) Specials.cancel(state, a, 'asleep', ev);
+    a.pips = pips;
+    a.stim = state.turn;
+    return true;
+  }
+  // Does a hunt (§8.2)? Not an exhibit whose archetype never hunts on sight (a station).
+  const hunts = (state, a) => Archetypes.huntsOnSight(state, a);
 
   return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, onAxis, axisDist, inTether, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep };
 })();
