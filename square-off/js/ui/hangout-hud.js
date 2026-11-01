@@ -199,7 +199,7 @@
     H.sel = -1; H.selSentAt = 0; H._lastTapCard = { gid: -1, t: 0 };
     H._q = []; H._cur = null; H._coach = null; H._msgShown = '';
     H._floaters = []; H._path = null; H._pings = []; H._lastOrder = 0; H._idleSince = {};
-    H._tipT = {}; H._ended = false; H._lastHold = {}; H._lostAt = {}; H._n = {}; H._coffeeAt = {}; H._sentTo = {};
+    H._tipT = {}; H._ended = false; H._lastHold = {}; H._lostAt = {}; H._n = {}; H._coffeeAt = {}; H._sentTo = {}; H._leftAt = {};
     H._cardsKey = ''; H._miniStatic = null; H._minis = null; H._thinking = false;
     if (H.E.note) H.E.note.className = 'ho-note';
     H.E.labels.innerHTML = ''; H._spotEls = null; H._tagEls = null;
@@ -337,7 +337,7 @@
         // after coffee a group walks back to the spot it left by itself; an order given now replaces that
         const dest = g.pending && g.pending.spot >= 0 ? g.pending.spot : (g.lastSpot >= 0 && H.match.rules.returnTo === 'last' ? g.lastSpot : -1);
         const sub = g.pending && g.pending.spot >= 0 ? 'then to ' + spotName(dest, 'bare') + ' (your order)'
-          : dest >= 0 ? 'then back to ' + spotName(dest, 'bare') + ' (tap to change)' : 'then they wait at your entrance';
+          : dest >= 0 ? 'then back to ' + spotName(dest, 'bare') + ' (' + tapW() + ' to change)' : 'then they wait at your entrance';
         return { ic: 'coffee', tx: 'Getting coffee, back in ' + fmtClock(g.backIn), sub, cls: 'coffee' };
       }
       case 'arguing': {
@@ -889,6 +889,12 @@
     const s = st(); if (!s || !SQ.camera) return;
     const pts = myGroups().filter((g) => !g.coffee).map((g) => { const q = gpos(g); return [q.x, q.z]; });
     if (!pts.length) { const e = s.sides[meIdx()].entrance; pts.push([e.x, e.z]); }
+    // frame the nearest spot too: three groups standing together would otherwise fill the screen at street level,
+    // with nowhere on screen to send them
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cz = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    let near = null, nd = Infinity;
+    for (const sp of s.spots) { const d = Math.hypot(sp.x - cx, sp.z - cz); if (d < nd) { nd = d; near = sp; } }
+    if (near) pts.push([near.x, near.z]);
     if (SQ.camera.fit) SQ.camera.fit(pts, { pad: 18 }); else SQ.camera.focus(pts[0][0], pts[0][1]);
     play('tick', { volume: 0.4 });
   };
@@ -1190,7 +1196,10 @@
       } else if (e.holder >= 0 && mine.length === 1 && theirs.length === 1 && tips()) {
         // one against a group already hanging out there: unless help is already coming, say how to win it
         const coming = myGroups().filter((g) => g.spot === e.spotIdx && g.at !== e.spotIdx && !g.coffee);
-        const sentHere = myGroups().some((g) => H._sentTo[g.id] && H._sentTo[g.id].spot === e.spotIdx && now() - H._sentTo[g.id].t < 45 && g.at === e.spotIdx);
+        // "your help got there late" only if one of your groups really left this spot for coffee in the last 45 s
+        // (not for the one group that just arrived and started this argument)
+        const leftHere = H._leftAt[e.spotIdx] !== undefined && now() - H._leftAt[e.spotIdx] < 45;
+        const sentHere = leftHere && myGroups().some((g) => H._sentTo[g.id] && H._sentTo[g.id].spot === e.spotIdx && now() - H._sentTo[g.id].t < 45 && g.at === e.spotIdx);
         if (coming.length) {
           let eta = 99;
           for (const g of coming) { try { eta = Math.min(eta, H.match.eta(g.id, e.spotIdx)); } catch (er) { /* */ } }
@@ -1216,6 +1225,7 @@
         const line = e.line ? ' “' + esc(e.line) + '”' : '';
         const k = e.group + ':' + e.spotIdx;
         H._coffeeAt[k] = (H._coffeeAt[k] || 0) + 1;
+        if (e.spotIdx >= 0) H._leftAt[e.spotIdx] = now();
         // after coffee they walk back to this spot by themselves: say so (every time it matters, briefly)
         const back = e.spotIdx >= 0 && H.match.rules.returnTo === 'last'
           ? ' Back in ' + fmtClock(e.backIn) + ', then they walk back to ' + esc(spotName(e.spotIdx)) + ' (' + tapW() + ' their card to change that).'

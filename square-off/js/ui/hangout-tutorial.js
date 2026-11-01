@@ -212,6 +212,7 @@
     const step = T.cur ? T.cur.step : 1;
     const spec = Object.assign({ step, total: TOTAL, title: o.title || T.cur.title }, o);
     if (T.cur && T._phaseT > 7 && o.skip !== false && !o.done && T.cur.auto !== false) spec.skip = () => T.skip();
+    if (T._fresh && T._phaseT < 8 && !o.done) spec.sub = 'New lesson, new set-up: the score starts again.' + (spec.sub ? ' ' + spec.sub : '');
     const key = JSON.stringify([spec.text, spec.html, spec.sub, spec.done, !!spec.skip, spec.next && spec.next.label, spec.step]);
     if (key === T._coachKey) return;
     T._coachKey = key;
@@ -575,6 +576,8 @@
     T.cur = PHASES[i];
     T._phaseT = 0; T._doneT = -1; T._coachKey = ''; T._framed = null; T._pan = null;
     if (!T.cur) return;
+    // a later lesson that starts from its own set-up says so, or the reset score and moved groups look like a bug
+    T._fresh = !!(T.cur.scene && T.cur.scene !== T.sceneId && T.sceneId != null);
     if (T.cur.scene && T.cur.scene !== T.sceneId) {
       T.sceneId = T.cur.scene;
       T._starting = true;

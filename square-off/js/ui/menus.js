@@ -1326,7 +1326,9 @@
     const nm = best ? hoSpotName(best) : '';
     // points are spot-seconds, so "how many spots at a time, on average" is the whole story
     const L = Math.max(1, rep.t || 300);
-    const av = (x) => (Math.round(x / L * 10) / 10).toFixed(1);
+    // one decimal, or two when one would print both crews the same ("1.9, to your 1.9" explains nothing)
+    const dp = Math.round(ha / L * 10) === Math.round(hb / L * 10) ? 2 : 1;
+    const av = (x) => (x / L).toFixed(dp);
     let txt;
     if (draw) txt = 'Dead even: you both held about ' + av(ha) + ' spots at a time.';
     else if (won) txt = '<b>You held more spots for longer:</b> ' + av(ha) + ' spots at a time on average, to their ' + av(hb) + '.';

@@ -289,6 +289,26 @@ recover, or come back from coffee), `firstMatch` (a full match against Easy). AI
   they poke at spots (criterion 6) needs playtests; the rules give poking no reward (walking through a spot
   does nothing and a 1 v 1 against a holder fails).
 
+**Still open after the 2026-11-01 re-check** (simulated newcomer playtests on laptop and phone, a re-check of the
+21 earlier findings, and a code review; notes and screenshots in the git-ignored `.shots/v3/r2/`). Fixed in that
+round: the false "your help got there after your first group left" coach line on a first one-against-one, the
+Park Report printing "1.9 spots, to your 1.9" when the crews differ, the silent score reset between tutorial lessons,
+"tap" wording on desktop cards, and find-my-crew zooming in until no spot was on screen. Not yet fixed:
+
+- **Phone, tutorial step 4 (blocker on phones):** in 2 of 4 runs the ghost hand sat on the selected group's own name
+  tag (the target spot's sign was not drawn), so tapping where the hand points let go of the group and the step
+  looped.
+- **The HUD covers the 3D labels:** the score bar, mini map, camera buttons and cards can sit on top of spot signs
+  and name tags; in landscape a tap on a sign under the score bar picked a group instead of sending one. Tags avoid
+  each other and the signs, but not the HUD panels.
+- A name tag pushed up out of the way can land on another spot's sign, so the group seems to be there; the coach
+  card can cover the argument it describes.
+- Wording: "Patience: you 40, them 30 (you give up first)" against two rivals reads as a contradiction; both
+  cards at a shared, contested spot say "still earning +1/s"; the Park Report can say both "nobody ever hung out at
+  Holley Plaza" and "both crews gave up there twice".
+- Seen once each: a click during the opening camera move became a ground order, and a right-click on a spot sign
+  did not send the selected group.
+
 ## 10. Presentation and teaching (what the UI does with the rules)
 
 The rules above are all there is; the UI's job is to make each of them visible where it happens and explained in
