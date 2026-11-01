@@ -95,7 +95,10 @@ const Step = (() => {
   // the one Vision.ringRadius gives, which takes in you.ringMax (the largest ring of your
   // actions since the last boundary, written only when a free or discounted action ran,
   // plan A6); the boundary applies it and then clears it, so the next boundary counts your
-  // actions from here.
+  // actions from here. A status put on during the boundary (M4: Second Wind's, brought by a
+  // line due there) is settled as it ends, as one put on in an action is once the action is
+  // over: every next is final then, so it covers the turns from its bearer's next decision
+  // (§8.1's timing rule) even when you act first after the boundary.
   function boundary(state, ev) {
     Surfaces.tick(state, ev);                        // 1. surfaces
     Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers (expiry), then instruments' charges
@@ -109,6 +112,7 @@ const Step = (() => {
     Modules.turn(state, ev);                         // 8. module turn rules (M4)
     const you = state.actors[0];
     if (you && you.ringMax !== undefined) delete you.ringMax;
+    Status.settle(state);
   }
 
   // Run the world until it is your turn again. An exhibit's action is charged after it acts:

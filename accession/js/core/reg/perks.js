@@ -33,7 +33,9 @@ const PerkFamilies = Object.freeze({
   R.defineCause('perk', 'none', { fields: {}, built: 'M4' });
 
   // Damage and statuses a perk deals (Single File's), with the perk's id; a damaged cause may
-  // carry saved and side, as every one does (lint-registry).
-  R.defineCause('damaged', 'perk', { fields: { id: 'str', saved: 'int?', side: 'str?' }, built: 'M4' });
+  // carry saved and side, as every one does (lint-registry). raw is the damage the perk deals
+  // before the exhibit's own rules take it (Archetypes.adjustDamage: a swarm body loses all its
+  // health to any hit), so its sentence can say what changed it, as a blow's does.
+  R.defineCause('damaged', 'perk', { fields: { id: 'str', raw: 'int?', saved: 'int?', side: 'str?' }, built: 'M4' });
   R.defineCause('status', 'perk', { fields: { id: 'str' }, built: 'M4' });
 })();

@@ -16,7 +16,15 @@
 
   // A perk's own damage and statuses, by its name.
   const by = c => name(c.id) || 'a perk';
-  Text.defineCause('damaged', 'perk', (e, w) => `${w.Name(e.who)} took ${e.amount} damage from ${by(e.cause)}${e.cause.saved ? '. You were kept at 1 health' : ''}.`);
+  // When an exhibit loses other than the perk's damage (raw), its own rules made it so
+  // (Archetypes.adjustDamage), as a blow's sentence says (text/combat.js): a body that falls to
+  // any one hit (mote_swarm) loses all its health; any other change is its Behaviour line's.
+  const changed = e => {
+    const raw = e.cause.raw;
+    if (!Number.isInteger(raw) || e.amount === raw || e.who === 'you') return '';
+    return e.hp === 0 ? ` (${raw}; it falls to any one hit: all ${e.amount} of its health)` : ` (${raw}, which its Behaviour line makes ${e.amount})`;
+  };
+  Text.defineCause('damaged', 'perk', (e, w) => `${w.Name(e.who)} took ${e.amount} damage from ${by(e.cause)}${changed(e)}${e.cause.saved ? '. You were kept at 1 health' : ''}.`);
   const word = id => own(Registry.STATUSES, id) && Registry.STATUSES[id].words ? Registry.STATUSES[id].words : 'affected';
   Text.defineCause('status', 'perk', (e, w) => e.on
     ? `${w.Name(e.who)} ${w.is(e.who)} now ${word(e.id)}${Number.isInteger(e.turns) ? ' for ' + Text.count(e.turns, 'turn') : ''}: ${by(e.cause)}.`
