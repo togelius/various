@@ -10,7 +10,7 @@
 // own tile changes only in your action, which comes first.
 'use strict';
 module.exports = (C) => {
-  const { N, Int, Grid, Roles, Options, Archetypes, Registry } = C;
+  const { N, Int, Grid, Roles, Options, Archetypes, Registry, Modules } = C;
   const tile = t => `${t[0]},${t[1]}`, json = x => JSON.stringify(x);
   const has = (a, mod, state) => (a.mods || []).includes(mod) && !Options.off(state, mod);
 
@@ -161,8 +161,8 @@ module.exports = (C) => {
     },
   };
 
-  // "Each hit it survives with 2 or more health splits it into two halves of that health, if
-  // there is room beside it; halves split again, up to {SPLIT_MAX} splits deep." Every
+  // "A hit leaving it 2 or more health splits it into two halves if there is room beside it, up
+  // to {SPLIT_MAX} splits deep." Every
   // splitter body is of generation 0 to SPLIT_MAX, and its generation and count of halves
   // grow by one with each of its splits. Each hit on one that leaves it
   // h ≥ 2 health below generation SPLIT_MAX makes, before the next damage of anyone, a half
@@ -279,11 +279,12 @@ module.exports = (C) => {
       const a = ctx.actor, b = ctx.before;
       // A spare that loses heart (copies_weaken, §5.4) loses COPY_WEAKEN_PCT% of its maximum
       // health once (at least 1, never below 1), in the step whose module event says so; one
-      // that has (it holds slowed for the rest of the visit, which only that rule gives in M4)
-      // has the cast's share weakened so.
+      // that has (the module on, and it holds slowed for the rest of the visit, which only that
+      // rule gives in M4) has the cast's share weakened so. (A second weakening, or one with the
+      // module off, is copies.inv's to catch; a share wrong before it, this one's.)
       const weak = v => v > 1 ? Math.max(1, v - Math.max(1, Int.pct(v, N.COPY_WEAKEN_PCT))) : v;
       const lostNow = events.some(e => e.k === 'module' && e.id === 'copies_weaken' && e.rule === 'weaken' && e.who === a.uid);
-      const lost = (a.statuses || []).some(s => s.id === 'slowed' && s.perm === true);
+      const lost = Modules.on(post, 'copies_weaken') && (a.statuses || []).some(s => s.id === 'slowed' && s.perm === true);
       if (b && b.maxHp !== a.maxHp && !(lostNow && a.maxHp === weak(b.maxHp))) return `its maximum health went from ${b.maxHp} to ${a.maxHp}`;
       if (!b) {
         const f = events.find(e => e.k === 'woke' && e.was === null && e.who === a.uid);

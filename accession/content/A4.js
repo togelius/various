@@ -24,13 +24,16 @@ Packs.add({
       name: 'Copying-Room Bell',
       tomb: { maker: 'Supplied to the Ordinance Office', date: 'During the Duplicate Ordinance', medium: 'Bell metal on a cast-iron stand', dims: 'H. 140 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'The bell was rung whenever a spare was found to be without a spare of its own, and the whole Office stood up. It still rings at the sight of anyone it does not know, and nobody standing near it has ever slept through it.' },
-    { id: 'A4.4', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['marble'], trigger: 'ally_hit', group: 'trustees',
+    { id: 'A4.4', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['marble'], trigger: 'ally_hit', group: 'trustees', flags: ['copies_weaken'],
       name: 'Bust of the Proposing Trustee',
       tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'The original, kept under glass so that it would never be handled. The Trustee’s family asked for a spare for themselves and were refused, on the grounds that the spares were the Museum’s.' },
-    { id: 'A4.4a', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['plaster'], trigger: 'ally_hit', group: 'trustees', copyOf: 'A4.4',
+    // The Trustee's spare is not the sample's plaster cast (BUILD.md §5.5, M4: with copies_weaken's
+    // part, a plaster spare's line would pass the phone's 14 rows; decided without play; revisit
+    // once M4 is playable), so its Medium names no material modifier (the tombstone cue).
+    { id: 'A4.4a', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: [], trigger: 'ally_hit', group: 'trustees', copyOf: 'A4.4', flags: ['copies_weaken'],
       name: 'Bust of the Proposing Trustee, Certified Spare',
-      tomb: { maker: 'After A.4.4', date: 'During the Duplicate Ordinance', medium: 'Plaster cast after the marble; stamped CERTIFIED TRUE COPY', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
+      tomb: { maker: 'After A.4.4', date: 'During the Duplicate Ordinance', medium: 'Cast stone after the marble; stamped CERTIFIED TRUE COPY', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'The Trustee who proposed the Ordinance sat for one bust and was issued with two spares, as the rule required. The spares were handled and damaged often, and under the Ordinance a damaged spare had to be replaced at once with two. The night staff report that the spares now attend to this themselves.' },
     { id: 'A4.5', sprite: 'countersigning_clerk', archetype: 'conservator_healer', role: 'support', modifiers: ['clockwork'], trigger: null,
       name: 'Countersigning Clerk, Automaton',

@@ -1,8 +1,9 @@
 // The brute role's Behaviour-line clause (BUILD.md §5.3, §8.1, §8.10; the role's own rule):
-// "Each of its blows takes {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}." ('CLAUSES.role_brute').
+// "Its blows take {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}." ('CLAUSES.role_brute'; M4's
+// MOD-COPIES review tightened M3's "Each of its blows takes …" to fit the Trustee's line).
 // A role adds a part to the line only when it has a rule of its own, and the brute is the only
 // one that has (Actors.attackCost). Run for every pack species of the role (A.4's Busts of the
-// Proposing Trustee, marble and plaster) at depths 1–7, with every invariant checked after
+// Proposing Trustee, the marble original and its spare) at depths 1–7, with every invariant checked after
 // every step and a clone check; the invariant combat_brute_blow catches a brute's blow that
 // costs anything else.
 module.exports = ({ test, assert, loadCore, root, path }) => {
@@ -31,7 +32,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       build, actions: waits(12),
       expect(r, params) {
         if (params.COST_ATTACK_HEAVY !== N.COST_ATTACK_HEAVY || params.COST_ATTACK !== N.COST_ATTACK) return `its clause's numbers are ${JSON.stringify(params)}`;
-        if (!/Each of its blows takes \d+ ticks, not \d+\./.test(r.clause)) return `its clause reads "${r.clause}"`;
+        if (!/Its blows take \d+ ticks, not \d+\./.test(r.clause)) return `its clause reads "${r.clause}"`;
         const ticks = blows(r, r.start.actors[1].uid);
         if (ticks.length < 6) return `it struck ${ticks.length} times in 12 turns`;
         const gap = ticks.slice(1).map((t, i) => t - ticks[i]).find(g => g !== N.COST_ATTACK_HEAVY);

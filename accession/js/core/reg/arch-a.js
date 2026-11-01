@@ -14,7 +14,7 @@
     clause: 'Moves two tiles a turn; strikes from beside you for {dmg}, then at once steps back {DARTER_STEP_BACK} tile if it has room.',
     params: { dmg: 'role:DMG', DARTER_STEP_BACK: 'N:DARTER_STEP_BACK' }, covers: ['attacked', 'missed'] }, proved('darter')));
   R.define('ARCHETYPES', 'splitter', Object.assign({ icon: null,
-    clause: 'Walks one tile at a time and strikes from beside you for {dmg}. Each hit it survives with 2 or more health splits it into two halves of that health, if there is room beside it; halves split again, up to {SPLIT_MAX} splits deep.',
+    clause: 'Walks one tile at a time and strikes from beside you for {dmg}. A hit leaving it 2 or more health splits it into two halves if there is room beside it, up to {SPLIT_MAX} splits deep.',
     params: { dmg: 'role:DMG', SPLIT_MAX: 'N:SPLIT_MAX' }, covers: ['attacked', 'missed'] }, proved('splitter')));
   R.define('ARCHETYPES', 'mote_swarm', Object.assign({ icon: null, speed: 'fast',
     clause: 'Comes as {SWARM_BODIES} bodies that each fall to a single hit; they move two tiles a turn and strike from beside you for {dmg}.',

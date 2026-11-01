@@ -2,8 +2,9 @@
 // rules/archetypes.js), owned by W1-ARCH-A. Its Behaviour-line clause and registry entry are
 // in js/core/reg/arch-a.js.
 //
-// "Each hit it survives with 2 or more health splits it into two halves of that health, if
-// there is room beside it; halves split again, up to {SPLIT_MAX} splits deep."
+// "A hit leaving it 2 or more health splits it into two halves if there is room beside it, up
+// to {SPLIT_MAX} splits deep." (M4's MOD-COPIES review tightened M3's "Each hit it survives with
+// 2 or more health splits it into two halves of that health, …"; the rule is as it was.)
 //   - After any damage that leaves it standing (Archetypes.onDamaged, called by Combat.hurt
 //     once health has fallen and the hit has woken it into a hunt), a body of generation
 //     gen < SPLIT_MAX with 2 or more health splits: a new half takes

@@ -258,7 +258,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(roles >= 2, `${roles} species with a role's own rule`);
     const brute = { id: 'T.b', archetype: 'plodder', role: 'brute', modifiers: ['marble'], trigger: null };
     same(ids(Clauses.of(brute, { depth: 2 })), ['archetype:plodder', 'role:role_brute', 'modifier:marble', 'wake:wake']);
-    assert.ok(Clauses.line(brute, { depth: 2 }).includes(`Each of its blows takes ${C.N.COST_ATTACK_HEAVY} ticks, not ${C.N.COST_ATTACK}. Moves at half speed.`), Clauses.line(brute, { depth: 2 }));
+    assert.ok(Clauses.line(brute, { depth: 2 }).includes(`Its blows take ${C.N.COST_ATTACK_HEAVY} ticks, not ${C.N.COST_ATTACK}. Moves at half speed.`), Clauses.line(brute, { depth: 2 }));
   });
 
   tmpTest('lint-registry fails on a planted (kind, cause) pair with no sentence, and on other planted faults', () => {

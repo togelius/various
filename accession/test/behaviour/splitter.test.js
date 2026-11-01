@@ -1,10 +1,14 @@
 // The splitter's Behaviour line (BUILD.md §3.2, §5.3, §5.5; W1-ARCH-A): "Walks one tile at a
-// time and strikes from beside you for {dmg}. Each hit it survives with 2 or more health splits it
-// into two halves of that health, if there is room beside it; halves split again, up to
-// {SPLIT_MAX} splits deep." Its halves are made with the wake cause `summoned`.
+// time and strikes from beside you for {dmg}. A hit leaving it 2 or more health splits it into
+// two halves if there is room beside it, up to {SPLIT_MAX} splits deep." (M4's MOD-COPIES review
+// tightened M3's wording, "Each hit it survives with 2 or more health splits it into two halves
+// of that health, if there is room beside it; halves split again, …", to fit the Trustee's
+// line; the rule is the same.) Its halves are made with the wake cause `summoned`.
 // The scenarios run for every pack species with the clause (A.4's Busts of the Proposing
-// Trustee, marble and plaster) at depths 1–7, with the invariants checked and a clone after
-// every step; the exact numbers are also checked by calling Combat.hurt directly.
+// Trustee, the marble original and its spare) at depths 1–7, with the invariants checked and a
+// clone after every step, and for a cast (plaster) splitter planted in a core of its own (no
+// pack species is one since M4: §5.5); the exact numbers are also checked by calling
+// Combat.hurt directly.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const Inv = require(path.join(root, 'tools/invariants.js'));
@@ -95,7 +99,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('the splitter\'s scenarios cover every species with its clause, at depths 1–7', () => {
     assert.ok(list.length >= 14 && list.every(x => x.sp.archetype === 'splitter'), json(list.map(x => x.sp.id)));
     assert.deepEqual([...new Set(list.map(x => x.depth))], H.DEPTHS);
-    assert.ok(list.some(x => x.sp.modifiers.includes('marble')) && list.some(x => x.sp.modifiers.includes('plaster')));
+    assert.ok(list.some(x => x.sp.modifiers.includes('marble')) && list.some(x => !x.sp.modifiers.length));
     assert.equal(json(H.species(C, 'summoned')), '[]', 'summoned is a wake cause, not a clause; the splitter\'s scenarios prove it');
   });
 
@@ -264,16 +268,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([c.hp, c.gen, c.kids, n.actors.length]), json([19, 0, 0, 2]));
   });
 
-  test('splitter: a half split from a plaster cast keeps the cast\'s health, and crumbles to dust of its own when destroyed', () => {
-    const sp = Packs.speciesFor(null, { sp: 'A4.4a' });
-    const s = Setup.room(1, { acc: 'T0', depth: 3, map: ROOM, you: [1, 1], exhibits: [{ sp: 'A4.4a', at: [5, 3], mode: 'hunting', stats: Roles.stats(sp.role, 3) }] });
+  // A cast splitter: no pack species is one since M4 (the Trustee's spare is no plaster cast,
+  // §5.5), so it is planted here, A.4's spare given the sample's plaster in a core of its own.
+  const castCore = () => { const X = loadCore(); X.Packs.species('A4', 'A4.4a').modifiers = ['plaster']; return X; };
+  test('splitter: a half split from a plaster cast keeps the cast\'s health, and crumbles to dust of its own when destroyed; a cast splitter\'s splits hold, depths 1–7', () => {
+    const X = castCore(), sp = X.Packs.speciesFor(null, { sp: 'A4.4a' });
+    const s = X.Setup.room(1, { acc: 'T0', depth: 3, map: ROOM, you: [1, 1], exhibits: [{ sp: 'A4.4a', at: [5, 3], mode: 'hunting', stats: X.Roles.stats(sp.role, 3) }] });
     const a = s.actors[1], max = a.maxHp, ev = [];
     assert.equal(max, Math.max(1, Int.pct(Roles.stats(sp.role, 3).hp, N.PLASTER_HP_PCT)));
-    blow(s, a, 2, ev);
+    const hurt = (st, b, n, e) => X.Combat.hurt(st, b, n, { k: 'attack', by: 'you', at: b.uid, chance: 75, roll: 10, raw: n, pad: 0, how: { kind: 'melee' }, from: [b.x - 1, b.y] }, e);
+    hurt(s, a, 2, ev);
     const h = s.actors[2];
     assert.equal(json([h.maxHp, h.mods]), json([max, ['plaster']]));
-    blow(s, h, h.hp, ev);
+    hurt(s, h, h.hp, ev);
     assert.equal(json(s.dept.surfaces.map(x => [x.kind, x.x, x.y, x.size, x.by])), json([['dust', h.x, h.y, N.PLASTER_DUST_SIZE, h.uid]]));
+    // The splits scenario, joined up, on the cast splitter at depths 1–7 (plaster_cast and the
+    // splitter's invariants after every step).
+    const casts = H.species(X, 'splitter').filter(x => x.sp.modifiers.includes('plaster'));
+    assert.deepEqual(casts.map(x => x.depth), H.DEPTHS);
+    assert.deepEqual(H.failures(H.sweep(X, scenarios(X).splits, casts)), []);
   });
 
   test('splitter: with its archetype\'s split taken away, the split scenario fails, and so does its invariant', () => {

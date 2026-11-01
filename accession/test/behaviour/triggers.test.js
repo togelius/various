@@ -2,7 +2,7 @@
 // whose line has it, at every depth 1–7, as functions of the clause's own numbers:
 //   axis      "also gains a pip each turn you stand in its row or column within {AXIS_RANGE} tiles, in its sight"
 //   tether    "wakes at once when you come within {TETHER_RANGE} tiles of what it guards"
-//   ally_hit  "wakes at once when one of its group within {ALLY_HIT_RANGE} tiles takes damage"
+//   ally_hit  "wakes at once when one of its group within {ALLY_HIT_RANGE} tiles is hurt"
 //   awake     "It never sleeps."
 // Each run is clone-checked, with every invariant after every step; each scenario also fails
 // in a core with its trigger planted out.

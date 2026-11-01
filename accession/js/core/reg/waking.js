@@ -24,7 +24,7 @@
     params: { AXIS_RANGE: 'N:AXIS_RANGE' }, covers: ['pip', 'woke', 'hunting'] }, proved(TRIGGER_TESTS)));
   R.define('TRIGGERS', 'tether', Object.assign({ icon: 'tether', clause: 'wakes at once when you come within {TETHER_RANGE} tiles of what it guards',
     params: { TETHER_RANGE: 'N:TETHER_RANGE' }, covers: ['pip', 'woke', 'hunting'] }, proved(TRIGGER_TESTS)));
-  R.define('TRIGGERS', 'ally_hit', Object.assign({ icon: 'ally_hit', clause: 'wakes at once when one of its group within {ALLY_HIT_RANGE} tiles takes damage',
+  R.define('TRIGGERS', 'ally_hit', Object.assign({ icon: 'ally_hit', clause: 'wakes at once when one of its group within {ALLY_HIT_RANGE} tiles is hurt',
     params: { ALLY_HIT_RANGE: 'N:ALLY_HIT_RANGE' }, covers: ['pip', 'woke', 'hunting'] }, proved(TRIGGER_TESTS)));
   R.define('TRIGGERS', 'awake', Object.assign({ icon: 'awake', clause: 'It never sleeps.', replacesWake: true, params: {}, covers: ['woke'] }, proved(TRIGGER_TESTS)));
 

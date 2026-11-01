@@ -1,8 +1,9 @@
 // The plaster modifier's Behaviour clause (BUILD.md §5.3, §5.5, §8.1, §8.2; W1-ARCH-A): "A
 // cast: it has {PLASTER_HP_PCT}% of the usual health, and when destroyed it crumbles into dust
 // that blocks sight round it for {PLASTER_DUST_TURNS} turns." Run for every pack species with
-// the clause (A.4's Seated Clerk and Bust of the Proposing Trustee, Certified Spares) at depths
-// 1–7, with the invariants checked and a clone after every step; rerun with plaster switched
+// the clause (A.4's Seated Clerk, Certified Spare; the Trustee's spare is no cast since M4,
+// §5.5, and test/behaviour/splitter.test.js plants a cast splitter) at depths 1–7, with the
+// invariants checked and a clone after every step; rerun with plaster switched
 // off (rulesOff), each scenario must fail, for its health and for its dust (§5.3, check 3).
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
@@ -60,7 +61,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const list = H.species(C, 'plaster');
 
   test('plaster\'s scenarios cover every species with its clause, at depths 1–7', () => {
-    assert.ok(list.length >= 14 && list.every(x => x.sp.modifiers.includes('plaster')), json(list.map(x => x.sp.id)));
+    assert.ok(list.length >= 7 && list.every(x => x.sp.modifiers.includes('plaster')), json(list.map(x => x.sp.id)));
     assert.deepEqual([...new Set(list.map(x => x.depth))], H.DEPTHS);
   });
 

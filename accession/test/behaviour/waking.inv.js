@@ -288,7 +288,7 @@ module.exports = (C) => {
     },
     {
       // The `ally_hit` trigger: "wakes at once when one of its group within {ALLY_HIT_RANGE}
-      // tiles takes damage". When another exhibit of its group takes damage within
+      // tiles is hurt" (takes any damage). When another exhibit of its group takes damage within
       // ALLY_HIT_RANGE of a sleeper with the trigger (between their nearest tiles, the struck
       // one where it stood when hit), the sleeper gains its ally_hit pips straight after,
       // unless an ally_hit pip already came to it this turn.

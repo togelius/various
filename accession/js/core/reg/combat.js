@@ -13,7 +13,7 @@
   // A role's own rule (§5.3): a role adds a part to a Behaviour line, after its archetype's,
   // only when it has a rule of its own. The brute's blow costs COST_ATTACK_HEAVY, not
   // COST_ATTACK (Actors.attackCost, §8.1); the invariant combat_brute_blow checks it.
-  R.define('CLAUSES', 'role_brute', { icon: null, clause: 'Each of its blows takes {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}.',
+  R.define('CLAUSES', 'role_brute', { icon: null, clause: 'Its blows take {COST_ATTACK_HEAVY} ticks, not {COST_ATTACK}.',
     params: { COST_ATTACK_HEAVY: 'N:COST_ATTACK_HEAVY', COST_ATTACK: 'N:COST_ATTACK' }, covers: [], ready: true, tests: ['behaviour/role_brute.test.js'], inv: 'combat' });
 
   // Refusals (§4.2): sit needs a bench under you, and you not seated on it already.
