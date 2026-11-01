@@ -241,9 +241,16 @@ module.exports = ({ test, assert, loadCore }) => {
           assert.equal(json(a.route), json({ posts, i: near }), `${where}: ${a.uid}'s round`);
         } else if (a.arch === 'demonstrator') {
           lines++;
-          const run = dir => { let n = 0, x = a.x + LINE[dir][0], y = a.y + LINE[dir][1]; while (m.roomOf[y] && m.roomOf[y][x] === rm.id && Grid.TILES[m.tiles[y][x]].see) { n++; x += LINE[dir][0]; y += LINE[dir][1]; } return n; };
-          const most = Math.max(...['N', 'E', 'S', 'W'].map(run));
-          assert.equal(json(a.route), json({ dir: ['N', 'E', 'S', 'W'].find(k => run(k) === most) }), `${where}: ${a.uid}'s line`);
+          // The longest run of its room that sight passes and no other exhibit stands on (N, E,
+          // S, W on a tie), else the longest (M4's first integration review); the Intro's
+          // station takes its stamp's, which is its longest.
+          const DIRS = ['N', 'E', 'S', 'W'];
+          const tiles = dir => { const out = []; let x = a.x + LINE[dir][0], y = a.y + LINE[dir][1]; while (m.roomOf[y] && m.roomOf[y][x] === rm.id && Grid.TILES[m.tiles[y][x]].see) { out.push([x, y]); x += LINE[dir][0]; y += LINE[dir][1]; } return out; };
+          const run = dir => tiles(dir).length, met = dir => tiles(dir).some(([x, y]) => s.actors.some(b => b !== a && !b.gone && b.x === x && b.y === y));
+          const pick = ks => { const most = Math.max(...ks.map(run)); return ks.find(k => run(k) === most); };
+          const clear = a.uid.includes('.intro.') ? [] : DIRS.filter(k => !met(k) && run(k) > 0);
+          assert.equal(json(a.route), json({ dir: clear.length ? pick(clear) : pick(DIRS) }), `${where}: ${a.uid}'s line`);
+          if (!a.uid.includes('.intro.') && clear.length) assert.ok(!met(a.route.dir), `${where}: ${a.uid}'s line meets an exhibit though a clear one exists`);
         } else assert.equal(a.route, null, `${where}: ${a.uid} has no route`);
         if (a.arch === 'tethered_warden') {
           wardens++;
@@ -595,10 +602,15 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.equal(json(wader.route), json({ posts, i: near }), `seed ${seed}`);
         rounds++;
       }
-      // The station's line: the longest straight run of s2 from its tile (N, E, S, W on a tie).
+      // The station's line: the longest straight run of s2 from its tile that no other exhibit
+      // stands on (N, E, S, W on a tie), or, if each meets one, the longest (M4's first
+      // integration review: a sleeper on it would wake at the chime and hunt you).
       const [st] = at('M11.2'), runs = { N: st.y - 1, E: 31 - st.x, S: 7 - st.y, W: st.x - 22 };
-      const most = Math.max(runs.N, runs.E, runs.S, runs.W);
-      assert.equal(json(st.route), json({ dir: ['N', 'E', 'S', 'W'].find(k => runs[k] === most) }), `seed ${seed}`);
+      const STEP = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+      const met = k => { for (let i = 1; i <= runs[k]; i++) { const x = st.x + STEP[k][0] * i, y = st.y + STEP[k][1] * i; if (s.actors.some(q => q !== st && !q.gone && q.x === x && q.y === y)) return true; } return false; };
+      const dirs = ['N', 'E', 'S', 'W'], clear = dirs.filter(k => !met(k) && runs[k] > 0);
+      const pick = list => { const most = Math.max(...list.map(k => runs[k])); return list.find(k => runs[k] === most); };
+      assert.equal(json(st.route), json({ dir: clear.length ? pick(clear) : pick(dirs) }), `seed ${seed}`);
     }
     assert.ok(rounds >= 30, `${rounds} rounds checked`);
   });

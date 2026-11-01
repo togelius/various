@@ -169,5 +169,10 @@ module.exports = ({ test, assert, loadCore }) => {
     const s = room(C, {}, { map: ROW, you: [6, 3], rooms: SECTION, stations: [{ at: [5, 3], dir: 'N' }] });
     const l = Labels.of(s, s.actors[1].uid);
     assert.ok(l && l.behaviour.startsWith('Stands fixed on its tile'), json(l && l.behaviour));
+    // It has no blow, so nothing on its label gives one: no chance of its hitting you, no
+    // blow's Acc or damage (M4's first integration review: the readout said "It has an 85%
+    // chance to hit you … could defeat you in 12 hits").
+    assert.ok(!l.odds.some(t => /chance to hit you|defeat you|hits for/.test(t)), json(l.odds));
+    assert.ok(!l.pictos.some(p => p.icon === 'acc' || p.icon === 'damage'), json(l.pictos));
   });
 };
