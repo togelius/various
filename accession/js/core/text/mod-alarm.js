@@ -10,38 +10,46 @@
   const isInt = Number.isInteger;
   // What an alarm does for its turns, in §5.4's words: pips do not decay, awake exhibits do not
   // return, and no new alarm can be raised (never "no exhibit sleeps": "Quiet, Please" is not
-  // a return). As built (Modules.mayReturn), neither an awake exhibit left idle nor a searching
-  // one done searching goes back; one already going back goes on. Turns left of an alarm from
-  // the turn of its event, when the event gives both.
+  // a return). As built (Modules.mayReturn), neither an awake exhibit left undisturbed nor a
+  // searching one done searching goes back; one already going back goes on, and a tethered
+  // warden still goes back when you leave its tether (its own rule), so the sentence names
+  // the two reasons, not "no exhibit awake or searching". Turns left of an alarm from the turn
+  // of its event, when the event gives both.
   const left = e => isInt(e.until) && isInt(e.turn) && e.until > e.turn ? e.until - e.turn : null;
   const alarm = (e, w) => {
     const n = left(e);
     return n === null ? `${w.Name(e.by)} raised the alarm.`
-      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips, no exhibit awake or searching goes back to its place, and no other alarm can be raised.`;
+      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips, no exhibit goes back to its place for being left undisturbed or done searching, and no other alarm can be raised.`;
   };
   Text.define('alarm', alarm);
   Text.defineCause('alarm', 'alarm_network', alarm);
 
   // Woken by the alarm, an exhibit is awake and sets off to look where you were when the call
-  // went off (§5.4); a patrol was made awake on its round.
+  // went off (§5.4), but one in an intact case, which wakes in it and stays there (§8.3; its
+  // cause says how: 'case'); a patrol was made awake on its round.
   const why = { alarm: 'the alarm was raised', patrol: 'it walks its round' };
+  const cased = e => !!e.cause && e.cause.how === 'case';
   for (const k of ['alarm', 'patrol']) {
     const then = k === 'alarm' ? ', and it set off to look where you were' : '';
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}${then}.`);
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${why[k]}.`
+      : k === 'alarm' && cased(e) ? `${w.Name(e.who)} woke in its case: ${why[k]}.` : `${w.Name(e.who)} woke: ${why[k]}${then}.`);
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why[k]}.` : `${w.Name(e.who)} began hunting you: ${why[k]}.`);
   }
-  // A call wakes many sleepers in one step: the log tells them in one line.
-  // (One made awake, with no `was`, did not wake, and is told alone.)
-  Text.defineGroup('woke', 'alarm', events => `The alarm woke ${Text.count(events.length, 'exhibit')}, and they set off to look where you were.`,
-    e => e.was == null ? null : '');
+  // A call wakes many sleepers in one step: the log tells them in one line, and those in their
+  // cases in another. (One made awake, with no `was`, did not wake, and is told alone.)
+  Text.defineGroup('woke', 'alarm', events => cased(events[0]) ? `The alarm woke ${Text.count(events.length, 'exhibit')} in their cases.`
+    : `The alarm woke ${Text.count(events.length, 'exhibit')}, and they set off to look where you were.`,
+  e => e.was == null ? null : cased(e) ? 'case' : '');
 
   // The module's rules. alarm_shown: a Wader marked the alarm, which its next action sets off
   // (the mark's own sentence names only "its special"); call: its call went off, a crash and
-  // then the wakes, each told by its own event (n of them); alarm_over: its turns are up.
+  // then the wakes, each told by its own event (n of them); alarm_over: its turns are up, and
+  // pips fade again, but not after the bell, when they never fade (its cause's fade).
   const RULES = {
     alarm_shown: (e, w) => `${w.Name(e.who)} has seen you, and shows the alarm: at its next action it raises it.`,
     call: (e, w) => `${w.Name(e.who)} called: with a crash, every exhibit still asleep that could hear, but the Centrepiece, woke${isInt(e.n) ? ` (${Text.count(e.n, 'exhibit')})` : ''}.`,
-    alarm_over: e => `The alarm is over${isInt(e.turns) ? `, after ${Text.count(e.turns, 'turn')}` : ''}: pips fade again, and exhibits may go back to their places.`,
+    alarm_over: e => `The alarm is over${isInt(e.turns) ? `, after ${Text.count(e.turns, 'turn')}` : ''}: ${e.cause && e.cause.fade === true ? 'pips fade again, and exhibits'
+      : 'exhibits'} may go back to their places${e.cause && e.cause.fade === false ? ' (pips do not fade: the bell has rung)' : ''}.`,
   };
   // A rule about a Wader (alarm_shown, call) whose event names none has no sentence, since it
   // could be about one out of view (see text/mod-unobserved.js); alarm_over is about none.

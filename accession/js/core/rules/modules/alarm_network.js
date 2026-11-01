@@ -1,5 +1,6 @@
 // ACCESSION — the module alarm_network (S.9; BUILD.md §5.4): "The waders raise the alarm when
-// they see you; then the whole court is awake." Its rules register here with Modules.define
+// they see you; then every sleeping exhibit in the department that can hear, but the
+// Centrepiece, wakes." Its rules register here with Modules.define
 // (rules/modules.js) in the form of §5.4; its archetype: rules/arch/patrol_guard.js (the Wader);
 // its entries in js/core/reg/mod-alarm.js and its sentences in js/core/text/mod-alarm.js.
 // Owned by MOD-ALARM.
@@ -16,7 +17,11 @@
 //     crash does), then every exhibit still asleep that can hear (not pipless: never a mimic
 //     in its disguise) and is not a Centrepiece's piece (which only pips and damage wake,
 //     §8.2) wakes awake, sent to look at the tile you stand on as the call goes off (cause
-//     alarm, with the Wader's uid), in spawn order, wherever in the department it is. Then,
+//     alarm, with the Wader's uid; how 'case' for one in an intact case, which wakes in it and
+//     stays there, §8.3), in spawn order, wherever in the department it is. The crash comes
+//     first, against §8.2's order for one action (its other wakes before its noise): the other
+//     way round, the crash would send every exhibit the call had just woken within its reach to
+//     look at the Wader's tile, not at yours, as the call says. Then,
 //     on the `special` event that says the mark went off, rule `call` raises the alarm:
 //     module {rule: 'call', who, at, n} (n the exhibits the call woke), the `alarm` effect
 //     (dept.modules' entry gets alarm {by, since, until}, until = now + ALARM_TURNS, and the
@@ -24,13 +29,15 @@
 //     ALARM_CLOCK_ADVANCE, cause alarm_network with the Wader's uid: the bell, and the night
 //     watch with it, or after the bell the night watch, comes that much sooner, never sooner
 //     than the next turn, and nothing in the night watch; its stage event says which).
-//   - While it runs (turns since ≤ t < until): no pip decays (pipsDecay), no exhibit awake or
-//     searching goes back to its place (mayReturn: AI's idle and searched returns; one
-//     already going back goes on, and a tethered warden's own going back is its rule), and
-//     no other alarm is shown or raised (mayShow).
+//   - While it runs (turns since ≤ t < until): no pip decays (pipsDecay), no exhibit goes back
+//     to its place for being left undisturbed or done searching (mayReturn: AI's idle and
+//     searched returns; one already going back goes on, and a tethered warden still goes back
+//     when you leave its tether, its own rule), and no other alarm is shown or raised
+//     (mayShow).
 //   - Over. At the turn boundary of its last turn (step 7, alarmDecay) it ends: the module's
 //     alarm is absent again (M4 plan A3), and rule `alarm_over` says so (module {rule:
-//     'alarm_over', turns}).
+//     'alarm_over', turns}, its cause saying whether pips fade again: fade, false after the
+//     bell, when they never fade).
 // With the module off (rulesOff, or a visit without it) none of this happens: no Wader
 // shows or raises the alarm, it only chases (the archetype's own clause).
 //
@@ -81,7 +88,9 @@ const AlarmNetwork = (() => {
     let n = 0;
     for (const b of sleepers(state)) {
       if (b.gone || b.mode !== 'dormant') continue;
-      if (!Wake.wake(state, b, 'awake', { k: 'alarm', by: a.uid, x: target[0], y: target[1] }, ev, { target })) throw new Error(`AlarmNetwork: the call could not wake ${b.uid}`);
+      // One in an intact case wakes in it and stays there (§8.3); its cause says so (how).
+      const cause = Object.assign({ k: 'alarm', by: a.uid, x: target[0], y: target[1] }, Cases.encased(state, b) ? { how: 'case' } : {});
+      if (!Wake.wake(state, b, 'awake', cause, ev, { target })) throw new Error(`AlarmNetwork: the call could not wake ${b.uid}`);
       n++;
     }
     return n;
@@ -108,12 +117,13 @@ const AlarmNetwork = (() => {
     // While it runs, no pip decays and no idle or searched exhibit goes back.
     pipsDecay: (state, m) => !runningIn(state, m),
     mayReturn: (state, a, m) => !runningIn(state, m),
-    // Its last turn is up: it ends, and says so.
+    // Its last turn is up: it ends, and says so, and whether pips fade again (fade: not
+    // after the bell, when they never fade, §8.2).
     alarmDecay(state, ev, m) {
       if (!m.alarm || runningIn(state, m)) return;
       const turns = m.alarm.until - m.alarm.since;
       delete m.alarm;
-      Causes.emit(state, ev, 'module', { id: ID, rule: 'alarm_over', turns }, { k: ID });
+      Causes.emit(state, ev, 'module', { id: ID, rule: 'alarm_over', turns }, { k: ID, fade: Clock.pipsDecay(state) });
     },
   });
 

@@ -2,8 +2,8 @@
 // part on the Wader's line, "On seeing you it chases you, first showing the alarm for a turn and
 // raising it unless one is shown or running: a crash, then every exhibit still asleep that can
 // hear, but the Centrepiece, wakes, sent to look where you stood; for {ALARM_TURNS} turns no pips
-// fade, none awake or searching goes back and no other alarm is raised, and the bell, or after it
-// the night watch, comes up to {ALARM_CLOCK_ADVANCE} turns sooner". Each scenario runs for every
+// fade, none left undisturbed or done searching goes back and no other alarm is raised, and the
+// bell, or after it the night watch, comes up to {ALARM_CLOCK_ADVANCE} turns sooner". Each scenario runs for every
 // pack Wader (S9.2) at depths 1–7, joined up (the real core, every rule in place, real actions
 // only, every invariant checked after every step, a clone checked where it says so), and is
 // rerun with alarm_network switched off, when it must fail (§5.3 check 3). Also: its log and
@@ -81,9 +81,14 @@ module.exports = ({ test, assert, loadCore }) => {
       const woke = e1.filter(e => e.k === 'woke' && e.cause.k === 'alarm').map(e => e.who), want = clauseWakes(s, [5, 3]);
       if (json(woke) !== json(want)) return `the call woke ${json(woke)}; the clause wakes ${json(want)}`;
       if (want.length < 4) return 'this scenario needs more sleepers that the alarm wakes';
+      const encased = s.actors[8].uid;
       for (const e of e1.filter(f => f.k === 'woke' && f.cause.k === 'alarm')) {
         if (e.mode !== 'awake' || e.was !== 'dormant' || e.cause.by !== w.uid || e.cause.x !== 8 || e.cause.y !== 3) return `${e.who} woke ${json(e)}, not awake by the Wader to look at your tile`;
+        if ((e.cause.how === 'case') !== (e.who === encased)) return `${e.who}'s waking says how ${e.cause.how}: only the one in a case wakes in it`;
       }
+      // The log tells the wakes in two lines: those sent to look, and the one in its case.
+      const said1 = Text.log(e1, C.Labels.nameOf(r.state));
+      if (!said1.includes(`The alarm woke ${Text.count(want.length - 1, 'exhibit')}, and they set off to look where you were.`) || !said1.some(l => /woke in its case: the alarm was raised\.$/.test(l))) return `the log says ${json(said1)}`;
       // The near sleeper at 2 pips woke to the crash, to look at it; the mimic and the
       // Centrepiece's piece sleep on.
       const n2 = s.actors[3].uid, crashWoke = e1.find(e => e.k === 'woke' && e.who === n2);
@@ -137,6 +142,7 @@ module.exports = ({ test, assert, loadCore }) => {
       if (!back.length || back[0].cause.k !== 'idle') return 'once over, the idle exhibit did not go back';
       const over = r.events.filter(e => e.k === 'module' && e.id === ID && e.rule === 'alarm_over');
       if (over.length !== 1 || over[0].turn !== first.until || over[0].turns !== T) return `the alarm was told over ${json(over)}, not once on turn ${first.until} after ${T} turns`;
+      if (over[0].cause.fade !== true || !/pips fade again/.test(Text.event(over[0]))) return `before the bell, its end does not say pips fade again: ${Text.event(over[0])}`;
       // Over, a Wader that sees you shows it again.
       if (!shows.some(e => e.turn >= first.until) || !alarms.some(e => e.turn > first.until)) return 'once over, no Wader that saw you raised the alarm again';
       return null;
@@ -144,6 +150,26 @@ module.exports = ({ test, assert, loadCore }) => {
   });
   test('for its turns no pip fades, none goes back, and no other alarm is shown or raised; then it is over, told so, and a Wader seeing you raises it again', () => {
     ok(H.sweep(C, lasting, list()), lasting.name);
+  });
+
+  // While it runs, an exhibit still goes back for a reason the line leaves open: a tethered
+  // warden searching for you, once you are outside its tether, goes back by its own rule
+  // (lost, cause tether). So the line promises only what Modules.mayReturn holds: none goes
+  // back for being left undisturbed or done searching, never "none awake or searching".
+  const WALLED = ['############', '#....#.....#', '#....#.....#', '#....#.....#', '############'];
+  test('while it runs, a tethered warden you left still goes back (its own rule), and the line promises only that none left undisturbed or done searching goes back', () => {
+    for (let depth = 1; depth <= 7; depth++) {
+      const s = room({ seed: depth, rulesOff: [] }, { depth, map: WALLED, you: [8, 2], exhibits: [{ sp: 'S9.2', at: [10, 3], stats: Roles.stats('warden', depth) },
+        { sp: 'S9.4', at: [2, 2], mode: 'searching', lastKnown: [2, 2], stim: 0, home: [2, 2], guards: [2, 2], stats: Roles.stats('warden', depth) }] }, [{ posts: [[10, 1], [10, 3]], i: 0 }]);
+      const w = waders(s)[0];
+      C.Modules.of(s, ID).alarm = { by: w.uid, since: 0, until: N.ALARM_TURNS };
+      const r = H.play(C, s, waits(4));
+      assert.deepEqual(r.violations.map(v => v.text), [], `depth ${depth}`);
+      const back = r.events.filter(e => e.k === 'lost' && e.to === 'returning' && e.who === s.actors[2].uid);
+      assert.ok(back.length === 1 && back[0].cause.k === 'tether' && back[0].turn < N.ALARM_TURNS, `depth ${depth}: ${json(back)}`);
+      const line = C.Clauses.line(C.Packs.species('S9', 'S9.2'), { depth });
+      assert.ok(line.includes('none left undisturbed or done searching goes back') && !/awake or searching/.test(line), line);
+    }
   });
 
   // ---- The clock brought nearer: stages 0, 1 and 2, and the clamp at the next turn ----
@@ -176,6 +202,18 @@ module.exports = ({ test, assert, loadCore }) => {
   }));
   test('the alarm brings the bell (and the night watch with it), or after the bell the night watch, up to ALARM_CLOCK_ADVANCE turns sooner, never past the next turn, and nothing in the night watch; the stage chip shows it', () => {
     for (const sc of clocks) ok(H.sweep(C, sc, list()), sc.name);
+  });
+
+  // Over after the bell, its end does not say pips fade again: after the bell they never do.
+  test('an alarm over after the bell says pips do not fade, since the bell has rung; before it, that they fade again', () => {
+    for (const { sp, depth } of list()) {
+      const s = room({ seed: depth, rulesOff: [] }, { depth, map: SMALL, you: [7, 2], clock: { B: 100, G: 100, count: 120 }, exhibits: [{ sp: sp.id, at: [3, 2], stats: Roles.stats(sp.role, depth) }] }, [{ posts: [[1, 1], [1, 3]], i: 0 }]);
+      const r = H.play(C, s, waits(N.ALARM_TURNS + 3));
+      assert.deepEqual(r.violations.map(v => v.text), [], `${sp.id} d${depth}`);
+      const over = r.events.filter(e => e.k === 'module' && e.id === ID && e.rule === 'alarm_over');
+      assert.ok(over.length === 1 && over[0].cause.fade === false, json(over));
+      assert.ok(/pips do not fade: the bell has rung/.test(Text.event(over[0])) && !/pips fade again/.test(Text.event(over[0])), Text.event(over[0]));
+    }
   });
 
   // ---- An alarm while the hall is sealed ----
@@ -248,14 +286,29 @@ module.exports = ({ test, assert, loadCore }) => {
     const mod = (rule, more) => Text.event(Object.assign({ k: 'module', turn: 3, tick: 300, id: ID, rule, cause: { k: ID } }, more), names);
     assert.equal(mod('alarm_shown', { who: 'x.1' }), 'The Lantern-Crop Wader has seen you, and shows the alarm: at its next action it raises it.');
     assert.equal(mod('call', { who: 'x.1', at: [5, 3], n: 4 }), 'The Lantern-Crop Wader called: with a crash, every exhibit still asleep that could hear, but the Centrepiece, woke (4 exhibits).');
-    assert.equal(mod('alarm_over', { turns: N.ALARM_TURNS }), `The alarm is over, after ${N.ALARM_TURNS} turns: pips fade again, and exhibits may go back to their places.`);
+    const over = fade => Text.event({ k: 'module', turn: 3, tick: 300, id: ID, rule: 'alarm_over', turns: N.ALARM_TURNS, cause: { k: ID, fade } }, names);
+    assert.equal(over(true), `The alarm is over, after ${N.ALARM_TURNS} turns: pips fade again, and exhibits may go back to their places.`);
+    assert.equal(over(false), `The alarm is over, after ${N.ALARM_TURNS} turns: exhibits may go back to their places (pips do not fade: the bell has rung).`);
     assert.equal(mod('call', {}), null, 'a call that names no Wader is never told');
     assert.equal(Text.event({ k: 'alarm', turn: 3, tick: 300, by: 'x.1', until: 3 + N.ALARM_TURNS, cause: { k: ID } }, names),
-      `The Lantern-Crop Wader raised the alarm: for ${N.ALARM_TURNS} turns, sleeping exhibits keep their pips, no exhibit awake or searching goes back to its place, and no other alarm can be raised.`);
+      `The Lantern-Crop Wader raised the alarm: for ${N.ALARM_TURNS} turns, sleeping exhibits keep their pips, no exhibit goes back to its place for being left undisturbed or done searching, and no other alarm can be raised.`);
+    // Its mark and its going off name the alarm and the tile it marks, its own.
+    const tel = { k: 'telegraphed', turn: 3, tick: 300, who: 'x.1', sp: 'alarm', tiles: [[5, 3]], cause: { k: 'special', by: 'x.1', sp: 'alarm', gross: null } };
+    assert.equal(Text.event(tel, names), 'The Lantern-Crop Wader marks its own tile for its alarm, at its next action.');
+    assert.equal(Text.event({ k: 'special', turn: 4, tick: 400, who: 'x.1', sp: 'alarm', cause: { k: 'special', by: 'x.1', sp: 'alarm' } }, names), 'The Lantern-Crop Wader used its alarm.');
+    assert.equal(Text.event({ k: 'special', turn: 4, tick: 400, who: 'x.1', sp: 'alarm', cancelled: true, cause: { k: 'cancel', by: 'x.1', why: 'fixed' } }, names), 'The Lantern-Crop Wader’s alarm was called off: it was fixed in place.');
+    // Woken by the call: sent to look where you were, or, in an intact case, staying in it; in
+    // the log, one line for each.
+    const woke = (who, how) => ({ k: 'woke', turn: 4, tick: 400, who, was: 'dormant', mode: 'awake', cause: Object.assign({ k: 'alarm', by: 'x.1', x: 8, y: 3 }, how ? { how } : {}) });
+    assert.equal(Text.event(woke('x.1'), names), 'The Lantern-Crop Wader woke: the alarm was raised, and it set off to look where you were.');
+    assert.equal(Text.event(woke('x.1', 'case'), names), 'The Lantern-Crop Wader woke in its case: the alarm was raised.');
+    assert.equal(json(Text.log([woke('a.1'), woke('a.2', 'case'), woke('a.3'), woke('a.4', 'case'), woke('a.5')], names)),
+      json(['The alarm woke 3 exhibits, and they set off to look where you were.', 'The alarm woke 2 exhibits in their cases.']));
     assert.equal(Text.event({ k: 'noise', turn: 3, tick: 300, x: 5, y: 3, cls: 'crash', range: N.NOISE_CRASH, cause: { k: 'alarm', by: 'x.1' } }), `Crash: the alarm being raised, heard ${N.NOISE_CRASH} tiles away.`);
     assert.equal(Text.event({ k: 'alerted', turn: 3, tick: 300, who: 'x.1', from: 'searching', to: 'awake', x: 1, y: 1, cause: { k: 'round' } }, names), 'The Lantern-Crop Wader searched where it last knew you were, and goes back to its round.');
-    // The panel sentence is the one §5.4 teaches.
-    assert.equal(C.Clauses.sentence(ID, { depth: 3 }), 'The waders raise the alarm when they see you; then the whole court is awake.');
+    // The panel sentence (§5.4's, as taught): what the call does, in plain words. M2's "then
+    // the whole court is awake" claimed more, since the Centrepiece and a mimic sleep on.
+    assert.equal(C.Clauses.sentence(ID, { depth: 3 }), 'The waders raise the alarm when they see you; then every sleeping exhibit in the department that can hear, but the Centrepiece, wakes.');
   });
 
   test('its form, for the validation log: alarm_shown and call through the form; its lasting effects, the call\'s crash and wakes and the Wader\'s showing it bespoke', () => {
@@ -265,7 +318,7 @@ module.exports = ({ test, assert, loadCore }) => {
     // Its module part's words, through every depth: filled, and in the Wader's slot.
     for (let depth = 1; depth <= 7; depth++) {
       const line = C.Clauses.line(C.Packs.species('S9', 'S9.2'), { depth });
-      assert.ok(line.includes(`On seeing you it chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then ${PARTS}; for ${N.ALARM_TURNS} turns no pips fade`), line);
+      assert.ok(line.includes(`On seeing you it chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then ${PARTS}; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back and no other alarm is raised, and the bell`), line);
       assert.ok(line.endsWith(`comes up to ${N.ALARM_CLOCK_ADVANCE} turns sooner; losing you, it searches, then resumes its round. It never sleeps.`), line);
     }
   });

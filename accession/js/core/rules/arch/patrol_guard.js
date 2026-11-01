@@ -30,14 +30,18 @@
 //     AlarmNetwork.call, the crash and the wakes; the module's rule `call` then raises the
 //     alarm). The mark is called off as any is (§8.1): fixed, no longer hunting, destroyed.
 //   - Its wake region (plan A8): the tiles where, standing for `turns` turns, you would be seen
-//     by it walking its round: from where it stands now and from each tile its round takes it
-//     to by then (its actions at or before `turns` turns from now, each at its cost, a door it
-//     opens costing an action and then letting sight through), every tile you could stand on
-//     within SIGHT_EXHIBIT of its tile there, in line of sight (AI.sees'), but its own tile
-//     now. Only while it walks its round (awake, with nothing else to look at): a Wader
-//     hunting you, searching, or sent to look at a noise has none. It draws on no stream, and
-//     other actors never count. D-LV6's safe zone reads it over a patrol's first
-//     SAFE_ZONE_TURNS turns.
+//     by it, never fewer than it could see, whatever stands in its way (D-LV6's safe zone reads
+//     it over a patrol's first SAFE_ZONE_TURNS turns, so it must hold every tile it would see):
+//     every tile you could stand on (but its own tile now) within SIGHT_EXHIBIT of, and in line
+//     of sight from (AI.sees'), a tile it may stand on at one of its actions by then. Walking
+//     its round, those are the tiles it walks to as round() takes them, each action at its
+//     cost, with the sleepers in its way where they lie (it steps round them as it would), and
+//     wherever another patrol walking its round may stand in its way by then, every other
+//     shortest step; a door opened on the way lets sight through after. Where that
+//     cannot be told (another exhibit awake on no round; a door a patrol may open within the
+//     earshot of another exhibit, whose noise would send it to look or stir it), or while it is
+//     searching or sent to look at something, they are every tile it has the time to walk to.
+//     None while it hunts you: it has found you. It draws on no stream.
 'use strict';
 (() => {
   // The shape of the alarm's mark: its own tile (a call marks at least one, §8.1).
@@ -127,58 +131,154 @@
     if (tel && tel.sp === 'alarm') AlarmNetwork.call(state, a, ev);
   }
 
-  // ---- Its wake region: its round's sight ----
-  // The tiles it acts from over the next `turns` turns, walking its round with nothing in its
-  // way, from a copy of the map whose doors it opens as it goes: [{x, y, m}] (m the map then).
-  function walk(state, a, turns) {
-    const P = posts(a), horizon = state.tick + turns * N.TICKS_PER_TURN;
-    const cost = { step: Actors.cost(state, a, N.COST_STEP, 'move'), door: Actors.cost(state, a, N.COST_DOOR, 'act'), wait: Actors.cost(state, a, N.COST_WAIT, 'act') };
-    let m = state.dept, x = a.x, y = a.y, i = index(a, P), t = Math.max(a.next, state.tick), still = 0;
-    const out = [], fields = new Map();
-    const field = k => { if (!fields.has(k)) fields.set(k, AI.field(state, a, P[k], 'onto')); return fields.get(k); };
-    while (t <= horizon && still <= P.length) {
-      out.push({ x, y, m });
-      if (!P.length) break;
+  // ---- Its wake region: what it could see before it finds you ----
+  // A patrol on its round: awake, with nothing to look at but its next post.
+  const onRound = b => b.arch === 'patrol_guard' && !b.gone && b.mode === 'awake' && !(b.target && !same(b.target, nextPost(b)));
+  const costsOf = (state, b) => ({ step: Actors.cost(state, b, N.COST_STEP, 'move'), door: Actors.cost(state, b, N.COST_DOOR, 'act'), wait: Actors.cost(state, b, N.COST_WAIT, 'act') });
+
+  // Where patrol b, walking its round, may stand at each of its actions up to the tick
+  // `horizon`: [{x, y, t, open}] (t the first tick of an action at which it may stand there,
+  // open the doors it has opened by then), and the first tick at which it may stand on each
+  // tile (`from`: an Int32Array, -1 where never; its own tile now from now) and open each door
+  // (`doors`: Map index → tick). Each action, as round() takes it (actors other than those in
+  // `fixed` never counting): standing on its post, it heads for the next; a post it cannot
+  // reach it passes over, waiting; else the first step, in compass order, that shortens its
+  // walk to the post and that no actor in `fixed` stands on, a closed door on the way opened as
+  // that action; with no such step it waits, and beside its post with someone in `fixed` on
+  // it, heads for the next. Where `loose(k)` says something else may stand on that first
+  // step's tile (k its index) at some time by then, it may take any shortest step instead, and
+  // beside its post head for the next. A closed door that `pre(k)` says something else may
+  // have opened by then it may also step straight through. What it may do from a tile never
+  // depends on the tick,
+  // so a wait (for something in its way to move) only brings it to the same tiles later: each
+  // state (tile, post, doors opened) is kept at the first tick it may be reached, expanded in
+  // order of tick. With `loose` and `pre` always true and `fixed` empty, that is every way it
+  // could walk its round, whatever stood in its way or opened a door before it.
+  function walks(state, b, horizon, fixed, loose, pre) {
+    const m0 = state.dept, w = m0.w, P = posts(b), c = costsOf(state, b), out = [], from = new Int32Array(m0.w * m0.h).fill(-1), doors = new Map();
+    const fields = new Map(), field = k => { if (!fields.has(k)) fields.set(k, AI.field(state, b, P[k], 'onto')); return fields.get(k); };
+    const best = new Map(), queue = [];
+    let head = 0;
+    const reach = (k, t) => { if (from[k] < 0 || t < from[k]) from[k] = t; };
+    const add = (x, y, i, open, t, moved) => {
+      if (t > horizon) return;
+      if (moved !== null) reach(y * w + x, moved);
+      const key = `${x},${y},${i},${open.join(' ')}`;
+      if (best.has(key) && best.get(key) <= t) return;
+      best.set(key, t);
+      let j = queue.length;
+      while (j > head && queue[j - 1].t > t) j--;
+      queue.splice(j, 0, { x, y, i, open, t, key });
+    };
+    reach(b.y * w + b.x, state.tick);
+    add(b.x, b.y, index(b, P), [], Math.max(b.next, state.tick), null);
+    for (; head < queue.length; head++) {
+      const { x, y, open, t, key } = queue[head];
+      if (best.get(key) < t) continue;
+      let i = queue[head].i;
+      out.push({ x, y, t, open });
+      if (!P.length) continue;
       if (P.length > 1 && x === P[i][0] && y === P[i][1]) i = (i + 1) % P.length;
-      const f = field(i), here = f[y * m.w + x];
-      if (here <= 0) {
-        // A post it cannot reach is passed over; its one post reached, it stands there.
-        if (here < 0 && P.length > 1) i = (i + 1) % P.length;
-        if (here === 0 && P.length === 1) break;
-        still++; t += cost.wait; continue;
+      const f = field(i), here = f[y * w + x], next = (i + 1) % P.length;
+      if (here < 0) { if (P.length > 1) add(x, y, next, open, t + c.wait, null); continue; }
+      if (here === 0) continue;
+      const m = open.length ? opened(m0, open) : m0, steps = [];
+      for (let d = 0; d < 8; d++) {
+        if (!Grid.canStep(m, x, y, d, 'exhibit')) continue;
+        const k = (y + Grid.DY[d]) * w + x + Grid.DX[d], v = f[k];
+        if (v >= 0 && v < here && !fixed[k]) steps.push(d);
       }
-      still = 0;
-      let d = -1;
-      for (let k = 0; k < 8 && d < 0; k++) {
-        if (!Grid.canStep(m, x, y, k, 'exhibit')) continue;
-        const v = f[(y + Grid.DY[k]) * m.w + x + Grid.DX[k]];
-        if (v >= 0 && v < here) d = k;
+      const post = P[i], pk = post[1] * w + post[0], any = steps.length > 0 && loose((y + Grid.DY[steps[0]]) * w + x + Grid.DX[steps[0]]);
+      if ((!steps.length || any) && P.length > 1 && Grid.chebyshev(x, y, post[0], post[1]) === 1 && (fixed[pk] || loose(pk))) add(x, y, next, open, t + c.wait, null);
+      for (const d of any ? steps : steps.slice(0, 1)) {
+        const nx = x + Grid.DX[d], ny = y + Grid.DY[d], k = ny * w + nx;
+        if (Grid.ch(m, nx, ny) === '+') {
+          if (!doors.has(k) || t < doors.get(k)) doors.set(k, t);
+          add(x, y, i, open.concat([k]).sort((p, r) => p - r), t + c.door, null);
+          if (pre(k)) add(nx, ny, i, open.concat([k]).sort((p, r) => p - r), t + c.step, t);
+        } else add(nx, ny, i, open, t + c.step, t);
       }
-      if (d < 0) break;
-      const nx = x + Grid.DX[d], ny = y + Grid.DY[d];
-      if (Grid.ch(m, nx, ny) === '+') {
-        // A new copy each time, so the tiles it looked from before keep the map they saw.
-        m = Object.assign({}, m, { tiles: m.tiles.slice() });
-        Grid.set(m, nx, ny, "'");
-        t += cost.door;
-        continue;
-      }
-      x = nx; y = ny; t += cost.step;
     }
+    return { out, from, doors };
+  }
+  // The map with the doors at these indices open, a copy.
+  function opened(m, open) {
+    const c = Object.assign({}, m, { tiles: m.tiles.slice() });
+    for (const k of open) Grid.set(c, k % m.w, Int.idiv(k, m.w), "'");
+    return c;
+  }
+  // Every tile b could stand on at its actions up to `horizon`, whatever it does: within the
+  // steps it has time for of where it stands now, at its quickest (no status slowing it), as
+  // [{x, y, t: null, open: every ordinary door}].
+  function anywhere(state, b, horizon) {
+    const m0 = state.dept, c = costsOf(state, Object.assign({}, b, { statuses: [] }));
+    const n = Int.idiv(horizon - Math.max(b.next, state.tick), Math.max(1, Math.min(c.step, c.door, c.wait)));
+    const dist = n < 0 ? null : Grid.distances(m0, [[b.x, b.y]], n, null, 'exhibit'), open = [], out = [];
+    for (let k = 0; k < m0.w * m0.h; k++) if (Grid.ch(m0, k % m0.w, Int.idiv(k, m0.w)) === '+') open.push(k);
+    if (dist) for (let k = 0; k < dist.length; k++) if (dist[k] >= 0) out.push({ x: k % m0.w, y: Int.idiv(k, m0.w), t: null, open });
     return out;
   }
+  // Does the soft noise of a door opened at index k reach an exhibit other than its opener?
+  function heard(state, k, by) {
+    const m = state.dept, d = Noise.reach(m, k % m.w, Int.idiv(k, m.w), N.NOISE_SOFT);
+    for (let i = 1; i < state.actors.length; i++) {
+      const o = state.actors[i];
+      if (o === by || o.gone || Archetypes.pipless(state, o)) continue;
+      for (const [x, y] of Actors.footprint(o)) { const r = Grid.reachDist(d, m, x, y); if (r >= 0 && r <= N.NOISE_SOFT) return true; }
+    }
+    return false;
+  }
+  // Where a may stand at its actions over the next `turns` turns, before it finds you (you
+  // stand still, unseen): walking its round, with the sleepers (and any exhibit in an intact
+  // case, which only waits) where they lie, and, where another patrol walking its round may
+  // stand in its way by then, any other shortest step. Where that cannot be told (an exhibit
+  // awake but on no round; a door a patrol may open within the earshot of another exhibit,
+  // whose noise would send it to look or stir it; a itself searching or sent to look at
+  // something), anywhere it has the time to walk to.
+  function stands(state, a, turns) {
+    const m0 = state.dept, horizon = state.tick + turns * N.TICKS_PER_TURN;
+    if (Cases.encased(state, a)) return [{ x: a.x, y: a.y, t: state.tick, open: [] }];
+    if (!onRound(a)) return anywhere(state, a, horizon);
+    const fixed = new Uint8Array(m0.w * m0.h), movers = [];
+    for (let i = 1; i < state.actors.length; i++) {
+      const o = state.actors[i];
+      if (o === a || o.gone) continue;
+      if (o.mode === 'dormant' || Cases.encased(state, o)) { for (const [x, y] of Actors.footprint(o)) if (Grid.inside(m0, x, y)) fixed[y * m0.w + x] = 1; }
+      else if (onRound(o)) movers.push(o);
+      else return anywhere(state, a, horizon);
+    }
+    const none = new Uint8Array(m0.w * m0.h), yes = () => true, theirs = movers.map(o => ({ o, w: walks(state, o, horizon, none, yes, yes) }));
+    const own = walks(state, a, horizon, fixed, k => theirs.some(({ w }) => w.from[k] >= 0), k => theirs.some(({ w }) => w.doors.has(k)));
+    for (const { o, w } of theirs.concat([{ o: a, w: own }])) for (const k of w.doors.keys()) if (heard(state, k, o)) return anywhere(state, a, horizon);
+    // The doors another patrol may open by then let sight through too.
+    const also = [];
+    for (const { w } of theirs) for (const k of w.doors.keys()) if (!also.includes(k)) also.push(k);
+    return also.length ? own.out.map(p => Object.assign({}, p, { open: p.open.concat(also.filter(k => !p.open.includes(k))).sort((u, v) => u - v) })) : own.out;
+  }
+  // Its wake region (plan A8): every tile you could stand on (walkable, not a closed door, not
+  // its own tile now) within SIGHT_EXHIBIT of a tile it may stand on at one of its actions
+  // over the next `turns` turns (stands), in line of sight from it then (through the doors
+  // opened by then; a surface, which only ever hides you, never counted). None while it hunts
+  // you: it has found you. It draws on no stream.
   function wakeRegion(state, a, turns) {
     const m0 = state && state.dept;
-    if (!m0 || a.gone || a.mode !== 'awake' || (a.target && !same(a.target, nextPost(a))) || !Number.isInteger(turns) || turns < 0) return [];
-    const s = a.size || 1, r = N.SIGHT_EXHIBIT, on = new Uint8Array(m0.w * m0.h), out = [];
+    if (!m0 || a.gone || a.mode === 'hunting' || a.mode === 'dormant' || !Number.isInteger(turns) || turns < 0) return [];
+    const s = a.size || 1, r = N.SIGHT_EXHIBIT, on = new Uint8Array(m0.w * m0.h), out = [], maps = new Map(), done = new Set();
+    const bare = Object.assign({}, m0, { surfaces: [] });
+    const mapOf = open => { const key = open.join(' '); if (!maps.has(key)) maps.set(key, open.length ? opened(bare, open) : bare); return maps.get(key); };
     const mine = (x, y) => x >= a.x && y >= a.y && x < a.x + s && y < a.y + s;
-    const from = Cases.encased(state, a) ? [{ x: a.x, y: a.y, m: m0 }] : walk(state, a, turns);
-    for (const p of from) for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
-      const fx = p.x + dx, fy = p.y + dy;
-      for (let y = Math.max(0, fy - r); y <= Math.min(m0.h - 1, fy + r); y++) for (let x = Math.max(0, fx - r); x <= Math.min(m0.w - 1, fx + r); x++) {
-        const k = y * m0.w + x;
-        if (on[k] || !Grid.disc(x - fx, y - fy, r) || mine(x, y) || !Grid.walkable(m0, x, y) || Grid.closedDoor(m0, x, y)) continue;
-        if (Grid.los(p.m, fx, fy, x, y)) on[k] = 1;
+    for (const p of stands(state, a, turns)) {
+      const key = `${p.x},${p.y},${p.open.join(' ')}`;
+      if (done.has(key)) continue;
+      done.add(key);
+      const m = mapOf(p.open);
+      for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
+        const fx = p.x + dx, fy = p.y + dy;
+        for (let y = Math.max(0, fy - r); y <= Math.min(m0.h - 1, fy + r); y++) for (let x = Math.max(0, fx - r); x <= Math.min(m0.w - 1, fx + r); x++) {
+          const k = y * m0.w + x;
+          if (on[k] || !Grid.disc(x - fx, y - fy, r) || mine(x, y) || !Grid.walkable(m0, x, y) || Grid.closedDoor(m0, x, y)) continue;
+          if (Grid.los(m, fx, fy, x, y)) on[k] = 1;
+        }
       }
     }
     for (let k = 0; k < on.length; k++) if (on[k]) out.push([k % m0.w, Int.idiv(k, m0.w)]);

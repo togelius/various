@@ -194,8 +194,10 @@ module.exports = ({ test, assert, loadCore }) => {
   // Every tile you could stand on (floor, not the Wader's own).
   const standable = s => { const out = []; for (let y = 0; y < s.dept.h; y++) for (let x = 0; x < s.dept.w; x++) if (Grid.walkable(s.dept, x, y) && !Grid.closedDoor(s.dept, x, y) && !(x === 12 && y === 2) && !(x === 25)) out.push([x, y]); return out; };
 
+  // At 13 turns it has just opened the door, from (9, 3), and looks through it at its last
+  // action; at 20 it has walked through.
   test('its wake region is its round\'s sight: the tiles it would see from where it walks over the next turns, through the door once it opens it', () => {
-    for (const depth of [1, 4, 7]) for (const turns of [0, 5, N.SAFE_ZONE_TURNS]) {
+    for (const depth of [1, 4, 7]) for (const turns of [0, 5, 13, N.SAFE_ZONE_TURNS]) {
       const s = wrRoom(depth), a = wader(s), before = State.hash(s);
       const region = Archetypes.wakeRegion(s, a, turns);
       assert.equal(State.hash(s), before, 'reading the region changes nothing');
@@ -233,14 +235,131 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('a Wader hunting, searching or sent to look at a noise has no wake region; nor one that is gone', () => {
-    const s = wrRoom(3), a = wader(s);
-    assert.ok(Archetypes.wakeRegion(s, a, 10).length > 0);
-    a.target = [3, 3];
-    assert.equal(json(Archetypes.wakeRegion(s, a, 10)), '[]');
+  test('a Wader hunting you has no wake region, nor one that is gone; searching or sent to look, its region is the sight from anywhere it has the time to walk to', () => {
+    const s = wrRoom(3), a = wader(s), round = Archetypes.wakeRegion(s, a, 10), has = (R, t) => R.some(u => u[0] === t[0] && u[1] === t[1]);
+    assert.ok(round.length > 0);
     a.target = WR_POSTS[0].slice();
-    assert.ok(Archetypes.wakeRegion(s, a, 10).length > 0, 'its next post is its round');
-    for (const mode of ['hunting', 'searching']) { const b = Object.assign({}, a, { mode, target: null }); assert.equal(json(Archetypes.wakeRegion(s, b, 10)), '[]', mode); }
+    assert.equal(json(Archetypes.wakeRegion(s, a, 10)), json(round), 'its next post is its round');
+    // Off its round it may come back to it, or walk anywhere else first: every tile it could
+    // walk to in the time is a tile it may look from, so its region holds its round's and more.
+    for (const b of [Object.assign({}, a, { target: [3, 3] }), Object.assign({}, a, { mode: 'searching', target: null, lastKnown: [3, 3] })]) {
+      const R = Archetypes.wakeRegion(s, b, 10);
+      assert.ok(round.every(t => has(R, t)) && R.length > round.length, `${b.mode} ${json(b.target)}: ${R.length} tiles, its round's ${round.length}`);
+      // In 10 turns it could be through the door (4 steps away) and in the room beyond, which
+      // its round does not reach by then; the pocket you stand in it never sees.
+      assert.ok(has(R, [1, 1]) && !has(round, [1, 1]) && !R.some(t => t[0] === 25), `${b.mode}: ${json(R.filter(t => t[0] < 2 || t[0] > 23))}`);
+    }
+    assert.equal(json(Archetypes.wakeRegion(s, Object.assign({}, a, { mode: 'hunting', target: null }), 10)), '[]', 'hunting');
     assert.equal(json(Archetypes.wakeRegion(s, Object.assign({}, a, { gone: 1, target: null }), 10)), '[]');
+  });
+
+  // Where its walk cannot be told from the state, its region is the sight from anywhere it has
+  // the time to walk to, as while it searches: with another exhibit awake on no round (it may
+  // stand anywhere in its way), or a door on its round within the earshot of another exhibit
+  // (whose noise would stir it, and might wake it). A sleeper out of earshot changes nothing.
+  test('where its walk cannot be told (another exhibit awake on no round, a door on its round within another\'s earshot), its region is the sight from anywhere it has the time to walk to', () => {
+    const T = N.SAFE_ZONE_TURNS, with_ = more => { const s = wrRoom(3); for (const e of more) s.actors.push(Object.assign(JSON.parse(json(s.actors[1])), e)); return s; };
+    const plain = wrRoom(3), a = wader(plain), round = json(Archetypes.wakeRegion(plain, a, T));
+    const anywhere = json(Archetypes.wakeRegion(plain, Object.assign({}, a, { mode: 'searching', target: null, lastKnown: [12, 2] }), T));
+    assert.notEqual(round, anywhere);
+    const dummy = (at, mode) => ({ uid: 'S9.3.room.9', sp: 'dummy', arch: 'plodder', trigger: null, mode, x: at[0], y: at[1], home: at.slice(), route: null, target: null, telegraph: null, pips: 0 });
+    // A sleeper by the door it opens (8, 3), within its earshot; and one out of it.
+    assert.equal(json(Archetypes.wakeRegion(with_([dummy([7, 3], 'dormant')]), a, T)), anywhere, 'a sleeper within earshot of its door');
+    assert.equal(json(Archetypes.wakeRegion(with_([dummy([14, 1], 'dormant')]), a, T)), round, 'a sleeper out of earshot');
+    // An exhibit awake on no round, anywhere.
+    assert.equal(json(Archetypes.wakeRegion(with_([dummy([22, 5], 'awake')]), a, T)), anywhere, 'an exhibit awake');
+  });
+
+  // ---- Whatever stands in its way, its wake region holds all it sees ----
+  // What a Wader actually sees over `turns` turns, played joined up with you never seen (sight
+  // of you switched off, in a core of its own): every tile you could stand on (as at the start,
+  // not its own tile then) within SIGHT_EXHIBIT of where it stands at each of its actions, in
+  // line of sight on the map as it is then. Also the tiles it stood on.
+  let unseen = null;
+  function seenOver(s, uid, turns) {
+    if (!unseen) { unseen = loadCore(); unseen.AI.sees = () => false; }
+    const X = unseen, play = X.State.clone(s), from = [], act = X.AI.act, until = s.tick + turns * N.TICKS_PER_TURN;
+    X.AI.act = (st, b, ev) => { if (b.uid === uid && st.tick <= until) from.push({ x: b.x, y: b.y, tiles: st.dept.tiles.slice() }); return act(st, b, ev); };
+    try { for (let t = 0; t <= turns && !play.over; t++) X.Step.step(play, { a: 'wait' }); } finally { X.AI.act = act; }
+    const a = s.actors.find(b => b.uid === uid), m = s.dept, out = new Set();
+    for (const p of from) for (let y = Math.max(0, p.y - N.SIGHT_EXHIBIT); y <= Math.min(m.h - 1, p.y + N.SIGHT_EXHIBIT); y++) for (let x = Math.max(0, p.x - N.SIGHT_EXHIBIT); x <= Math.min(m.w - 1, p.x + N.SIGHT_EXHIBIT); x++) {
+      if (!Grid.disc(x - p.x, y - p.y, N.SIGHT_EXHIBIT) || (x === a.x && y === a.y) || !Grid.walkable(m, x, y) || Grid.closedDoor(m, x, y)) continue;
+      if (Grid.los({ w: m.w, h: m.h, tiles: p.tiles, surfaces: [] }, p.x, p.y, x, y)) out.add(x + ',' + y);
+    }
+    return { seen: out, stood: from.map(p => p.x + ',' + p.y) };
+  }
+  const regionOf = (s, a, turns) => new Set(Archetypes.wakeRegion(s, a, turns).map(t => t.join(',')));
+  const outside = (seen, R) => [...seen].filter(k => !R.has(k));
+
+  // A long room, its round along the top row, and a passage going down from (6, 3) to (6, 10):
+  // only from (6, 2) is its far end, (6, 10), within its sight (8 tiles).
+  const PASS = ['######################', '#....................#', '#....................#'].concat(Array.from({ length: 8 }, () => '######.###############'), ['######################']);
+  const passRoom = (depth, exhibits, rounds) => {
+    const s = Setup.room(depth, { acc: 'S9', depth, map: PASS, you: [20, 2], exhibits }, { rulesOff: [] });
+    s.actors.filter(b => b.arch === 'patrol_guard').forEach((b, k) => { b.route = JSON.parse(json(rounds[k])); Wake.created(s, b, 'patrol', {}, null); });
+    C.Modules.init(s, C.Packs.get('S9'));
+    return s;
+  };
+  test('a sleeper in its way: it steps round it, and its wake region holds what it sees from there, and nothing more', () => {
+    for (let depth = 1; depth <= 7; depth++) {
+      const s = passRoom(depth, [{ sp: 'S9.2', at: [1, 1], stats: Roles.stats('warden', depth) }, { sp: 'dummy', at: [6, 1], mode: 'dormant', stats: tough }], [{ posts: [[1, 1], [19, 1]], i: 1 }]);
+      const a = wader(s), R = regionOf(s, a, N.SAFE_ZONE_TURNS), { seen, stood } = seenOver(s, a.uid, N.SAFE_ZONE_TURNS);
+      assert.ok(stood.includes('6,2') && !stood.includes('6,1'), `depth ${depth}: it stood on ${stood.join(' ')}`);
+      assert.ok(seen.has('6,10') && R.has('6,10'), `depth ${depth}: (6, 10) seen from (6, 2)`);
+      assert.deepEqual(outside(seen, R), [], `depth ${depth}: tiles it saw outside its region`);
+      assert.deepEqual(outside(R, seen), [], `depth ${depth}: with only sleepers in its way, its region is exactly what it sees`);
+    }
+  });
+  test('its post taken by a sleeper: it turns back from beside it, and its wake region holds what it sees on the way back', () => {
+    for (let depth = 1; depth <= 7; depth++) {
+      // Back from (11, 1) along the second row, it passes (6, 2), from which (6, 10) is in sight.
+      const s = passRoom(depth, [{ sp: 'S9.2', at: [3, 1], stats: Roles.stats('warden', depth) }, { sp: 'dummy', at: [12, 1], mode: 'dormant', stats: tough }], [{ posts: [[3, 1], [12, 1]], i: 1 }]);
+      const a = wader(s), R = regionOf(s, a, N.SAFE_ZONE_TURNS), { seen, stood } = seenOver(s, a.uid, N.SAFE_ZONE_TURNS);
+      assert.ok(stood.includes('11,1') && !stood.includes('12,1') && stood.includes('6,2'), `depth ${depth}: it stood on ${stood.join(' ')}`);
+      assert.ok(R.has('6,10'), `depth ${depth}: (6, 10), seen on the way back`);
+      assert.deepEqual([outside(seen, R), outside(R, seen)], [[], []], `depth ${depth}`);
+    }
+  });
+  test('another patrol in its way: its wake region holds what it sees, stepping round the other on its post', () => {
+    for (let depth = 1; depth <= 7; depth++) {
+      // The other Wader reaches its post (6, 1) as the first comes to step onto it.
+      const s = passRoom(depth, [{ sp: 'S9.2', at: [1, 1], stats: Roles.stats('warden', depth) }, { sp: 'S9.2', at: [6, 5], stats: Roles.stats('warden', depth) }],
+        [{ posts: [[1, 1], [19, 1]], i: 1 }, { posts: [[6, 1], [6, 9]], i: 0 }]);
+      for (const a of s.actors.filter(b => b.arch === 'patrol_guard')) {
+        const R = regionOf(s, a, N.SAFE_ZONE_TURNS), { seen, stood } = seenOver(s, a.uid, N.SAFE_ZONE_TURNS);
+        if (a === s.actors[1]) assert.ok(stood.includes('6,2') && seen.has('6,10') && R.has('6,10'), `depth ${depth}: it stepped round the other (${stood.join(' ')})`);
+        assert.deepEqual(outside(seen, R), [], `depth ${depth}, ${a.uid}: tiles it saw outside its region`);
+      }
+    }
+  });
+
+  // S.9 with a gallery list (fixture galleries, as D-PACKS will give it; the Grazers left out
+  // until their archetype is built), Waders placed by population among sleepers.
+  const GALLERIES = [
+    { key: 'intro', name: 'The Lamp Corridor', contents: [] },
+    { key: 's1', where: 'central', name: 'The Mount Court', contents: [{ sp: 'S9.2' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }] },
+    { key: 's2', where: 'band', name: 'The Brooders\' Bay', contents: [{ sp: 'S9.4', guards: 'case' }, { sp: 'S9.5', near: 'case' }, { sp: 'S9.2' }] },
+    { key: 'last', name: 'The Round-Book Room', contents: [{ sp: 'S9.6' }] },
+    { key: 'centre', name: 'The Day Curator\'s Case', contents: [] },
+    { key: 'coda', name: 'The Night Staff\'s Tea Room', contents: [] },
+  ];
+  test('in S.9 departments, each Wader\'s wake region over SAFE_ZONE_TURNS holds every tile it sees, played joined up with you unseen; alone, exactly those', () => {
+    const X = loadCore();
+    X.Packs.get('S9').galleries = JSON.parse(json(GALLERIES));
+    let waders = 0;
+    for (let seed = 1; seed <= 16; seed++) {
+      const s = X.Dept.create(seed, 'S9', 1 + ((seed - 1) % 7)), ws = s.actors.filter(b => b.arch === 'patrol_guard' && !b.gone);
+      for (const a of ws) {
+        waders++;
+        const R = regionOf(s, a, N.SAFE_ZONE_TURNS), { seen } = seenOver(s, a.uid, N.SAFE_ZONE_TURNS);
+        assert.deepEqual(outside(seen, R), [], `seed ${seed}, ${a.uid}: tiles it saw outside its region`);
+        // With the other patrols gone, nothing but sleepers stands in its way: exactly what it sees.
+        const alone = State.clone(s);
+        for (const b of alone.actors) if (b.arch === 'patrol_guard' && b.uid !== a.uid) b.gone = 1;
+        const Ra = regionOf(alone, alone.actors.find(b => b.uid === a.uid), N.SAFE_ZONE_TURNS), sa = seenOver(alone, a.uid, N.SAFE_ZONE_TURNS).seen;
+        assert.deepEqual([outside(sa, Ra), outside(Ra, sa)], [[], []], `seed ${seed}, ${a.uid} alone`);
+      }
+    }
+    assert.ok(waders >= 24, `${waders} Waders`);
   });
 };

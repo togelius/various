@@ -15,9 +15,11 @@
 //     to look where you stood": alarm.call again, the crash at the caller's tile comes first,
 //     and every exhibit then still asleep that can hear, but a Centrepiece's piece, wakes awake
 //     by the alarm, sent to your tile, and no other;
-//   "for 30 turns no pips fade, none awake or searching goes back and no other alarm is
-//     raised": alarm.lasting, while one runs no pip decays and no exhibit goes back for having
-//     been idle or done searching (and alarm.shown: none is shown or raised);
+//   "for 30 turns no pips fade, none left undisturbed or done searching goes back and no
+//     other alarm is raised": alarm.lasting, while one runs no pip decays and no exhibit goes
+//     back for having been left undisturbed (idle) or done searching (a tethered warden you
+//     left goes back by its own rule, which the line leaves open), and alarm.shown: none is
+//     shown or raised;
 //   "and the bell, or after it the night watch, comes up to 30 turns sooner": alarm.clock, each
 //     alarm brings the clock's next stage nearer by what its stage event says, up to
 //     ALARM_CLOCK_ADVANCE and never past the next turn, and moves nothing in the night watch;
