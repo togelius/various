@@ -284,6 +284,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
   const Int = (k, m) => [k % m.w, (k - (k % m.w)) / m.w];
 
+  test('a closed door on the route takes a turn to open: the route stands a turn before it, and played, it reaches the exit', () => {
+    const map = ['###########', 'E....+....X', '###########'];
+    const st = dept({ map, you: [0, 1], exhibits: [] }, [{ id: 1, role: 'section', cells: row(1, 1, 4) }, { id: 2, role: 'section', cells: row(1, 6, 9) }], [0, 1], [[10, 1]]);
+    const b = LRunner.measure(st).best.b, m = st.dept;
+    same(b.route.map(k => k % m.w), [0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10]);
+    assert.equal(LRunner.model(st).short, 11);
+    const g = State.clone(st);
+    assert.equal(play(g, b.route), null);
+    same([g.actors[0].x, g.actors[0].y, g.tick], [10, 1, 1100]);
+  });
+
   // ---- Real departments ----
 
   const ACCS = ['S9', 'A4', 'M11'];
@@ -535,8 +546,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const pats = st.actors.filter(a => a.arch === 'patrol_guard'), court = m.rooms.find(r => r.id === m.roomOf[pats[0].y][pats[0].x]);
       assert.equal(pats.length, 2, where);
       assert.equal(Populate.galleryOf(st, court.id).key, 's1', `${where}: in the Mount Court's room`);
-      // Each starts on its first post; their posts apart.
-      for (const a of pats) same([a.x, a.y], a.route.posts[0], `${where}: ${a.uid} on its first post`);
+      // Each starts on its first post; their posts apart, and in the court's half farther from
+      // the Intro (its centre's column or row, as the court is wide or tall).
+      const intro = m.rooms.find(r => r.role === 'intro'), wide = court.x1 - court.x0 >= court.y1 - court.y0;
+      const mid = wide ? (court.x0 + court.x1) / 2 : (court.y0 + court.y1) / 2, from = wide ? (intro.x0 + intro.x1) / 2 : (intro.y0 + intro.y1) / 2;
+      for (const a of pats) {
+        same([a.x, a.y], a.route.posts[0], `${where}: ${a.uid} on its first post`);
+        for (const p of a.route.posts) assert.ok(from < mid ? (wide ? p[0] : p[1]) > mid : (wide ? p[0] : p[1]) < mid, `${where}: ${a.uid}'s post ${p} in the far half`);
+      }
       assert.ok(!pats[0].route.posts.some(p => pats[1].route.posts.some(q => p[0] === q[0] && p[1] === q[1])), `${where}: rounds of their own`);
       // Walking its round, none stalls, and none sees the safe zone (every door open) in its
       // first SAFE_ZONE_TURNS turns.
