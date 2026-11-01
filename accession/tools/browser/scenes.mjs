@@ -101,6 +101,9 @@ function stagers() {
     },
     // A shut, numbered case that is no mimic, with a free tile beside it where you are put;
     // its lock set to your grade (open: true) or above it, and breakable by your weapon.
+    // (Each stager here asks the rules first and redraws only for a place they allow, since
+    // only the point on screen needs the board drawn; a redraw changes no state, so the
+    // place found is the same.)
     shutCase(open) {
       const s = S(); T.calm();
       const cases = s.dept.fixtures.filter(f => f.k === 'case' && f.st === 'shut' && !f.mimic && f.num).sort((p, q) => open ? 0 : p.glass - q.glass);
@@ -110,8 +113,8 @@ function stagers() {
           if (!free(x, y)) continue;
           T.put(x, y);
           if (open) f.lock = Math.min(f.lock, s.run.grade); else f.lock = Math.max(f.lock, s.run.grade + 1);
-          window.ACCESSION.redraw();
           if (open ? !Labels.allowed(s, { a: 'open', x: f.x, y: f.y }) : !Labels.allowed(s, { a: 'bash', x: f.x, y: f.y })) continue;
+          window.ACCESSION.redraw();
           if (!spot({ x: f.x, y: f.y })) continue;
           // One to open holds something to take (a Consolidant is put in it if it is empty).
           if (open && f.holds === null) { Consumables.make(s, 'consolidant', { at: 'case', x: f.x, y: f.y }); window.ACCESSION.redraw(); }
@@ -143,7 +146,9 @@ function stagers() {
       return { why: 'no place' };
     },
     // A sleeping exhibit two tiles from you in a straight line, which the Window Pole uid can
-    // both push and pull: {uid, x, y, push, pull} or null (as check-bag stages it).
+    // both push and pull: {uid, x, y, push, pull} or null (as check-bag stages it). M.11's
+    // Intro station, first among its exhibits, can be neither: asked before any redraw, its
+    // ~1,300 places cost milliseconds, not a redraw each.
     poleSpot(uid) {
       const s = S(), m = s.dept, me = s.actors[0]; T.calm();
       const ex = s.actors.filter(a => a.uid !== 'you' && !a.gone && (a.size || 1) === 1 && Archetypes.present(s, a) === null && !Cases.encased(s, a));
@@ -151,9 +156,12 @@ function stagers() {
         const at = k => [x + Grid.DX[d] * k, y + Grid.DY[d] * k], [x1, y1] = at(1), [x2, y2] = at(2), [x3, y3] = at(3);
         if (!free(x, y) || !free(x1, y1) || !(free(x2, y2) || (a.x === x2 && a.y === y2)) || !free(x3, y3)) continue;
         const was = { me: [me.x, me.y], a: [a.x, a.y] };
-        T.put(x, y); a.x = x2; a.y = y2; window.ACCESSION.redraw();
+        T.put(x, y); a.x = x2; a.y = y2;
         const use = h => ({ a: 'use', uid, x: x2, y: y2, how: h });
-        if (Labels.allowed(s, use('push')) && Labels.allowed(s, use('pull')) && spot({ x: x2, y: y2 })) return { uid: a.uid, x: x2, y: y2, push: [x3, y3], pull: [x1, y1] };
+        if (Labels.allowed(s, use('push')) && Labels.allowed(s, use('pull'))) {
+          window.ACCESSION.redraw();
+          if (spot({ x: x2, y: y2 })) return { uid: a.uid, x: x2, y: y2, push: [x3, y3], pull: [x1, y1] };
+        }
         T.put(was.me[0], was.me[1]); a.x = was.a[0]; a.y = was.a[1];
       }
       window.ACCESSION.redraw();
@@ -169,8 +177,10 @@ function stagers() {
         for (const d of [0, 2, 4, 6]) {
           const x1 = f.x + Grid.DX[d], y1 = f.y + Grid.DY[d], x2 = f.x + 2 * Grid.DX[d], y2 = f.y + 2 * Grid.DY[d];
           if (!free(x1, y1) || !free(x2, y2)) continue;
-          T.put(x1, y1); f.lock = Math.min(f.lock, s.run.grade); window.ACCESSION.redraw();
-          if (!Labels.allowed(s, { a: 'open', x: f.x, y: f.y }) || !spot({ x: f.x, y: f.y })) continue;
+          T.put(x1, y1); f.lock = Math.min(f.lock, s.run.grade);
+          if (!Labels.allowed(s, { a: 'open', x: f.x, y: f.y })) continue;
+          window.ACCESSION.redraw();
+          if (!spot({ x: f.x, y: f.y })) continue;
           if (f.holds === null) { Consumables.make(s, 'consolidant', { at: 'case', x: f.x, y: f.y }); window.ACCESSION.redraw(); }
           return { x: f.x, y: f.y, id: `case:${f.x},${f.y}`, back: d };
         }

@@ -480,8 +480,13 @@ async function run(W, H) {
         const was = { me: [me.x, me.y], a: [a.x, a.y] };
         T.put(x, y); a.x = x2; a.y = y2;
         const use = how => ({ a: 'use', uid, x: x2, y: y2, how });
-        A.redraw();
-        if (Labels.allowed(s, use('push')) && Labels.allowed(s, use('pull')) && T.spot(x2, y2)) return { uid: a.uid, x: x2, y: y2, push: [x3, y3], pull: [x1, y1] };
+        // The rules are asked first and the board redrawn only for a place they allow (only
+        // the point on screen needs it, and a redraw changes no state): M.11's Intro station,
+        // first among its exhibits, can be neither pushed nor pulled.
+        if (Labels.allowed(s, use('push')) && Labels.allowed(s, use('pull'))) {
+          A.redraw();
+          if (T.spot(x2, y2)) return { uid: a.uid, x: x2, y: y2, push: [x3, y3], pull: [x1, y1] };
+        }
         T.put(was.me[0], was.me[1]); a.x = was.a[0]; a.y = was.a[1];
       }
       A.redraw();
