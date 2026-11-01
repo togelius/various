@@ -307,7 +307,7 @@ function monkeyRun(C, def, res, invs, coreHash) {
   const replay = () => ({ coreHash, start: startOf(seed), options, actions: acts.slice() });
   const next = () => { turns += state.turn; res.visits++; seed = def.seed + res.visits - 1; state = C.Replay.begin(startOf(seed), options); acts = []; chk.reset(); };
   while (soak ? turns + state.turn < def.turns : res.steps < def.actions) {
-    const pre = C.State.clone(state), action = C.Monkey.choose(state, r, weights, res.legal);
+    const pre = Inv.snapshot(state), action = C.Monkey.choose(state, r, weights, res.legal);
     acts.push(action); res.steps++; bump(res.kinds, action.a);
     let ev;
     try { ev = C.Step.step(state, action); } catch (e) { keep(res, { id: 'threw', text: `step ${acts.length} of the visit on seed ${seed}, ${JSON.stringify(action)}, threw ${msg(e)} (${res.name})`, step: acts.length }, replay()); next(); continue; }

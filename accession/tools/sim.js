@@ -214,16 +214,17 @@ function run(o) {
     const obs = C.Obs.make(state, last, reads, rng, { drawn, memory }), turn = state.turn, n = steps + 1;
     // The legal actions as they were shown, kept apart from what the policy is handed.
     const legal = obs.legal.map(l => C.State.canon(l));
-    const before = checker ? C.State.canon(state) : null;
+    // With a check on: the state before the policy decides (the checks' pre), which deciding
+    // must leave as it was.
+    const pre = checker ? Inv.snapshot(state) : null;
     let d;
     try { d = policy.decide(obs); }
     catch (e) { fail(`${name} failed to decide at turn ${turn}: ${(e && e.message) || e}`); break; }
-    if (checker && C.State.canon(state) !== before) { fail(`${name} changed the game state while deciding at turn ${turn}`, { id: 'policy', step: n }); break; }
+    if (checker && !Inv.same(pre, state)) { fail(`${name} changed the game state while deciding at turn ${turn}`, { id: 'policy', step: n }); break; }
     if (!d || !d.action || typeof d.action !== 'object' || typeof d.action.a !== 'string') { fail(`${name} decided no action at turn ${turn}`); break; }
     if (!clean(d.reason)) { fail(`${name} gave no reason in words for ${C.Obs.say(d.action)} at turn ${turn}`); break; }
     const action = JSON.parse(JSON.stringify(d.action));
     if (!legal.includes(C.State.canon(action))) violations.push({ id: 'policy', step: n, text: `${name} chose ${C.Obs.say(action)} at turn ${turn}, which is not legal then` });
-    const pre = checker ? JSON.parse(before) : null;
     const tick = state.tick, ev = C.Step.step(state, action);
     actions.push(action); reasons.push(`turn ${turn}: ${d.reason}`);
     for (const e of ev) events.push(e);

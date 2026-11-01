@@ -30,7 +30,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         console.log(`golden ${name}: PENDING (${g.pending}): hash ${run.hash}, pin ${g.hash === null ? 'none' : g.hash}${run.hash === g.hash ? ', unchanged' : ''}`);
         return;
       }
-      const v = Replay.verify(name, g);
+      const v = Replay.verify(name, g, { played: run });
       if (!v.ok) assert.fail('golden hash changed: if a rule changed on purpose, run node tools/golden.js and log why.\n' + v.text);
     });
   }

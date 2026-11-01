@@ -138,6 +138,112 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(H.run(C, plodderStrikes({ clone: true }), Packs.species('A4', 'A4.1'), 3).failure, null);
   });
 
+  test('the checks\' pre, Inv.snapshot, is State.clone\'s copy made directly, key order and all, and refuses what State.canon refuses in its words; Inv.same says what comparing canonical JSON says', () => {
+    // Real states: the test room and a department of each pack at depths 1 and 6, each new and
+    // after 60 of the monkey's actions (streams, causes, statuses, memory and log filled in).
+    const states = [];
+    for (const make of [s => TestRoom.create(s), ...['S9', 'A4', 'M11'].flatMap(acc => [1, 6].map(d => s => C.Dept.create(s, acc, d)))]) {
+      const s = make(4), r = Monkey.stream(4);
+      states.push(C.State.clone(s));
+      for (let i = 0; i < 60 && !s.over; i++) C.Step.step(s, Monkey.choose(s, r));
+      states.push(s);
+    }
+    for (const s of states) {
+      const before = C.State.canon(s), copy = Inv.snapshot(s);
+      assert.equal(JSON.stringify(copy), JSON.stringify(C.State.clone(s)), 'the same values, each object\'s keys in the same order');
+      assert.equal(Inv.same(copy, s), true);
+      copy.actors[0].hp++;
+      assert.equal(C.State.canon(s), before, 'a copy: changing it leaves the state as it was');
+      assert.equal(Inv.same(copy, s), false);
+      // Keys in another order are the same state; a key more, or a value changed deep down, is not.
+      const reordered = JSON.parse(JSON.stringify(s, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v)));
+      assert.equal(Inv.same(Inv.snapshot(s), reordered), C.State.canon(reordered) === before);
+      assert.equal(Inv.same(Inv.snapshot(s), Object.assign({}, s, { extra: 1 })), false);
+      const fewer = C.State.clone(s); delete fewer.actors[0].x;
+      assert.equal(Inv.same(Inv.snapshot(s), fewer), false, 'a key less');
+      const deep = C.State.clone(s); deep.dept.tiles[1] = deep.dept.tiles[1].replace(/./, c => (c === '#' ? '.' : '#'));
+      assert.equal(Inv.same(Inv.snapshot(s), deep), false);
+    }
+    // Keys that hold the separator a joined key list would use, and keys that are numbers.
+    for (const odd of [{ 'a\u0000b': 1, c: 2 }, { a: 1, 'b\u0000c': 2 }, { b: 1, a: 2, 10: 3, 9: 4, '': 5 }]) assert.equal(json(Inv.snapshot(odd)), json(C.State.clone(odd)));
+    // What is not plain data: thrown as State.canon throws it, for the copy and for the comparison.
+    const hole = [1]; hole[2] = 3;
+    for (const bad of [1.5, -0, NaN, 2 ** 53, undefined, null && 0, hole, new Map(), () => 1, Symbol('s'), 10n, new Uint8Array(2)]) {
+      if (bad === null || bad === 0) continue;
+      const state = { a: [{ b: bad }] };
+      let want = null;
+      try { C.State.clone(state); } catch (e) { want = e.message; }
+      assert.ok(want, `State.clone takes ${String(bad)}`);
+      assert.throws(() => Inv.snapshot(state), e => e.message === want, `snapshot of ${String(bad)}`);
+      assert.throws(() => Inv.same({ a: [{ b: 1 }] }, state), e => e.message === want, `same, against ${String(bad)}`);
+      assert.throws(() => Inv.same({ a: [] }, state), e => e.message === want, `same, differing before ${String(bad)}`);
+    }
+  });
+
+  tmpTest('the hardened context declares each builtin the core and its tools name as a constant of its own (BUILTINS), so the core reads one at a page\'s speed, and Math is still the frozen object with the allowed functions alone', () => {
+    const vm = require('node:vm'), acorn = require(path.join(root, 'tools/vendor/acorn/acorn.js')), Context = require(path.join(root, 'tools/core-context.js'));
+    // Every name a core file or a tool run in the context reads (not a property or a key) that a
+    // fresh context's global object holds, configurably and not banned by the prelude.
+    const fresh = vm.runInContext('globalThis', vm.createContext({}));
+    const bindable = n => { const d = Object.getOwnPropertyDescriptor(fresh, n); return !!d && d.configurable; };
+    const BANNED = ['Date', 'Intl', 'eval', 'Function', 'performance', 'setTimeout', 'setInterval', 'queueMicrotask', 'parseFloat'];
+    const tools = ['tools/arena.js', 'tools/monkey.js', 'tools/replay.js', 'test/golden/golden.js'].concat(fs.readdirSync(path.join(root, 'tools/policies')).filter(f => f.endsWith('.js')).map(f => 'tools/policies/' + f));
+    const named = new Set();
+    for (const f of Context.coreFiles().concat(tools)) {
+      (function walk(node, parent, key) {
+        if (!node || typeof node.type !== 'string') return;
+        if (node.type === 'Identifier' && !(parent.type === 'MemberExpression' && key === 'property' && !parent.computed)
+          && !(parent.type === 'Property' && key === 'key' && !parent.computed) && !(parent.type === 'MethodDefinition' && key === 'key')) named.add(node.name);
+        for (const k of Object.keys(node)) {
+          const v = node[k];
+          if (Array.isArray(v)) for (const x of v) walk(x, node, k);
+          else if (v && typeof v.type === 'string') walk(v, node, k);
+        }
+      })(acorn.parse(fs.readFileSync(path.join(root, f), 'utf8'), { ecmaVersion: 2022, sourceType: 'script' }), {}, null);
+    }
+    // console: only replay.js's part for Node (when `module` exists) names it, never run here.
+    const missing = [...named].filter(n => bindable(n) && !BANNED.includes(n) && n !== 'console' && !Context.BUILTINS.includes(n)).sort();
+    assert.deepEqual(missing, [], 'builtins the core names that BIND does not declare');
+    for (const n of ['Math', 'Object', 'Array', 'JSON', 'Number']) assert.ok(named.has(n) && Context.BUILTINS.includes(n), n);
+    // In the context: the same objects, Math frozen with its eight functions, the bans in place.
+    const probe = write('probe.js', "'use strict';\nconst Probe = { math: () => Math, global: () => globalThis.Math, object: () => Object === globalThis.Object, keys: () => Object.keys(Math).sort((a, b) => (a < b ? -1 : 1)), random: () => typeof Math.random, date: () => Date.now(), parse: () => parseFloat('1.5') };\n");
+    const X = loadCore([probe]), P = X.Probe;
+    assert.equal(P.math(), P.global()); assert.ok(P.object());
+    assert.ok(Object.isFrozen(P.math()));
+    assert.equal(json(P.keys()), json(['abs', 'ceil', 'floor', 'imul', 'max', 'min', 'sign', 'trunc']));
+    assert.equal(P.random(), 'undefined');
+    assert.throws(() => P.date(), /Date is not allowed in the deterministic core/);
+    assert.throws(() => P.parse(), /parseFloat is not allowed in the deterministic core/);
+    // The speed: State.fnv1a (Math.imul in its loop) over a long text, against the same loop in
+    // Node, in CPU time, the best of five. Read through the global object, it was some 30 times
+    // slower; as a constant it is about the same.
+    const text = 'abcdefghij'.repeat(30000);
+    const nodeFnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+    assert.equal(X.State.fnv1a(text), nodeFnv(text));
+    const best = fn => { let b = Infinity; for (let k = 0; k < 5; k++) { const u = process.cpuUsage(); for (let i = 0; i < 4; i++) fn(text); const c = process.cpuUsage(u); b = Math.min(b, c.user + c.system); } return b / 1000; };
+    best(X.State.fnv1a); best(nodeFnv);
+    const inCore = best(X.State.fnv1a), inNode = best(nodeFnv);
+    assert.ok(inCore <= 5 * inNode + 2, `State.fnv1a took ${inCore.toFixed(1)} CPU-ms in the context, ${inNode.toFixed(1)} in Node`);
+  });
+
+  tmpTest('a tree\'s files are read and compiled once a process, and again as soon as one changes: a core loaded after a file is rewritten, even to the same length, has the new text', () => {
+    const tree = path.join(tmp, 'tree');
+    for (const rel of ['index.html', 'js/core', 'content', 'tools/core-context.js']) fs.cpSync(path.join(root, rel), path.join(tree, rel), { recursive: true });
+    const Tree = require(path.join(tree, 'tools/core-context.js')), numbers = path.join(tree, 'js/core/numbers.js'), src = fs.readFileSync(numbers, 'utf8');
+    const k = Tree.loadCore().N.SAFE_ZONE, other = k === 9 ? 8 : k + 1;
+    assert.equal(String(other).length, String(k).length);
+    assert.equal(Tree.loadCore().N.SAFE_ZONE, k);
+    fs.writeFileSync(numbers, src.replace(/^(\s*SAFE_ZONE: )\d+,/m, `$1${other},`));
+    assert.equal(fs.statSync(numbers).size, Buffer.byteLength(src));
+    assert.equal(Tree.loadCore().N.SAFE_ZONE, other, 'the rewritten file is read again');
+    assert.equal(Tree.loadCore(null, { numbers: { SAFE_ZONE: k } }).N.SAFE_ZONE, k);
+    assert.equal(Tree.loadCore().N.SAFE_ZONE, other, 'opts.numbers leaves the file\'s own text as it is');
+    // A file added to index.html is loaded too.
+    fs.writeFileSync(path.join(tree, 'content/zz.js'), "'use strict';\nconst Planted = { here: true };\n");
+    fs.writeFileSync(path.join(tree, 'index.html'), fs.readFileSync(path.join(tree, 'index.html'), 'utf8').replace('</body>', '<script src="content/zz.js"></script>\n</body>'));
+    assert.equal(Tree.loadCore().Planted.here, true);
+  });
+
   // A scenario for the plodder's clause, "strikes from beside you for {dmg}", as a function
   // of its parameter: every blow it lands rolls within dmg.
   const MAP = ['#########', '#.......#', '#.......#', '#.......#', '#########'];

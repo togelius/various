@@ -296,9 +296,11 @@ const Replay = (() => {
   // page check it. Returns {kind, actions, hash, checkpoints, visits, pending, ok, text,
   // diverged}: ok is null for a pending run; text says what differs, with the first
   // diverging step, its action and its events when the pin keeps per-step hashes.
+  // opts.played is the result of golden(g) already played (its hash, checkpoints and visits),
+  // which is held to the pin instead of playing g again (the golden test has just played it).
   function verify(name, g, opts) {
     opts = opts || {};
-    const r = golden(g, { clone: !!opts.clone });
+    const r = opts.played && !opts.clone ? opts.played : golden(g, { clone: !!opts.clone });
     const out = { kind: kindOf(g), actions: count(g), hash: r.hash, checkpoints: r.checkpoints, visits: r.visits === undefined ? null : r.visits,
       pending: !!g.pending, ok: null, text: '', diverged: null };
     if (g.pending) return out;

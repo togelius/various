@@ -51,7 +51,7 @@ function play(C, state, actions, opts) {
     if (!list && i >= cap) { stopped = 'cap'; break; }
     const action = list ? list[i] : actions(state, i, { events, last: steps.length ? steps[steps.length - 1].events : [] });
     if (action === null || action === undefined) break;
-    const pre = check ? C.State.clone(state) : null;
+    const pre = check ? Inv.snapshot(state) : null;
     const ev = C.Step.step(state, action);
     for (const e of ev) events.push(e);
     steps.push({ action, events: ev });

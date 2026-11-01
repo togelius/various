@@ -247,6 +247,19 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(R.verify('open', Object.assign({}, changed, { pending: 'testing' })).ok, null);
     const short = Object.assign({}, changed, { steps: R.encode(p.steps.slice(0, 10)) });
     assert.ok(/keeps 10 per-step hashes for 300 actions/.test(R.verify('short', short).text));
+    // A run already played (the golden test's first play) is held to the pin as it is, not
+    // played again: its own play agrees, and a play with another hash is judged by that hash.
+    const played = R.golden(pinned), mPlayed = R.golden(m);
+    assert.equal(json(R.verify('pinned', pinned, { played })), json(R.verify('pinned', pinned)));
+    assert.equal(json(R.verify('monkey', m, { played: mPlayed })), json(R.verify('monkey', m)));
+    const other = Object.assign({}, played, { hash: (played.hash + 1) >>> 0 });
+    let plays = 0;
+    const seen = R.spying(() => { plays++; }, () => R.verify('pinned', pinned, { played: other }));
+    assert.equal(seen.ok, false); assert.ok(/hash \d+, where the pin has/.test(seen.text), seen.text);
+    assert.equal(R.spying(() => { plays++; }, () => R.verify('pinned', pinned, { played })).ok, true);
+    assert.equal(plays, 300, 'only the search for the step that differs plays it again');
+    // A play asked for cloned is played so, whatever was played before.
+    assert.equal(R.verify('pinned', pinned, { played: other, clone: true }).ok, true);
   });
 
   test('the golden test\'s check flags a rule that a cloned state does not follow, for a replay and a monkey, at the step where it first shows', () => {
