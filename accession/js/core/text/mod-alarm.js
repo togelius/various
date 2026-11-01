@@ -3,18 +3,21 @@
 // skeleton made it; M4's Wave 0 (W0a) moved here the sentences of the alarm and patrol wake
 // causes (told in the past, as every waking is, so the recap's "On turn N, …" reads), and gave
 // the alarm and the module's rules theirs, and the alarm's wakes one line in the log.
-// MOD-ALARM fills the rest.
+// MOD-ALARM added the call's crash, the clock brought nearer (its stage sentence states the
+// advance's clamps) and a patrol going back to its round.
 'use strict';
 (() => {
   const isInt = Number.isInteger;
   // What an alarm does for its turns, in §5.4's words: pips do not decay, awake exhibits do not
   // return, and no new alarm can be raised (never "no exhibit sleeps": "Quiet, Please" is not
-  // a return). Turns left of an alarm from the turn of its event, when the event gives both.
+  // a return). As built (Modules.mayReturn), neither an awake exhibit left idle nor a searching
+  // one done searching goes back; one already going back goes on. Turns left of an alarm from
+  // the turn of its event, when the event gives both.
   const left = e => isInt(e.until) && isInt(e.turn) && e.until > e.turn ? e.until - e.turn : null;
   const alarm = (e, w) => {
     const n = left(e);
     return n === null ? `${w.Name(e.by)} raised the alarm.`
-      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips, no awake exhibit goes back to its place, and no other alarm can be raised.`;
+      : `${w.Name(e.by)} raised the alarm: for ${Text.count(n, 'turn')}, sleeping exhibits keep their pips, no exhibit awake or searching goes back to its place, and no other alarm can be raised.`;
   };
   Text.define('alarm', alarm);
   Text.defineCause('alarm', 'alarm_network', alarm);
@@ -32,14 +35,42 @@
   Text.defineGroup('woke', 'alarm', events => `The alarm woke ${Text.count(events.length, 'exhibit')}, and they set off to look where you were.`,
     e => e.was == null ? null : '');
 
+  // The module's rules. alarm_shown: a Wader marked the alarm, which its next action sets off
+  // (the mark's own sentence names only "its special"); call: its call went off, a crash and
+  // then the wakes, each told by its own event (n of them); alarm_over: its turns are up.
   const RULES = {
-    alarm_shown: (e, w) => `${w.Name(e.who)} has seen you, and will raise the alarm next turn.`,
-    call: (e, w) => `${w.Name(e.who)} raised the alarm${isInt(e.n) ? ': ' + Text.count(e.n, 'sleeping exhibit') + ' woke' : ''}.`,
-    alarm_over: () => 'The alarm is over.',
+    alarm_shown: (e, w) => `${w.Name(e.who)} has seen you, and shows the alarm: at its next action it raises it.`,
+    call: (e, w) => `${w.Name(e.who)} called: with a crash, every exhibit still asleep that could hear, but the Centrepiece, woke${isInt(e.n) ? ` (${Text.count(e.n, 'exhibit')})` : ''}.`,
+    alarm_over: e => `The alarm is over${isInt(e.turns) ? `, after ${Text.count(e.turns, 'turn')}` : ''}: pips fade again, and exhibits may go back to their places.`,
   };
   // A rule about a Wader (alarm_shown, call) whose event names none has no sentence, since it
   // could be about one out of view (see text/mod-unobserved.js); alarm_over is about none.
   const ABOUT = ['alarm_shown', 'call'];
   Text.defineCause('module', 'alarm_network', (e, w) => ABOUT.includes(e.rule) && e.who === undefined ? null
     : Object.prototype.hasOwnProperty.call(RULES, e.rule) ? RULES[e.rule](e, w) : 'The alarm network acted.');
+
+  // The call's crash, at the Wader's tile (§5.4): a noise as any crash is.
+  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
+  Text.defineCause('noise', 'alarm', e => `${Object.prototype.hasOwnProperty.call(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: the alarm being raised, heard ${Text.tiles(e.range)} away.`);
+
+  // The clock brought nearer by an alarm (ClockRules.advance, §8.4): n turns sooner, where n
+  // is what it moved, never sooner than the next turn (so fewer than ALARM_CLOCK_ADVANCE when
+  // the stage was nearer than that), and nothing in the night watch. Before the bell, the
+  // night watch moves with it.
+  const NEXT = 'never sooner than the next turn';
+  function sooner(what, n, also) {
+    if (!isInt(n) || n <= 0) return `The alarm cannot bring ${what} any sooner: it comes at the next turn, and nothing comes sooner than that.`;
+    if (n >= N.ALARM_CLOCK_ADVANCE) return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner${also} (${NEXT}).`;
+    return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner, to the next turn${also}: an alarm brings it up to ${Text.count(N.ALARM_CLOCK_ADVANCE, 'turn')} sooner, but ${NEXT}.`;
+  }
+  Text.defineCause('stage', 'alarm_network', e => {
+    if (e.stage === 'bell_sooner') return sooner('the bell', e.n, ', and the night watch with it');
+    if (e.stage === 'watch_sooner') return sooner('the night watch', e.n, '');
+    if (e.stage === 'nothing_sooner') return 'The alarm brings nothing sooner: the night watch has begun, and the clock has no stage left to bring nearer.';
+    return 'The alarm brings the clock nearer.';
+  });
+
+  // A patrol done searching goes back to its round (it never sleeps, so it does not go back to
+  // sleep, nor wander).
+  Text.defineCause('alerted', 'round', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and goes back to its round.`);
 })();
