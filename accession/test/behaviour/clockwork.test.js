@@ -171,6 +171,27 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
+  // ---- The move it shows is the one it would make if it acted now ----
+  // An exhibit's action begins by looking for you (§8.1), so the move worked out for it does
+  // too: a clockwork plodder searching westward that sees you to its east shows its step toward
+  // you, which it then makes. Working the move out changes nothing in the state.
+  test('the move it shows is the one it would make if it acted now: it looks for you first, so a searching one that sees you shows its step toward you and makes it; working it out changes nothing', () => {
+    for (const depth of [1, 4, 7]) {
+      const s = H.room(C, 1, { acc: 'A4', depth, map: ROW, you: [12, 3], rooms: SECTION,
+        exhibits: [{ sp: 'A4.1', at: [7, 3], mode: 'searching', lastKnown: [2, 3], mods: ['clockwork'], stats: Roles.stats('fodder', depth) }] }, {});
+      s.actors[0].hp = s.actors[0].maxHp = 999;
+      const a = s.actors[1], before = C.State.hash(s);
+      const p = C.Clockwork.next(s, a);
+      assert.equal(C.State.hash(s), before, 'working out its move changed the state');
+      // A step east, toward you (searching, it would have stepped west, toward [2, 3]).
+      assert.ok(p && p.k === 'step' && p.to[0] === 8, `depth ${depth}: ${json(p)}`);
+      C.Clockwork.replan(s, a);
+      const r = H.play(C, s, [{ a: 'wait' }], { inv: 'all', clone: true });
+      assert.deepEqual(r.violations, []);
+      assert.ok(r.events.some(e => e.k === 'moved' && e.who === a.uid && json(e.to) === json(p.to)), json(r.events.map(e => e.k)));
+    }
+  });
+
   // ---- Cannot be dazed ----
   test('cannot be dazed: dazed is never put on a clockwork exhibit (Status.apply gives false, with no event), for every pack species with it at depths 1–7; with clockwork switched off, or without it, it is', () => {
     const cause = { k: 'status', id: 'dazed' };
