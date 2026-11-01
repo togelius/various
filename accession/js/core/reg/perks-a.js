@@ -46,7 +46,7 @@
   R.define('CLAUSES', 'case_light_fingers', Object.assign({}, opening, proved, {
     clause: 'Opens for {open} ticks and no noise, with your Light Fingers, if your grade reaches its lock.' }));
   R.define('CLAUSES', 'case_light_fingers2', Object.assign({}, opening, proved, {
-    clause: 'Opens for {open} ticks and no noise, with your Light Fingers, if its lock is your grade or up to one grade above yours.',
+    clause: 'Opens for {open} ticks and no noise, with your Light Fingers, if its lock is no more than one grade above yours.',
     phrases: { 'one grade above yours': 'N:PERK_LIGHT_FINGERS_ABOVE' } }));
 
   // Vanishing Act (§8.7): a hunter that loses sight of you searches at once, not after

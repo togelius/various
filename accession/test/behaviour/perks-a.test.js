@@ -55,7 +55,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(N.PERK_LIGHT_FINGERS_ABOVE, 1);
     assert.equal(json(R.PERKS.light_fingers.phrases), json({ 'one grade above yours': 'N:PERK_LIGHT_FINGERS_ABOVE' }));
     assert.equal(fill(R.CLAUSES.case_light_fingers), `Opens for ${N.PERK_LIGHT_FINGERS_COST} ticks and no noise, with your Light Fingers, if your grade reaches its lock.`);
-    assert.equal(fill(R.CLAUSES.case_light_fingers2), `Opens for ${N.PERK_LIGHT_FINGERS_COST} ticks and no noise, with your Light Fingers, if its lock is your grade or up to one grade above yours.`);
+    assert.equal(fill(R.CLAUSES.case_light_fingers2), `Opens for ${N.PERK_LIGHT_FINGERS_COST} ticks and no noise, with your Light Fingers, if its lock is no more than one grade above yours.`);
     // staggered: its words, its clause (continuing another's), its pictogram's id, its rule.
     const st = R.STATUSES.staggered;
     assert.equal(json([st.built, st.ready, st.inv, st.icon, st.harmful, st.words, st.clause]), json(['M4', true, 'perks-a', 'staggered', true, 'staggered', 'loses its next action, and only waits instead']));
@@ -233,6 +233,63 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(r.violations.some(v => v.inv === 'perks_a.staggered'), json(r.violations.map(v => v.text)));
   });
 
+  // Its lost action is a wait and nothing else (§8.1): it does not look for you. A hunter at
+  // (2, 2) that last knew you on its own tile, so that searching it stays there; you at (6, 2),
+  // hidden from it by a pillar, wait while it vanishes (tick 0), then step north into its sight
+  // (tick 100). At the first rank it sees you and hunts at its next action (tick 100); at the
+  // second that action is lost, so it hunts at the one after (tick 200); with the perk off it
+  // never stopped hunting.
+  const PILLAR = ['##########', '#........#', '#...#....#', '#...#....#', '#........#', '##########'];
+  const blind = rank => H.scenario({
+    name: `Vanishing Act at rank ${rank}: a hunter that vanished and sees you again hunts at its next action${rank === 2 ? ' but the lost one, in which it does not look for you' : ''}`,
+    id: 'PERKS.vanishing_act', clone: true,
+    build: (params, sp, depth, opts) => hold(C.Setup.room(opts.seed, { acc: 'T0', depth, map: PILLAR, you: [6, 2],
+      exhibits: [Object.assign({}, HUNTER, { at: [2, 2], lastKnown: [2, 2] })] }, { rulesOff: opts.rulesOff, invulnerable: true }), 'vanishing_act', rank),
+    actions: [WAIT, { a: 'move', dir: 0 }, WAIT, WAIT],
+    expect(r) {
+      const a = r.state.actors[1], lost = lostOf(r, a), want = rank === 2 ? 2 * N.TICKS_PER_TURN : N.TICKS_PER_TURN;
+      if (!lost || lost.cause.k !== 'vanished' || lost.tick !== 0) return `it did not vanish at its first action: ${json(lost)}`;
+      const hunt = r.events.filter(e => e.k === 'hunting' && e.who === a.uid && e.cause && e.cause.k === 'seen');
+      if (hunt.length !== 1 || hunt[0].tick !== want) return `it hunted you on sight at ${json(hunt.map(e => e.tick))}, not once at tick ${want}`;
+      return null;
+    },
+  });
+  test('staggered: in its lost action a hunter only waits, and does not look for you, so one that vanished and that you step back in sight of hunts you at the action after; at the first rank at its next', () => {
+    for (const rank of [1, 2]) ok(H.sweep(C, blind(rank), DEPTHS), `rank ${rank}`);
+  });
+
+  // A mark it shows waits with it (§8.1): staggered after marking (as a rule other than
+  // Vanishing Act may stagger it: Vanishing Act staggers only at its search, which follows no
+  // mark), a tethered warden beside you keeps its ring through its lost action, which is a
+  // wait, and the ring goes off at its action after. Each decision of the warden is logged with
+  // whether it was a forced wait and whether it still showed its ring, by wrapping AI.act.
+  test('staggered keeps a mark it shows: a warden staggered after marking its ring only waits at its next action, the ring still shown, and the ring goes off at the action after (S.9\'s warden, depths 1–7)', () => {
+    const list = H.species(C, 'tethered_warden').filter(x => x.sp.id === 'S9.4');
+    assert.equal(list.length, 7);
+    for (const { sp, depth } of list) {
+      const log = [], act = C.AI.act;
+      C.AI.act = (s, a, ev) => { if (a.arch === 'tethered_warden') log.push([s.tick, C.Status.skips(s, a), !!a.telegraph]); return act(s, a, ev); };
+      let r, marked = null;
+      try {
+        const s = C.Setup.room(depth, { acc: 'T0', depth, map: OPEN, you: [3, 2], exhibits: [{ sp: sp.id, at: [4, 2], mode: 'hunting', stats: Roles.stats(sp.role, depth), sawYou: true, stim: 0 }] }, { invulnerable: true });
+        r = H.play(C, s, (st, i, c) => {
+          const w = st.actors[1];
+          if (marked === null && c.events.some(e => e.k === 'telegraphed' && e.who === w.uid)) { marked = i; C.Status.apply(st, w, 'staggered', N.STAGGER_TURNS, { k: 'perk', id: 'vanishing_act' }, []); }
+          return marked !== null && i > marked + 3 ? null : WAIT;
+        }, { cap: 16 });
+      } finally { C.AI.act = act; }
+      const where = `depth ${depth}`;
+      assert.deepEqual(r.violations.map(v => v.text), [], where);
+      assert.ok(marked !== null, `${where}: the warden never marked its ring`);
+      const w = r.state.actors[1], at = r.events.find(e => e.k === 'telegraphed' && e.who === w.uid).tick;
+      const after = log.filter(([t]) => t > at);
+      // Its next decision: a forced wait, the ring still shown; the one after: the ring goes off.
+      assert.equal(json(after.slice(0, 2).map(([, skip, held]) => [skip, held])), json([[true, true], [false, true]]), `${where}: ${json(log)}`);
+      const off = r.events.filter(e => e.k === 'special' && e.who === w.uid);
+      assert.equal(json(off.map(e => [e.tick, !!e.cancelled])), json([[after[1][0], false]]), `${where}: the ring went off at ${json(off)}`);
+    }
+  });
+
   // ---- Light Fingers ----
 
   // You at (3, 1), beside a Plate case at (3, 2) holding a sleeper whose trigger is touch_case; a
@@ -247,7 +304,7 @@ module.exports = ({ test, assert, loadCore }) => {
     exhibits: [{ sp: 'dummy', at: [3, 2], mode: 'dormant', pips: 0, stats: TOUGH, trigger: 'touch_case' }, { sp: 'dummy', at: NEAR, mode: 'dormant', pips: 0, stats: TOUGH }],
     fixtures: [Cases.make({ x: 3, y: 2, room: 'room', num: `T.0.${depth}01.1`, glass: glassFor(lock), lock })] }, { rulesOff: opts.rulesOff, invulnerable: true }), 'light_fingers', rank);
   // The case's opening sentence as its label's Behaviour line reads, worked out from BUILD.
-  const LF = rank => rank === 1 ? 'if your grade reaches its lock.' : 'if its lock is your grade or up to one grade above yours.';
+  const LF = rank => rank === 1 ? 'if your grade reaches its lock.' : 'if its lock is no more than one grade above yours.';
   const said = (open, rank) => `Opens for ${open} ticks and no noise, with your Light Fingers, ${LF(rank)}`;
   let nexts = [];
   const fingers = rank => H.scenario({
@@ -300,6 +357,14 @@ module.exports = ({ test, assert, loadCore }) => {
       const r = H.play(C, t, [{ a: 'move', dir: 2 }]);
       assert.deepEqual(r.violations.map(v => v.text), []);
       assert.equal(json(r.events.map(e => e.reason)), json(['staff_grade']), `depth ${depth}`);
+      // A staff door of your grade opens as it always does, perk or not: COST_DOOR and its
+      // soft noise (the perk quiets your opening of a case, nothing else).
+      const v = hold(C.Setup.room(depth, { acc: 'T0', depth, map: STAFF, you: [3, 1], grade: g, fixtures: [{ k: 'staff', x: 4, y: 1, grade: g }] }), 'light_fingers', 2);
+      const before = v.actors[0].next, q = H.play(C, v, [{ a: 'move', dir: 2 }]);
+      assert.deepEqual(q.violations.map(x => x.text), []);
+      assert.ok(q.events.some(e => e.k === 'opened' && e.who === 'you' && e.staff), `depth ${depth}: ${json(q.events)}`);
+      assert.ok(q.events.some(e => e.k === 'noise' && e.cls === 'soft' && e.cause.k === 'staff_door' && e.cause.by === 'you'), `depth ${depth}: the staff door opened with no soft noise: ${json(q.events)}`);
+      assert.equal(v.actors[0].next - before, N.COST_DOOR, `depth ${depth}: the staff door's ticks`);
       // With the perk, a case one grade above yours opens; switched off, it is refused.
       const on = caseRoom(depth, opts, 2, g + 1), off = caseRoom(depth, { seed: depth, rulesOff: ['light_fingers'] }, 2, g + 1);
       on.run.grade = off.run.grade = g;

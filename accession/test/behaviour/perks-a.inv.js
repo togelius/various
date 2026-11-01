@@ -126,7 +126,7 @@ module.exports = (C) => {
   // The case's opening sentence as its rules read: [ticks, noise ('soft' or 'none'), names
   // Light Fingers, says the grade above yours], or null if it says neither.
   function opening(text) {
-    const m = /^Opens for (\d+) ticks and (a soft noise|no noise)(, with your Light Fingers,)? if (your grade reaches its lock|its lock is your grade or up to one grade above yours)\./.exec(text);
+    const m = /^Opens for (\d+) ticks and (a soft noise|no noise)(, with your Light Fingers,)? if (your grade reaches its lock|its lock is no more than one grade above yours)\./.exec(text);
     return m ? [Number(m[1]), m[2] === 'no noise' ? 'none' : 'soft', !!m[3], m[4] !== 'your grade reaches its lock'] : null;
   }
   const fingers = {
