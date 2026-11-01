@@ -24,13 +24,14 @@
 //     (waking at once within TETHER_RANGE of what it guards: Wake.inTether, which needs no
 //     sight and so reaches through a wall);
 //   - the noise of a door you open or close from the zone (Step.moveInto, Doors: an ordinary
-//     door beside a tile of it you stand on, a soft noise at the door, Noise.reach): an
-//     exhibit that hears it gains a pip (one a turn, so PIPS_TO_WAKE turns of it wake a
-//     sleeper), or, awake, goes to look at the door, in the zone;
-//   - your ring at its largest there: where this department holds a curio with `observing`
-//     (S.9's Lamp, which a visitor may wear lit from the start, plan A2), or you carry one, a
-//     sleeper's ring LAMP_RING wider (Kit.ringDelta); and where a tile of the zone is a loud
-//     floor, RING_LOUD_FLOOR wider still (Vision.actionRing).
+//     door beside a tile of it you stand on, a soft noise at the door, Noise.reach): a sleeper
+//     that hears it gains a pip (one a turn, so PIPS_TO_WAKE turns of it wake it), and an
+//     awake exhibit goes to look at the door, in the zone (Wake.hear), unless it never steps
+//     (an exhibit that never hunts, a station) or only waits in its case, when it never comes;
+//   - your ring at its largest there: on a loud floor, RING_LOUD_FLOOR wider (Vision.actionRing
+//     reads the tile you stand on, so only from that tile); and where this department holds a
+//     curio with `observing` (S.9's Lamp, which a visitor may wear lit from the start, plan
+//     A2), or you carry one, LAMP_RING wider again with it lit (Kit.ringDelta).
 // Each is asked of the department as made, its doors shut, and with every ordinary door open
 // (staff doors stay shut: they need a grade), since you open the Intro's partition door to go
 // on, and any other you pass, and an exhibit opens the doors on its way. A door shut or open
@@ -40,8 +41,10 @@
 // patrol's sight and an awake exhibit's region are asked both ways.
 // A surface only ever hides you, so none is counted (there are none as a department is made).
 //
-// The rejection names what would reach the zone, in words a player would take: the exhibit,
-// how it would wake or find you, and the first tile of the zone it reaches (row-major); its
+// The rejection names what would reach the zone, in words a player would take: the exhibit
+// (as its label names it), how it would wake or find you, and the tile: the first tile of the
+// zone it reaches (row-major), the door it hears, or, for one standing in the zone, its own
+// tile nearest the entrance; its
 // tiles to mark on the plan's text are where the exhibit stands, then every tile of the zone
 // it reaches. LV6 draws on no stream and changes nothing in the state.
 'use strict';
@@ -76,27 +79,25 @@ const LV6 = (() => {
   const stand = (m, k) => { const x = k % m.w, y = Int.idiv(k, m.w); return Grid.walkable(m, x, y) && !Grid.closedDoor(m, x, y); };
   const tile = (m, k) => [k % m.w, Int.idiv(k, m.w)];
 
-  // Your ring at its largest in the zone (above): RING_MOVING, LAMP_RING more where a lit
-  // Lamp can be worn, RING_LOUD_FLOOR more where a tile of the zone is a loud floor.
+  // Your ring at its largest on a tile of the zone (above): RING_MOVING; RING_LOUD_FLOOR more
+  // on a loud floor (the tile you stand on, as Vision.actionRing reads it); LAMP_RING more
+  // with a lit Lamp, where one can be worn.
   const observes = it => !!it && it.kind === 'curio' && (it.prims || []).some(p => p.id === 'observing');
   function lampHere(state) {
     const pack = state.dept.acc ? Packs.get(state.dept.acc) : null;
     return (!!pack && (pack.items || []).some(observes)) || (state.items || []).some(observes);
   }
-  function largestRing(state, z) {
-    const m = state.dept;
-    let r = N.RING_MOVING;
-    if (lampHere(state)) r += N.LAMP_RING;
-    for (const k of z.list) { const t = Grid.TILES[Grid.ch(m, k % m.w, Int.idiv(k, m.w))]; if (t && t.loud) { r += N.RING_LOUD_FLOOR; break; } }
-    return r;
-  }
+  const floorAt = (m, x, y) => Grid.TILES[Grid.ch(m, x, y)] || null;
+  const loudAt = (m, k) => { const t = floorAt(m, k % m.w, Int.idiv(k, m.w)); return !!(t && t.loud); };
+  const ringAt = (m, k, lamp) => N.RING_MOVING + (loudAt(m, k) ? N.RING_LOUD_FLOOR : 0) + (lamp ? N.LAMP_RING : 0);
 
   // The zone's tiles (indices, row-major) each way reaches, in view v:
-  // a sleeper's ring at radius r, as Archetypes.wakeRegion's default measures it at RING_MOVING
-  // (rules/archetypes.js): you could stand there, none of a's own tiles, and some tile of a's
-  // footprint an exhibit can stand on is within r walking tiles (one beyond its nearest
-  // neighbour you could step onto, for one you cannot) and in line of sight;
-  function ringHits(v, z, a, r) {
+  // a sleeper's ring, of radius rOf(k) on zone tile k (-1: none there), at most r, as
+  // Archetypes.wakeRegion's default measures it at RING_MOVING (rules/archetypes.js): you could
+  // stand there, none of a's own tiles, and some tile of a's footprint an exhibit can stand on
+  // is within that many walking tiles (one beyond its nearest neighbour you could step onto,
+  // for one you cannot) and in line of sight;
+  function ringHits(v, z, a, r, rOf) {
     const m = v.dept, fp = Actors.footprint(a), out = [];
     const mine = k => fp.some(t => t[1] * m.w + t[0] === k);
     for (const [tx, ty] of fp) {
@@ -108,6 +109,7 @@ const LV6 = (() => {
       const dist = Grid.distances(m, starts, own ? r : r - 1);
       for (const k of z.list) {
         if (out.includes(k) || dist[k] < 0 || !stand(m, k) || mine(k)) continue;
+        if (rOf && dist[k] > (own ? rOf(k) : rOf(k) - 1)) continue;
         const [x, y] = tile(m, k);
         if (Grid.los(m, x, y, tx, ty)) out.push(k);
       }
@@ -175,18 +177,22 @@ const LV6 = (() => {
 
   // LV6.findings(state) → every way the zone is reached, in spawn order and, for one exhibit,
   // in the order above: [{uid, how, tiles, open, turns?, d?}]. how: 'stands' (d its walking
-  // distance from the entrance), 'ring', 'region' (the rest of its wake region: a station's
-  // line, an awake exhibit's sight), 'untold' (awake from the start, with no region: tiles,
-  // the zone's tile nearest it), 'sight' (a patrol from its round; turns, the turns from now
-  // to the first action at which it would see you, as an event's turn counts them), 'axis',
-  // 'tether', 'noise' (tiles: the doors it hears) or 'lamp' (only at
-  // the larger ring: the Lamp lit, or a loud floor); tiles, the zone's tiles it reaches ([x,
-  // y], row-major); open, true when it reaches them only with the doors open. [] in a map with
-  // no entrance (a room for tests).
+  // distance from the entrance; tiles, its own, the one nearest the entrance first), 'ring',
+  // 'region' (the rest of its wake region: a station's line, an awake exhibit's sight),
+  // 'untold' (awake from the start, with no region: tiles, the zone's tile nearest it),
+  // 'sight' (a patrol from its round; turns, the turns from now to the first action at which
+  // it would see you, as an event's turn counts them), 'axis', 'tether', 'noise' (tiles: the
+  // doors it hears), 'loud' (only at the larger ring a loud floor gives, from its own tiles)
+  // or 'lamp' (only at the larger ring the Lamp lit gives); tiles, the zone's tiles it reaches
+  // ([x, y], row-major); open, true when it reaches them only with the doors open. An exhibit
+  // the ring reaches has no 'loud' or 'lamp' finding, and one a loud floor's reaches no
+  // 'lamp'. [] in a map with no entrance (a room for tests).
   function findings(state) {
     const m = state && state.dept, z = zone(m), out = [];
     if (!z) return out;
-    const shut = view(state, false), open = view(state, true), R = largestRing(state, z), T = N.SAFE_ZONE_TURNS;
+    const shut = view(state, false), open = view(state, true), T = N.SAFE_ZONE_TURNS;
+    const lamp = lampHere(state), loud = z.list.some(k => loudAt(m, k));
+    const R = N.RING_MOVING + (loud ? N.RING_LOUD_FLOOR : 0) + (lamp ? N.LAMP_RING : 0);
     const told = Patrol.timeline(state, T), walked = new Map(), doors = doorsOf(open, z), heard = new Map();
     // A door's noise, opened (it is open as its noise is made), each worked out once a view.
     const reachOf = (v, k) => {
@@ -213,9 +219,9 @@ const LV6 = (() => {
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
       if (a.gone) continue;
-      let d = -1;
-      for (const [x, y] of Actors.footprint(a)) { const e = Grid.inside(m, x, y) ? Grid.reachDist(z.d, m, x, y) : -1; if (e >= 0 && (d < 0 || e < d)) d = e; }
-      if (d >= 0) out.push({ uid: a.uid, how: 'stands', tiles: Actors.footprint(a).map(t => [t[0], t[1]]), open: false, d });
+      let d = -1, first = null;
+      for (const [x, y] of Actors.footprint(a)) { const e = Grid.inside(m, x, y) ? Grid.reachDist(z.d, m, x, y) : -1; if (e >= 0 && (d < 0 || e < d)) { d = e; first = [x, y]; } }
+      if (d >= 0) out.push({ uid: a.uid, how: 'stands', tiles: [first].concat(Actors.footprint(a).filter(t => t[0] !== first[0] || t[1] !== first[1]).map(t => [t[0], t[1]])), open: false, d });
       const dormant = sleeps(state, a);
       if (walked.has(a.uid)) {
         // A patrol on its round, told exactly: the first of its actions at which it sees the
@@ -245,12 +251,19 @@ const LV6 = (() => {
       }
       if (dormant && a.trigger === 'axis' && nearAny(z, a, N.AXIS_RANGE)) monotone(a, 'axis', v => axisHits(v, z, a));
       if (dormant && a.trigger === 'tether' && Array.isArray(a.guards) && near(z, a.guards[0], a.guards[1], N.TETHER_RANGE)) monotone(a, 'tether', v => tetherHits(v, z, a));
-      if (doors.length && a.mode !== 'hunting' && !Archetypes.pipless(state, a) && nearAny(z, a, N.NOISE_SOFT + 1)) monotone(a, 'noise', v => noiseHits(v, a, doors, reachOf));
-      if (dormant && R > N.RING_MOVING && nearAny(z, a, R)) monotone(a, 'lamp', v => ringHits(v, z, a, R));
+      // A door's noise: a sleeper gains a pip; an awake exhibit goes to look, unless it never
+      // steps (it never hunts: Wake.hear has it stand) or waits in its case.
+      const looks = a.mode === 'dormant' || (Archetypes.huntsOnSight(state, a) && !Cases.encased(state, a));
+      if (doors.length && looks && a.mode !== 'hunting' && !Archetypes.pipless(state, a) && nearAny(z, a, N.NOISE_SOFT + 1)) monotone(a, 'noise', v => noiseHits(v, a, doors, reachOf));
+      // The larger rings: a loud floor's, from its own tiles; then the lit Lamp's.
+      if (dormant && loud && nearAny(z, a, N.RING_MOVING + N.RING_LOUD_FLOOR))
+        monotone(a, 'loud', v => ringHits(v, z, a, N.RING_MOVING + N.RING_LOUD_FLOOR, k => (loudAt(v.dept, k) ? ringAt(v.dept, k, false) : -1)));
+      if (dormant && lamp && nearAny(z, a, R)) monotone(a, 'lamp', v => ringHits(v, z, a, R, k => ringAt(v.dept, k, true)));
     }
-    // A sleeper's region reaching the zone in its ring is its ring's doing; and the larger
-    // ring's finding is kept only where the ring at RING_MOVING does not reach.
-    const ringed = new Set();
+    // A sleeper's region reaching the zone in its ring is its ring's doing; and a larger ring's
+    // finding is kept only where a smaller ring does not reach (RING_MOVING, then a loud
+    // floor's).
+    const ringed = new Set(), louder = new Set(out.filter(f => f.how === 'loud').map(f => f.uid));
     for (const f of out) {
       if (f.how !== 'region') continue;
       const a = state.actors.find(b => b.uid === f.uid);
@@ -258,32 +271,33 @@ const LV6 = (() => {
       const r = ringHits(f.open ? open : shut, z, a, N.RING_MOVING);
       if (r.length) { f.how = 'ring'; f.tiles = r.map(k => tile(m, k)); ringed.add(f.uid); }
     }
-    return out.filter(f => !(f.how === 'lamp' && ringed.has(f.uid)));
+    return out.filter(f => !((f.how === 'loud' || f.how === 'lamp') && ringed.has(f.uid)) && !(f.how === 'lamp' && louder.has(f.uid)));
   }
 
-  // The exhibit's name, as its label gives it.
-  function name(state, a) {
-    const sp = a ? Packs.speciesFor(state, a) : null;
-    return sp && sp.name ? sp.name : 'an exhibit';
-  }
+  // The exhibit's name, as the log names it (Labels.nameOf: 'the' and its label's name, a
+  // name's own 'The' not said twice), or 'an exhibit'.
+  const name = (state, a) => (a && Labels.nameOf(state)(a.uid)) || 'an exhibit';
   // LV6.words(state, f) → a finding in words a player would take.
   function words(state, f) {
-    const a = state.actors.find(b => b.uid === f.uid), who = name(state, a), at = f.tiles[0];
+    const a = state.actors.find(b => b.uid === f.uid), who = name(state, a), at = f.tiles[0], m = state.dept;
     const where = `standing at ${at[0]},${at[1]}, in the safe zone${f.open ? ', once the doors are open' : ''}`;
+    const fl = floorAt(m, at[0], at[1]), loudHere = !!(fl && fl.loud), onFloor = loudHere ? `on the ${fl.name} (a loud floor)` : '';
+    const ring = lit => N.RING_MOVING + (loudHere ? N.RING_LOUD_FLOOR : 0) + (lit ? N.LAMP_RING : 0);
     switch (f.how) {
-      case 'stands': return `the ${who} stands ${f.d} walking tiles from the entrance, inside the safe zone (the first ${N.SAFE_ZONE})`;
-      case 'ring': return `${where}, you would wake the ${who}: it is inside your ring (${N.RING_MOVING} walking tiles, in sight)`;
-      case 'lamp': return `${where}, with the Lamp lit you would wake the ${who}: it is inside your ring (${N.RING_MOVING + N.LAMP_RING} walking tiles, in sight)`;
-      case 'axis': return `${where}, you would wake the ${who}: you are in its row or column within ${N.AXIS_RANGE} tiles, in its sight`;
-      case 'tether': return `${where}, you are within ${N.TETHER_RANGE} tiles of what the ${who} guards: it would wake at once, and it feels you through walls`;
-      case 'sight': return `${where}, the ${who} would see you from its round ${f.turns ? `within ${f.turns} turn${f.turns === 1 ? '' : 's'}` : 'at once'}`;
+      case 'stands': return `${who} stands at ${at[0]},${at[1]}, ${f.d} walking tiles from the entrance, inside the safe zone (the first ${N.SAFE_ZONE})`;
+      case 'ring': return `${where}, you would wake ${who}: it is inside your ring (${N.RING_MOVING} walking tiles, in sight)`;
+      case 'loud': return `${where}, ${onFloor}, you would wake ${who}: it is inside your ring there (${ring(false)} walking tiles, in sight)`;
+      case 'lamp': return `${where}, with the Lamp lit${loudHere ? ' and ' + onFloor : ''} you would wake ${who}: it is inside your ring (${ring(true)} walking tiles, in sight)`;
+      case 'axis': return `${where}, you would wake ${who}: you are in its row or column within ${N.AXIS_RANGE} tiles, in its sight`;
+      case 'tether': return `${where}, you are within ${N.TETHER_RANGE} tiles of what ${who} guards: it would wake at once, and it feels you through walls`;
+      case 'sight': return `${where}, ${who} would see you from its round ${f.turns ? `within ${f.turns} turn${f.turns === 1 ? '' : 's'}` : 'at once'}`;
       case 'noise': return `opening or closing the door at ${at[0]},${at[1]}, beside the safe zone${f.open ? ', once the other doors are open' : ''}, ` +
-        (a && a.mode === 'dormant' ? `you would wake the ${who}: it hears the door, a pip each turn, and wakes at ${N.PIPS_TO_WAKE}` : `the ${who} would hear it and come to look`);
-      case 'untold': return `the ${who} is awake from the start and nothing tells where it walks, so it is taken to find you in the safe zone (at ${at[0]},${at[1]}, the nearest tile of it)`;
+        (a && a.mode === 'dormant' ? `you would wake ${who}: it hears the door, a pip each turn, and wakes at ${N.PIPS_TO_WAKE}` : `${who} would hear it and come to look`);
+      case 'untold': return `${who} is awake from the start and nothing tells where it walks, so it is taken to find you in the safe zone (at ${at[0]},${at[1]}, the nearest tile of it)`;
       default:
-        if (a && HourlyDemonstration.isStation(state, a)) return `${where}, the line of the ${who} would strike you within ${N.SAFE_ZONE_TURNS} turns`;
-        if (a && a.mode !== 'dormant') return `${where}, the ${who} would see you within ${N.SAFE_ZONE_TURNS} turns`;
-        return `${where} for ${N.SAFE_ZONE_TURNS} turns, you would wake the ${who}`;
+        if (a && HourlyDemonstration.isStation(state, a)) return `${where}, the line of ${who} would strike you within ${N.SAFE_ZONE_TURNS} turns`;
+        if (a && a.mode !== 'dormant') return `${where}, ${who} would see you within ${N.SAFE_ZONE_TURNS} turns`;
+        return `${where} for ${N.SAFE_ZONE_TURNS} turns, you would wake ${who}`;
     }
   }
 

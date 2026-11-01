@@ -9,10 +9,13 @@
 //     themselves are asked:
 //       - no exhibit stands within SAFE_ZONE walking tiles of the entrance;
 //       - no sleeper's axis (Wake.onAxis) or tether (Wake.inTether) holds you;
-//       - no exhibit hears a door beside the zone opened (Noise.reach, NOISE_SOFT);
+//       - no exhibit that would stir hears a door beside the zone opened (Noise.reach,
+//         NOISE_SOFT): a sleeper, or one awake that would come to look (Wake.hear: not one
+//         that never hunts, a station, nor one in a case);
 //     and, on seeds 1–ORACLE_SEEDS of each depth (they cost more):
-//       - no sleeper is inside your ring there (Vision.ringDist, at RING_MOVING, and LAMP_RING
-//         more in a department whose pack holds a curio with `observing`, the Lamp);
+//       - no sleeper is inside your ring there (Vision.ringDist, at RING_MOVING, RING_LOUD_FLOOR
+//         more on a loud floor, and LAMP_RING more in a department whose pack holds a curio
+//         with `observing`, the Lamp);
 //       - no Wader on its round sees you (AI.sees) from where it stands at any of its actions
 //         over SAFE_ZONE_TURNS turns (Patrol.timeline);
 //       - no station's line can strike you within SAFE_ZONE_TURNS turns
@@ -20,21 +23,24 @@
 // and over the whole sweep: LV6's fallbacks at most 1% of each department's departments.
 'use strict';
 module.exports = C => {
-  const { N, Grid, Actors, Archetypes, Wake, Vision, AI, Patrol, Noise, HourlyDemonstration, LV6, Packs, Dept } = C;
+  const { N, Grid, Actors, Archetypes, Wake, Vision, AI, Patrol, Noise, HourlyDemonstration, LV6, Packs, Dept, Cases } = C;
   const ORACLE_SEEDS = 10;
   const tally = { S9: 0, A4: 0, M11: 0, fallback: { S9: 0, A4: 0, M11: 0 }, oracle: 0, tiles: 0 };
 
   // A view of the department: the doors as made, or every ordinary door open; no surface.
   const view = (s, open) => Object.assign({}, s, { dept: Object.assign({}, s.dept, { surfaces: [], tiles: open ? s.dept.tiles.map(r => r.replace(/\+/g, "'")) : s.dept.tiles }) });
-  // The view with you standing on (x, y), moving (your ring is the moving one).
-  const withYou = (v, x, y) => Object.assign({}, v, { actors: [Object.assign({}, v.actors[0], { x, y, still: false })].concat(v.actors.slice(1)) });
+  // The view with you in it, moving (your ring is the moving one): a copy of you that the
+  // oracle stands on each tile in turn (put).
+  const withYou = v => Object.assign({}, v, { actors: [Object.assign({}, v.actors[0], { still: false })].concat(v.actors.slice(1)) });
+  const put = (you, x, y) => { you.actors[0].x = x; you.actors[0].y = y; return you; };
   const lampy = s => (Packs.get(s.dept.acc).items || []).some(it => it.kind === 'curio' && (it.prims || []).some(p => p.id === 'observing'));
-  const cheb = (a, x, y) => Math.min(...Actors.footprint(a).map(([u, v]) => Math.max(Math.abs(u - x), Math.abs(v - y))));
+  const cheb = (a, x, y) => { let c = -1; for (const [u, v] of Actors.footprint(a)) { const e = Math.max(Math.abs(u - x), Math.abs(v - y)); if (c < 0 || e < c) c = e; } return c; };
+  const loud = (m, x, y) => { const t = Grid.TILES[Grid.ch(m, x, y)]; return !!(t && t.loud); };
 
   // The oracle on one department (all of it when full): its problems, as sentences.
   function oracle(s, full) {
     const m = s.dept, out = [], d = Grid.distances(m, [m.entrance], N.SAFE_ZONE), T = N.SAFE_ZONE_TURNS;
-    const R = N.RING_MOVING + (lampy(s) ? N.LAMP_RING : 0);
+    const R0 = N.RING_MOVING + (lampy(s) ? N.LAMP_RING : 0);
     const ex = s.actors.slice(1).filter(a => !a.gone);
     for (const a of ex) for (const [x, y] of Actors.footprint(a)) { const e = Grid.reachDist(d, m, x, y); if (e >= 0) out.push(`${a.uid} stands ${e} walking tiles from the entrance`); }
     const told = (full && Patrol.timeline(s, T)) || [], walks = new Map(told.map(p => [p.uid, p.at]));
@@ -42,15 +48,17 @@ module.exports = C => {
     // The exhibits the rules asked here could apply to: all that can be woken or see you, or,
     // in the cheaper pass, the sleepers with an axis or a tether.
     const asked = ex.filter(a => !Archetypes.pipless(s, a) && (full || (a.mode === 'dormant' && (a.trigger === 'axis' || a.trigger === 'tether'))));
+    // Who would stir on hearing a door: a sleeper, or one awake that would come to look.
+    const hearers = ex.filter(a => a.mode !== 'hunting' && !Archetypes.pipless(s, a) && (a.mode === 'dormant' || (Archetypes.huntsOnSight(s, a) && !Cases.encased(s, a))));
     for (const open of [false, true]) {
-      const v = view(s, open), vm = v.dept, where = open ? ' (doors open)' : '', heard = new Set();
+      const v = view(s, open), vm = v.dept, where = open ? ' (doors open)' : '', heard = new Set(), me = asked.length ? withYou(v) : null;
       const reach = new Map(lines.map(a => [a.uid, HourlyDemonstration.reach(v, a, s.turn + T)]));
       for (let k = 0; k < d.length; k++) {
         if (d[k] < 0) continue;
         const x = k % m.w, y = (k - x) / m.w;
         if (!Grid.walkable(vm, x, y) || Grid.closedDoor(vm, x, y)) continue;
         tally.tiles++;
-        const you = withYou(v, x, y);
+        const you = me && put(me, x, y), R = R0 + (loud(vm, x, y) ? N.RING_LOUD_FLOOR : 0);
         let f = null;
         for (const a of asked) {
           if (a.mode === 'dormant') {
@@ -73,7 +81,7 @@ module.exports = C => {
           const t = Object.assign({}, vm, { tiles: vm.tiles.slice() });
           Grid.set(t, dx, dy, "'");
           const r = Noise.reach(t, dx, dy, N.NOISE_SOFT);
-          for (const a of ex) if (a.mode !== 'hunting' && !Archetypes.pipless(s, a) && Actors.footprint(a).some(([u, w]) => { const e = Grid.reachDist(r, t, u, w, 'noise'); return e >= 0 && e <= N.NOISE_SOFT; }))
+          for (const a of hearers) if (Actors.footprint(a).some(([u, w]) => { const e = Grid.reachDist(r, t, u, w, 'noise'); return e >= 0 && e <= N.NOISE_SOFT; }))
             out.push(`${a.uid} hears the door at ${dx},${dy}${where} opened`);
         }
       }

@@ -8,7 +8,10 @@
 //     round in view of it; a station's line into the safe zone; a tether through a wall; a
 //     sleeper reached only from the open doorway; a door's noise; an exhibit awake from the
 //     start whose rules tell nothing of where it walks; a lit Lamp's ring, in S.9 (whose pack
-//     holds the Lamp) and not in M.11 (whose does not), unless you carry it;
+//     holds the Lamp) and not in M.11 (whose does not), unless you carry it; a loud floor's
+//     ring, from that tile only; a Centrepiece's piece, its name ("The …") said once; and a
+//     door's noise heard by an awake exhibit that never steps (a station) or waits in its
+//     case, which never brings it, so passes;
 //   - each planted finding is true in the game: from the tile LV6 names, played with the real
 //     rules, the exhibit wakes, sees you, or its line strikes you, within SAFE_ZONE_TURNS turns
 //     (and the Wader at the very turn LV6 names), every event with a clean sentence;
@@ -19,14 +22,16 @@
 //     into the open doorway; S.9 with its stretch row planted plain, the Brooder's tether
 //     through the vestibule's wall), a stamp planted to fail every attempt falls back,
 //     rejected; LV6 draws nothing and changes nothing; and a sleeper's wake region with the
-//     doors open holds every tile it holds with them shut (the reading LV6 relies on).
+//     doors open holds every tile it holds with them shut (the reading LV6 relies on); and
+//     M.11's Logbook Trolley stands where a lit Lamp's ring from the safe zone does not reach
+//     it, so the Lamp may be carried there (M5's run) without LV6 rejecting every attempt.
 // The shared sweep's test/sweep/lv6.check.js holds every department made to LV6 against an
 // oracle written apart from it.
 'use strict';
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
-  const { LV6, Roles, Actors, Dept, Populate, N, State, Packs, Modules, Archetypes, Grid } = C;
+  const { LV6, Roles, Actors, Dept, Populate, N, State, Packs, Modules, Archetypes, Grid, Cases } = C;
   const json = x => JSON.stringify(x);
   const same = (a, b, msg) => assert.equal(json(a), json(b), msg);
 
@@ -61,6 +66,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     '##################',
   ];
   const NEST_AWAY = NEST.map((r, y) => (y === 6 ? '#................#' : y === 7 ? '#...v............#' : r));
+  // ARCH with a pool (a loud floor) at 7,4, beside the archway.
+  const POOL = ARCH.map((r, y) => (y === 4 ? r.slice(0, 7) + 'w' + r.slice(8) : r));
+  // COLUMN with a case at 10,3, beyond the column.
+  const CASED = COLUMN.map((r, y) => (y === 3 ? r.slice(0, 10) + 'v' + r.slice(11) : r));
   // One room, the Intro, the safe zone its west tiles (walk 8 or less: columns 1–8).
   const HALL = ['################', '#..............#', '#..............#', 'E..............#', '#..............#', '################'];
   const HALL_ROOMS = [{ key: 'intro', role: 'intro', x0: 1, y0: 1, x1: 14, y1: 4 }];
@@ -70,7 +79,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   function plant(acc, map, exhibits, extra) {
     const e = map.findIndex(r => r[0] === 'E');
     return H.room(C, 1, Object.assign({ acc, depth: 3, map, you: [1, e], entrance: [0, e],
-      exhibits: exhibits.map(x => Object.assign({ stats: Roles.stats(Packs.species(acc, x.sp).role, 3) }, x)) }, extra || {}));
+      exhibits: exhibits.map(x => Object.assign({ stats: Roles.stats(Packs.speciesFor({ dept: { acc } }, { sp: x.sp }).role, 3) }, x)) }, extra || {}));
   }
   // A station of the First Landing (M11.12) at 13,1 with its line dir, the chime running.
   function station(dir) {
@@ -87,11 +96,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     K.Wake.created(s, a, 'patrol', {}, null);
     return s;
   }
+  // An awake station at 10,3 (its line east, away from the zone), and an awake Trolley in a
+  // case at 10,3, each within the partition door's soft noise.
+  function awakeStation() {
+    const s = plant('M11', COLUMN, [{ sp: 'M11.12', at: [10, 3], mode: 'awake' }]);
+    s.actors[1].route = { dir: 'E' };
+    Modules.init(s, Packs.get('M11'));
+    return s;
+  }
+  const awakeCased = () => plant('M11', CASED, [{ sp: 'M11.5', at: [10, 3], mode: 'awake' }], { fixtures: [Cases.make({ x: 10, y: 3, room: null, num: 'T.0.101.103' })] });
   const LAMP = { uid: 'you.c1', kind: 'curio', ref: 'S9.11', where: { at: 'kit', slot: 'curio0' }, prims: [{ id: 'observing', cls: 'L' }] };
 
   // The room's text map with LV6's tiles marked: each exhibit by its letter, the one at fault
   // (its own tiles among those marked) in capitals, and the safe zone's tiles it reaches as *.
-  const LETTER = { 'M11.1': 'h', 'M11.5': 't', 'M11.12': 's', 'S9.2': 'w', 'S9.4': 'b', 'S9.6': 'p' };
+  const LETTER = { 'M11.1': 'h', 'M11.5': 't', 'M11.12': 's', 'S9.2': 'w', 'S9.4': 'b', 'S9.6': 'p', 'A4.12': 'd' };
   function marked(s, tiles) {
     const rows = s.dept.tiles.map(r => r.split(''));
     for (const a of s.actors.slice(1)) if (!a.gone) for (const [x, y] of Actors.footprint(a)) rows[y][x] = LETTER[a.sp] || '?';
@@ -103,7 +121,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const W_ = 'Lantern-Crop Wader', T_ = 'Logbook Trolley, Self-Propelled', H_ = 'Heliograph, Landing Pattern';
   const FAULTS = [
     ['an exhibit at walk 7', () => plant('M11', DOOR, [{ sp: 'M11.5', at: [7, 1] }]),
-      `the ${T_} stands 7 walking tiles from the entrance, inside the safe zone (the first 8)`,
+      `the ${T_} stands at 7,1, 7 walking tiles from the entrance, inside the safe zone (the first 8)`,
       ['########################',
        '#......T|..............#',
        '#.......|..............#',
@@ -231,6 +249,32 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
        '#.......|..............#',
        '########################'],
       () => plant('M11', ARCH, [{ sp: 'M11.5', at: [13, 4] }], { items: [LAMP] })],
+    // A loud floor widens your ring only while you stand on it (Vision.actionRing): from the
+    // pool, 5 walking tiles; from the archway beside it, 3. No Lamp in M.11.
+    ['a loud floor\'s ring, from the pool only', () => plant('M11', POOL, [{ sp: 'M11.5', at: [12, 4] }]),
+      `standing at 7,4, in the safe zone, on the pool (a loud floor), you would wake the ${T_}: it is inside your ring there (5 walking tiles, in sight)`,
+      ['########################',
+       '#.......|..............#',
+       '#.......|..............#',
+       '#.......|..............#',
+       'E......*,...T..........#',
+       '#.......|..............#',
+       '#.......|..............#',
+       '#.......|..............#',
+       '########################'],
+      () => plant('M11', POOL, [{ sp: 'M11.5', at: [13, 4] }])],
+    ['a Centrepiece\'s piece at walk 6, its name said once', () => plant('A4', DOOR, [{ sp: 'A4.12', at: [6, 1], size: 2 }]),
+      'the Duplicate Ordinance, Signed Original stands at 6,1, 6 walking tiles from the entrance, inside the safe zone (the first 8)',
+      ['########################',
+       '#.....DD|..............#',
+       '#.....DD|..............#',
+       '#.......|..............#',
+       'E.......+..............#',
+       '#.......|..............#',
+       '#.......|..............#',
+       '#.......|..............#',
+       '########################'],
+      () => plant('A4', DOOR, [{ sp: 'A4.12', at: [20, 5], size: 2 }])],
   ];
 
   test('LV6 is registered as a validator, the first (plan A10), and a room with no entrance has nothing to check', () => {
@@ -253,6 +297,21 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       // Through Populate.validate, as a department's attempt asks it: its id with it.
       same(Populate.validate(s, null), Object.assign({ id: 'lv6' }, no), name);
     }
+    // A door's noise heard by an awake exhibit that never steps (a station, its line along its
+    // row away from the zone) or that only waits in its case never brings it (Wake.hear): it
+    // is no finding, though each stands within the door's soft noise.
+    for (const s of [awakeStation(), awakeCased()]) {
+      assert.equal(LV6.check(s, null), null, s.actors[1].sp);
+      assert.ok(Grid.reachDist(C.Noise.reach(s.dept, 8, 4, N.NOISE_SOFT), s.dept, 10, 3) <= N.NOISE_SOFT, 'it hears the door');
+    }
+    // The smallest ring that reaches is the one said: in S.9 (the Lamp) a Hopper 5 walking
+    // tiles from the pool is the pool's finding, not the Lamp's; one 6 tiles off, the Lamp's,
+    // on the pool (its ring there 6).
+    const by = s => LV6.findings(s).map(f => [f.how, f.tiles]);
+    same(by(plant('S9', POOL, [{ sp: 'S9.6', at: [12, 4] }])), [['loud', [[7, 4]]]]);
+    same(by(plant('S9', POOL, [{ sp: 'S9.6', at: [13, 4] }])), [['lamp', [[7, 4]]]]);
+    assert.equal(LV6.check(plant('S9', POOL, [{ sp: 'S9.6', at: [13, 4] }]), null).reason,
+      'standing at 7,4, in the safe zone, with the Lamp lit and on the pool (a loud floor) you would wake the Long-Footed Hopper: it is inside your ring (6 walking tiles, in sight)');
   });
 
   // From the tile LV6 names, played with the real rules (every event a clean sentence): who
@@ -304,6 +363,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // The Lamp, lit (use), then stepping between the archway and the tile west of it.
     same(check('Lamp', plant('S9', ARCH, [{ sp: 'S9.6', at: [12, 4] }], { items: [LAMP] }), [8, 4], [{ a: 'use', uid: 'you.c1' }, step(E), step(W), step(E), step(W), step(E)],
       (r, u) => { const e = r.events.find(v => v.k === 'woke' && v.who === u); return e ? ['woke', e.turn, e.cause.k, e.cause.r] : null; }, [7, 4]), ['woke', 6, 'ring', 4]);
+    // The pool: stepping on and off it from the tile west of it, the ring 5 there, 3 off it.
+    same(check('pool', plant('M11', POOL, [{ sp: 'M11.5', at: [12, 4] }]), [7, 4], [step(E), step(W), step(E), step(W), step(E)],
+      (r, u) => { const e = r.events.find(v => v.k === 'woke' && v.who === u); return e ? ['woke', e.turn, e.cause.k, e.cause.r] : null; }, [6, 4]), ['woke', 5, 'ring', 5]);
+    // A door's noise heard by an awake station or an awake exhibit in its case: opened,
+    // closed, opened, it never comes (the one in its case only waits there, its log says so),
+    // never hunts you, and nothing strikes you.
+    for (const s of [awakeStation(), awakeCased()]) {
+      const r = played(s, [7, 4], [step(E), shut, step(E)].concat(waits(T - 3))), a = r.state.actors[1];
+      assert.ok(r.events.some(e => e.k === 'noise' && e.cause.k === 'door'), 'the door is heard');
+      same(r.events.filter(e => (e.who === a.uid && (['woke', 'hunting', 'moved'].includes(e.k) || (e.k === 'alerted' && e.cause.how !== 'case'))) || (e.k === 'damaged' && e.who === 'you')), [], a.sp);
+      same([a.x, a.y], [10, 3], a.sp);
+    }
   });
 
   test('a Wader is read from Patrol.timeline over SAFE_ZONE_TURNS turns: a planted timeline is what LV6 reports; none told, its wake region; a round that first sees the zone 24 turns on passes, and fails at 30 turns', () => {
@@ -355,6 +426,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(!t.fallback && Z.LV6.check(t.state, null) === null, `S9 seed ${seed}`);
     }
     assert.equal(tethers, 6);
+    // M.11's Logbook Trolley stands where a lit Lamp's ring (RING_MOVING + LAMP_RING) from the
+    // safe zone, the open doorway included, does not reach it (its stamp's column 13, walk 13),
+    // so a Lamp carried into M.11 (M5's run) leaves the departments as they are; at column 12
+    // it reached it from the doorway in every M.11 department.
+    for (let depth = 1; depth <= 7; depth++) {
+      const s = State.clone(Dept.create(depth, 'M11', depth));
+      s.items.push(Object.assign({}, LAMP, { uid: 'you.lamp', where: { at: 'kit', slot: 'curio1' }, lit: true }));
+      s.you.kit.curio[1] = 'you.lamp';
+      same(LV6.findings(s), [], `M.11 depth ${depth}, a lit Lamp carried`);
+    }
     // Nothing drawn, nothing changed; the same answer twice.
     for (const [acc, seed, depth] of [['S9', 4, 2], ['A4', 5, 5], ['M11', 120, 1]]) {
       const s = Dept.create(seed, acc, depth), before = json(s), hash = State.hash(s);
