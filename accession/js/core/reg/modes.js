@@ -25,18 +25,22 @@
   // Changes of mode by the modes' own timers (rules/ai.js): a hunter out of sight for
   // `turns` searches; an awake exhibit undisturbed for `turns` goes back; a search ends; a
   // reinstalling exhibit moved off its home goes back to it. how: 'case' for one in an intact
-  // case, which only waits there (§8.3; Wake.setMode).
+  // case, which only waits there (§8.3; Wake.setMode), and 'stands' for one that never steps,
+  // which keeps watch and settles where it stands (§8.2; Wake.stands, M4 TABLEAU-CORE).
   R.defineCause('lost', 'out_of_sight', { fields: { turns: 'int', how: 'str?' } });
   R.defineCause('lost', 'idle', { fields: { turns: 'int', how: 'str?' } });
   R.defineCause('lost', 'searched', { fields: { how: 'str?' } });
   R.defineCause('lost', 'displaced', { fields: {} });
   // A search that ends for an exhibit that may not go back (no home, or it never sleeps), one
   // going back that has no home left, and one going back that other actors leave no step
-  // home: it wanders, from where it is (x, y: where it goes).
-  R.defineCause('alerted', 'searched', { fields: {} });
+  // home: it wanders, from where it is (x, y: where it goes); how: 'stands' for one that never
+  // steps, which stays awake where it stands (M4 TABLEAU-CORE).
+  R.defineCause('alerted', 'searched', { fields: { how: 'str?' } });
   R.defineCause('alerted', 'homeless', { fields: {} });
   R.defineCause('alerted', 'blocked', { fields: {} });
-  R.defineCause('returned', 'home', { fields: { x: 'int', y: 'int' } });
+  // Settling in at home (x, y), and asleep there; how: 'stands' for one that never steps, which
+  // settles where it stands, never having left (M4 TABLEAU-CORE).
+  R.defineCause('returned', 'home', { fields: { x: 'int', y: 'int', how: 'str?' } });
   R.defineCause('noise', 'door', { fields: { by: 'uid?', item: 'uid?' } });
   R.defineCause('noise', 'close', { fields: { by: 'uid?', item: 'uid?' } });
 

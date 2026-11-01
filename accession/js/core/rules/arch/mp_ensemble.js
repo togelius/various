@@ -11,8 +11,10 @@
 //     (Centrepiece.place). Each is an exhibit of its own: it wakes, hunts, strikes and falls on
 //     its own, and its label and odds readout are its own (its own name and number: Packs'
 //     piece species; its own health).
-//   - They never step (mayStep: false, as a station's: neither a rule nor the Window Pole moves
-//     one), so none ever leaves the hall; each strikes from beside you with the role's blow.
+//   - They never step (neverSteps, so mayStep is false: neither a rule nor the Window Pole
+//     moves one), so none ever leaves the hall; each strikes from beside you with the role's
+//     blow. Each hunts, and its changes of mode take place where it stands, as the log tells
+//     them (Wake.stands, how: 'stands'; M4 TABLEAU-CORE).
 //   - The copies are the original's spares, one copy group (init: CopiesWeaken.addGroup, once,
 //     when its pieces are set up), whatever its pieces' flags: with copies_weaken on, the
 //     original's fall weakens and slows each copy still standing (§5.4; the module's rule and
@@ -72,7 +74,7 @@
   function onDied(state, a, cause, ev) {
     if (isPiece(state, a) && Centrepiece.pieces(state).some(p => !p.gone)) phases(state, cause, ev);
   }
-  const mayStep = () => false;
+  const neverSteps = () => true;
 
-  Archetypes.add(ID, Centrepiece.hooks(ID, { init, mayStep, onDamaged, onDied }));
+  Archetypes.add(ID, Centrepiece.hooks(ID, { init, neverSteps, onDamaged, onDied }));
 })();

@@ -55,8 +55,12 @@
   const MODES = { dormant: 'asleep', awake: 'awake', searching: 'searching where it last knew you were' };
   Text.defineCause('lost', 'quiet', (e, w) => e.to === 'dormant' ? `${w.Name(e.who)} settled where it stands: “Quiet, Please” was read.`
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
-  Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
+  // One that never steps (how: 'stands', M4: the Great Board, the Ordinance's pieces) keeps
+  // watch where it stands.
+  Text.defineCause('lost', 'ticket', (e, w) => e.cause.how === 'stands' ? `${w.Name(e.who)} lost you, and keeps watch where it stands: you went back to the entrance.`
+    : `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
-  // Sent to look by a noise; one in an intact case stays in it (its cause's how: 'case').
-  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, ${how(e) === 'case' ? 'but stays in its case' : 'and set off to look'}.`);
+  // Sent to look by a noise; one in an intact case stays in it (its cause's how: 'case'), and
+  // one that never steps is awake where it stands (how: 'stands', M4).
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, ${how(e) === 'case' ? 'but stays in its case' : how(e) === 'stands' ? 'and is awake where it stands' : 'and set off to look'}.`);
 })();

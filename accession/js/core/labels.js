@@ -167,13 +167,17 @@ const Labels = (() => {
   // The odds readout's line for a special (§8.1; Specials.readout): what it would deal you now
   // through your Padding, its gross number, with no roll, its reach, and its cadence. One that
   // deals no damage: a call wakes the sleepers within its range that can hear; a heal (M4's
-  // restore) heals an exhibit within its reach, its mark shown first; any other is told only as
-  // dealing no damage, its Behaviour line saying what it does (never "within null tiles").
+  // restore) heals an exhibit within its reach, its mark shown first; a summons (M4's, the Great
+  // Board's: effect summon) marks up to CP_SUMMON[1] free tiles beside it and calls a body onto
+  // each still free, and while they are marked its owner takes CP_SUMMON_DMG_PCT% of the damage
+  // dealt to it, with its cadence; any other is told only as dealing no damage, its Behaviour
+  // line saying what it does (never "within null tiles").
   function specialLine(r) {
     const name = spNoun(r.sp) || (own(SPECIAL, r.shape) ? SPECIAL[r.shape] : 'special');
     const within = r.range !== null ? ` within ${r.range} tiles of it` : '';
     if (r.net === null && r.shape === 'call' && r.range !== null) return `Its ${name} deals no damage: it wakes the sleeping exhibits${within} that can hear.`;
     if (r.net === null && r.effect === 'heal') return `Its ${name} deals no damage: it heals an exhibit${within}, marking its tile first.`;
+    if (r.net === null && r.effect === 'summon') return `Its ${name} deals no damage: it marks up to ${N.CP_SUMMON[1]} free tiles beside it, then calls a body onto each still free; while they are marked, it takes ${N.CP_SUMMON_DMG_PCT}% of the damage dealt to it${r.every !== null ? `, at most one action in ${r.every}` : ''}.`;
     if (r.net === null) return `Its ${name} deals no damage: its Behaviour line says what it does.`;
     const where = r.shape === 'ring' ? ', on the tiles round it' : r.shape === 'burst' ? ', on your tile and the tiles round it'
       : r.range !== null ? `, up to ${r.range} tiles along a row or column` : '';
@@ -197,6 +201,9 @@ const Labels = (() => {
   // An exhibit in an intact case keeps its lines, which say what its blows would do once out,
   // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
   // wakes it (§8.3), so no blow could ever catch it as the line would say.
+  // While an exhibit takes more damage than it is dealt (Archetypes.readout's taken: the Great
+  // Board while its summons is marked, M4 TABLEAU-CORE), your figures count it (adjustDamage),
+  // and a line after yours says so, so the hits you need are never a mystery.
   const halfUp = (p, q) => Int.idiv(2 * p + q, 2 * q);
   // A chance with its article, as it is said: 'an 80%', 'an 11%', 'a 75%'.
   const aChance = n => `${n === 11 || n === 18 || String(n).charAt(0) === '8' ? 'an' : 'a'} ${n}%`;
@@ -213,6 +220,8 @@ const Labels = (() => {
         : `It has ${aChance(chance)} chance to hit you, typically hits for ${typ}% of your current health, and at worst could defeat you in ${worst}.`);
     }
     lines.push(`You have ${aChance(Combat.hitChance(you, a))} chance to hit it, and typically need ${hits(need)} to destroy it${set && set.halves ? ' and every half it splits off' : ''}.`);
+    const taken = said.find(r => r.k === 'taken');
+    if (taken) lines.push(`Its ${spNoun(taken.sp) || 'special'} is marked: until it goes off, it takes ${taken.pct}% of the damage dealt to it, and your figures count it.`);
     if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
     if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;

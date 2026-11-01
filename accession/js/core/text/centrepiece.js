@@ -4,11 +4,13 @@
 'use strict';
 (() => {
   const isInt = Number.isInteger;
-  // A special's name in a sentence, from its shape, as the combat sentences and the odds
-  // readout name it; a shape with no name of its own is "a new special".
+  // A special's name in a sentence, as the combat sentences and the odds readout name it: the
+  // noun its registry entry gives (the Great Board's summons, M4 TABLEAU-CORE), else from its
+  // shape; a shape with no name of its own is "a new special".
   const SHAPE = { ring: 'ring of blows', line: 'beam', call: 'call', burst: 'burst' };
   const special = sp => {
     const S = typeof sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, sp) ? Registry.SPECIALS[sp] : null;
+    if (S && typeof S.noun === 'string' && S.noun) return `${/^[aeiou]/i.test(S.noun) ? 'an' : 'a'} ${S.noun}`;
     return S && Object.prototype.hasOwnProperty.call(SHAPE, S.shape) ? `a ${SHAPE[S.shape]}` : 'a new special';
   };
   // "… is now in phase 2 of 3", and what it gained (who: the piece that gained it, the first

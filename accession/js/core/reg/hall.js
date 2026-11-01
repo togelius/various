@@ -22,7 +22,9 @@
   // still standing regains SEAL_HEAL_PCT of its maximum health (healed) and, unless asleep,
   // goes back to its place (lost, to returning); why says what opened the shutters (ticket).
   R.defineCause('healed', 'hall', { fields: { why: 'str' }, built: 'M4' });
-  R.defineCause('lost', 'hall', { fields: { why: 'str' }, built: 'M4' });
+  // how: 'stands' for one that never steps, which settles where it stands (Wake.stands, M4
+  // TABLEAU-CORE).
+  R.defineCause('lost', 'hall', { fields: { why: 'str', how: 'str?' }, built: 'M4' });
 
   // A step into a shutter, or a take of an item lying under one, while the hall is sealed
   // (§4.2; rules/hall.js's refuser), made to happen by real actions at depths 1–7.

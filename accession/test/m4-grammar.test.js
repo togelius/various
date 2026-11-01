@@ -346,7 +346,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         assert.equal(r.status, 1, which[0]);
         has(r, /--strict: ARCHETYPES\.completing_guardian is at ready false/); has(r, /--strict: PERKS\.planted_perk is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
-        has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
+        // (The Great Board's words are its own since TABLEAU-CORE, with its "double damage" tied
+        // to CP_SUMMON_DMG_PCT, so they pass.)
+        has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); hasNot(r, /ARCHETYPES\.mp_tableau: /);
       }
       r = lint(null, ['--strict=M9']);
       assert.equal(r.status, 1); has(r, /--strict=M9: no such milestone/);

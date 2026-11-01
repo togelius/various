@@ -34,7 +34,9 @@
 
   // A Ticket read while the hall is sealed: the Centrepiece heals and goes back to its place.
   Text.defineCause('healed', 'hall', (e, w) => `${w.Name(e.who)} regained ${e.amount} health as the shutters opened: now ${e.hp}.`);
-  Text.defineCause('lost', 'hall', (e, w) => `${w.Name(e.who)} is going back to its place, since the shutters opened.`);
+  // (One that never steps, how: 'stands', settles where it stands: M4 TABLEAU-CORE.)
+  Text.defineCause('lost', 'hall', (e, w) => e.cause.how === 'stands' ? `${w.Name(e.who)} is settling where it stands, since the shutters opened.`
+    : `${w.Name(e.who)} is going back to its place, since the shutters opened.`);
 
   // The shutters' refusal (§4.2).
   Text.defineRefusal('sealed', () => 'A shutter is closed over that opening: the hall is sealed.');

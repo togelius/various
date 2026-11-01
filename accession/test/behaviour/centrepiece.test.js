@@ -222,12 +222,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   }
   test('a department\'s Centrepiece, once its core is ready, has the core\'s hooks, a sound record and, for a fight, a Signature piece of its pack (planted: a ready fight with none, and a core without the hooks)', () => {
     assert.deepEqual(readiness(loadCore()), []);
+    // (A core not yet built, S.9's, stands for one added without the hooks: M.11's and A.4's are
+    // added with them, TABLEAU-CORE and ENSEMBLE-CORE.)
     const K = core(), X = K.X;
+    X.Registry.ARCHETYPES.completing_guardian.ready = 'unit';
+    X.Archetypes.add('completing_guardian', {});
     X.Registry.ARCHETYPES.mp_tableau.ready = 'unit';
-    X.Archetypes.add('mp_tableau', {});
     delete X.Packs.get('M11').centrepiece.signature;
     const got = readiness(X);
-    assert.ok(got.some(l => /M11: mp_tableau is ready but not added with Centrepiece\.hooks/.test(l)) && got.some(l => /M11: its fight names no Signature piece/.test(l)), json(got));
+    assert.ok(got.some(l => /S9: completing_guardian is ready but not added with Centrepiece\.hooks/.test(l)) && got.some(l => /M11: its fight names no Signature piece/.test(l)), json(got));
   });
 
   // ---- Phases, its specials in turn, and its fall ----

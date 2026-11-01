@@ -27,8 +27,10 @@
 
   // The burst (§8.1; Specials' shape 'burst'): your tile and the tiles round it, aimed at you,
   // so marked only while its owner sees you, never an intact case's tile nor its owner's own;
-  // a Centrepiece's gross (cp:). Used by the Great Board and the Ordinance's copies.
-  R.define('SPECIALS', 'cp_burst', proved({ icon: 'special', shape: 'burst', effect: 'damage', curve: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', range: null, every: null,
+  // a Centrepiece's gross (cp:). Used by the Great Board and the Ordinance's copies. Named a
+  // burst in sentences (noun), as its readout names it (M4 TABLEAU-CORE: the log said "its
+  // special").
+  R.define('SPECIALS', 'cp_burst', proved({ icon: 'special', shape: 'burst', effect: 'damage', curve: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', range: null, every: null, noun: 'burst',
     clause: 'marks your tile and the tiles round it while it sees you, then strikes everything on them for {gross} before Padding',
     params: { gross: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT' }, covers: ['telegraphed', 'special', 'damaged'],
     tests: ['behaviour/centrepiece.test.js', 'm4-specials-core.test.js'] }));

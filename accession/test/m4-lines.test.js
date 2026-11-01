@@ -458,7 +458,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   }
   const FIGHT = 'Its fall earns the Certificate, unless you have it.', TREASURE = 'Killing it earns nothing: carry the Lamp out.', REST = 'Its label has the rest.';
   test('a Centrepiece\'s phases: its label\'s whole line says each phase\'s rules ("From phase 2: …"); its strip, in each phase, "Phase k of 3.", its form\'s short sentence, what that phase itself adds, and "Its label has the rest."', () => {
-    const X = loadCore(), cp = centrepiece(X), g = X.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4), base = X.Clauses.line(X.Packs.get('M11').centrepiece, { depth: 4 });
+    // (base: M.11's record with no phases of its own, which it lists since TABLEAU-CORE.)
+    const X = loadCore(), cp = centrepiece(X), g = X.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4), base = X.Clauses.line(Object.assign({}, X.Packs.get('M11').centrepiece, { phases: undefined }), { depth: 4 });
     const [arch, wake] = [base.slice(0, base.indexOf(' Wakes')), base.slice(base.indexOf(' Wakes') + 1)];
     const p1 = `Marks the tiles round it, then strikes them for ${g}.`, p2 = 'From phase 2: calls a body out of its frame.', p3 = `From phase 3: its specials come every ${X.N.CP_SPECIAL_EVERY[1]} actions.`;
     assert.equal(X.Clauses.line(cp, { depth: 4 }), [arch, p1, p2, p3, wake].join(' '));
@@ -467,9 +468,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 1 }), ['Phase 1 of 3.', FIGHT, p1, REST].join(' '));
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 2 }), ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST].join(' '));
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 3 }), ['Phase 3 of 3.', FIGHT, `Its specials come every ${X.N.CP_SPECIAL_EVERY[1]} actions.`, REST].join(' '));
-    // A phase that adds nothing, or a Centrepiece whose record lists no phases (S.9's and
-    // M.11's today; A.4's Ordinance lists its own, test/behaviour/mp_ensemble.test.js): the
-    // phase, the form and the rest. Its phases are its health's three.
+    // A phase that adds nothing, or a Centrepiece whose record lists no phases (S.9's today;
+    // A.4's Ordinance and M.11's Great Board list their own, test/behaviour/mp_ensemble.test.js
+    // and mp_tableau.test.js): the phase, the form and the rest. Its phases are its health's three.
     const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }] });
     assert.equal(json([1, 2, 3].map(k => X.Clauses.strip(two, { depth: 4, phase: k }))), json([['Phase 1 of 3.', FIGHT, REST], ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST], ['Phase 3 of 3.', FIGHT, REST]].map(w => w.join(' '))));
     for (const p of X.Packs.list()) if (!p.centrepiece.phases) for (const k of [1, 2, 3]) assert.equal(X.Clauses.strip(p.centrepiece, { depth: 7, phase: k }), [`Phase ${k} of 3.`, p.centrepiece.form === 'fight' ? FIGHT : TREASURE, REST].join(' '), `${p.acc} ${k}`);
@@ -512,11 +513,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.ok(f === 'fight' ? /earns the Certificate, unless you have it\.$/.test(e.clause) : /earns nothing: carry the treasure it guards out of the hall\.$/.test(e.clause), e.clause);
     }
     // Filled as the clause is: a placeholder in it takes the entry's parameters.
-    const X = loadCore();
+    // (M.11's record with no phases of its own, which it lists since TABLEAU-CORE.)
+    const X = loadCore(), bare = Object.assign({}, X.Packs.get('M11').centrepiece, { phases: undefined });
     X.Registry.CLAUSES.cp_fight.strip = 'Its phases start at {first}% and {second}%.';
-    assert.equal(X.Clauses.strip(X.Packs.get('M11').centrepiece, { depth: 2, phase: 1 }), `Phase 1 of 3. Its phases start at ${X.N.CP_PHASE_PCT[0]}% and ${X.N.CP_PHASE_PCT[1]}%. ${REST}`);
+    assert.equal(X.Clauses.strip(bare, { depth: 2, phase: 1 }), `Phase 1 of 3. Its phases start at ${X.N.CP_PHASE_PCT[0]}% and ${X.N.CP_PHASE_PCT[1]}%. ${REST}`);
     X.Registry.CLAUSES.cp_fight.strip = 'Its {nothing} earns.';
-    assert.throws(() => X.Clauses.strip(X.Packs.get('M11').centrepiece, { depth: 2, phase: 1 }), /\{nothing\} has no value/);
+    assert.throws(() => X.Clauses.strip(bare, { depth: 2, phase: 1 }), /\{nothing\} has no value/);
   });
 
   test('a gallery line\'s strip is its whole line, unchanged, at every depth, with each modifier and module off, a phase given or not', () => {

@@ -112,8 +112,6 @@ Packs.add({
     { key: 'centre', name: 'The Central Station', contents: [] },
     { key: 'coda', name: 'The Linesmen’s Canteen', contents: [] },
   ],
-  centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2, signature: 'M11.10',
-    name: 'The Great Board of the Central Station',
-    tomb: { maker: 'Painted by the Workshops of the Line, with later panels', date: 'Before the Second Calibration; repainted until the line closed', medium: 'Oil on boards, forty hinged panels; iron frame', dims: 'H. 3.2 m, W. 3.6 m', credit: 'Transferred from the Central Station' },
-    paragraph: 'Every signal on the line arrived here and was posted on the Board by hand, so that the Central Station could see the state of the whole building at a glance. The Board shows times of sending and times of arrival, and nothing else. The clerks who kept it were trained to step out of its row whenever a panel changed.' },
+  // The Centrepiece, the Great Board, naming the Pocket Heliograph as its Signature piece, is the
+  // pack's centrepiece part, content/M11-cp.js (M4 plan A9; TABLEAU-CORE moved it there).
 });

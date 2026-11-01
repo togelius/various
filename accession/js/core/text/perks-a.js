@@ -10,8 +10,11 @@
 (() => {
   // One in an intact case (its cause's how: 'case') only waits there (§8.3): it never searches
   // where it last knew you were.
+  // One that never steps (how: 'stands', M4 TABLEAU-CORE: the Great Board, the Ordinance's
+  // pieces) keeps watch where it stands.
   const cased = e => !!e.cause && e.cause.how === 'case';
   Text.defineCause('lost', 'vanished', (e, w) => cased(e)
     ? `${w.Name(e.who)} lost sight of you and stops hunting at once, but stays in its case: Vanishing Act.`
-    : `${w.Name(e.who)} lost sight of you and searches at once where it last knew you were: Vanishing Act.`);
+    : e.cause && e.cause.how === 'stands' ? `${w.Name(e.who)} lost sight of you and stops hunting at once, keeping watch where it stands: Vanishing Act.`
+      : `${w.Name(e.who)} lost sight of you and searches at once where it last knew you were: Vanishing Act.`);
 })();

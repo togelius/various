@@ -19,6 +19,13 @@
 // stations, which never hunt at all, §5.4) goes awake wherever another would start to hunt
 // (Wake.wake and Wake.setMode take 'hunting' as 'awake' for it, with nothing to look at), so
 // your ring, a blow, a bell or a broken case wakes it awake, and it is never hunting.
+// An exhibit that never steps (Wake.stands: one that never hunts, or one that hunts but whose
+// archetype never steps, Archetypes.neverSteps: M4's Great Board and the Ordinance's pieces)
+// changes mode by the same rules and timers as any other, but every change takes place where
+// it stands, and its cause says so (how: 'stands'): a noise sends it nowhere; out of sight it
+// keeps watch where it stands (searching), then settles where it stands (returning, at once
+// reinstalling, then asleep). So the log never sends it to look, to search where it last knew
+// you were, or back to a place it never left (M4 TABLEAU-CORE; BUILD §8.2).
 'use strict';
 const Wake = (() => {
   // Causes and tiles are copied in as plain data (Causes.copy: anything else stops with an error).
@@ -81,13 +88,19 @@ const Wake = (() => {
   // searched, and M4's vanished, Vanishing Act's out_of_sight) then says so in its cause
   // (how: 'case'), so its sentence never has it search where it last knew you were or go back
   // to a place it never left.
+  // An exhibit that never steps (stands, below; not in a case) changes mode where it stands:
+  // a change by those timers, by the Re-admission Ticket (ticket), by the hall's shutters
+  // opening (hall) or on settling in at home (home, where it always is) says so in its cause
+  // (how: 'stands'), so its sentence keeps it where it stands too.
   const CASE_TIMERS = ['out_of_sight', 'vanished', 'idle', 'searched'];
+  const STANDS = CASE_TIMERS.concat(['ticket', 'hall', 'home']);
   function setMode(state, a, mode, cause, ev, opts) {
     if (!MODES.includes(mode)) throw new Error(`Wake.setMode: no mode ${mode}`);
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
     if (a.gone) return false;
     opts = opts || {};
     if (cause && CASE_TIMERS.includes(cause.k) && cause.how === undefined && Cases.encased(state, a)) cause = Object.assign({}, cause, { how: 'case' });
+    else if (cause && STANDS.includes(cause.k) && cause.how === undefined && stands(state, a)) cause = Object.assign({}, cause, { how: 'stands' });
     if (mode === 'hunting' && !hunts(state, a)) {
       mode = 'awake';
       if (a.mode !== 'awake' && opts.target === undefined) opts = Object.assign({}, opts, { target: [a.x, a.y] });
@@ -272,30 +285,33 @@ const Wake = (() => {
   //   hunting: if you made the noise, its last-known tile becomes the noise's tile (the
   //     Tuning Fork's lure is yours too); another exhibit's noise says nothing about where
   //     you are. Its count of turns out of sight goes on.
-  // An exhibit that never hunts (a station, M4) never steps either, so a noise sends it
-  // nowhere: asleep, it gains its pip and wakes awake where it stands, its cause saying so
-  // (how: 'stands', so the log never says it set off to look); awake, the noise only counts
-  // as a stimulus. One in an intact case (§8.3) goes to look as any other does, but stays in
-  // its case and only waits there (AI), so its cause says how: 'case', and the log tells it
-  // that it woke in its case, or stays in it, never that it set off to look.
+  // An exhibit that never steps (Wake.stands: a station, M4, which never hunts; the Great
+  // Board and the Ordinance's pieces, which hunt but stand fixed) is sent nowhere by a noise:
+  // asleep, it gains its pip and wakes awake where it stands, its cause saying so (how:
+  // 'stands', so the log never says it set off to look); awake, the noise only counts as a
+  // stimulus; searching, returning or reinstalling, it goes awake where it stands (alerted,
+  // its own tile the place it looks at). One in an intact case (§8.3) goes to look as any
+  // other does, but stays in its case and only waits there (AI), so its cause says how:
+  // 'case', and the log tells it that it woke in its case, or stays in it, never that it set
+  // off to look.
   // The cause names the source (who made the noise, when someone did, and its tile x, y),
   // the walking distance and the class (§3.4: a wake event names the trigger, the source and
   // the distance). Returns whether a changed.
   function hear(state, a, noise, dist, ev) {
     if (!a || a.gone || a.uid === 'you' || Archetypes.pipless(state, a)) return false;
     if (noise.by && noise.by === a.uid) return false;
-    const src = [noise.x, noise.y], cause = { k: 'noise' }, stands = !hunts(state, a);
+    const src = [noise.x, noise.y], cause = { k: 'noise' }, still = stands(state, a);
     if (noise.by) cause.by = noise.by;
     cause.dist = dist; cause.cls = noise.cls; cause.x = noise.x; cause.y = noise.y;
     if (Cases.encased(state, a)) cause.how = 'case';
-    else if (stands) cause.how = 'stands';
+    else if (still) cause.how = 'stands';
     switch (a.mode) {
-      case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, stands ? {} : { target: src }) || a.pips !== pips; }
+      case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, still ? {} : { target: src }) || a.pips !== pips; }
       case 'awake':
-        if (stands || (Array.isArray(a.target) && a.target[0] === src[0] && a.target[1] === src[1])) { a.stim = state.turn; return true; }
+        if (still || (Array.isArray(a.target) && a.target[0] === src[0] && a.target[1] === src[1])) { a.stim = state.turn; return true; }
         return setMode(state, a, 'awake', cause, ev, { target: src });
       case 'searching': case 'returning': case 'reinstalling':
-        return setMode(state, a, 'awake', cause, ev, { target: src });
+        return setMode(state, a, 'awake', cause, ev, { target: still ? [a.x, a.y] : src });
       case 'hunting':
         if (noise.by !== 'you') return false;
         a.lastKnown = src;
@@ -401,6 +417,11 @@ const Wake = (() => {
   }
   // Does a hunt (§8.2)? Not an exhibit whose archetype never hunts on sight (a station).
   const hunts = (state, a) => Archetypes.huntsOnSight(state, a);
+  // Wake.stands(state, a) → bool: does a never step, so that every change of its mode takes
+  // place where it stands (§8.2)? One that never hunts (a station: it never steps either), and
+  // one whose archetype never steps though it hunts (Archetypes.neverSteps: M4's Great Board
+  // and the Ordinance's pieces).
+  const stands = (state, a) => !hunts(state, a) || Archetypes.neverSteps(state, a);
 
-  return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, onAxis, axisDist, inTether, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep };
+  return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, onAxis, axisDist, inTether, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep, stands };
 })();

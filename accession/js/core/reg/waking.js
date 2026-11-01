@@ -52,7 +52,8 @@
   // "Quiet, Please" and the Re-admission Ticket make hunters lose you; "Quiet, Please" also
   // settles an exhibit that was going back to sleep at home.
   R.defineCause('lost', 'quiet', { fields: read });
-  R.defineCause('lost', 'ticket', { fields: read });
+  // how: 'stands' for one that never steps, which keeps watch where it stands (M4 TABLEAU-CORE).
+  R.defineCause('lost', 'ticket', { fields: Object.assign({ how: 'str?' }, read) });
   R.defineCause('returned', 'quiet', { fields: read });
   // Noise sends a searching, returning or awake exhibit to look (§8.2).
   R.defineCause('alerted', 'noise', { fields: heard });

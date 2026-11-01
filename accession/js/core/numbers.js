@@ -77,7 +77,7 @@ const N = Object.freeze({
   TREASURE_SEAL_TURNS: 12, // turns after a treasure's case is touched before its hall seals
   CP_PHASE_PCT: [67, 34], // phase thresholds, % of total health
   CP_SPECIAL_EVERY: [3, 2], // a special every this many actions, phases 1–2, then 3; provisional
-  CP_SUMMON: [1, 2], // bodies a summon makes, fewest and most; provisional
+  CP_SUMMON: [1, 2], // free tiles a summon marks, fewest and most, a body coming onto each still free; provisional
   CP_SUMMON_DMG_PCT: 200, // damage the tableau takes while a summon is marked, %
   CHARGE_RANGE: 5, // tiles a `cp_charge` lane reaches toward you
   GUARDIAN_PER_STAGE: 2, // galleries walked per limb

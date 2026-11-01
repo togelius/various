@@ -25,10 +25,9 @@
   // parts (below) say what each phase gives. ready stays false (M4 plan PG-CORE's ordering
   // constraint, ENSEMBLE-CORE's brief): once it is past false, A.4's departments place it, and a
   // Certificate comes within reach of hand play before the perk choice has an interface
-  // (UI-PROGRESS), before its strip is the phone's (LABELS-M4), and while the log still tells
-  // a piece's modes as moves it never makes ("set off to look", "searching where it last knew
-  // you were", "going back to its place": BUILD §5.5 lists what remains); until then only tests
-  // place it (Centrepiece.place). lint-registry's word rules read this clause once it is past false,
+  // (UI-PROGRESS) and before its strip is the phone's (LABELS-M4): BUILD §5.5 lists what
+  // remains (the log tells a piece's modes as made where it stands since M4 TABLEAU-CORE:
+  // Wake.stands); until then only tests place it (Centrepiece.place). lint-registry's word rules read this clause once it is past false,
   // and now under --strict=M4 (which it passes but for its readiness); mp_ensemble.test.js holds
   // its digits and its form, and the whole line it makes.
   R.define('ARCHETYPES', 'mp_ensemble', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,

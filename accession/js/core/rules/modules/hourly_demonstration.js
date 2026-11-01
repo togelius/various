@@ -59,8 +59,9 @@
 // every tile it could take then (HourlyDemonstration.reach): along its direction, every tile
 // of its room up to the first that sight can never pass (a wall, a column: not a door, a cloud
 // or an exhibit); and, while an exhibit that reflects could stand in its way by the chime
-// (within as many tiles of it as the steps it could take before then), its station's tile and
-// every such tile behind it, where a reflector in its way would send it.
+// (within as many tiles of it as the steps it could take before then, or anywhere while a
+// summons could call one: M4 TABLEAU-CORE), its station's tile and every such tile behind it,
+// where a reflector in its way would send it.
 // A chime its station will still be held fixed through (a fixed status whose end is after it)
 // marks nothing, and is left out. It reads nothing an action's roll could change but whether a
 // reflector stands, so
@@ -166,7 +167,7 @@ const HourlyDemonstration = (() => {
     const passes = (x, y) => Grid.inside(m, x, y) && (room === null || roomAt(m, x, y) === room) && (Grid.seeThrough(m, x, y) || Grid.closedDoor(m, x, y));
     const run = k => { const got = []; for (let x = a.x + Grid.DX[k], y = a.y + Grid.DY[k]; passes(x, y); x += Grid.DX[k], y += Grid.DY[k]) got.push([x, y]); return got; };
     const fwd = run(d), out = fwd.slice();
-    if (fwd.length && state.actors.some(b => mayTurn(state, b, fwd, c))) out.push([a.x, a.y], ...run((d + 4) % 8));
+    if (fwd.length && (summoned(state) || state.actors.some(b => mayTurn(state, b, fwd, c)))) out.push([a.x, a.y], ...run((d + 4) % 8));
     return out.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
   }
   // Could b, an exhibit that reflects, stand on a tile of fwd when the line is marked at the
@@ -177,10 +178,15 @@ const HourlyDemonstration = (() => {
   // now (state.tick) to that boundary it takes at most one a fast step's ticks, the first at
   // once; and one more, for a Window Pole of yours. A module whose rules move exhibits (the
   // form's move effect, which costs them nothing) would break that count: while one is on,
-  // any that reflects could. Nothing makes a new reflector during a visit (a package that
-  // makes one, or moves an exhibit faster, must widen this). It reads the state before your
-  // action, never what its roll changes.
+  // any that reflects could. A body a summons calls (M4 TABLEAU-CORE, rules/arch/
+  // mp_tableau.js) comes onto a free tile beside its caller with no step, so while an exhibit
+  // present has, or will gain with its phases, a summons that calls a body that reflects
+  // (Tableau.callsReflector; the Great Board's Logbook Trolleys do not), any reflector could
+  // stand in the line's way by the chime (summoned). Nothing else makes a new reflector during
+  // a visit (a package that makes one, or moves an exhibit faster, must widen this). It reads
+  // the state before your action, never what its roll changes.
   const FAST = Int.pct(N.COST_STEP, N.SPEED_FAST_PCT);
+  const summoned = state => Tableau.callsReflector(state);
   const moving = state => Modules.active(state).some(id => Modules.form(id).rules.some(r => r.do.includes('move')));
   function mayTurn(state, b, fwd, c) {
     if (b.uid === 'you' || !Ranged.isReflector(state, b)) return false;

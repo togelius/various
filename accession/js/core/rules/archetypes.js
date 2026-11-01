@@ -24,7 +24,10 @@
 //                                        n}, it needs n hits whatever its health (a swarm body);
 //                                        {k: 'hits', n, halves: true}, n counts the hits on it
 //                                        and on every half it splits off (a splitter that can
-//                                        still split), and its line says so
+//                                        still split), and its line says so; {k: 'taken', pct,
+//                                        sp}, while its special sp is marked it takes pct% of
+//                                        the damage dealt to it (adjustDamage: the Great Board's
+//                                        summons, M4), which the figures count and a line says
 // M4's hooks, added by M4's skeleton so the core can ask them (W0d1 routes the rules' calls):
 //   huntsOnSight(state, a) → bool        does a hunt you on seeing you: false if any hook says so
 //   marksAwake(state, a) → bool          may a mark its special while awake: true if any hook says so
@@ -35,10 +38,15 @@
 //                                        sight) and every hook's, which each add their own (a
 //                                        station its line, a patrol its round's sight); each tile
 //                                        once, in row-major order (y, then x)
+//   neverSteps(state, a) → bool          does a never step, whatever it is doing: true if any hook
+//                                        says so (M4 TABLEAU-CORE: the Great Board and the
+//                                        Ordinance's pieces, which hunt and stand fixed); mayStep
+//                                        is then false everywhere, and Wake tells its changes of
+//                                        mode as made where it stands (Wake.stands, BUILD §8.2)
 'use strict';
 const Archetypes = (() => {
   const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',
-    'onResolve', 'init', 'present', 'pipless', 'readout', 'huntsOnSight', 'marksAwake', 'immune', 'plan', 'wakeRegion'];
+    'onResolve', 'init', 'present', 'pipless', 'readout', 'huntsOnSight', 'marksAwake', 'immune', 'plan', 'wakeRegion', 'neverSteps'];
   const ARCH = {}, MODS = {};
   const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   function register(table, kind, reg, id, impl) {
@@ -78,7 +86,8 @@ const Archetypes = (() => {
 
   const act = first('act');
   const present = first('present');
-  function mayStep(state, a, x, y) { for (const f of hooks(state, a, 'mayStep')) if (!f(state, a, x, y)) return false; return true; }
+  function neverSteps(state, a) { for (const f of hooks(state, a, 'neverSteps')) if (f(state, a)) return true; return false; }
+  function mayStep(state, a, x, y) { if (neverSteps(state, a)) return false; for (const f of hooks(state, a, 'mayStep')) if (!f(state, a, x, y)) return false; return true; }
   function costPct(state, a, kind) { let p = 100; for (const f of hooks(state, a, 'costPct')) p = Int.pct(p, f(state, a, kind)); return p; }
   function speedApplies(state, a) { const fs = hooks(state, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
   function adjustDamage(state, def, amount, cause) { for (const f of hooks(state, def, 'adjustDamage')) amount = f(state, def, amount, cause); return amount; }
@@ -136,7 +145,7 @@ const Archetypes = (() => {
 
   return {
     HOOKS: HOOKS.slice(), add, addModifier, added, addedModifier,
-    act, mayStep, costPct, speedApplies, adjustDamage, present, pipless, readout, huntsOnSight, marksAwake, immune, plan, wakeRegion,
+    act, mayStep, costPct, speedApplies, adjustDamage, present, pipless, readout, huntsOnSight, marksAwake, immune, plan, wakeRegion, neverSteps,
     onDamaged: each('onDamaged'), onDied: each('onDied'), onTouched: each('onTouched'), onWake: each('onWake'),
     onHome: each('onHome'), onResolve: each('onResolve'), init: each('init'),
   };
