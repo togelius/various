@@ -27,5 +27,24 @@
     paragraph: 'Every signal on the line arrived here and was posted on the Board by hand, so that the Central Station could see the state of the whole building at a glance. The Board shows times of sending and times of arrival, and nothing else. The clerks who kept it were trained to step out of its row whenever a panel changed.',
     gateway: 'The Great Board of the Central Station. Every signal on the line arrived here and was posted on the Board by hand, so that the Central Station could see the state of the whole building at a glance. The Board shows times of sending and times of arrival, and nothing else. The clerks who kept it were trained to step out of its row whenever a panel changed. In the line’s last years the Board is said to have posted signals before they were sent. The Superintendent’s pocket heliograph, lost on the last day, was found behind panel twenty-six.',
     phases: [{ parts: ['SPECIALS.cp_line', 'SPECIALS.cp_burst'] }, { parts: ['CLAUSES.tab_summon'], specials: ['summon'] }, { parts: ['CLAUSES.tab_quick'] }],
+    // Its attachments (TABLEAU-PHASES; the sample's, trimmed): each an exhibit of its own, no
+    // piece of the Board, set out with it in its hall (`stands`, rules/arch/mp_tableau.js), with
+    // a species' fields and words, drawn with its archetype's outline (art/sprites).
+    attachments: [
+      // The Repeater Arm: a station (M11.2's archetype, modifier, trigger and flags, so M11.2's
+      // line), standing beside the hall's case, whose rain stops it (the sample's rain jars, one
+      // rain case: weather_cases gives the hall's case rain); its line on every chime, every
+      // DEMO_PERIOD_HALL turns, counted from entry, sealed or not.
+      { id: 'M11.11a', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period', flags: ['hourly_demonstration', 'weather_cases'], stands: 'case',
+        name: 'The Board’s Repeater Arm',
+        tomb: { maker: 'Workshops of the Line', date: 'Before the Second Calibration; refitted when the Board was enlarged', medium: 'Painted oak arm; iron post; brass escapement', dims: 'H. 260 cm', credit: 'Transferred from the Central Station' },
+        paragraph: 'The arm repeated whatever the Board posted, so that the clerks at the far end of the station, who could not read the panels from there, could take it down. It was taken off the frame and given a post of its own when the Board was enlarged to forty panels. The logbooks note that it was never quite in time with the Board again, and that nobody minded.' },
+      // The Board Dish: a reflector, with the Board's own rule (MODIFIERS.tab_screen: its second
+      // phase wakes it; hunting, it keeps between you and the Board), set apart from the Board.
+      { id: 'M11.11b', sprite: 'reflecting_dish', archetype: 'reflector', role: 'controller', modifiers: ['tab_screen'], trigger: null, stands: 'apart',
+        name: 'The Board Dish',
+        tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Polished tinplate, oak cart, iron wheels', dims: 'Diam. 120 cm', credit: 'Transferred from the Central Station' },
+        paragraph: 'A heliograph’s beam blistered the Board’s varnish, so the Central Station kept a dish of its own to turn stray signals away from the panels. The clerks wheeled it out only when the exchange grew heavy, and put it away again as soon as the line was quiet. The Superintendent’s notes call it the Board’s umbrella.' },
+    ],
   });
 })();

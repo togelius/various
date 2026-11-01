@@ -490,9 +490,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // A hunter that steps keeps its story (a sentence that names how: 'stands' only for one).
     const e = { k: 'lost', turn: 9, who: 'x', from: 'hunting', to: 'searching', cause: { k: 'out_of_sight', turns: 8 } };
     assert.equal(C.Text.event(e, () => 'the dummy'), 'The dummy lost you: it has not seen you for 8 turns, and searches where it last knew you were.');
-    // Who stands: a station (which never hunts), the Board and the Ordinance's pieces; not a plodder.
+    // Who stands: a station (which never hunts), the Board and the Ordinance's pieces, and the
+    // Board's Repeater Arm (a station, TABLEAU-PHASES); not a plodder, nor the Board Dish (a
+    // reflector, which walks).
     const t = room(2, { more: [{ sp: 'M11.2', at: [2, 6], mode: 'dormant', stats: Roles.stats('controller', 2), room: 'centre' }, { sp: 'M11.5', at: [2, 1], mode: 'dormant', stats: Roles.stats('fodder', 2), room: 'centre' }] });
-    assert.equal(json(t.actors.slice(1).map(a => [a.sp, C.Wake.stands(t, a)])), json([['M11.2', true], ['M11.5', false], ['M11.11', true]]));
+    assert.equal(json(t.actors.slice(1).map(a => [a.sp, C.Wake.stands(t, a)])), json([['M11.2', true], ['M11.5', false], ['M11.11', true], ['M11.11a', true], ['M11.11b', false]]));
     assert.deepEqual(problems, []);
   });
 
@@ -536,6 +538,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const s = room(3, { core: X, you: [8, 1], more: [{ sp: 'M11.2', at: [3, 6], mode: 'dormant', stats: Roles.stats('controller', 3), room: 'centre', ax: {} }] });
       const st = s.actors.find(a => a.sp === 'M11.2'), b = board(X, s);
       st.route = { dir: 'E' };
+      // Its attachments set aside (TABLEAU-PHASES): the Board Dish, a reflector that walks, would
+      // widen the forecast as any reflector near a line does (mp_tableau-phases.test.js); this is
+      // of the summons alone.
+      for (const a of X.Tableau.attachments(s)) a.gone = 1;
       if (phase2) toPhase2(X, s, b);
       return { reach: X.HourlyDemonstration.reach(s, st, s.turn + 2), calls: X.Tableau.callsReflector(s) };
     };

@@ -2,8 +2,8 @@
 // Station; BUILD.md §5.1, §5.3, §5.5, §8.1; rules/archetypes.js), added with the hooks every
 // Centrepiece shares (Centrepiece.hooks: its specials in turn, its phases, its fall). Its
 // registry entry is in js/core/reg/cp-tableau.js, its sentences in js/core/text/cp-tableau.js
-// and its record in content/M11-cp.js. Owned by TABLEAU-CORE (its body); TABLEAU-PHASES adds
-// its attachments (the Repeater Arm, the Board Dish) and the hall's rain case.
+// and its record in content/M11-cp.js. Owned by TABLEAU-CORE (its body); TABLEAU-PHASES added
+// its attachments (the Repeater Arm, the Board Dish), which bring the hall's rain case into play.
 //
 // The rule, as its line says it (design/samples.md §2.8, trimmed; decided without play; revisit
 // once M4 is playable):
@@ -39,7 +39,14 @@
 //     blows, and its standing beside you, neither restart a sealed hall's quiet count nor keep
 //     the hall sealed (Hall.onHurt and Hall.boundary count its pieces only; BUILD §8.4), and its
 //     fall is no part of the Board's.
-// The beam and the summons draw nothing.
+//   - Its attachments (TABLEAU-PHASES; the record's `attachments`, below): set out as it is
+//     placed (its init), exhibits of their own and no pieces of it. The Repeater Arm, a station
+//     (M11.2's archetype, modifier, trigger and flags, so its line), stands beside the hall's
+//     case, within its weather (the hall's case holds rain: weather_cases), its line never
+//     across the Board; the Board Dish, a reflector, stands apart until the Board's second
+//     phase wakes it (onPhase), then, hunting, keeps in front of the Board (MODIFIERS.
+//     tab_screen, a modifier registered here).
+// The beam, the summons and the attachments' placing draw nothing.
 //
 // Tableau, for the module that forecasts the chime's lines, the view and the tests:
 //   Tableau.line(state, a) → [[x, y]…]      the tiles its beam would take if marked now, in the
@@ -51,6 +58,10 @@
 //                                            Centrepiece's phases, a summons that calls a body
 //                                            that reflects (HourlyDemonstration.reach widens
 //                                            for it: such a body comes with no step)
+//   Tableau.attachments(state) → [actor]     the Board's attachments set out in this visit, in
+//                                            spawn order, fallen ones included
+//   Tableau.front(state, a, b) → [x, y] | null  the tile the Board Dish a keeps to in front of
+//                                            the Board b (tab_screen)
 'use strict';
 const Tableau = (() => {
   const ID = 'mp_tableau', LINE = 'cp_line', SUMMON = 'summon';
@@ -153,7 +164,203 @@ const Tableau = (() => {
     return false;
   }
 
-  Archetypes.add(ID, Centrepiece.hooks(ID, { neverSteps, adjustDamage, onResolve, readout }));
+  // ---- Its attachments (TABLEAU-PHASES) ----
+  const DIRS = ['N', 'E', 'S', 'W'], DIR = { N: 0, E: 2, S: 4, W: 6 };
+  const roomAt = (m, x, y) => Array.isArray(m.roomOf) && m.roomOf.length && m.roomOf[y] ? m.roomOf[y][x] : null;
+  const rowMajor = (p, q) => p[1] - q[1] || p[0] - q[0];
+  // Its record, when a is the Great Board placed (dept.cp's first piece, its record this core's).
+  function recordOf(state, a) {
+    const cp = Hall.cp(state);
+    if (!cp || !Array.isArray(cp.uids) || cp.uids[0] !== a.uid) return null;
+    const rec = Packs.speciesFor(state, a);
+    return rec && rec.archetype === ID ? rec : null;
+  }
+  const attachmentsOf = rec => rec && Array.isArray(rec.attachments) ? rec.attachments : [];
+  // A tile of room `room` an exhibit may be set on: one it can stand on and walk from (not a
+  // closed door), with no one on it.
+  function open(state, room, x, y) {
+    const m = state.dept;
+    return Grid.inside(m, x, y) && roomAt(m, x, y) === room && Grid.walkable(m, x, y, 'exhibit') && !Grid.closedDoor(m, x, y) && !Actors.at(state, x, y);
+  }
+  // Population's rule for a hall exhibit's tile (M4 plan A10; Populate's `keeps`): never within
+  // RING_STILL + 1 walking tiles of the hall's reading tile (dept.viewTile; a room for tests has
+  // none), so that viewing, standing still there, wakes none. Its other rules hold of every hall
+  // tile: the safe zone lies within the Intro, whose onward openings are INTRO_DEPTH or more
+  // walking tiles from the entrance, and the footprint is the Board's own. The Repeater Arm, a
+  // station, keeps to its case instead (attach): a station never hunts, so your ring there at
+  // most wakes it, and it marks its line at each chime awake or asleep.
+  function keeper(state) {
+    const m = state.dept, view = Array.isArray(m.viewTile) ? Grid.distances(m, [m.viewTile], N.RING_STILL + 1) : null;
+    return (x, y) => { if (!view) return true; const v = Grid.reachDist(view, m, x, y); return v < 0 || v > N.RING_STILL + 1; };
+  }
+  // A run from (x, y) in direction k (Grid's: N 0, E 2, S 4, W 6): each tile of room `room` that
+  // sight passes, up to the first that it does not, or that is not the room's (a station's
+  // line, rules/modules/hourly_demonstration.js, takes no other).
+  function run(m, room, x, y, k) {
+    const out = [];
+    for (let i = x + Grid.DX[k], j = y + Grid.DY[k]; Grid.inside(m, i, j) && roomAt(m, i, j) === room && Grid.seeThrough(m, i, j); i += Grid.DX[k], j += Grid.DY[k]) out.push([i, j]);
+    return out;
+  }
+  // The Repeater Arm's tile: beside the hall's real case (the first in dept.fixtures' order with
+  // a tile to spare), within its weather's square (WEATHER_SIZE, centred on it), so the hall's
+  // rain falls on it (rules/modules/weather_cases.js: the hall's case holds rain); the tile
+  // nearest the Board, ties in row-major order. With no such tile, beside the Board, the first
+  // in row-major order; null with none.
+  function byCase(state, b, ok) {
+    const m = state.dept, hall = roomAt(m, b.x, b.y), h = Int.idiv(N.WEATHER_SIZE, 2);
+    for (const f of m.fixtures || []) {
+      if (f.k !== 'case' || f.mimic || roomAt(m, f.x, f.y) !== hall) continue;
+      const near = [];
+      for (let y = f.y - h; y <= f.y + h; y++) for (let x = f.x - h; x <= f.x + h; x++) if (open(state, hall, x, y) && ok(x, y)) near.push([x, y]);
+      if (near.length) return near.sort((p, q) => Actors.dist(b, p[0], p[1]) - Actors.dist(b, q[0], q[1]) || rowMajor(p, q))[0];
+    }
+    for (let y = b.y - 1; y <= b.y + (b.size || 1); y++) for (let x = b.x - 1; x <= b.x + (b.size || 1); x++) if (Actors.dist(b, x, y) === 1 && open(state, hall, x, y) && ok(x, y)) return [x, y];
+    return null;
+  }
+  // The Repeater Arm's line (its route.dir, which the station's init keeps): of N, E, S and W,
+  // those whose line, out and back along itself (a reflector turns a beam back, §8.1), never
+  // crosses the Board, so the Arm never strikes the Board it repeats; of them, the longest run
+  // that no other exhibit stands on, the first in that order on a tie, else the longest
+  // (population's rule for a station's line, Populate's lineDir). One of its two axes always
+  // misses the Board, which it does not stand on.
+  function armLine(state, a, b) {
+    const m = state.dept, room = roomAt(m, a.x, a.y);
+    let best = null, most = -1, clear = null, longest = -1;
+    for (const dir of DIRS) {
+      const k = DIR[dir], fwd = run(m, room, a.x, a.y, k);
+      if (fwd.concat(run(m, room, a.x, a.y, (k + 4) % 8)).some(([x, y]) => Actors.covers(b, x, y))) continue;
+      const met = fwd.some(([x, y]) => { const o = Actors.at(state, x, y); return !!o && o !== a && o.uid !== 'you'; });
+      if (fwd.length > most) { most = fwd.length; best = dir; }
+      if (!met && fwd.length > longest) { longest = fwd.length; clear = dir; }
+    }
+    return clear !== null && longest > 0 ? clear : best;
+  }
+  // The Board Dish's tile: apart from the Board, so that hunting the Board does not wake it, and
+  // out of the Repeater Arm's way (avoid: its line's runs): of the hall's free tiles, those in
+  // none of the Board's rows and columns first (where its beam would go); of them, the nearest
+  // the Board by walking (Grid.distances from its footprint) at least FAR from it, else the
+  // farthest; ties in row-major order. FAR is one more than the most of RING_MOVING and
+  // NOISE_SOFT from every tile beside the Board, so your ring and the soft noise of your blows
+  // there never reach it.
+  const FAR = () => Math.max(N.RING_MOVING, N.NOISE_SOFT) + 2;
+  function apart(state, b, ok, avoid) {
+    const m = state.dept, hall = roomAt(m, b.x, b.y), d = Grid.distances(m, Actors.footprint(b), m.w * m.h, null, 'exhibit'), s = b.size || 1, far = FAR();
+    const list = [];
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+      const v = d[y * m.w + x];
+      if (v < 1 || !open(state, hall, x, y) || !ok(x, y) || avoid.has(key(x, y))) continue;
+      const axis = (x >= b.x && x < b.x + s) || (y >= b.y && y < b.y + s) ? 1 : 0;
+      list.push({ x, y, rank: [axis, v >= far ? 0 : 1, v >= far ? v : -v] });
+    }
+    list.sort((p, q) => p.rank[0] - q.rank[0] || p.rank[1] - q.rank[1] || p.rank[2] - q.rank[2] || p.y - q.y || p.x - q.x);
+    return list.length ? [list[0].x, list[0].y] : null;
+  }
+  // init (Setup.settleActors, as Centrepiece.place settles its pieces): the Board, placed, sets
+  // out its attachments (its record's `attachments`, in order), each an exhibit of its own and
+  // no piece of it (dept.cp.uids is its body alone): asleep, with its role's numbers at the
+  // depth, its uid the hall's next (<acc>.<depth>.<roleKey>.<n>, counting on from the Board's,
+  // §3.2), each only once its archetype, modifiers and trigger are past ready false
+  // (Populate.ready, plan A10), each on its tile (`stands`: 'case' beside the hall's case,
+  // byCase; 'apart', apart); a station's line set (armLine) before its archetype's init, which
+  // keeps it. One that options.without names is made and at once marked gone, as a summoned
+  // body is. Nothing is drawn. A department made without the Board itself has no attachments
+  // either: its init is never run.
+  function attach(state, b) {
+    const list = attachmentsOf(recordOf(state, b));
+    if (!list.length || state.actors.some(a => list.some(q => q.id === a.sp))) return;
+    const m = state.dept, cp = Hall.cp(state), prefix = `${m.acc}.${m.depth}.${cp.room}.`, keeps = keeper(state), any = () => true, without = state.options.without || [], avoid = new Set();
+    let n = 0;
+    for (const a of state.actors) if (a.uid.startsWith(prefix) && /^\d+$/.test(a.uid.slice(prefix.length))) n = Math.max(n, Number(a.uid.slice(prefix.length)));
+    for (const q of list) {
+      if (!Populate.ready(q)) continue;
+      const at = q.stands === 'case' ? byCase(state, b, any) : apart(state, b, keeps, avoid);
+      if (!at) continue;
+      const stats = Roles.stats(q.role, m.depth);
+      const a = Actors.spawn(state, Object.assign({}, stats, { uid: prefix + (++n), sp: q.id, size: 1, x: at[0], y: at[1], maxHp: stats.hp, mode: 'dormant',
+        arch: q.archetype || 'plodder', mods: (q.modifiers || []).slice(), modParams: q.modParams || {}, trigger: q.trigger || null, group: q.group || null }));
+      if (without.includes(a.uid)) { a.gone = 1; continue; }
+      if (a.arch === 'demonstrator') {
+        a.route = { dir: armLine(state, a, b) };
+        const room = roomAt(m, a.x, a.y), k = DIR[a.route.dir];
+        for (const [x, y] of run(m, room, a.x, a.y, k).concat(run(m, room, a.x, a.y, (k + 4) % 8))) avoid.add(key(x, y));
+      }
+      Archetypes.init(state, a);
+    }
+  }
+  const init = (state, a) => attach(state, a);
+  // Tableau.attachments(state) → [actor]: the Board's attachments set out in this visit, in
+  // spawn order, fallen ones included ([] with no Board placed).
+  function attachments(state) {
+    const cp = Hall.cp(state), b = cp && Array.isArray(cp.uids) ? Actors.byUid(state, cp.uids[0]) : null, list = b ? attachmentsOf(recordOf(state, b)) : [];
+    return state.actors.filter(a => list.some(q => q.id === a.sp));
+  }
 
-  return { line, callTiles, calls, summoning, callsReflector };
+  // ---- The Board Dish's rule: MODIFIERS.tab_screen ----
+  const SCREEN = 'tab_screen', WAKES = 'tab_phase';
+  const screens = (state, a) => Array.isArray(a.mods) && a.mods.includes(SCREEN) && !Options.off(state, SCREEN);
+  // The Great Board standing (placed and not fallen), or null.
+  function standingBoard(state) {
+    const cp = Hall.cp(state), b = cp && Array.isArray(cp.uids) ? Actors.byUid(state, cp.uids[0]) : null;
+    return b && !b.gone && b.arch === ID ? b : null;
+  }
+  // onPhase (Centrepiece.hooks): as the Board enters its second phase, every sleeping exhibit
+  // present with the modifier on (the Board Dish) wakes at once, hunting you (Wake.wake: its
+  // hunt knows your tile, §8.2), in spawn order, its cause tab_phase {by: the Board}.
+  function onPhase(state, k, ev) {
+    if (k !== 2) return;
+    const b = standingBoard(state);
+    if (!b) return;
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || a.mode !== 'dormant' || !screens(state, a)) continue;
+      Wake.wake(state, a, 'hunting', { k: WAKES, by: b.uid }, ev);
+    }
+  }
+  // The tile a screen keeps to (MODIFIERS.tab_screen): of the free tiles of the Board's hall
+  // beside its footprint (one an exhibit can stand on, not a closed door, no one but a on it),
+  // the nearest where a last knew you were (a.lastKnown, else your tile; by squared distance,
+  // so the tile straight between, then row-major order); null with none.
+  function front(state, a, b) {
+    const m = state.dept, you = state.actors[0], at = Array.isArray(a.lastKnown) ? a.lastKnown : [you.x, you.y], s = b.size || 1, hall = roomAt(m, b.x, b.y), list = [];
+    for (let y = b.y - 1; y <= b.y + s; y++) for (let x = b.x - 1; x <= b.x + s; x++) {
+      if (Actors.dist(b, x, y) !== 1 || !Grid.inside(m, x, y) || roomAt(m, x, y) !== hall || !Grid.walkable(m, x, y, 'exhibit') || Grid.closedDoor(m, x, y)) continue;
+      const o = Actors.at(state, x, y);
+      if (!o || o === a) list.push([x, y]);
+    }
+    const sq = p => (p[0] - at[0]) * (p[0] - at[0]) + (p[1] - at[1]) * (p[1] - at[1]);
+    return list.length ? list.sort((p, q) => sq(p) - sq(q) || rowMajor(p, q))[0] : null;
+  }
+  // A step toward a tile, walking round the other actors where they stand now (AI.around: the
+  // first step of a shortest walk over tiles no other actor stands on, §8.2's walk to anything
+  // but you), the ties broken on its own ai stream (ai/<uid>, as every exhibit's step is), then
+  // AI.afterStep; null when it has arrived or the others leave it no step there.
+  function stepRound(state, a, goal, ev) {
+    const w = AI.around(state, a, goal, 'onto');
+    if (w.arrived || !w.options.length) return null;
+    const d = w.options.length === 1 ? w.options[0] : Rng.stream(state, 'ai/' + a.uid).pick(w.options);
+    const x = a.x, y = a.y, r = Step.moveInto(state, a, d, ev);
+    if (typeof r !== 'number') return null;
+    if (a.x !== x || a.y !== y) AI.afterStep(state, a, ev);
+    return r;
+  }
+  // Its act: hunting you while the Board stands, it strikes you if it can (Combat.canStrike, a
+  // blow from beside you), and otherwise steps toward the tile it keeps to, going round the
+  // others (stepRound: the Repeater Arm, a summoned trolley, never stand in its way for good),
+  // and waits once there, with none free, or with no step there. Out of sight for its hunt's
+  // turns (AI.loseTrackTurns), or in any other mode, or once the Board has fallen, it acts as
+  // its archetype does (null: AI.byMode, a reflector's walk, which also loses you then).
+  function screenAct(state, a, ev) {
+    const b = standingBoard(state);
+    if (a.mode !== 'hunting' || !b || Cases.encased(state, a)) return null;
+    if (!AI.sees(state, a) && state.turn - a.stim >= AI.loseTrackTurns(state, a)) return null;
+    const r = AI.strike(state, a, state.actors[0], ev);
+    if (r !== null) return r;
+    const goal = front(state, a, b), t = goal ? stepRound(state, a, goal, ev) : null;
+    return t !== null ? t : AI.wait(state, a, ev);
+  }
+  Archetypes.addModifier(SCREEN, { act: screenAct });
+
+  Archetypes.add(ID, Centrepiece.hooks(ID, { neverSteps, adjustDamage, onResolve, readout, init, onPhase }));
+
+  return { line, callTiles, calls, summoning, callsReflector, attachments, front };
 })();

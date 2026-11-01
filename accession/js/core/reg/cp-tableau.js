@@ -3,8 +3,8 @@
 // moved here, verbatim from reg/system.js, the archetype's placeholder (its M2 clause, at ready
 // false). TABLEAU-CORE built its body: the rules are in js/core/rules/arch/mp_tableau.js, the
 // record in content/M11-cp.js, the scenarios in test/behaviour/mp_tableau.test.js, and the
-// invariants every Centrepiece keeps in test/behaviour/centrepiece.inv.js. TABLEAU-PHASES adds
-// its attachments and the hall's rain case.
+// invariants every Centrepiece keeps in test/behaviour/centrepiece.inv.js. TABLEAU-PHASES added
+// its attachments' entries (below), which bring the hall's rain case into play.
 'use strict';
 (() => {
   const R = Registry;
@@ -66,4 +66,26 @@
   R.define('CLAUSES', 'tab_quick', proved({ icon: null,
     clause: 'it marks a special at most once every {n} of its actions, not {was}',
     params: { n: 'N:CP_SPECIAL_EVERY[1]', was: 'N:CP_SPECIAL_EVERY[0]' }, covers: ['telegraphed', 'special', 'damaged'] }));
+
+  // ---- Its attachments (TABLEAU-PHASES; design/samples.md §2.8, trimmed; decided without
+  // play; revisit once M4 is playable): the Repeater Arm (M11.11a), a station like M11.2, with
+  // M11.2's line and no word of its own; and the Board Dish (M11.11b), a reflector with this
+  // modifier. Each is an exhibit of its own, no piece of the Board (rules/arch/mp_tableau.js,
+  // the record in content/M11-cp.js, the scenarios in test/behaviour/mp_tableau-phases.test.js).
+  const PHASES = ['behaviour/mp_tableau-phases.test.js'];
+  const phases = more => Object.assign({ built: 'M4', ready: true, tests: PHASES, inv: 'centrepiece' }, more);
+  // The Board Dish's own rule (the modifier's hooks, rules/arch/mp_tableau.js: onPhase wakes
+  // it, act keeps it in front of the Board): the Board's second phase wakes it at once, hunting
+  // you (WAKE_CAUSES.tab_phase); hunting you while the Board stands, it strikes you if it can,
+  // and otherwise walks toward the free tile of the hall beside the Board nearest where it last
+  // knew you were and waits there, so it stands between you and the Board and sends your shots
+  // at the Board back (its archetype's, the reflector's, §8.1). Switched off (rulesOff), it is
+  // a reflector like any other, and its line says nothing of the Board.
+  R.define('MODIFIERS', 'tab_screen', phases({ icon: null,
+    clause: 'The Great Board’s second phase wakes it at once, hunting you; hunting while the Board stands, it strikes you if it can, else walks toward the free tile of the hall beside the Board nearest where it last knew you were, and waits there.',
+    params: {}, covers: ['woke', 'hunting', 'moved'] }));
+  // The waking the Board's second phase gives it (§8.2's wake causes; Wake.wake, into a hunt
+  // that knows your tile): by the Board.
+  R.define('WAKE_CAUSES', 'tab_phase', phases({ mode: 'hunting', creation: false }));
+  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'tab_phase', { fields: { by: 'uid' }, built: 'M4' });
 })();
