@@ -95,14 +95,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Its record and its placement ----
 
-  test('its record (content/A4-cp.js): ENSEMBLE_PIECES one-tile pieces on its 2×2 footprint, the signed original first on the top-left tile, then copies a, b and c, copies a and b with the burst; phase 2 gives the burst; a fight whose Signature piece is the Repealing Pen; flagged with copies_weaken; its core at ready false, so no department of the game places it', () => {
+  test('its record (content/A4-cp.js): ENSEMBLE_PIECES one-tile pieces on its 2×2 footprint, the signed original first on the top-left tile, then copies a, b and c, copies a and b with the burst; phase 2 gives the burst, phase 3 says its quicker specials; a fight whose Signature piece is the Repealing Pen; flagged with copies_weaken; its core at ready false, so no department of the game places it', () => {
     const pack = C.Packs.get('A4'), rec = pack.centrepiece;
     C.Centrepiece.check(rec, pack);
     assert.equal(rec.pieces.length, N.ENSEMBLE_PIECES);
     assert.equal(json(rec.pieces.map(p => [p.id, p.at, p.specials || [], p.sprite])), json([['A4.12', [0, 0], [], 'ordinance_original'], ['A4.12a', [1, 0], ['cp_burst'], 'ordinance_copy'],
       ['A4.12b', [0, 1], ['cp_burst'], 'ordinance_copy'], ['A4.12c', [1, 1], [], 'ordinance_copy']]));
     assert.equal(json([rec.id, rec.archetype, rec.role, rec.form, rec.size, rec.signature, rec.flags, rec.phases]),
-      json(['A4.12', 'mp_ensemble', 'centrepiece', 'fight', 2, 'A4.11', ['copies_weaken'], [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, {}]]));
+      json(['A4.12', 'mp_ensemble', 'centrepiece', 'fight', 2, 'A4.11', ['copies_weaken'], [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, { parts: ['CLAUSES.ens_quick'] }]]));
     assert.ok(typeof rec.gateway === 'string' && rec.gateway.split(/\s+/).length >= 40 && rec.gateway.split(/\s+/).length <= 120, 'its gateway label is 40–120 words (D3.8)');
     assert.equal(C.Registry.ARCHETYPES.mp_ensemble.ready, false);
     assert.equal(C.Populate.ready(rec), false);
@@ -176,14 +176,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       ...(on ? [`When its group’s original is destroyed, each spare loses ${N.COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then ${weak}), and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`] : []),
       `Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`,
       'From phase 2: its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.',
+      `From phase 3: each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`,
       'Wakes when you stay inside your ring or make noise near it.'].join(' ');
   }
   const FIGHT = 'Its fall earns the Certificate, unless you have it.', REST = 'Its label has the rest.';
   const wantStrip = (d, k) => [`Phase ${k} of 3.`, FIGHT,
     ...(k === 1 ? [`Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`]
-      : k === 2 ? ['Its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.'] : []), REST].join(' ');
+      : k === 2 ? ['Its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.']
+        : [`Each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`]), REST].join(' ');
 
-  test('its line (\'ARCHETYPES.mp_ensemble\', \'CLAUSES.ens_burst\', \'CLAUSES.ens_gain\', with \'MODULES.copies_weaken\' while on) says each piece\'s share, that its phases count its health together, the copies rule and where phase 2\'s special goes; its strip, in every phase, its phase\'s own part within the budget (m4-lines\' model), module on and off, at depths 1–7; a planted long part fails in its own phase alone', () => {
+  test('its line (\'ARCHETYPES.mp_ensemble\', \'CLAUSES.ens_burst\', \'CLAUSES.ens_gain\', \'CLAUSES.ens_quick\', with \'MODULES.copies_weaken\' while on) says each piece\'s share, that its phases count its health together, the copies rule, where phase 2\'s special goes and that phase 3 brings its specials more often; its strip, in every phase, its phase\'s own part within the budget (m4-lines\' model), module on and off, at depths 1–7; a planted long part fails in its own phase alone', () => {
     const rec = C.Packs.get('A4').centrepiece, problems = [];
     for (const d of DEPTHS) {
       if (C.Clauses.line(rec, { depth: d }) !== wantLine(d, true)) problems.push(`d${d} on: ${C.Clauses.line(rec, { depth: d })}`);
@@ -198,7 +200,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(LINES.rows(C.Clauses.line(rec, { depth: 7 })) > LINES.METRICS.budgetRows);
     // Its words: no digit outside a parameter, each a sentence or a phase's continuation.
     const R = C.Registry;
-    for (const [t, id] of [['ARCHETYPES', 'mp_ensemble'], ['CLAUSES', 'ens_burst'], ['CLAUSES', 'ens_gain']]) {
+    for (const [t, id] of [['ARCHETYPES', 'mp_ensemble'], ['CLAUSES', 'ens_burst'], ['CLAUSES', 'ens_gain'], ['CLAUSES', 'ens_quick']]) {
       const cl = R[t][id].clause;
       if (/[0-9]/.test(cl.replace(/\{[^}]*\}/g, ''))) problems.push(`${t}.${id}: a digit outside a parameter`);
       if (t === 'ARCHETYPES' ? !/^[A-Z].*\.$/.test(cl) : /^[A-Z]|\.$/.test(cl)) problems.push(`${t}.${id}: "${cl}"`);
@@ -206,7 +208,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // A planted long phase-2 part: its strip fails in phase 2 alone.
     const X = loadCore(), cp = X.Packs.get('A4').centrepiece;
     X.Registry.define('CLAUSES', 'planted_long', { built: 'M4', clause: Array(20).fill('it strikes every tile of its hall').join(', '), params: {}, covers: [] });
-    cp.phases = [cp.phases[0], { parts: ['CLAUSES.planted_long'], specials: ['cp_burst'] }, {}];
+    cp.phases = [cp.phases[0], { parts: ['CLAUSES.planted_long'], specials: ['cp_burst'] }, cp.phases[2]];
     assert.equal(json([1, 2, 3].map(k => LINES.rows(X.Clauses.strip(cp, { depth: 4, phase: k })) > LINES.METRICS.budgetRows)), '[false,true,false]');
     assert.deepEqual(problems, []);
   });
@@ -262,14 +264,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // piece, the hall open.
     const drop = r.events.filter(e => e.k === 'dropped'), cert = r.events.filter(e => e.k === 'certificate');
     if (drop.length !== 1 || drop[0].x !== AT[0] || drop[0].y !== AT[1] || s.items.find(i => i.uid === drop[0].item).ref !== 'A4.11') problems.push(`${tag}: dropped ${json(drop)}`);
-    if (cert.length !== 1 || cert[0].cause.by !== o.uid) problems.push(`${tag}: certificate ${json(cert)}`);
+    // (Its pieces each have a name of their own, so the Certificate names none of them for the
+    // whole: its first piece, the original, may have fallen long before.)
+    if (cert.length !== 1 || cert[0].cause.by !== undefined || say(C, s, cert[0]) !== 'You earned this department’s Certificate: you defeated its Centrepiece.') problems.push(`${tag}: certificate ${json(cert)}`);
     if (C.Clock.sealed(s)) problems.push(`${tag}: the hall is still sealed`);
     // Marks equal damage (centrepiece.marks checks each): its bursts struck you.
     if (!r.events.some(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special' && e.cause.sp === 'cp_burst' && ids.includes(e.cause.by))) problems.push(`${tag}: no burst of its struck you`);
     return { r, s, problems };
   }
 
-  test('the original first, joined up at depths 1–7, clone-checked: struck down first, its fall weakens each copy by §5.4 (COPY_WEAKEN_PCT% of its health and damage, never its last point, and COPY_WEAKEN_ACC Acc) and slows it for the rest of the visit, told in one line; its phases come on its pieces\' health together, each naming the first piece standing; its bursts strike as they marked; no piece ever steps; its fall drops the Pen where it first stood and earns the Certificate. With copies_weaken off, its fall weakens no one, and the run fails as it must', () => {
+  test('the original first, joined up at depths 1–7, clone-checked: struck down first, its fall weakens each copy by §5.4 (COPY_WEAKEN_PCT% of its health and damage, never its last point, and COPY_WEAKEN_ACC Acc) and slows it for the rest of the visit, told in one line; its phases come on its pieces\' health together, each naming the first piece standing; its bursts strike as they marked; no piece ever steps; its fall drops the Pen where it first stood and earns the Certificate, which names no one piece for it. With copies_weaken off, its fall weakens no one, and the run fails as it must', () => {
     const problems = [];
     for (const depth of DEPTHS) problems.push(...originalFirst(depth).problems);
     assert.deepEqual(problems, []);
@@ -335,7 +339,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     return out;
   }
-  test('phase 2\'s burst goes to its first piece still standing as the phase begins: the original (which gains it), else copy a, else copy b (which have it already); told with its cause, ensemble, naming that piece in your sight; planted blows at depth 3, copies_weaken off so that only the blows move its health', () => {
+  test('phase 2\'s burst goes to its first piece still standing as the phase begins: the original (which gains it), else copy a, else copy b (which have it already); told with its cause, ensemble, naming that piece in your sight; then phase 3 brings each piece\'s specials more often, as its line says, and no special; planted blows at depth 3, copies_weaken off so that only the blows move its health', () => {
     const off = { rulesOff: ['copies_weaken'] }, named = (s, uid) => { const n = C.Labels.nameOf(s)(uid); return n.charAt(0).toUpperCase() + n.slice(1); };
     // [pieces struck down first (by index), the gainer].
     for (const [fallen, gainer] of [[[], 0], [[0], 1], [[0, 1], 2]]) {
@@ -347,6 +351,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.equal(json(ps[gainer].ax.specials), json(gainer === 0 ? ['cp_burst'] : before[gainer]), json(fallen));
       assert.ok(say(C, s, ph[0]).endsWith(` ${named(s, ps[gainer].uid)}, the first of them still standing, has a burst.`), say(C, s, ph[0]));
       for (const [i, a] of ps.entries()) if (i !== gainer) assert.equal(json(a.ax.specials), json(before[i]), `${json(fallen)}: ${a.uid}`);
+      // Phase 3, as its line says: each piece standing marks a special at most once every
+      // CP_SPECIAL_EVERY[1] of its actions, not CP_SPECIAL_EVERY[0] (Specials.cadence, which its
+      // odds readout gives), and gains no special.
+      const up = ps.filter(a => !a.gone), was = up.map(a => C.Specials.cadence(s, a)), got = before.map((x, i) => ps[i].ax.specials.slice());
+      for (const a of up) { const h = C.Centrepiece.health(s), n = h.hp - Int.pct(h.max, N.CP_PHASE_PCT[1]); if (n > 0) blow(C, s, a, Math.min(n, a.hp - 1)); }
+      assert.equal(C.Centrepiece.phase(s), 3, json(fallen));
+      assert.equal(json([was, up.map(a => C.Specials.cadence(s, a))]), json([up.map(() => N.CP_SPECIAL_EVERY[0]), up.map(() => N.CP_SPECIAL_EVERY[1])]), json(fallen));
+      assert.equal(json(ps.map(a => a.ax.specials)), json(got), json(fallen));
+      for (const a of up.filter(q => q.ax.specials.length)) assert.ok(C.Labels.of(s, a.uid).odds.some(l => l.includes(`at most one action in ${N.CP_SPECIAL_EVERY[1] * a.ax.specials.length}`)), a.uid);
     }
   });
 
@@ -401,21 +414,28 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Its pieces never step ----
 
-  test('its pieces never step: neither a rule nor the Window Pole moves one (cannot_move), and each keeps its tile', () => {
-    const s = room(3, { you: [4, 2], items: [{ uid: 'w', kind: 'instrument', form: 'pole', tier: 1, where: { at: 'kit', slot: 'instrument' } }] }), a = pieces(C, s)[1];
-    for (const how of ['push', 'pull']) {
+  test('its pieces never step: neither a rule nor the Window Pole moves one, onto free floor in reach as well (cannot_move: "It cannot be moved that way."), and each keeps its tile; its line says it stands fixed', () => {
+    // [the piece (by index), where you stand, how]: the pole would move it onto free floor in
+    // reach and in sight (pushing the original west to (1,2); pulling copy a east to (4,2)), so
+    // only its never stepping refuses it.
+    for (const [i, at, how, to] of [[0, [4, 2], 'push', [1, 2]], [1, [5, 2], 'pull', [4, 2]], [3, [5, 3], 'pull', [4, 3]]]) {
+      const s = room(3, { you: at, items: [{ uid: 'w', kind: 'instrument', form: 'pole', tier: 1, where: { at: 'kit', slot: 'instrument' } }] }), a = pieces(C, s)[i], was = [a.x, a.y];
+      assert.ok(C.Grid.walkable(s.dept, to[0], to[1]) && !C.Actors.at(s, to[0], to[1]), `${json(to)} is free floor`);
       const r = H.play(C, s, [{ a: 'use', uid: 'w', x: a.x, y: a.y, how }], { inv: 'all' });
       assert.deepEqual(bad(r, how), []);
       const refused = r.events.find(e => e.k === 'refused');
-      assert.ok(refused && refused.reason === 'cannot_move', `${how}: ${json(r.events.map(e => e.k))}`);
-      assert.equal(json([a.x, a.y]), json([3, 2]));
+      assert.ok(refused && refused.reason === 'cannot_move', `${a.uid} ${how}: ${json(r.events.map(e => e.k))}`);
+      assert.equal(C.Text.refusal(refused.reason), 'It cannot be moved that way.');
+      assert.equal(json([a.x, a.y]), json(was));
     }
-    for (const p of pieces(C, s)) assert.equal(C.Archetypes.mayStep(s, p, p.x, p.y - 1), false);
+    const s = room(3);
+    for (const p of pieces(C, s)) for (let d = 0; d < 8; d++) assert.equal(C.Archetypes.mayStep(s, p, p.x + C.Grid.DX[d], p.y + C.Grid.DY[d]), false, `${p.uid} ${d}`);
+    assert.ok(C.Clauses.line(C.Packs.get('A4').centrepiece, { depth: 3 }).startsWith(`Its ${N.ENSEMBLE_PIECES} pieces stand fixed,`));
   });
 
   // ---- A view names a piece still standing ----
 
-  test('a view names the first of its pieces still standing: with the original fallen and its copies asleep, viewed.of is copy a and its sentence names it; four views earn the Certificate under the dust sheet, at depths 1 and 5', () => {
+  test('a view names the first of its pieces still standing: with the original fallen and its copies asleep, viewed.of is copy a and its sentence names it, and says the Centrepiece must sleep and is sheeted, every piece of it; four views earn the Certificate under the dust sheet, at depths 1 and 5', () => {
     // The viewing test's hall (x 1–12, y 1–4), its lectern (6,1) and reading tile (6,2), 3
     // walking tiles from the footprint (2,2).
     const VMAP = ['##############', '#.....l.o....#', '#.......o....#', '#.......o....#', '#............#', '###+##########', '#............#', '#............#', '##############'];
@@ -430,7 +450,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.deepEqual(bad(r, `d${depth}`), []);
       const views = r.events.filter(e => e.k === 'viewed');
       assert.equal(json(views.map(e => [e.n, e.of])), json([1, 2, 3, 4].map(n => [n, a.uid])), `d${depth}`);
-      assert.ok(say(C, s, views[0]).startsWith('You viewed the Duplicate Ordinance, Certified Copy a: 1 of 4 turns.'), say(C, s, views[0]));
+      // (What must sleep, and what the sheet covers, is the Centrepiece, every piece of it, not
+      // the copy the view names.)
+      assert.equal(say(C, s, views[0]), 'You viewed the Duplicate Ordinance, Certified Copy a: 1 of 4 turns. 3 more turns of viewing in a row while the Centrepiece sleeps earn the Certificate. Any other action that takes time starts the count again, and so does its waking.');
+      assert.equal(say(C, s, views[3]), 'You viewed the Duplicate Ordinance, Certified Copy a: 4 of 4 turns. The view is complete: a dust sheet now covers the Centrepiece for the night, and it will neither wake nor fight.');
       assert.ok(!r.events.some(e => JSON.stringify(e).includes(o.uid)), `d${depth}: an event names the fallen original`);
       assert.equal(json(C.Progress.cert(s) && C.Progress.cert(s).how), json('view'));
       assert.equal(json(C.Viewing.sheeted(s).uids), json(pieces(C, s).slice(1).map(p => p.uid)));

@@ -15,8 +15,9 @@
 //   - copies a and b carry the burst from the start (the sample's /a and /b), the original and
 //     copy c none: the sample's `summon` waits for its owner (TABLEAU-CORE), and copy c's
 //     special comes with inheritance (ENSEMBLE-PHASES). Phase 2 gives the burst to the first
-//     piece still standing (the original, while it stands); phase 3 gives nothing yet
-//     (ENSEMBLE-PHASES: shatter_all);
+//     piece still standing (the original, while it stands); phase 3 gives no special yet
+//     (ENSEMBLE-PHASES: shatter_all), and its part says what every Centrepiece's third phase
+//     does: its pieces mark their specials more often (CP_SPECIAL_EVERY);
 //   - flagged with copies_weaken: the copies are the original's spares (mp_ensemble's init,
 //     CopiesWeaken.addGroup), and the module's part on its line says what the original's fall
 //     costs them;
@@ -47,6 +48,6 @@
       copy('b', [0, 1], ['cp_burst']),
       copy('c', [1, 1]),
     ],
-    phases: [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, {}],
+    phases: [{ parts: ['CLAUSES.ens_burst'] }, { parts: ['CLAUSES.ens_gain'], specials: ['cp_burst'] }, { parts: ['CLAUSES.ens_quick'] }],
   });
 })();

@@ -25,17 +25,19 @@
   // parts (below) say what each phase gives. ready stays false (M4 plan PG-CORE's ordering
   // constraint, ENSEMBLE-CORE's brief): once it is past false, A.4's departments place it, and a
   // Certificate comes within reach of hand play before the perk choice has an interface
-  // (UI-PROGRESS), and before its strip is the phone's (LABELS-M4); until then only tests place
-  // it (Centrepiece.place). lint-registry's word rules read this clause once it is past false,
+  // (UI-PROGRESS), before its strip is the phone's (LABELS-M4), and while the log still tells
+  // a piece's modes as moves it never makes ("set off to look", "searching where it last knew
+  // you were", "going back to its place": BUILD §5.5 lists what remains); until then only tests
+  // place it (Centrepiece.place). lint-registry's word rules read this clause once it is past false,
   // and now under --strict=M4 (which it passes but for its readiness); mp_ensemble.test.js holds
   // its digits and its form, and the whole line it makes.
   R.define('ARCHETYPES', 'mp_ensemble', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,
     clause: 'Its {n} pieces stand fixed, each striking from beside you for {dmg} and holding its own equal whole share of its {hp} health, the original also any left over. The original’s number has no letter; its copies, its spares, have one. Its phases count all its pieces’ health, and their full health, together.',
     params: { n: 'N:ENSEMBLE_PIECES', dmg: 'role:DMG', hp: 'role:HP' }, covers: ['attacked', 'missed'] });
 
-  // Its phase parts (§5.3's "From phase k: …"; Q10, its strip). Phase 1, from the start: the
-  // burst (cp_burst, its own registry entry, reg/centrepiece.js), which copies a and b carry,
-  // said of them, since the original and copy c have none.
+  // Its phase parts (§5.3's "From phase k: …"; Q10, its strip), one a phase. Phase 1, from the
+  // start: the burst (cp_burst, its own registry entry, reg/centrepiece.js), which copies a and
+  // b carry, said of them, since the original and copy c have none.
   R.define('CLAUSES', 'ens_burst', proved({ icon: null,
     clause: 'copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for {g} before Padding',
     params: { g: 'cp:ROLE_CENTREPIECE_SPECIAL_PCT' }, covers: ['telegraphed', 'special', 'damaged'] }));
@@ -47,6 +49,14 @@
   R.define('CLAUSES', 'ens_gain', proved({ icon: null,
     clause: 'its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too',
     params: {}, covers: ['telegraphed', 'special', 'damaged'] }));
+  // Phase 3: what every Centrepiece's third phase does (§8.1, Specials.cadence): each of its
+  // pieces marks a special at most once every CP_SPECIAL_EVERY[1] of its actions, not
+  // CP_SPECIAL_EVERY[0] (each piece's odds readout gives its cadence as it stands). Said here so
+  // that the third phase's strip names what changes in it, and the line what the phase brings
+  // before it comes (M4 ENSEMBLE-CORE's review).
+  R.define('CLAUSES', 'ens_quick', proved({ icon: null,
+    clause: 'each of its pieces marks a special at most once every {n} of its actions, not {was}',
+    params: { n: 'N:CP_SPECIAL_EVERY[1]', was: 'N:CP_SPECIAL_EVERY[0]' }, covers: ['telegraphed', 'special', 'damaged'] }));
 
   // Its phase event's cause (reg/centrepiece.js): `ensemble`, its pieces' health together fell to
   // a threshold (CP_PHASE_PCT, % of their full health together), by whoever hurt a piece (by),
