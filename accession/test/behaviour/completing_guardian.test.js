@@ -10,7 +10,8 @@
 //     the noise; a case it does not guard, or Solvent's dissolving its own, does not;
 //   - it grows a limb for every GUARDIAN_PER_STAGE galleries you have walked (the rooms holding a
 //     gallery you have stood in, the one you start in and its hall among them), told as you
-//     stand in the gallery that brings it: its neck, its legs, its tail;
+//     stand in the gallery that brings it: its neck, then its legs, and walking grows no other
+//     (S.9's departments hold five gallery rooms, which give those two; its tail is no walking's);
 //   - each limb's mark equals what it deals: the neck the tiles round it on your side, the legs a
 //     lane as wide as it toward you (up to CHARGE_RANGE, never through a case) down which it
 //     then charges, stopping short of anyone in it, the tail all the tiles round it; each marked
@@ -31,7 +32,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const LINES = require(path.join(root, 'test/m4-lines.test.js'));
   const C = loadCore(), { N } = C;
   const WAIT = { a: 'wait' };
-  const LIMBS = ['cp_sweep', 'cp_charge', 'cp_ring'];
+  const LIMBS = ['cp_sweep', 'cp_charge', 'cp_ring'], WALKED = ['cp_sweep', 'cp_charge'];
 
   // The hall (x 1–11, y 1–7) with the Lamp's case in its south-west corner (1,7), its one way in
   // an archway (12,2) from a gallery east of it (x 13–15, y 1–7), and four one-tile rooms below
@@ -104,13 +105,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(C.Centrepiece.wired('completing_guardian'), 'its core is added with the shared rules');
     assert.equal(C.LTreasure.of(pack).id, 'S9.11');
     assert.equal(json([1, 2, 3, 7].map(d => C.LTreasure.glass(pack, d))), json([2, 2, 3, 3]), 'Laminated at depths 1–2, Security beyond');
-    // Its line names three limbs, so the cap holds all three.
-    assert.equal(json(C.Guardian.LIMBS), json(LIMBS));
+    // Its line names three limbs, and says walking grows two of them, which the cap holds.
+    assert.equal(json([C.Guardian.LIMBS, C.Guardian.WALKED]), json([LIMBS, WALKED]));
     assert.ok(N.GUARDIAN_STAGE_MAX >= LIMBS.length && N.GUARDIAN_PER_STAGE >= 1);
     for (const depth of [1, 4, 7]) for (const seed of [1, 2]) assert.equal(C.Hall.cp(C.Dept.create(seed, 'S9', depth)), null, `S9 seed ${seed} depth ${depth} placed its Centrepiece`);
   });
 
-  test('placed in S.9\'s own departments (its core planted ready), seeds 1–3 at depths 1, 4 and 7: on the plan\'s footprint in the hall, asleep, guarding the hall\'s case (the Lamp\'s, 3 or more tiles away), with no limb yet for the one gallery you have walked; it draws nothing and changes nothing else', () => {
+  test('placed in S.9\'s own departments (its core planted ready), seeds 1–3 at depths 1, 4 and 7: on the plan\'s footprint in the hall, asleep, guarding the hall\'s case (the Lamp\'s, 3 or more tiles away), with no limb yet for the one gallery you have walked; it draws nothing and changes nothing else; the department holds five gallery rooms, and walking every one grows its neck and its legs, told, and no other', () => {
     const problems = [], X = readyCore(), Y = loadCore();
     for (const depth of [1, 4, 7]) for (const seed of [1, 2, 3]) {
       const s = X.Dept.create(seed, 'S9', depth), a = composite(X, s), f = X.LTreasure.caseOf(s), tag = `seed ${seed} d${depth}`;
@@ -127,6 +128,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const strip = st => ({ actors: st.actors.filter(b => !(st.dept.cp && st.dept.cp.uids.includes(b.uid))), items: st.items, tiles: st.dept.tiles, rng: st.rng,
         fixtures: st.dept.fixtures.filter(q => q.k !== 'lectern') });
       if (json(strip(s)) !== json(strip(plain))) problems.push(`${tag}: placing it changed the rest of the department`);
+      // Every gallery room walked (S.9's five): its neck and its legs grow, each told, and its
+      // tail does not, as its line says ("first its neck, then its legs, and walking grows no
+      // other"); both limbs it names are within a visitor's reach.
+      const t = X.State.clone(s), b = composite(X, t), ev = [];
+      const rooms = t.dept.rooms.filter(r => X.Populate.galleriesOf(t, r.id).length).map(r => r.id);
+      t.dept.walked = rooms.slice();
+      X.Guardian.grow(t, b, ev);
+      const told = ev.filter(e => e.k === 'phase').map(e => [e.gained, e.stage, e.cause.k, e.cause.n]);
+      if (rooms.length !== 5 || json(told) !== json([['cp_sweep', 1, 'walked', 5], ['cp_charge', 2, 'walked', 5]]) || json(b.ax.specials) !== json(WALKED)) problems.push(`${tag}: ${rooms.length} gallery rooms, walking them all grew ${json(told)}`);
     }
     assert.deepEqual(problems, []);
   });
@@ -157,15 +167,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     return { s, r };
   }
 
-  test('its limbs come from the galleries you have walked, joined up: one for every GUARDIAN_PER_STAGE of them (the one you start in, a room holding two galleries once, a staff room never, its hall too), told in the step you first stand in the gallery that brings it: its neck at 2, its legs at 4, its tail at 6; then no more; at depths 1–7, clone-checked', () => {
-    const problems = [], want = [[2, 1, 'cp_sweep', 5], [4, 2, 'cp_charge', 17], [6, 3, 'cp_ring', 25]];
+  test('its limbs come from the galleries you have walked, joined up: one for every GUARDIAN_PER_STAGE of them (the one you start in, a room holding two galleries once, a staff room never, its hall too), told in the step you first stand in the gallery that brings it: its neck at 2, its legs at 4, and at 6 no tail, for walking grows no other; then no more; at depths 1–7, clone-checked', () => {
+    const problems = [], want = [[2, 1, 'cp_sweep', 5], [4, 2, 'cp_charge', 17]];
     for (const depth of DEPTHS) {
       const { s, r } = walkRow(C, depth, true), a = composite(C, s), tag = `d${depth}`;
       problems.push(...bad(r, tag), ...covered(C, s, r.events).map(l => `${tag}: ${l}`));
       const grew = [];
       r.steps.forEach((st, i) => { for (const e of st.events) if (e.k === 'phase') grew.push([e.cause.n, e.stage, e.gained, 3 + i, e.cause.k, e.phase, e.who]); });
       if (json(grew) !== json(want.map(w => w.concat(['walked', 1, a.uid])))) problems.push(`${tag}: ${json(grew)}`);
-      if (json([a.ax.specials, a.ax.stage, a.ax.grown, a.mode]) !== json([LIMBS, 3, 3, 'dormant'])) problems.push(`${tag}: ${json(a.ax)} ${a.mode}`);
+      if (json([a.ax.specials, a.ax.stage, a.ax.grown, a.mode]) !== json([WALKED, 2, 2, 'dormant'])) problems.push(`${tag}: ${json(a.ax)} ${a.mode}`);
       if (C.Guardian.galleries(s) !== 6 || json(s.dept.walked) !== json([1, 2, 3, 4, 5, 6, 7])) problems.push(`${tag}: ${C.Guardian.galleries(s)} galleries, walked ${json(s.dept.walked)}`);
       // Two steps more, standing in its hall: nothing more grows.
       const more = H.play(C, s, [WAIT, WAIT], { inv: INV(C) });
@@ -175,14 +185,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const { s, r } = walkRow(C, 4), ev = r.events.filter(e => e.k === 'phase');
     assert.equal(json(ev.map(e => say(C, s, e))), json([
       'The Composite, Assembled From the Round Books grew its neck, for the 2 galleries you have walked: it has 1 limb.',
-      'The Composite, Assembled From the Round Books grew its legs, for the 4 galleries you have walked: it has 2 limbs.',
-      'The Composite, Assembled From the Round Books grew its tail, for the 6 galleries you have walked: it has 3 limbs.']));
+      'The Composite, Assembled From the Round Books grew its legs, for the 4 galleries you have walked: it has 2 limbs.']));
     // And the log tells it out of sight: it says nothing of where it stands.
     assert.ok(C.Text.log(r.steps[2].events, C.Labels.nameOf(s), () => false).some(l => /grew its neck/.test(l)));
     assert.deepEqual(problems, []);
   });
 
-  test('its limbs read their numbers (planted): GUARDIAN_PER_STAGE 3 grows its neck at 3 galleries and its legs at 6, and its line says every 3; GUARDIAN_STAGE_MAX 1 stops at its neck; placed after you have walked 6 galleries, it has all three, untold', () => {
+  test('its limbs read their numbers (planted): GUARDIAN_PER_STAGE 3 grows its neck at 3 galleries and its legs at 6, and its line says every 3; GUARDIAN_STAGE_MAX 1 stops at its neck; placed after you have walked 6 galleries, it has its neck and its legs, untold, and no tail; given its tail by another rule (planted), walking grows nothing past it', () => {
     const X = loadCore(null, { numbers: { GUARDIAN_PER_STAGE: 3 } }), { s, r } = walkRow(X, 3);
     assert.deepEqual(bad(r, 'per 3'), []);
     assert.equal(json(r.events.filter(e => e.k === 'phase').map(e => [e.cause.n, e.gained])), json([[3, 'cp_sweep'], [6, 'cp_charge']]));
@@ -193,8 +202,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([composite(Y, m.s).ax.specials, composite(Y, m.s).ax.grown]), json([['cp_sweep'], 1]));
     // Walked already: its limbs at placement, with no event (the department's making tells nothing).
     const t = room(3, { walked: ALL }), a = composite(C, t);
-    assert.equal(json([a.ax.specials, a.ax.stage, a.ax.grown]), json([LIMBS, 3, 3]));
+    assert.equal(json([a.ax.specials, a.ax.stage, a.ax.grown]), json([WALKED, 2, 2]));
     assert.equal(C.Guardian.galleries(t), 6);
+    // Its neck and legs given by another rule (planted, as COMPOSITE-PHASES' phase 2 may): the
+    // galleries walked then grow nothing, for walking grows no limb past its legs.
+    const v = room(3, { walked: [2] }), b = composite(C, v), ev = [];
+    b.ax.specials = WALKED.slice(); b.ax.stage = 2;
+    v.dept.walked = ALL.slice();
+    C.Guardian.grow(v, b, ev);
+    assert.equal(json([ev, b.ax.specials, b.ax.stage, b.ax.grown]), json([[], WALKED, 2, 2]));
     // Outside a department visit (no walked list), no gallery is walked.
     delete t.dept.walked;
     assert.equal(C.Guardian.galleries(t), 0);
@@ -205,7 +221,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   test('each limb\'s mark equals what it deals, joined up: beside it on its west, its neck, legs and tail are marked in turn, each on its own tiles and only with you on one, and each strikes you for what its mark showed, a Centrepiece\'s gross through your Padding; at depths 1–7, clone-checked', () => {
     const problems = [];
     for (const depth of DEPTHS) {
+      // Walking gives its neck and legs; its tail, which no walking grows, is planted.
       const s = room(depth, { walked: ALL }), a = composite(C, s), tag = `d${depth}`;
+      a.ax.specials = LIMBS.slice(); a.ax.stage = LIMBS.length;
       const r = H.play(C, s, (st, i) => i > 70 ? null : WAIT, { inv: INV(C), clone: true, cap: 80 });
       problems.push(...bad(r, tag), ...covered(C, s, r.events).map(l => `${tag}: ${l}`));
       const told = r.events.filter(e => e.k === 'telegraphed' && e.who === a.uid);
@@ -345,6 +363,37 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('outside its hall, searching or awake: searching for you (planted, away from its place) while you stand outside, it goes back at once (lost, outside: never "searched where it last knew you were") and settles; woken by a crash beyond its hall while you stand out of its sight, it never leaves the hall nor fights, and goes back once undisturbed, as its line says only of it hunting or searching; at depths 1–7, clone-checked', () => {
+    const problems = [], MAP2 = MAP.map((row, y) => y === 7 ? row.slice(0, 15) + 'v' + row.slice(16) : row);
+    for (const depth of DEPTHS) {
+      const tag = `d${depth}`;
+      // Searching: it lost you in its hall (planted), you at (13,7), outside and out of its sight.
+      const s = room(depth, { walked: ALL, you: [13, 7] }), a = composite(C, s);
+      C.Wake.wake(s, a, 'hunting', { k: 'damage', by: 'you' }, []);
+      a.x = 8; a.y = 3;
+      C.Wake.setMode(s, a, 'searching', { k: 'out_of_sight', turns: N.LOSE_TRACK_TURNS }, [], { lastKnown: [10, 3] });
+      const r = H.play(C, s, (st, i) => i > 30 ? null : WAIT, { inv: INV(C), clone: true, cap: 40 });
+      problems.push(...bad(r, `${tag} searching`));
+      const lost = r.events.filter(e => (e.k === 'lost' || e.k === 'alerted') && e.who === a.uid);
+      // At its first action (it acts within your first two waits).
+      const first = r.steps.findIndex(st => st.events.some(e => e.who === a.uid));
+      if (json(lost.map(e => [e.k, e.from, e.to, e.cause.k])) !== json([['lost', 'searching', 'returning', 'outside']]) || first > 1 || !r.steps[first].events.some(e => e.k === 'lost' && e.who === a.uid)) problems.push(`${tag} searching: step ${first}: ${json(lost.map(e => say(C, s, e)))}`);
+      if (a.mode !== 'dormant' || json([a.x, a.y]) !== json(AT) || r.events.some(e => e.k === 'moved' && e.who === a.uid && e.to[0] > 8)) problems.push(`${tag} searching: it ends ${a.mode} at ${a.x},${a.y}`);
+      // Awake: a case broken beyond its hall (a crash) wakes it, sent to look; you stand at
+      // (15,6), out of its sight. It cannot reach the noise, so it wanders its hall; it starts
+      // no fight, never goes out, and goes back when nothing has disturbed it.
+      const t = room(depth, { walked: ALL, you: [15, 6], at: [9, 2], map: MAP2,
+        fixtures: [C.Cases.make({ x: CASE[0], y: CASE[1], glass: 3, lock: 1 }), C.Cases.make({ x: 15, y: 7, glass: 1, lock: 1 })] }), b = composite(C, t);
+      b.pips = N.PIPS_TO_WAKE - 1;
+      const q = H.play(C, t, (st, i) => i === 0 ? { a: 'bash', x: 15, y: 7 } : i > 40 ? null : WAIT, { inv: INV(C), clone: true, cap: 50 });
+      problems.push(...bad(q, `${tag} awake`), ...covered(C, t, q.events).map(l => `${tag} awake: ${l}`));
+      const told = q.events.filter(e => e.who === b.uid && ['woke', 'hunting', 'lost', 'alerted', 'returned', 'attacked', 'telegraphed'].includes(e.k)).map(e => e.k + (e.cause && e.cause.k ? `.${e.cause.k}` : ''));
+      if (json(told) !== json(['woke.noise', 'lost.idle', 'returned.home', 'returned.home'])) problems.push(`${tag} awake: ${json(told)}`);
+      if (b.mode !== 'dormant' || json([b.x, b.y]) !== json([9, 2])) problems.push(`${tag} awake: it ends ${b.mode} at ${b.x},${b.y}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
   test('it never steps out of its hall: mayStep refuses any step that puts a tile of it outside (the archway, a wall), so neither a rule nor the Window Pole moves it out; inside, it allows the step', () => {
     const s = room(3, { at: [10, 1] }), a = composite(C, s);
     assert.equal(C.Archetypes.mayStep(s, a, 11, 1), false, 'onto the archway column');
@@ -426,18 +475,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const span = (lo, hi) => lo === hi ? String(lo) : `${lo}–${hi}`;
   function wantLine(d) {
     const r = C.Roles.stats('centrepiece', d), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', d);
-    return ['Its case is the Lamp’s, which it guards; it never leaves its hall, and while you are outside the hall it starts no fight with you but goes back to its place.',
+    return ['Its case is the Lamp’s, which it guards; it never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place.',
       `It strikes from beside you for ${span(r.dmin, r.dmax)}.`,
       `Its limbs’ specials come in turn, each marked only while you stand on one of its tiles, then striking everything on them for ${g} before Padding: its neck marks the tiles round it on your side; its legs, a lane as wide as it toward you, up to ${N.CHARGE_RANGE} tiles and never through a case, then it charges down the lane, stopping short of anyone in it; its tail, all the tiles round it.`,
       `Its second phase starts at ${N.CP_PHASE_PCT[0]}% of its full health or less, its third at ${N.CP_PHASE_PCT[1]}%, for good.`,
       'Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall.',
-      `It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, then its tail.`,
+      `It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other.`,
       `From phase 3: it marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`,
       'Wakes when you stay inside your ring or make noise near it; wakes at once, hunting you, when its case is opened or bashed.'].join(' ');
   }
   const TREASURE = 'Killing it earns nothing: carry the Lamp out.', REST = 'Its label has the rest.';
   const wantStrip = k => [`Phase ${k} of 3.`, TREASURE,
-    ...(k === 1 ? [`It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, then its tail.`]
+    ...(k === 1 ? [`It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other.`]
       : k === 3 ? [`It marks a limb’s special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}.`] : []), REST].join(' ');
 
   test('its line (\'ARCHETYPES.completing_guardian\', \'CLAUSES.cp_treasure\', \'CLAUSES.guardian_limbs\', \'CLAUSES.guardian_quick\') says that it guards the Lamp\'s case and never leaves its hall, what each limb marks and deals, that killing it earns nothing, and how its limbs grow, in plain words; its strip, in every phase, says the treasure\'s rule and its phase\'s own part within the budget (m4-lines\' model), the limbs\' growth in phase 1, at depths 1–7; its words hold no digit; its label\'s odds name each limb', () => {
@@ -460,8 +509,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     assert.equal(json(LIMBS.map(id => [R.SPECIALS[id].noun, R.SPECIALS[id].shape, R.SPECIALS[id].curve, R.SPECIALS[id].effect])),
       json([['neck', 'sweep', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage'], ['legs', 'charge', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage'], ['tail', 'tail', 'cp:ROLE_CENTREPIECE_SPECIAL_PCT', 'damage']]));
-    // Its label: the line whole, and its odds readout's line for each limb it has.
-    const s = room(4, { walked: ALL }), a = composite(C, s), l = C.Labels.of(s, a.uid), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4);
+    // Its label: the line whole, and its odds readout's line for each limb it has (its tail
+    // planted, as no walking grows it).
+    const s = room(4, { walked: ALL }), a = composite(C, s), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', 4);
+    a.ax.specials = LIMBS.slice(); a.ax.stage = LIMBS.length;
+    const l = C.Labels.of(s, a.uid);
     assert.equal(l.behaviour, wantLine(4));
     for (const noun of ['neck', 'legs', 'tail']) assert.ok(l.odds.some(x => x.startsWith(`Its ${noun} would deal you ${Math.max(N.DMG_MIN_ON_HIT, g - s.actors[0].pad)} (${g} before your Padding)`)), `${noun}: ${json(l.odds)}`);
     assert.deepEqual(problems, []);

@@ -19,15 +19,21 @@
 //     not see you, or searching, it goes back (Wake.setMode to returning, cause outside) and acts
 //     by its mode, which walks it home. So the log never sends it to search where you are,
 //     outside a hall it never leaves. Awake (a noise sent it to look), it looks as any exhibit
-//     does, but only as far as its hall's edge.
-//   - Its limbs (Guardian.LIMBS, its specials: a.ax.specials, in the order grown) come from the
-//     galleries you have walked (Guardian.galleries): one for every GUARDIAN_PER_STAGE of them,
-//     in LIMBS' order, at most GUARDIAN_STAGE_MAX and LIMBS' count. It has those it is due when
-//     it is placed, with no event; then at every turn boundary (a hall check, Hall.addCheck),
-//     each limb newly due grows, told by a phase event in the phase it is in (cause walked {n},
-//     stage, gained). a.ax.stage is how many limbs it has; a.ax.grown how many your walking has
-//     given it, so a limb it loses (COMPOSITE-PHASES' leave-heal) comes back only with more
-//     galleries walked.
+//     does, but only within its hall: a noise beyond it, which no step of it reaches, leaves it
+//     wandering its hall until it goes back undisturbed (AI's awake), so its line says it goes
+//     back only of it hunting or searching for you.
+//   - Its limbs (Guardian.LIMBS, its specials: a.ax.specials, in the order grown: its neck, its
+//     legs, its tail) come in part from the galleries you have walked (Guardian.galleries): one
+//     for every GUARDIAN_PER_STAGE of them, in LIMBS' order, but walking grows only its neck and
+//     its legs (Guardian.WALKED; and never more than GUARDIAN_STAGE_MAX), never its tail: S.9's
+//     departments hold five gallery rooms, so walking every one of them gives it two limbs, and
+//     its line promises no tail from walking it could never give (M4 COMPOSITE-CORE's review,
+//     decided without play; revisit once M4 is playable). Its tail, and the crest, are left to
+//     COMPOSITE-PHASES (phase 2's limb, plan D3.5). It has those it is due when it is placed,
+//     with no event; then at every turn boundary (a hall check, Hall.addCheck), each limb newly
+//     due grows, told by a phase event in the phase it is in (cause walked {n}, stage, gained).
+//     a.ax.stage is how many limbs it has; a.ax.grown how many your walking has given it, so a
+//     limb it loses (COMPOSITE-PHASES' leave-heal) comes back only with more galleries walked.
 //   - Each limb is a special, marked in turn (Centrepiece.act, every CP_SPECIAL_EVERY of its
 //     actions), only while you stand in its hall on one of the tiles it would mark, each for a
 //     Centrepiece's gross (cp:): its neck (cp_sweep, shape sweep) the tiles round it on your side;
@@ -42,8 +48,12 @@
 const Guardian = (() => {
   const ID = 'completing_guardian';
   const isInt = Number.isInteger;
-  // Its limbs, in the order it grows them: a neck, legs, a tail (the specials' ids).
-  const LIMBS = ['cp_sweep', 'cp_charge', 'cp_ring'];
+  // The limbs walking grows, in order: its neck, then its legs (the specials' ids). Walking
+  // grows no more: S.9's departments hold five gallery rooms (completing_guardian.test.js
+  // measures them), which give two limbs, so its line names these two and no other.
+  const WALKED = ['cp_sweep', 'cp_charge'];
+  // All its limbs, in the order it has them: those walking grows, then its tail.
+  const LIMBS = WALKED.concat(['cp_ring']);
   // The four directions a lane runs in: N, E, S, W (Grid.DX, Grid.DY's indices).
   const SIDES = [0, 2, 4, 6];
 
@@ -64,16 +74,18 @@ const Guardian = (() => {
     for (const id of ids) if (Populate.galleriesOf(state, id).length) n++;
     return n;
   }
-  // The most limbs it may have: GUARDIAN_STAGE_MAX, and no more than it has limbs to grow.
-  const most = () => Math.min(N.GUARDIAN_STAGE_MAX, LIMBS.length);
+  // The most limbs walking gives it: those it grows by walking (WALKED), and never more than
+  // GUARDIAN_STAGE_MAX.
+  const most = () => Math.min(N.GUARDIAN_STAGE_MAX, WALKED.length);
   // Guardian.stage(a) → int: how many limbs it has (a.ax.stage, 0 when absent).
   const stage = a => a && a.ax && isInt(a.ax.stage) ? a.ax.stage : 0;
 
   // Guardian.grow(state, a, ev): every limb newly due from the galleries you have walked: for each
   // GUARDIAN_PER_STAGE more of them (a.ax.grown, those your walking has given it so far, counts
   // up to galleries ÷ GUARDIAN_PER_STAGE, at most `most`), the next limb it lacks (LIMBS[its
-  // stage]) joins its specials, while it has fewer than `most`; each told by a phase event (who,
-  // its phase, stage, gained; cause walked {n}) unless ev is null (when it is placed, which tells
+  // stage]) joins its specials, while it has fewer than `most` (so walking never grows its tail,
+  // nor a limb past its legs that another rule gave it); each told by a phase event (who, its
+  // phase, stage, gained; cause walked {n}) unless ev is null (when it is placed, which tells
   // nothing). Nothing for one fallen, or once the visit is over.
   function grow(state, a, ev) {
     if (!isMine(state, a) || a.gone || state.over) return;
@@ -224,5 +236,5 @@ const Guardian = (() => {
     for (const a of Centrepiece.pieces(state)) if (a.arch === ID) grow(state, a, ev);
   });
 
-  return { LIMBS: LIMBS.slice(), galleries, stage, grow, lane };
+  return { LIMBS: LIMBS.slice(), WALKED: WALKED.slice(), galleries, stage, grow, lane };
 })();

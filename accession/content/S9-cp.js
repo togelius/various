@@ -12,11 +12,14 @@
 //     nothing (its form's rule);
 //   - one 2×2 body of the role centrepiece; it guards the Lamp's case (touch_case, its trigger:
 //     its case is the one it guards) and never leaves its hall;
-//   - its limbs, its specials, grow from the galleries you have walked: a neck (cp_sweep), legs
-//     (cp_charge) and a tail (cp_ring); phase 1's part says how they grow, so the strip says it
-//     from the start; phase 3's says that its specials then come more often (CP_SPECIAL_EVERY);
-//   - phase 2's limb and alarm, the crest, the treasure's seal and carry-out, the leave-heal,
-//     the dust sheet over the case and the gateway label are COMPOSITE-PHASES'.
+//   - its limbs, its specials: a neck (cp_sweep), legs (cp_charge) and a tail (cp_ring); the
+//     galleries you have walked grow its neck, then its legs, and no other (S.9's five gallery
+//     rooms give two; COMPOSITE-CORE's review); phase 1's part says how they grow, so the strip
+//     says it from the start; phase 3's says that its specials then come more often
+//     (CP_SPECIAL_EVERY);
+//   - phase 2's limb (no rule here grows its tail) and alarm, the crest, the treasure's seal
+//     and carry-out, the leave-heal, the dust sheet over the case and the gateway label are
+//     COMPOSITE-PHASES'.
 // Its paragraph claims no rule beyond its line: the night staff "say" it is more complete when
 // more of the court has been walked, which its limbs bear out.
 'use strict';

@@ -22,7 +22,9 @@
   // starts no fight with you: its limbs mark nothing (each limb's shape asks that you stand in
   // the hall) and it strikes no blow; hunting, it walks back to its place (its home) while it
   // sees you and waits there, and once it does not, or searching, it goes back (lost, cause
-  // outside), so the log never says it searched where it could not go. Its limbs are its
+  // outside), so the log never says it searched where it could not go. Its clause says that
+  // only of it hunting or searching for you: awake, sent by a noise to look, it looks as far as
+  // its hall's edge before it goes back (M4 COMPOSITE-CORE's review). Its limbs are its
   // specials, marked in turn (Centrepiece.act, CP_SPECIAL_EVERY), each only while you stand on
   // one of the tiles it would mark, each a Centrepiece's gross; how it grows them is its first
   // phase's part (CLAUSES.guardian_limbs), the strip's in phase 1. Its form's rule
@@ -34,11 +36,11 @@
   // passes but for its readiness); completing_guardian.test.js holds its digits and the line it
   // makes.
   R.define('ARCHETYPES', 'completing_guardian', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,
-    clause: 'Its case is the Lamp’s, which it guards; it never leaves its hall, and while you are outside the hall it starts no fight with you but goes back to its place. It strikes from beside you for {dmg}. Its limbs’ specials come in turn, each marked only while you stand on one of its tiles, then striking everything on them for {g} before Padding: its neck marks the tiles round it on your side; its legs, a lane as wide as it toward you, up to {range} tiles and never through a case, then it charges down the lane, stopping short of anyone in it; its tail, all the tiles round it.',
+    clause: 'Its case is the Lamp’s, which it guards; it never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place. It strikes from beside you for {dmg}. Its limbs’ specials come in turn, each marked only while you stand on one of its tiles, then striking everything on them for {g} before Padding: its neck marks the tiles round it on your side; its legs, a lane as wide as it toward you, up to {range} tiles and never through a case, then it charges down the lane, stopping short of anyone in it; its tail, all the tiles round it.',
     params: { dmg: 'role:DMG', g: GROSS, range: 'N:CHARGE_RANGE' }, covers: ['attacked', 'missed', 'telegraphed', 'special', 'damaged'] });
 
   // Its limbs (§8.1's specials, Specials' shapes added in rules/arch/completing_guardian.js), in
-  // the order it grows them (Guardian.LIMBS): each a Centrepiece's gross (cp:), named by its limb
+  // the order it has them (Guardian.LIMBS): each a Centrepiece's gross (cp:), named by its limb
   // in sentences (noun) and its mark said in words (marks). Each is marked only while you stand
   // in its hall on one of the tiles it would mark, so no limb is marked at you from outside it.
   //   cp_sweep, its neck: the tiles round its footprint on your side of it (Grid.hold, never an
@@ -62,10 +64,14 @@
   // grows its limbs, so the phone's strip says it while it waits for you (FU1): one for every
   // GUARDIAN_PER_STAGE galleries you have walked (the rooms of the department that hold a
   // gallery and that you have stood in, the one you start in and its own hall among them:
-  // Guardian.galleries), in LIMBS' order, at most as many as it has limbs (GUARDIAN_STAGE_MAX
-  // holds all three; a test keeps it so).
+  // Guardian.galleries), its neck, then its legs, and walking grows no other (Guardian.WALKED,
+  // within GUARDIAN_STAGE_MAX; a test keeps it so): S.9's departments hold five gallery rooms,
+  // so a tail for six would be a promise walking never keeps (M4 COMPOSITE-CORE's review,
+  // decided without play; revisit once M4 is playable). Its tail is described by its clause;
+  // the rule that gives it (phase 2's limb) is COMPOSITE-PHASES', and the core stays at ready
+  // false until then.
   R.define('CLAUSES', 'guardian_limbs', proved({ icon: null,
-    clause: 'it grows a limb, each a special, for every {per} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, then its tail',
+    clause: 'it grows a limb, each a special, for every {per} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other',
     params: { per: 'N:GUARDIAN_PER_STAGE' }, covers: ['phase'] }));
   // Phase 3: what every Centrepiece's third phase does (§8.1, Specials.cadence): it marks a special
   // at most once every CP_SPECIAL_EVERY[1] of its actions, not CP_SPECIAL_EVERY[0] (its odds
