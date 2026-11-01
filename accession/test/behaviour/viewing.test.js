@@ -371,8 +371,10 @@ module.exports = ({ test, assert, loadCore }) => {
       const K = core(), X = K.X, pack = X.Packs.get(acc), tag = `${acc} seed ${seed}`;
       pack.galleries = [];
       const plain = X.Dept.create(seed, acc, 3);
-      pack.centrepiece = Object.assign({}, K.rec, { id: pack.centrepiece.id, form: pack.centrepiece.form, signature: pack.centrepiece.form === 'fight' ? 'T9.11' : undefined });
-      if (pack.centrepiece.signature === undefined) delete pack.centrepiece.signature;
+      // The planted record names the pack's own Signature piece, as centrepiece.test.js's does
+      // (D-PACKS): the stand-in places no Signature piece as loot (§8.5), so naming another
+      // would change what it places.
+      pack.centrepiece = Object.assign({}, K.rec, { id: pack.centrepiece.id, form: pack.centrepiece.form, signature: pack.centrepiece.signature });
       const s = X.Dept.create(seed, acc, 3), m = s.dept, lect = m.fixtures.filter(f => f.k === 'lectern');
       assert.equal(json(lect), json([{ k: 'lectern', x: m.lectern[0], y: m.lectern[1] }]), tag);
       assert.equal(m.tiles[m.lectern[1]][m.lectern[0]], 'l', tag);
