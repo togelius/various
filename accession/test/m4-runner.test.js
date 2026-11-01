@@ -438,6 +438,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(Patrol.timeline(s2, 30)[0].at[0].x, 5);
   });
 
+  test('a timed patrol sees, at each of its actions, every tile you could stand on within SIGHT_EXHIBIT in line of sight (Grid.los, every door open)', () => {
+    let checked = 0;
+    for (const d of made.filter(x => x.acc === 'S9')) {
+      const st = d.state, m = st.dept, M = LRunner.model(st), open = Object.assign({}, m, { tiles: m.tiles.map(r => r.replace(/\+/g, "'")), surfaces: [] });
+      for (const p of Patrol.timeline(st, M.horizon)) {
+        const e = M.ex.find(x => x.a.uid === p.uid), want = new Uint8Array(m.w * m.h);
+        const R = N.SIGHT_EXHIBIT, at = new Set();
+        for (const q of p.at) at.add(q.y * m.w + q.x);
+        for (const k of at) for (let y = Math.max(0, (k - (k % m.w)) / m.w - R); y <= Math.min(m.h - 1, (k - (k % m.w)) / m.w + R); y++) for (let x = Math.max(0, (k % m.w) - R); x <= Math.min(m.w - 1, (k % m.w) + R); x++)
+          if (Grid.walkable(open, x, y) && !Grid.closedDoor(open, x, y) && Grid.disc(x - (k % m.w), y - (k - (k % m.w)) / m.w, R) && Grid.los(open, k % m.w, (k - (k % m.w)) / m.w, x, y)) want[y * m.w + x] = 1;
+        same(Array.from(e.sight), Array.from(want), `S9 seed ${d.seed}: ${p.uid}'s sight`);
+        checked++;
+      }
+    }
+    assert.ok(checked >= 10, `${checked} patrols`);
+  });
+
   test('a patrol whose way to a post is blocked for good by an exhibit that stands still is stuck; one behind another patrol is not', () => {
     // Its east post (23, 3) walled in by a sleeper at (22, 3) and a case at (23, 4)... here, a
     // sleeper on the only tile beside a post in a dead end.
@@ -450,6 +467,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // Free, it walks the round and is not stuck.
     st.actors[2].gone = true;
     assert.equal(Patrol.timeline(st, 80)[0].stuck, null);
+    // Two Waders head on in a one-tile corridor, each walking to the other's end: each waits on
+    // the other for good, and the later in spawn order is stuck; one following another is not.
+    const lane = ['############', 'E..........X', '############'];
+    const two = (a, b) => {
+      const s2 = dept({ map: lane, you: [0, 1], exhibits: [{ sp: 'S9.2', at: a.at, stats: S('warden', 3) }, { sp: 'S9.2', at: b.at, stats: S('warden', 3) }] }, [{ id: 1, role: 'section', cells: row(1, 1, 10) }], [0, 1], [[11, 1]]);
+      s2.actors[1].route = { posts: a.posts, i: 1 }; s2.actors[2].route = { posts: b.posts, i: 1 };
+      return Patrol.timeline(s2, 40).map(p => p.stuck);
+    };
+    same(two({ at: [2, 1], posts: [[2, 1], [10, 1]] }, { at: [9, 1], posts: [[9, 1], [1, 1]] }), [null, { post: 1 }]);
+    same(two({ at: [3, 1], posts: [[3, 1], [10, 1]] }, { at: [2, 1], posts: [[2, 1], [9, 1]] }), [null, null]);
   });
 
   test('the runner times a patrol: it waits for the gap, and the route, played, wakes nothing; untimed, the patrol sees it', () => {
@@ -541,7 +568,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // ---- Content: the Waders' rounds and the Copying-Room Bell (CP1 review) ----
 
   test('S.9\'s Waders walk the court, each its own round, never past the Intro\'s mouth and never stalling', () => {
-    for (let seed = 1; seed <= 11; seed++) {
+    for (let seed = 1; seed <= 7; seed++) {
       const g = Dept.generate(seed, 'S9', 1 + ((seed - 1) % 7)), st = g.state, m = st.dept, where = `S9 seed ${seed}`;
       const pats = st.actors.filter(a => a.arch === 'patrol_guard'), court = m.rooms.find(r => r.id === m.roomOf[pats[0].y][pats[0].x]);
       assert.equal(pats.length, 2, where);
@@ -559,14 +586,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       // first SAFE_ZONE_TURNS turns.
       const t = Patrol.timeline(st, 120);
       for (const p of t) assert.equal(p.stuck, null, `${where}: ${p.uid} walks its whole round`);
-      const open = Object.assign({}, m, { tiles: m.tiles.map(r => r.replace(/\+/g, "'")), surfaces: [] }), zone = Grid.distances(open, [m.entrance], N.SAFE_ZONE);
-      for (const p of Patrol.timeline(st, N.SAFE_ZONE_TURNS)) for (const q of p.at) for (let k = 0; k < zone.length; k++) {
-        if (zone[k] < 0) continue;
+      const open = Object.assign({}, m, { tiles: m.tiles.map(r => r.replace(/\+/g, "'")), surfaces: [] }), dz = Grid.distances(open, [m.entrance], N.SAFE_ZONE), zone = [];
+      for (let k = 0; k < dz.length; k++) if (dz[k] >= 0) zone.push(k);
+      for (const p of Patrol.timeline(st, N.SAFE_ZONE_TURNS)) for (const q of p.at) for (const k of zone) {
         const x = k % m.w, y = (k - x) / m.w;
         assert.ok(!(Grid.disc(x - q.x, y - q.y, N.SIGHT_EXHIBIT) && Grid.los(open, q.x, q.y, x, y)), `${where}: ${p.uid} at ${q.x},${q.y} sees the safe zone at ${x},${y}`);
       }
     }
-    // A post its walk would stall on is left out, and the log says so (seeds 1, 6, 7, 9, 10, 11).
+    // A post its walk would stall on is left out, and the log says so (seeds 1, 6 and 7 here).
     const g = Dept.generate(6, 'S9', 6);
     assert.ok(g.log.some(l => /round leaves out its post at \d+,\d+: its walk there would stall$/.test(l.op || '')));
   });

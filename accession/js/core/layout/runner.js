@@ -171,16 +171,36 @@ const LRunner = (() => {
   // region is read here; a surface, which only ever hides you, not counted), each tile's mask
   // made once.
   function sighted(state, vm) {
-    const bare = Object.assign({}, vm, { surfaces: [] }), r = N.SIGHT_EXHIBIT, made = new Map();
-    // You could stand there: walkable, not a closed door (read once per tile).
-    const { disc, los } = Grid, stand = new Uint8Array(vm.w * vm.h);
-    for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) if (Grid.walkable(vm, x, y) && !Grid.closedDoor(vm, x, y)) stand[y * vm.w + x] = 1;
+    const r = N.SIGHT_EXHIBIT, made = new Map(), w = vm.w, h = vm.h, max = Math.max, min = Math.min;
+    // You could stand there: walkable, not a closed door; and sight passes it (Grid.seeThrough):
+    // each read once per tile.
+    const stand = new Uint8Array(w * h), see = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (Grid.walkable(vm, x, y) && !Grid.closedDoor(vm, x, y)) stand[y * w + x] = 1;
+      if (Grid.seeThrough(vm, x, y)) see[y * w + x] = 1;
+    }
+    // Grid.los on this map, with no surface: the same Bresenham line, traced from the end that
+    // comes first in row-major order, its ends never blocking.
+    const los = (x0, y0, x1, y1) => {
+      if (y1 < y0 || (y1 === y0 && x1 < x0)) { let t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; }
+      const dx = x1 > x0 ? x1 - x0 : x0 - x1, dy = y1 - y0, sx = x1 > x0 ? 1 : -1;
+      let err = dx - dy, x = x0, y = y0;
+      for (;;) {
+        if (x === x1 && y === y1) return true;
+        if (!(x === x0 && y === y0) && !see[y * w + x]) return false;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x += sx; }
+        if (e2 < dx) { err += dx; y += 1; }
+      }
+    };
     return (fx, fy) => {
-      const key = fy * vm.w + fx;
+      const key = fy * w + fx;
       if (made.has(key)) return made.get(key);
-      const k = new Uint8Array(vm.w * vm.h);
-      for (let y = Math.max(0, fy - r); y <= Math.min(vm.h - 1, fy + r); y++) for (let x = Math.max(0, fx - r); x <= Math.min(vm.w - 1, fx + r); x++)
-        if (stand[y * vm.w + x] && disc(x - fx, y - fy, r) && los(bare, fx, fy, x, y)) k[y * vm.w + x] = 1;
+      const k = new Uint8Array(w * h);
+      for (let y = max(0, fy - r); y <= min(h - 1, fy + r); y++) for (let x = max(0, fx - r); x <= min(w - 1, fx + r); x++) {
+        const dx = x - fx, dy = y - fy;
+        if (stand[y * w + x] && dx * dx + dy * dy <= r * r + r && los(fx, fy, x, y)) k[y * w + x] = 1;
+      }
       made.set(key, k);
       return k;
     };
@@ -426,7 +446,8 @@ const LRunner = (() => {
     // Then the timed routes, unless a route found already costs nothing (none can cost less).
     if (out.some(r => cost(M, r).b === 0)) return out;
     for (const r of timed(m, M, pen, false)) keep(r);
-    for (const r of timed(m, M, pen, true)) keep(r);
+    // And, unless one of those costs nothing, those that keep off every priced tile.
+    if (!out.some(r => cost(M, r).b === 0)) for (const r of timed(m, M, pen, true)) keep(r);
     return out;
   }
 
