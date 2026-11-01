@@ -51,6 +51,15 @@
     alarm_over: e => `The alarm is over${isInt(e.turns) ? `, after ${Text.count(e.turns, 'turn')}` : ''}: ${e.cause && e.cause.fade === true ? 'pips fade again, and exhibits'
       : 'exhibits'} may go back to their places${e.cause && e.cause.fade === false ? ' (pips do not fade: the bell has rung)' : ''}.`,
   };
+  // Told once (Text.toldBy): the alarm's mark on the Wader's own tile is told by alarm_shown
+  // ("… has seen you, and shows the alarm: at its next action it raises it."), its special going
+  // off by its call, and the call (every sleeper that can hear woke) by the wakes it made, which
+  // the log tells in a line of their own ("The alarm woke 8 exhibits, and they set off to look
+  // where you were.", and those in their cases in another); a call that woke none is told.
+  const ALARM = 'alarm_network';
+  Text.toldBy('telegraphed', 'special', (e, f) => e.sp === 'alarm' && f.k === 'module' && f.id === ALARM && f.rule === 'alarm_shown' && f.who === e.who);
+  Text.toldBy('special', 'special', (e, f) => e.sp === 'alarm' && !e.cancelled && f.k === 'module' && f.id === ALARM && f.rule === 'call' && f.who === e.who);
+  Text.toldBy('module', ALARM, (e, f) => e.rule === 'call' && f.k === 'woke' && !!f.cause && f.cause.k === 'alarm' && f.cause.by === e.who && f.was != null);
   // A rule about a Wader (alarm_shown, call) whose event names none has no sentence, since it
   // could be about one out of view (see text/mod-unobserved.js); alarm_over is about none.
   const ABOUT = ['alarm_shown', 'call'];

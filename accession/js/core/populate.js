@@ -299,17 +299,25 @@ const Populate = (() => {
   }
 
   // A station's line (plan D1.10) runs from its tile along one of N, E, S and W, through
-  // tiles of its own room that sight passes: the longest of the four, the first in that order
-  // on a tie. No draw.
-  function lineDir(m, a) {
-    let best = null, most = -1;
+  // tiles of its own room that sight passes: the longest of the four that no other exhibit
+  // stands on, the first in that order on a tie; only if every one of them meets an exhibit,
+  // the longest of the four. No draw. (A sleeper the line struck would wake at the chime and
+  // hunt you from a room you may never have seen, §8.2's damage waking it; a reflector on it
+  // would send the line back into its station at every chime. M4's first integration review.)
+  function lineDir(state, m, a) {
+    let best = null, most = -1, clear = null, longest = -1;
     for (const dir of LINE_DIRS) {
       const k = COMPASS.indexOf(dir), id = m.roomOf[a.y][a.x];
-      let n = 0, x = a.x + Grid.DX[k], y = a.y + Grid.DY[k];
-      while (Grid.inside(m, x, y) && m.roomOf[y][x] === id && Grid.seeThrough(m, x, y)) { n++; x += Grid.DX[k]; y += Grid.DY[k]; }
+      let n = 0, x = a.x + Grid.DX[k], y = a.y + Grid.DY[k], met = false;
+      while (Grid.inside(m, x, y) && m.roomOf[y][x] === id && Grid.seeThrough(m, x, y)) {
+        const b = Actors.at(state, x, y);
+        if (b && b !== a) met = true;
+        n++; x += Grid.DX[k]; y += Grid.DY[k];
+      }
       if (n > most) { most = n; best = dir; }
+      if (!met && n > longest) { longest = n; clear = dir; }
     }
-    return best;
+    return clear !== null && longest > 0 ? clear : best;
   }
 
   // Place the exhibits of a pack's gallery list (§5.5), and return null when every one stood
@@ -535,7 +543,7 @@ const Populate = (() => {
     // round (route null), which the log says.
     for (const { a, rm, opts } of placed) {
       if (opts.guards) a.guards = opts.guards.slice();
-      if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(m, a) };
+      if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(state, m, a) };
       if (a.arch !== 'patrol_guard' || !rm) continue;
       const free = floorOf(rm).filter(([x, y]) => !covered(x, y, a));
       const posts = [];

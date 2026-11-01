@@ -36,12 +36,17 @@
     awake: e => 'it never sleeps',
     placed: e => 'it was set out awake when the room was made',
   };
+  // How a noise's waking went (its cause's how): 'stands', an exhibit that never steps (a
+  // station, M4), which the noise sends nowhere; 'case', one in an intact case (§8.3), which
+  // wakes in it and only waits there.
+  const how = e => e.cause && typeof e.cause.how === 'string' ? e.cause.how : null;
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake', 'placed']) {
     const because = why[k];
     // Woken by a noise, it sets off to look where the noise was, unless it never steps (a
-    // station, M4: its cause says how: 'stands').
-    const then = e => k === 'noise' && !(e.cause && e.cause.how === 'stands') ? ', and set off to look' : '';
-    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} woke: ${because(e, w)}${then(e)}.`);
+    // station) or stays in its case.
+    const then = e => k === 'noise' && how(e) === null ? ', and set off to look' : '';
+    const woke = e => k === 'noise' && how(e) === 'case' ? 'woke in its case' : 'woke';
+    Text.defineCause('woke', k, (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${because(e, w)}.` : `${w.Name(e.who)} ${woke(e)}: ${because(e, w)}${then(e)}.`);
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${because(e, w)}.` : `${w.Name(e.who)} began hunting you: ${because(e, w)}.`);
   }
 
@@ -52,5 +57,6 @@
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
   Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
-  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, and set off to look.`);
+  // Sent to look by a noise; one in an intact case stays in it (its cause's how: 'case').
+  Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${Text.tiles(e.cause.dist)} away, ${how(e) === 'case' ? 'but stays in its case' : 'and set off to look'}.`);
 })();

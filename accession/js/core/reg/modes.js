@@ -24,10 +24,11 @@
   R.defineCause('opened', 'door', { fields: { by: 'uid' } });
   // Changes of mode by the modes' own timers (rules/ai.js): a hunter out of sight for
   // `turns` searches; an awake exhibit undisturbed for `turns` goes back; a search ends; a
-  // reinstalling exhibit moved off its home goes back to it.
-  R.defineCause('lost', 'out_of_sight', { fields: { turns: 'int' } });
-  R.defineCause('lost', 'idle', { fields: { turns: 'int' } });
-  R.defineCause('lost', 'searched', { fields: {} });
+  // reinstalling exhibit moved off its home goes back to it. how: 'case' for one in an intact
+  // case, which only waits there (§8.3; Wake.setMode).
+  R.defineCause('lost', 'out_of_sight', { fields: { turns: 'int', how: 'str?' } });
+  R.defineCause('lost', 'idle', { fields: { turns: 'int', how: 'str?' } });
+  R.defineCause('lost', 'searched', { fields: { how: 'str?' } });
   R.defineCause('lost', 'displaced', { fields: {} });
   // A search that ends for an exhibit that may not go back (no home, or it never sleeps), one
   // going back that has no home left, and one going back that other actors leave no step

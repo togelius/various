@@ -5,7 +5,7 @@
 'use strict';
 const Text = (() => {
   const KINDS = Object.create(null), CAUSES = Object.create(null), REFUSALS = Object.create(null), MAKERS = Object.create(null), LOG = Object.create(null),
-    AGAIN = Object.create(null), GROUPS = Object.create(null);
+    AGAIN = Object.create(null), GROUPS = Object.create(null), TOLD = Object.create(null), SEEN = Object.create(null);
   const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const once = (o, k, what) => { if (has(o, k)) throw new Error(`Text: ${what} is defined twice`); };
   const isFn = (f, what) => { if (typeof f !== 'function') throw new Error(`Text: ${what} needs a function`); };
@@ -41,6 +41,30 @@ const Text = (() => {
     once(GROUPS[k], causeK, `the group for ${k}.${causeK}`); isFn(fn, k + '.' + causeK + ' group');
     if (key !== undefined) isFn(key, k + '.' + causeK + ' group key');
     GROUPS[k][causeK] = { say: fn, key: key || (() => '') };
+  }
+  // Text.toldBy(k, causeK, fn): an event of kind k with cause causeK that another event of the
+  // same step tells as well, by the rule that makes the two say the same: fn(e, f) → true when
+  // f tells what e says (a station's line marked at the chime, which its mark's own sentence
+  // tells with its tiles, damage and turns; a Wader's call, which the alarm's wakes tell).
+  // Text.log then leaves e out whenever such an f is told; e keeps its own sentence
+  // (Text.event), for a step where none is. A pair may be given several (one by each rule).
+  function toldBy(k, causeK, fn) {
+    isFn(fn, k + '.' + causeK + ' toldBy');
+    if (!has(TOLD, k)) TOLD[k] = Object.create(null);
+    if (!has(TOLD[k], causeK)) TOLD[k][causeK] = [];
+    TOLD[k][causeK].push(fn);
+  }
+  // Text.seenOnly(k, causeK, fn): events of kind k with cause causeK for which fn(e) holds are
+  // told, as a kind defined with log: 'seen' is, only when the actor they are about (who) is
+  // you or in view, by the rule that makes them: a station's chime (its waking for the chime,
+  // its line's mark and its line going off), which comes on a schedule in every room and can
+  // reach you only in its own, where the board shows its mark on the tiles you see. A pair
+  // may be given several (one by each rule).
+  function seenOnly(k, causeK, fn) {
+    isFn(fn, k + '.' + causeK + ' seenOnly');
+    if (!has(SEEN, k)) SEEN[k] = Object.create(null);
+    if (!has(SEEN[k], causeK)) SEEN[k][causeK] = [];
+    SEEN[k][causeK].push(fn);
   }
   // Text.defineRefusal(code, fn): the sentence for a refusal code, fn(data) → sentence.
   function defineRefusal(code, fn) { once(REFUSALS, code, `the refusal ${code}`); isFn(fn, code); REFUSALS[code] = fn; }
@@ -110,15 +134,20 @@ const Text = (() => {
   // word is not told twice: the first says how many more. Events of a kind and cause with a
   // group (Text.defineGroup) that share their reason are told in one sentence, where the
   // first of them came, when there are two or more of them (one whose key is not a string is
-  // told alone).
+  // told alone). An event that another event of the step tells too (Text.toldBy) is left out
+  // when that one is told; one a rule tells only in view (Text.seenOnly) is left out when the
+  // actor it is about is out of view.
   function log(events, nameOf, visible) {
     const seen = uid => uid === undefined || uid === 'you' || typeof visible !== 'function' || !!visible(uid);
+    const tells = f => { const how = has(LOG, f.k) ? LOG[f.k] : true; return how === true || (how === 'seen' && seen(f.who)); };
     const out = [], told = new Map(), byReason = new Map();
     for (let i = 0; i < events.length; i++) {
       const e = events[i], how = has(LOG, e.k) ? LOG[e.k] : true;
       if (how === false || (how === 'seen' && !seen(e.who))) continue;
       if (e.k === 'woke' && e.mode === 'hunting' && events.slice(i + 1).some(f => f.k === 'hunting' && f.who === e.who)) continue;
       const c = e.cause && typeof e.cause.k === 'string' ? e.cause.k : null;
+      if (c !== null && has(SEEN, e.k) && has(SEEN[e.k], c) && !seen(e.who) && SEEN[e.k][c].some(fn => fn(e))) continue;
+      if (c !== null && has(TOLD, e.k) && has(TOLD[e.k], c) && events.some(f => f !== e && tells(f) && TOLD[e.k][c].some(fn => fn(e, f)))) continue;
       const g = c !== null && has(GROUPS, e.k) && has(GROUPS[e.k], c) ? GROUPS[e.k][c] : null, gk = g ? g.key(e) : null;
       if (typeof gk === 'string') {
         const key = e.k + '\n' + c + '\n' + gk, t = byReason.get(key);
@@ -154,5 +183,5 @@ const Text = (() => {
   }
   const logs = k => has(LOG, k) ? LOG[k] : true;
 
-  return { define, defineCause, defineGroup, defineRefusal, provide, event, refusal, clock, stage, recap, confirm, rest, count, tiles, grade, log, defined, grouped, refusalDefined, provided, list, logs };
+  return { define, defineCause, defineGroup, toldBy, seenOnly, defineRefusal, provide, event, refusal, clock, stage, recap, confirm, rest, count, tiles, grade, log, defined, grouped, refusalDefined, provided, list, logs };
 })();

@@ -76,11 +76,17 @@ const Wake = (() => {
   // (above): from awake, that changes nothing. Going to sleep ends a performance (ax.perform):
   // it sleeps with the pips this change leaves it. A sleeping exhibit is woken with
   // Wake.wake, never here. Returns false if nothing changed.
+  // An exhibit in an intact case changes mode by the modes' timers as any other does, but
+  // only waits in its case (§8.3, AI): a change by those timers (out_of_sight, idle,
+  // searched) then says so in its cause (how: 'case'), so its sentence never has it search
+  // where it last knew you were or go back to a place it never left.
+  const CASE_TIMERS = ['out_of_sight', 'idle', 'searched'];
   function setMode(state, a, mode, cause, ev, opts) {
     if (!MODES.includes(mode)) throw new Error(`Wake.setMode: no mode ${mode}`);
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
     if (a.gone) return false;
     opts = opts || {};
+    if (cause && CASE_TIMERS.includes(cause.k) && cause.how === undefined && Cases.encased(state, a)) cause = Object.assign({}, cause, { how: 'case' });
     if (mode === 'hunting' && !hunts(state, a)) {
       mode = 'awake';
       if (a.mode !== 'awake' && opts.target === undefined) opts = Object.assign({}, opts, { target: [a.x, a.y] });
@@ -268,7 +274,9 @@ const Wake = (() => {
   // An exhibit that never hunts (a station, M4) never steps either, so a noise sends it
   // nowhere: asleep, it gains its pip and wakes awake where it stands, its cause saying so
   // (how: 'stands', so the log never says it set off to look); awake, the noise only counts
-  // as a stimulus.
+  // as a stimulus. One in an intact case (§8.3) goes to look as any other does, but stays in
+  // its case and only waits there (AI), so its cause says how: 'case', and the log tells it
+  // that it woke in its case, or stays in it, never that it set off to look.
   // The cause names the source (who made the noise, when someone did, and its tile x, y),
   // the walking distance and the class (§3.4: a wake event names the trigger, the source and
   // the distance). Returns whether a changed.
@@ -278,7 +286,8 @@ const Wake = (() => {
     const src = [noise.x, noise.y], cause = { k: 'noise' }, stands = !hunts(state, a);
     if (noise.by) cause.by = noise.by;
     cause.dist = dist; cause.cls = noise.cls; cause.x = noise.x; cause.y = noise.y;
-    if (stands) cause.how = 'stands';
+    if (Cases.encased(state, a)) cause.how = 'case';
+    else if (stands) cause.how = 'stands';
     switch (a.mode) {
       case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, stands ? {} : { target: src }) || a.pips !== pips; }
       case 'awake':

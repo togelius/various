@@ -28,6 +28,23 @@
     blocked: (e, w) => `${w.Name(e.who)} did not mark its line: another mark already lies on it.`,
     settle: (e, w) => `${w.Name(e.who)} went back to sleep, with the pips it had.`,
   };
+  // A station's chime is told only while you see the station (Text.seenOnly): its waking for
+  // the chime, its line's mark and its line going off. Chimes come on a schedule in every room
+  // of M.11, and a line never leaves its room, so one you cannot see threatens you only by the
+  // tiles its mark lies on, which the board shows wherever you see them (a walk or a rest
+  // stops for a new mark there), and the confirmation before a long action still names it
+  // (D7.3); a line that strikes you is told by its damage, and so is an exhibit it wakes into
+  // a hunt (its hunting sentence), but not its striking an exhibit out of your sight, directly
+  // or sent back by a reflector. The chime itself is heard, and told.
+  Text.seenOnly('woke', 'period', () => true);
+  Text.seenOnly('telegraphed', 'special', e => e.sp === 'demo_line');
+  Text.seenOnly('special', 'special', e => e.sp === 'demo_line');
+  Text.seenOnly('damaged', 'special', e => e.cause.sp === 'demo_line');
+  Text.seenOnly('damaged', 'reflected', e => e.cause.sp === 'demo_line');
+  // A line marked at the chime is told by its mark's own sentence ("… marks 12 tiles for its
+  // line: 4 before your Padding, in 2 turns."), which comes after it in the same step and says
+  // more, so the log tells the mark once, never "marked its line at the chime." as well.
+  Text.toldBy('module', 'hourly_demonstration', (e, f) => e.rule === 'line' && f.k === 'telegraphed' && f.who === e.who);
   // A rule about a station (line, blocked, settle) whose event names none has no sentence,
   // since it could be about one out of view (see text/mod-unobserved.js); the chime is heard.
   const ABOUT = ['line', 'blocked', 'settle'];

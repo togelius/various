@@ -28,7 +28,13 @@
   // A beam's damage: its gross less Padding, the minimum if it applied, and an old repair's doubling.
   const beamSum = c => `${c.gross} − ${c.pad} Padding${c.gross - c.pad < c.net ? `, at least ${c.net}` : ''}` +
     (c.side ? `, doubled through its repaired ${Clauses.COMPASS[c.side] || c.side} side` : '');
-  const what = c => c.sp ? 'beam' : 'shot';
+  // What was sent back: a shot, or a special's line, named as its registry entry names it (a
+  // station's line, M4: SPECIALS.demo_line's noun), else a beam.
+  const what = c => {
+    if (!c.sp) return 'shot';
+    const S = typeof c.sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, c.sp) ? Registry.SPECIALS[c.sp] : null;
+    return S && typeof S.noun === 'string' && S.noun ? S.noun : 'beam';
+  };
   Text.defineCause('damaged', 'reflected', (e, w) => {
     const c = e.cause;
     let detail = `${e.amount} damage`;

@@ -59,8 +59,9 @@
   R.defineCause('lost', 'tether', { fields: {} });
 
   // A herald's call wakes sleepers awake, to look where you were (§8.2): `by` is the herald,
-  // dist its distance, x and y the tile they go to look at.
+  // dist its distance, x and y the tile they go to look at; how: 'case' for one in an intact
+  // case, which wakes in it and stays there (§8.3).
   R.define('WAKE_CAUSES', 'herald', Object.assign({ mode: 'awake', creation: false }, proved(HERALD)));
-  const wake = { by: 'uid', dist: 'int?', x: 'int?', y: 'int?' };
+  const wake = { by: 'uid', dist: 'int?', x: 'int?', y: 'int?', how: 'str?' };
   for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'herald', { fields: wake });
 })();

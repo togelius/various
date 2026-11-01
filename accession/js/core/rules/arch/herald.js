@@ -42,7 +42,8 @@
 
   // The call goes off: each sleeping exhibit, in spawn order, any of whose tiles is marked
   // wakes awake to look at your tile now, with the herald's uid and its distance in the cause;
-  // a Centrepiece's pieces sleep on.
+  // a Centrepiece's pieces sleep on. One in an intact case wakes in it and only waits there
+  // (§8.3), so its cause says how: 'case', and the log never says it set off to look.
   function onResolve(state, a, tel, ev) {
     if (!tel || tel.sp !== 'call') return;
     const you = state.actors[0], target = [you.x, you.y];
@@ -51,7 +52,9 @@
       const b = state.actors[i];
       if (b === a || b.gone || b.mode !== 'dormant' || Actors.centrepiece(b)) continue;
       if (!Actors.footprint(b).some(([x, y]) => marked(x, y))) continue;
-      Wake.wake(state, b, 'awake', { k: 'herald', by: a.uid, dist: Actors.between(a, b), x: target[0], y: target[1] }, ev, { target });
+      const cause = { k: 'herald', by: a.uid, dist: Actors.between(a, b), x: target[0], y: target[1] };
+      if (Cases.encased(state, b)) cause.how = 'case';
+      Wake.wake(state, b, 'awake', cause, ev, { target });
     }
   }
 
