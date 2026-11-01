@@ -41,10 +41,13 @@
         paragraph: 'The arm repeated whatever the Board posted, so that the clerks at the far end of the station, who could not read the panels from there, could take it down. It was taken off the frame and given a post of its own when the Board was enlarged to forty panels. The logbooks note that it was never quite in time with the Board again, and that nobody minded.' },
       // The Board Dish: a reflector, with the Board's own rule (MODIFIERS.tab_screen: its second
       // phase wakes it; hunting, it keeps between you and the Board), set apart from the Board.
+      // Its paragraph says what its line says (a beam goes back the way it came, so the Board's
+      // own comes back into it, §8.1; decided without play; revisit once M4 is playable), never
+      // that it shields the Board.
       { id: 'M11.11b', sprite: 'reflecting_dish', archetype: 'reflector', role: 'controller', modifiers: ['tab_screen'], trigger: null, stands: 'apart',
         name: 'The Board Dish',
         tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Polished tinplate, oak cart, iron wheels', dims: 'Diam. 120 cm', credit: 'Transferred from the Central Station' },
-        paragraph: 'A heliograph’s beam blistered the Board’s varnish, so the Central Station kept a dish of its own to turn stray signals away from the panels. The clerks wheeled it out only when the exchange grew heavy, and put it away again as soon as the line was quiet. The Superintendent’s notes call it the Board’s umbrella.' },
+        paragraph: 'A heliograph’s beam blistered the Board’s varnish, so the Central Station kept a dish of its own to send stray signals back the way they came. The clerks wheeled it out only when the exchange grew heavy, and put it away again as soon as the line was quiet. The Superintendent’s notes say it blistered the Board as often as it saved it.' },
     ],
   });
 })();

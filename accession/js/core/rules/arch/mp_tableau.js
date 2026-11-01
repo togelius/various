@@ -176,19 +176,37 @@ const Tableau = (() => {
     return rec && rec.archetype === ID ? rec : null;
   }
   const attachmentsOf = rec => rec && Array.isArray(rec.attachments) ? rec.attachments : [];
-  // A tile of room `room` an exhibit may be set on: one it can stand on and walk from (not a
-  // closed door), with no one on it.
+  // A tile of room `room` an exhibit may be set on: plain floor (`.`, as population sets every
+  // exhibit: never a bench, a pool, a rope line or a doorway), with no one on it.
   function open(state, room, x, y) {
     const m = state.dept;
-    return Grid.inside(m, x, y) && roomAt(m, x, y) === room && Grid.walkable(m, x, y, 'exhibit') && !Grid.closedDoor(m, x, y) && !Actors.at(state, x, y);
+    return Grid.inside(m, x, y) && roomAt(m, x, y) === room && Grid.ch(m, x, y) === '.' && !Actors.at(state, x, y);
+  }
+  // The rule a tile keeps for an exhibit that never leaves it (the Repeater Arm, a station),
+  // as a mimic's case keeps it (population's LV1 and LV10, plan DE8): it is not the hall's
+  // reading tile (dept.viewTile), and standing there, with the Board's footprint (which never
+  // moves either), it cuts no tile off from the entrance (your tile in a room for tests with
+  // none) and leaves every case a tile beside it you can reach. fixedOk(state, b) → (x, y) →
+  // bool; the walk without it is measured once.
+  function fixedOk(state, b) {
+    const m = state.dept, big = m.w * m.h, from = Array.isArray(m.entrance) ? [m.entrance] : [[state.actors[0].x, state.actors[0].y]];
+    const walk = also => Grid.distances(m, from, big, (x, y) => Actors.covers(b, x, y) || (also && also[0] === x && also[1] === y) ? big + 1 : 0);
+    const was = walk(null), cases = (m.fixtures || []).filter(f => f.k === 'case' && Grid.reachDist(was, m, f.x, f.y) >= 0);
+    return (x, y) => {
+      if (Array.isArray(m.viewTile) && m.viewTile[0] === x && m.viewTile[1] === y) return false;
+      const now = walk([x, y]);
+      for (let i = 0; i < now.length; i++) if (was[i] >= 0 && now[i] < 0 && i !== y * m.w + x) return false;
+      return cases.every(f => Grid.reachDist(now, m, f.x, f.y) >= 0);
+    };
   }
   // Population's rule for a hall exhibit's tile (M4 plan A10; Populate's `keeps`): never within
   // RING_STILL + 1 walking tiles of the hall's reading tile (dept.viewTile; a room for tests has
   // none), so that viewing, standing still there, wakes none. Its other rules hold of every hall
   // tile: the safe zone lies within the Intro, whose onward openings are INTRO_DEPTH or more
-  // walking tiles from the entrance, and the footprint is the Board's own. The Repeater Arm, a
-  // station, keeps to its case instead (attach): a station never hunts, so your ring there at
-  // most wakes it, and it marks its line at each chime awake or asleep.
+  // walking tiles from the entrance, the footprint is the Board's own, and a tile is plain
+  // floor (open). The Repeater Arm, a station, keeps to its case instead (attach), off the
+  // reading tile itself (fixedOk): a station never hunts, so your ring there at most wakes it,
+  // and it marks its line at each chime awake or asleep.
   function keeper(state) {
     const m = state.dept, view = Array.isArray(m.viewTile) ? Grid.distances(m, [m.viewTile], N.RING_STILL + 1) : null;
     return (x, y) => { if (!view) return true; const v = Grid.reachDist(view, m, x, y); return v < 0 || v > N.RING_STILL + 1; };
@@ -205,14 +223,16 @@ const Tableau = (() => {
   // a tile to spare), within its weather's square (WEATHER_SIZE, centred on it), so the hall's
   // rain falls on it (rules/modules/weather_cases.js: the hall's case holds rain); the tile
   // nearest the Board, ties in row-major order. With no such tile, beside the Board, the first
-  // in row-major order; null with none.
+  // in row-major order; null with none. Each keeps the rule of a tile no one leaves (ok:
+  // fixedOk), checked in that order, so the walk is measured only for the tiles tried.
   function byCase(state, b, ok) {
     const m = state.dept, hall = roomAt(m, b.x, b.y), h = Int.idiv(N.WEATHER_SIZE, 2);
     for (const f of m.fixtures || []) {
       if (f.k !== 'case' || f.mimic || roomAt(m, f.x, f.y) !== hall) continue;
       const near = [];
-      for (let y = f.y - h; y <= f.y + h; y++) for (let x = f.x - h; x <= f.x + h; x++) if (open(state, hall, x, y) && ok(x, y)) near.push([x, y]);
-      if (near.length) return near.sort((p, q) => Actors.dist(b, p[0], p[1]) - Actors.dist(b, q[0], q[1]) || rowMajor(p, q))[0];
+      for (let y = f.y - h; y <= f.y + h; y++) for (let x = f.x - h; x <= f.x + h; x++) if (open(state, hall, x, y)) near.push([x, y]);
+      const at = near.sort((p, q) => Actors.dist(b, p[0], p[1]) - Actors.dist(b, q[0], q[1]) || rowMajor(p, q)).find(p => ok(p[0], p[1]));
+      if (at) return at;
     }
     for (let y = b.y - 1; y <= b.y + (b.size || 1); y++) for (let x = b.x - 1; x <= b.x + (b.size || 1); x++) if (Actors.dist(b, x, y) === 1 && open(state, hall, x, y) && ok(x, y)) return [x, y];
     return null;
@@ -261,19 +281,20 @@ const Tableau = (() => {
   // depth, its uid the hall's next (<acc>.<depth>.<roleKey>.<n>, counting on from the Board's,
   // §3.2), each only once its archetype, modifiers and trigger are past ready false
   // (Populate.ready, plan A10), each on its tile (`stands`: 'case' beside the hall's case,
-  // byCase; 'apart', apart); a station's line set (armLine) before its archetype's init, which
+  // byCase, on a tile no one leaves may take, fixedOk; 'apart', apart), plain floor either way
+  // (open); a station's line set (armLine) before its archetype's init, which
   // keeps it. One that options.without names is made and at once marked gone, as a summoned
   // body is. Nothing is drawn. A department made without the Board itself has no attachments
   // either: its init is never run.
   function attach(state, b) {
     const list = attachmentsOf(recordOf(state, b));
     if (!list.length || state.actors.some(a => list.some(q => q.id === a.sp))) return;
-    const m = state.dept, cp = Hall.cp(state), prefix = `${m.acc}.${m.depth}.${cp.room}.`, keeps = keeper(state), any = () => true, without = state.options.without || [], avoid = new Set();
+    const m = state.dept, cp = Hall.cp(state), prefix = `${m.acc}.${m.depth}.${cp.room}.`, keeps = keeper(state), fixed = fixedOk(state, b), without = state.options.without || [], avoid = new Set();
     let n = 0;
     for (const a of state.actors) if (a.uid.startsWith(prefix) && /^\d+$/.test(a.uid.slice(prefix.length))) n = Math.max(n, Number(a.uid.slice(prefix.length)));
     for (const q of list) {
       if (!Populate.ready(q)) continue;
-      const at = q.stands === 'case' ? byCase(state, b, any) : apart(state, b, keeps, avoid);
+      const at = q.stands === 'case' ? byCase(state, b, fixed) : apart(state, b, keeps, avoid);
       if (!at) continue;
       const stats = Roles.stats(q.role, m.depth);
       const a = Actors.spawn(state, Object.assign({}, stats, { uid: prefix + (++n), sp: q.id, size: 1, x: at[0], y: at[1], maxHp: stats.hp, mode: 'dormant',
@@ -303,17 +324,20 @@ const Tableau = (() => {
     const cp = Hall.cp(state), b = cp && Array.isArray(cp.uids) ? Actors.byUid(state, cp.uids[0]) : null;
     return b && !b.gone && b.arch === ID ? b : null;
   }
-  // onPhase (Centrepiece.hooks): as the Board enters its second phase, every sleeping exhibit
-  // present with the modifier on (the Board Dish) wakes at once, hunting you (Wake.wake: its
-  // hunt knows your tile, §8.2), in spawn order, its cause tab_phase {by: the Board}.
+  // onPhase (Centrepiece.hooks): as the Board enters its second phase, every exhibit present
+  // with the modifier on (the Board Dish) that is not hunting you starts to, at once, in spawn
+  // order, its cause tab_phase {by: the Board}: one asleep wakes into its hunt (Wake.wake), one
+  // awake, searching or going back (woken sooner, by your ring, a noise or the bell, §8.2)
+  // turns to it (Wake.setMode); either hunt knows your tile (§8.2).
   function onPhase(state, k, ev) {
     if (k !== 2) return;
     const b = standingBoard(state);
     if (!b) return;
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
-      if (a.gone || a.mode !== 'dormant' || !screens(state, a)) continue;
-      Wake.wake(state, a, 'hunting', { k: WAKES, by: b.uid }, ev);
+      if (a.gone || a.mode === 'hunting' || !screens(state, a)) continue;
+      if (a.mode === 'dormant') Wake.wake(state, a, 'hunting', { k: WAKES, by: b.uid }, ev);
+      else Wake.setMode(state, a, 'hunting', { k: WAKES, by: b.uid }, ev);
     }
   }
   // The tile a screen keeps to (MODIFIERS.tab_screen): of the free tiles of the Board's hall

@@ -45,7 +45,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // which sets out its attachments), then M.11's modules made (Modules.init, as a department
   // makes them after the Centrepiece) and the hall's case given rain (weather_cases' rule for
   // the hall; a room for tests draws none). o: you, more exhibits, items, options, case (false:
-  // none), weather (null: none), at (the footprint), core (X).
+  // none), weather (null: none), at (the footprint), core (X), viewTile (the hall's reading tile).
   function room(depth, o) {
     o = o || {};
     const X = o.core || C;
@@ -54,6 +54,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const s = H.room(X, o.seed || 1, { acc: 'M11', depth, map: o.map || MAP, you: o.you || [10, 8], exhibits: o.more || [], rooms: ROOMS, clock: o.clock || { B: 300, G: 60 }, entrance: [17, 5],
       fixtures, items: o.items || [] }, o.options || {});
     s.actors[0].maxHp = 999; s.actors[0].hp = 999;
+    if (o.viewTile) s.dept.viewTile = o.viewTile.slice();
     X.Centrepiece.place(s, { cpl: o.at || AT }, X.Packs.get('M11'));
     X.Modules.init(s, X.Packs.get('M11'));
     const f = o.case === false ? null : X.Cases.at(s, at[0], at[1]);
@@ -130,6 +131,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(rec.phases), json([{ parts: ['SPECIALS.cp_line', 'SPECIALS.cp_burst'] }, { parts: ['CLAUSES.tab_summon'], specials: ['summon'] }, { parts: ['CLAUSES.tab_quick'] }]));
     assert.equal(LINES.rows(C.Clauses.line(rec, { depth: 7 })), 30);
     assert.equal(Math.max(...DEPTHS.flatMap(d => [1, 2, 3].map(k => LINES.rows(C.Clauses.strip(rec, { depth: d, phase: k }))))), 11);
+    // The Dish's paragraph says what its line says, that a signal goes back the way it came
+    // (so the Board's own beam comes back into the Board, §8.1), never that it shields the Board.
+    const dishWords = rec.attachments[1].paragraph;
+    assert.ok(/back the way they came/.test(dishWords) && !/away from the panels|umbrella|shield|protect/i.test(dishWords), dishWords);
     // The attachments' paragraphs claim no place (m4-packs' paragraph lint's words).
     for (const q of rec.attachments) assert.ok(!/\bin front of it\b|\b(in|at|into|inside) the Central Station\b|\b(in|inside) (a|the|its|this) (case|vitrine|cabinet)\b|\b(beside|next to|by) the (north|south|east|west)\b/i.test(q.paragraph), q.paragraph);
   });
@@ -147,16 +152,39 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   function model(X, s) {
     const m = s.dept, b = board(X, s), hall = roomAt(m, b.x, b.y), mine = [ARM, DISH];
     const takenBy = (x, y, but) => s.actors.some(a => !a.gone && !(but || []).includes(a.sp) && X.Actors.covers(a, x, y));
-    const free = (x, y, but) => X.Grid.inside(m, x, y) && roomAt(m, x, y) === hall && X.Grid.walkable(m, x, y, 'exhibit') && !X.Grid.closedDoor(m, x, y) && !takenBy(x, y, but);
-    // The Arm: beside the hall's first real case, within its weather's square, nearest the Board.
-    const f = m.fixtures.find(c => c.k === 'case' && !c.mimic && roomAt(m, c.x, c.y) === hall);
-    let arm = null;
-    if (f) {
+    // A tile either is set on: plain floor of the hall, no one on it.
+    const free = (x, y, but) => X.Grid.inside(m, x, y) && roomAt(m, x, y) === hall && m.tiles[y][x] === '.' && !takenBy(x, y, but);
+    // The Arm never leaves its tile: not the reading tile, and, with the Board's footprint, it
+    // cuts no tile off from the entrance and leaves every case a tile beside it you can reach
+    // (a breadth-first walk by the step rule, the Board and the tile walled).
+    const walk = wall => {
+      const seen = new Set([key(m.entrance)]), q = [m.entrance.slice()];
+      while (q.length) {
+        const [x, y] = q.pop();
+        for (let k = 0; k < 8; k++) {
+          const t = [x + X.Grid.DX[k], y + X.Grid.DY[k]];
+          if (seen.has(key(t)) || !X.Grid.canStep(m, x, y, k) || X.Actors.covers(b, t[0], t[1]) || (wall && key(wall) === key(t))) continue;
+          seen.add(key(t)); q.push(t);
+        }
+      }
+      return seen;
+    };
+    const was = walk(null), besideOf = (c, set) => [0, 1, 2, 3, 4, 5, 6, 7].some(k => set.has(key([c.x + X.Grid.DX[k], c.y + X.Grid.DY[k]])));
+    const stays = t => {
+      if (m.viewTile && key(m.viewTile) === key(t)) return false;
+      const now = walk(t);
+      return [...was].every(k => k === key(t) || now.has(k)) && m.fixtures.every(c => c.k !== 'case' || !besideOf(c, was) || besideOf(c, now));
+    };
+    // The Arm: beside the hall's first real case with such a tile, within its weather's square,
+    // nearest the Board; else beside the Board, the first in row-major order.
+    let arm = null, f = null;
+    for (const c of m.fixtures.filter(c => c.k === 'case' && !c.mimic && roomAt(m, c.x, c.y) === hall)) {
       const near = [];
-      for (let y = f.y - 1; y <= f.y + 1; y++) for (let x = f.x - 1; x <= f.x + 1; x++) if (free(x, y, mine)) near.push([x, y]);
-      arm = near.sort((p, q) => X.Actors.dist(b, p[0], p[1]) - X.Actors.dist(b, q[0], q[1]) || rowMajor(p, q))[0] || null;
+      for (let y = c.y - 1; y <= c.y + 1; y++) for (let x = c.x - 1; x <= c.x + 1; x++) if (free(x, y, mine)) near.push([x, y]);
+      arm = near.sort((p, q) => X.Actors.dist(b, p[0], p[1]) - X.Actors.dist(b, q[0], q[1]) || rowMajor(p, q)).find(stays) || null;
+      if (arm) { f = c; break; }
     }
-    if (!arm) for (let y = b.y - 1; y <= b.y + 2 && !arm; y++) for (let x = b.x - 1; x <= b.x + 2 && !arm; x++) if (X.Actors.dist(b, x, y) === 1 && free(x, y, mine)) arm = [x, y];
+    if (!arm) for (let y = b.y - 1; y <= b.y + 2 && !arm; y++) for (let x = b.x - 1; x <= b.x + 2 && !arm; x++) if (X.Actors.dist(b, x, y) === 1 && free(x, y, mine) && stays([x, y])) arm = [x, y];
     // Its line: N, E, S, W, out and back never on the Board; the longest no one stands on.
     let dir = null, most = -1, clear = null, longest = -1, runs = [];
     for (const [d, k] of [['N', 0], ['E', 2], ['S', 4], ['W', 6]]) {
@@ -221,6 +249,30 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const u = room(4, { map: MAP2, caseAt: [4, 4] });
     problems.push(...placed(C, u, 'in its row'));
     assert.equal(json([one(u, ARM).x, one(u, ARM).y, one(u, ARM).route]), json([5, 5, { dir: 'S' }]));
+    // It never leaves its tile, so it never takes the hall's reading tile, nor a tile that would
+    // cut another off (a mimic's case's rule): with the reading tile at (3,2), or with columns
+    // at (2,1) and (2,2) leaving (3,1) reached only from (3,2), it takes the next nearest, (4,2),
+    // whose line runs east along the second row as before; and, as population sets every
+    // exhibit, neither stands anywhere but on plain floor (benches at 1–3,1 and 3,2 here).
+    for (const [why, o] of [['the reading tile', { viewTile: [3, 2] }], ['a pocket', { map: MAP.map((row, y) => (y === 1 || y === 2) ? row.slice(0, 2) + 'o' + row.slice(3) : row) }],
+      ['benches', { map: MAP.map((row, y) => y === 2 ? row.slice(0, 3) + 'b' + row.slice(4) : y === 1 ? '#bbb' + row.slice(4) : row) }]]) {
+      const v = room(4, o);
+      problems.push(...placed(C, v, why));
+      if (json([one(v, ARM).x, one(v, ARM).y, one(v, ARM).route]) !== json([4, 2, { dir: 'E' }])) problems.push(`${why}: the Arm at ${json([one(v, ARM).x, one(v, ARM).y, one(v, ARM).route])}`);
+      if (C.Tableau.attachments(v).some(a => C.Grid.ch(v.dept, a.x, a.y) !== '.')) problems.push(`${why}: ${json(C.Tableau.attachments(v).map(a => [a.x, a.y, C.Grid.ch(v.dept, a.x, a.y)]))}`);
+    }
+    // Nor one that would leave a case no tile beside it to reach: with columns round the case
+    // but for (3,2), it stands beside the Board instead (the first such tile, row-major), as
+    // in a hall with no case, out of the case's rain.
+    const shut = room(4, { map: MAP.map((row, y) => y === 1 ? '#..o' + row.slice(4, 5) + 'o' + row.slice(6) : y === 2 ? row.slice(0, 4) + 'oo' + row.slice(6) : row) });
+    problems.push(...placed(C, shut, 'the case shut in'));
+    assert.equal(json([one(shut, ARM).x, one(shut, ARM).y]), json([5, 4]));
+    // The Board never moves either, so it counts as in the way: a case beside it at (8,5),
+    // its other sides walled but (7,4), is not left for the Board's tiles to reach it from.
+    const board4 = MAP.map((row, y) => [...row].map((c, x) => (x === 4 && y === 1) ? '.' : (x === 8 && y === 5) ? 'v' : ((x === 8 || x === 9) && y === 4) || (x === 9 && (y === 5 || y === 6)) || (x === 8 && y === 6) ? 'o' : c).join(''));
+    const beside = room(4, { map: board4, caseAt: [8, 5] });
+    problems.push(...placed(C, beside, 'a case beside the Board'));
+    assert.equal(json([one(beside, ARM).x, one(beside, ARM).y]), json([5, 4]));
     // With no case in the hall, the Arm stands beside the Board (the first such tile, row-major),
     // its line still missing the Board.
     const t = room(4, { case: false });
@@ -248,11 +300,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const s = X.Dept.create(seed, 'M11', depth), tag = `seed ${seed} d${depth}`, want = model(X, s), arm = one(s, ARM);
       halls++;
       problems.push(...placed(X, s, tag));
+      const hall = roomAt(s.dept, arm.x, arm.y), cased = s.dept.fixtures.some(f => f.k === 'case' && !f.mimic && roomAt(s.dept, f.x, f.y) === hall);
       if (want.caseAt) {
         const f = X.Cases.at(s, want.caseAt[0], want.caseAt[1]);
         if (f.weather !== 'rain' || !X.Grid.covers({ x: f.x, y: f.y, size: N.WEATHER_SIZE }, arm.x, arm.y)) problems.push(`${tag}: the case ${json(f)} and the Arm at ${arm.x},${arm.y}`);
         else rain++;
-      }
+      } else if (cased) problems.push(`${tag}: its hall has a case, but the Arm stands in no case's rain`);
+      if (s.dept.viewTile && arm.x === s.dept.viewTile[0] && arm.y === s.dept.viewTile[1]) problems.push(`${tag}: the Arm stands on the reading tile`);
       const off = X.Dept.create(seed, 'M11', depth, { rulesOff: ['weather_cases', 'hourly_demonstration'] });
       if (json(X.Tableau.attachments(off).map(a => [a.uid, a.x, a.y, a.route])) !== json(X.Tableau.attachments(s).map(a => [a.uid, a.x, a.y, a.route]))) problems.push(`${tag}: placed otherwise with the modules off`);
     }
@@ -409,6 +463,39 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     assert.ok(blows >= DEPTHS.length, `it struck at you ${blows} times`);
     assert.deepEqual(problems, []);
+  });
+
+  test('woken sooner (by a noise, your ring or the bell), the Board Dish that is awake, searching or going back when the Board enters its second phase turns at once to hunting you, as its line says ("… began hunting you: the Great Board … entered its second phase."), knowing your tile; one already hunting is left as it is; at depths 1, 4 and 7', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) for (const mode of ['awake', 'searching', 'returning', 'hunting']) {
+      const s = room(depth, { you: [10, 8] }), b = board(C, s), d = one(s, DISH), tag = `d${depth} ${mode}`;
+      const ev0 = [];
+      C.Wake.wake(s, d, mode === 'hunting' ? 'hunting' : 'awake', { k: 'noise', cls: 'soft', x: 2, y: 2 }, ev0, mode === 'hunting' ? {} : { target: [2, 2] });
+      if (mode === 'searching' || mode === 'returning') C.Wake.setMode(s, d, mode, { k: 'out_of_sight', turns: 8 }, ev0, mode === 'searching' ? { lastKnown: [2, 2] } : {});
+      if (d.mode !== mode) { problems.push(`${tag}: planted ${d.mode}`); continue; }
+      const ev = toPhase2(C, s, b), mine = ev.filter(e => e.who === d.uid);
+      if (mode === 'hunting') { if (mine.length) problems.push(`${tag}: ${json(mine)}`); continue; }
+      if (json(mine.map(e => [e.k, e.was, e.cause])) !== json([['hunting', mode, { k: 'tab_phase', by: b.uid }]]) || d.mode !== 'hunting' || json(d.lastKnown) !== json([10, 8])) problems.push(`${tag}: ${json(mine)}, ${d.mode} ${json(d.lastKnown)}`);
+      if (!log(C, s, ev).includes(`${Name(C, s, d.uid)} began hunting you: ${C.Labels.nameOf(s)(b.uid)} entered its second phase.`)) problems.push(`${tag}: the log says ${json(log(C, s, ev))}`);
+      // Then it keeps to the Board's front, as it does woken by the phase.
+      const r = H.play(C, s, Array(14).fill(WAIT), { inv: ALL(C), clone: depth === 4 });
+      problems.push(...bad(r, tag));
+      if (json([d.x, d.y]) !== json([8, 7])) problems.push(`${tag}: it stands at ${d.x},${d.y}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('hunting you while the Board stands, the Board Dish loses you as any hunter does: out of its sight for its hunt\'s turns (you beyond the hall), it searches where it last knew you were, and keeps to the Board no longer; at depths 2 and 6', () => {
+    for (const depth of [2, 6]) {
+      const s = room(depth, { you: [18, 9] }), b = board(C, s), d = one(s, DISH);
+      toPhase2(C, s, b);
+      assert.equal(json([d.mode, d.lastKnown]), json(['hunting', [18, 9]]));
+      const r = H.play(C, s, Array(N.LOSE_TRACK_TURNS + 6).fill(WAIT), { inv: ALL(C) });
+      assert.deepEqual(bad(r, `d${depth}`), []);
+      const lost = r.events.find(e => e.k === 'lost' && e.who === d.uid);
+      assert.ok(lost && lost.from === 'hunting' && lost.to === 'searching' && lost.cause.k === 'out_of_sight' && d.mode !== 'hunting', json([lost, d.mode]));
+      assert.ok(!r.events.some(e => e.k === 'damaged' && e.who === 'you'), 'it never saw you');
+    }
   });
 
   test('the Board Dish stands between you and the Board: your Pin-Driver\'s bolts at the Board come back into you, and the Board\'s own beam, marked while the Dish stands in it, turns back into the Board (the Dish\'s doing); at depths 1, 4 and 7', () => {
