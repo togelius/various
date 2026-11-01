@@ -433,7 +433,10 @@ const Specials = (() => {
   // done, as the perks you hold make them (Perks.adjust, asked as step() asks it: on the state
   // the action left, with the events the action made, so a perk that reads its step reads
   // the same one; a step made free leaves no time for anything to go off). What goes off first:
-  //   - a pending mark, if its owner's next action comes earlier (ties go to you, §8.1);
+  //   - a pending mark, if its owner's next action that a status does not take from it comes
+  //     earlier (ties go to you, §8.1): a staggered owner (M4) only waits at the decisions its
+  //     status covers, its mark waiting with it, so the mark goes off at its first decision
+  //     after them (goesOff);
   //   - a due line, if its boundary comes at or before your next decision (a boundary runs
   //     before anyone who acts at its tick), whether it is marked already or will be marked
   //     before then by a module (Modules.threat: the chime's lines before the chime sounds,
@@ -471,6 +474,35 @@ const Specials = (() => {
       throw new Error(`Specials.threat: Modules.threat gave ${JSON.stringify(m)}, not {by, sp, tiles, gross, due}`);
     return m;
   }
+  // When a's pending mark goes off: at its next decision, unless a status whose bearer only
+  // waits (Status.skips: staggered; fixed calls the mark off) covers the turn that decision
+  // falls in; each such decision is a wait (COST_WAIT, as its speed makes it), and the mark
+  // goes off at the first decision no such status covers (§8.1's timing rule: a status covers
+  // the turns from..until − 1, from its bearer's next decision once settled). A status for the
+  // rest of the visit covers every turn: never.
+  function goesOff(state, a) {
+    const lost = (a.statuses || []).filter(st => Status.skips(state, { statuses: [st] }));
+    if (!lost.length) return a.next;
+    const wait = Actors.cost(state, a, N.COST_WAIT, 'act');
+    const span = st => {
+      if (st.perm) return null;
+      if (Number.isInteger(st.until) && Number.isInteger(st.from)) return [st.from, st.until];
+      const from = Int.idiv(a.next, N.TICKS_PER_TURN);
+      return [from, from + st.turns];
+    };
+    let t = a.next;
+    for (;;) {
+      const turn = Int.idiv(t, N.TICKS_PER_TURN);
+      let covered = false;
+      for (const st of lost) {
+        const sp = span(st);
+        if (sp === null) return Infinity;
+        if (turn >= sp[0] && turn < sp[1]) covered = true;
+      }
+      if (!covered) return t;
+      t += wait;
+    }
+  }
   function threat(state, action) {
     if (state.over || !action || typeof action.a !== 'string') return null;
     if (state.ui && state.ui.pendingChoice && action.a !== 'choose') return null;
@@ -500,7 +532,10 @@ const Specials = (() => {
       if (isDue(t)) {
         pending.add(`${a.uid} ${t.sp} ${t.due}`);
         if (t.due <= decision && hasTile(t.tiles, x, y)) found.push({ at: t.due, late: 0, i, hit: hit(a.uid, t.gross, t.sp, t.due) });
-      } else if (Actors.scheduled(a) && a.next < decision && hasTile(t.tiles, x, y)) found.push({ at: a.next, late: 1, i, hit: hit(a.uid, t.gross, t.sp, null) });
+      } else if (Actors.scheduled(a) && hasTile(t.tiles, x, y)) {
+        const at = goesOff(seen, a);
+        if (at < decision) found.push({ at, late: 1, i, hit: hit(a.uid, t.gross, t.sp, null) });
+      }
     }
     // The module marks due by your next decision (Modules.threat gives those due before the
     // tick it is given, so it is given the tick after your decision), read from the state as

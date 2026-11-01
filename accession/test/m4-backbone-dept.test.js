@@ -305,7 +305,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const m3 = Status.defined().filter(id => C.Registry.STATUSES[id].built === 'M3');
     eq(m3, ['fixed', 'rooted', 'coughing', 'restoring', 'slowed', 'dazed']);
     eq(Status.defined().slice(0, m3.length), m3);
-    eq(Object.keys(Status.EFFECTS).sort(), ['coughing', 'restoring']);
+    // M3's with a per-turn effect (M4's second_wind, reg/perk-status.js, is its package's).
+    eq(Object.keys(Status.EFFECTS).filter(id => C.Registry.STATUSES[id].built === 'M3').sort(), ['coughing', 'restoring']);
     // Of M3's statuses only fixed makes its bearer only wait (§8.1), and only fixed and rooted
     // forbid you anything.
     for (const id of m3) {

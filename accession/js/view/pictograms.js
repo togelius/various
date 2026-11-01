@@ -69,8 +69,10 @@ const Pictograms = (() => {
     restoring: ['...xx...', '...xx...', '...xx...', 'xxxxxxxx', 'xxxxxxxx', '...xx...', '...xx...', '...xx...'],
     slowed:    ['xxxxxxxx', '.x....x.', '..x..x..', '...xx...', '...xx...', '..x..x..', '.x....x.', 'xxxxxxxx'],
     dazed:     ['.x....x.', 'xxx..xxx', '.x....x.', '........', '...x....', '..xxx...', '...x....', '........'],
-    // M4's perk status (reg/perk-status.js): a staggering zigzag, its bearer losing its next action
+    // M4's perk statuses (reg/perk-status.js): a staggering zigzag, its bearer losing its next action;
     staggered: ['........', 'x...x...', '.x.x.x..', '..x...x.', '.......x', 'x...x...', '.x.x.x..', '..x...x.'],
+    // and Second Wind's heal (PG-PERKS-B), yours: a gust of wind curling round
+    second_wind: ['.xxxx...', 'x....x..', '....x...', '..xx..x.', '.x...x.x', 'x...x..x', '.x.....x', '..xxxxx.'],
     fumigant:  ['........', '..xx....', '.xxxx.x.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '........', '........'],
     dust:      ['x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.'],
     // M4's weather (reg/mod-weather.js): fog in drifting bands, rain in falling streaks
@@ -91,7 +93,7 @@ const Pictograms = (() => {
     seal_anchor: 'item', seal_key: 'item', seal_bell: 'item', seal_hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
-    staggered: 'hazard', fog: 'hazard', rain: 'hazard',
+    staggered: 'hazard', second_wind: 'player', fog: 'hazard', rain: 'hazard',
   };
   const colourOf = (id, override) => override || ART.palettes.semantic[COLOUR[id]];
 
