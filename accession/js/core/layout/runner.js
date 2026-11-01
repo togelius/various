@@ -166,6 +166,25 @@ const LRunner = (() => {
       if (Grid.inside(m, x, y) && Grid.disc(x - g[0], y - g[1], N.TETHER_RANGE)) k[y * m.w + x] = 1;
     return k;
   }
+  // A function giving the tiles you could stand on that an exhibit standing on (x, y) sees
+  // (AI.sees: within SIGHT_EXHIBIT, in line of sight; every ordinary door open, as every wake
+  // region is read here; a surface, which only ever hides you, not counted), each tile's mask
+  // made once.
+  function sighted(state, vm) {
+    const bare = Object.assign({}, vm, { surfaces: [] }), r = N.SIGHT_EXHIBIT, made = new Map();
+    // You could stand there: walkable, not a closed door (read once per tile).
+    const { disc, los } = Grid, stand = new Uint8Array(vm.w * vm.h);
+    for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) if (Grid.walkable(vm, x, y) && !Grid.closedDoor(vm, x, y)) stand[y * vm.w + x] = 1;
+    return (fx, fy) => {
+      const key = fy * vm.w + fx;
+      if (made.has(key)) return made.get(key);
+      const k = new Uint8Array(vm.w * vm.h);
+      for (let y = Math.max(0, fy - r); y <= Math.min(vm.h - 1, fy + r); y++) for (let x = Math.max(0, fx - r); x <= Math.min(vm.w - 1, fx + r); x++)
+        if (stand[y * vm.w + x] && disc(x - fx, y - fy, r) && los(bare, fx, fy, x, y)) k[y * vm.w + x] = 1;
+      made.set(key, k);
+      return k;
+    };
+  }
   const near = (a, b, r) => Actors.footprint(a).some(([x, y]) => Actors.footprint(b).some(([u, v]) => Grid.disc(x - u, y - v, r)));
   const sleeps = (state, b) => b.mode === 'dormant' && !Archetypes.pipless(state, b);
 
@@ -190,9 +209,16 @@ const LRunner = (() => {
       const a = state.actors[i];
       if (!a.gone && (a.mode === 'dormant' || Cases.encased(state, a))) for (const [x, y] of Actors.footprint(a)) if (Grid.inside(m, x, y)) blocked[y * m.w + x] = 1;
     }
-    const short = shortest(m, blocked);
+    // The route starts where you stand as the visit begins (inside the entrance), so that its
+    // i-th tile is where you stand after your i-th action.
+    const you = state.actors[0], start = you.y * m.w + you.x;
+    const short = shortest(m, blocked, start);
     if (short < 0) return { none: 'no route reaches an exit without the hall, a staff door or an exhibit that stands still' };
     const run = runner(state, opts), horizon = HORIZON * short, view = opts && opts.doors === 'shut' ? state : opened(state), vm = view.dept;
+    // The patrols' timeline (Patrol.timeline), unless it cannot be told or is switched off.
+    const told = opts && opts.timing === 'off' ? null : Patrol.timeline(state, horizon), walked = new Map();
+    if (told) for (const p of told) walked.set(p.uid, p.at);
+    const sightOf = sighted(state, vm);
     const ex = [];
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
@@ -203,13 +229,38 @@ const LRunner = (() => {
         e.ring = maskOf(vm, Archetypes.wakeRegion(view, a, N.PIPS_TO_WAKE));
         if (a.trigger === 'axis') e.axis = axisMask(vm, a);
         if (a.trigger === 'tether' && Array.isArray(a.guards)) e.tether = tetherMask(vm, a);
+      } else if (walked.has(a.uid)) {
+        // A patrol whose walk is told: what it sees at each of its actions (AI.look, before it
+        // moves), by the runner's turn: an action in the ticks of turn i comes after the
+        // runner's i-th move (ties go to you), so it sees the route's tile i + 1.
+        e.turns = [];
+        for (const p of walked.get(a.uid)) {
+          const i = Int.idiv(p.t - state.tick, N.TICKS_PER_TURN) + 1;
+          while (e.turns.length <= i) e.turns.push([]);
+          const k = sightOf(p.x, p.y);
+          if (!e.turns[i].includes(k)) e.turns[i].push(k);
+        }
+        // Everything it could see on its round: after a fight starts, and past its timeline.
+        e.sight = new Uint8Array(m.w * m.h);
+        for (const list of e.turns) for (const k of list) for (let q = 0; q < k.length; q++) if (k[q]) e.sight[q] = 1;
       } else {
         e.sight = maskOf(vm, Archetypes.wakeRegion(view, a, horizon));
         // An exhibit awake from the start whose rules give no region is taken to find you at once.
         if (!any(e.sight)) e.sight.fill(1);
       }
+      // A station's line (M.11's chime; CP1): each of its chimes within the horizon marks it,
+      // awake or asleep, and DEMO_WARNING turns later it goes off at the boundary when the
+      // runner stands on the route's tile (that turn less the state's): [j, the tiles it could
+      // take then (HourlyDemonstration.reach)].
+      if (HourlyDemonstration.isStation(state, a) && HourlyDemonstration.of(state)) {
+        e.lines = [];
+        for (let c = state.turn + 1; c + N.DEMO_WARNING - state.turn <= horizon; c++)
+          if (HourlyDemonstration.chimesAt(state, a, c)) e.lines.push([c + N.DEMO_WARNING - state.turn, maskOf(m, HourlyDemonstration.reach(state, a, c))]);
+      }
       ex.push(e);
     }
+    // A line's net damage to the runner, through its Padding, as every special's is counted.
+    const lineNet = Math.max(N.DMG_MIN_ON_HIT, Specials.info(state, 'demo_line').gross - run.pad);
     // What each waking wakes in turn.
     if (!(opts && opts.chain === 'off')) for (const e of ex) {
       const a = e.a, A = own(Registry.ARCHETYPES, a.arch) ? Registry.ARCHETYPES[a.arch] : null;
@@ -224,12 +275,12 @@ const LRunner = (() => {
         else if (call && !piece && Actors.footprint(b).some(([x, y]) => call[y * m.w + x])) e.wakes.push([j, CALL_DELAY, 'herald']);
       });
     }
-    return { run, blocked, short, horizon, ex };
+    return { run, blocked, start, short, horizon, ex, lineNet };
   }
 
   // The number of steps of the shortest route from the entrance to an exit, or -1.
-  function shortest(m, blocked) {
-    const p = search(m, blocked, null, 0);
+  function shortest(m, blocked, start) {
+    const p = search(m, blocked, null, 0, start);
     return p ? p.length - 1 : -1;
   }
 
@@ -238,11 +289,11 @@ const LRunner = (() => {
   // A cheapest walk (Dijkstra, 100 a step and price × pen[k] for entering tile k, never a
   // blocked tile, nor a priced tile when price is BLOCK) from the entrance to an exit: its tile
   // indices, the entrance first, or null. Ties go to the lower tile index, so it draws nothing.
-  function search(m, blocked, pen, price) {
+  function search(m, blocked, pen, price, start) {
     const n = m.w * m.h, dist = new Float64Array(n).fill(-1), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
     const exit = new Uint8Array(n);
     for (const [x, y] of m.exits) exit[y * m.w + x] = 1;
-    const s = m.entrance[1] * m.w + m.entrance[0];
+    const s = start;
     const heap = [];
     const less = (i, j) => heap[i][0] < heap[j][0] || (heap[i][0] === heap[j][0] && heap[i][1] < heap[j][1]);
     const push = (d, k) => { heap.push([d, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (!less(i, p)) break; const t = heap[i]; heap[i] = heap[p]; heap[p] = t; i = p; } };
@@ -261,8 +312,10 @@ const LRunner = (() => {
       if (done[k]) continue;
       done[k] = 1;
       if (exit[k]) {
+        // Its tiles, the entrance first, with a turn more before each closed door (as the map
+        // stands) to open it: a step into one opens it and leaves you where you were.
         const out = [];
-        for (let q = k; q >= 0; q = prev[q]) out.push(q);
+        for (let q = k; q >= 0; q = prev[q]) { out.push(q); if (prev[q] >= 0 && Grid.ch(m, q % m.w, Int.idiv(q, m.w)) === '+') out.push(prev[q]); }
         return out.reverse();
       }
       const x = k % m.w, y = Int.idiv(k, m.w);
@@ -280,9 +333,12 @@ const LRunner = (() => {
 
   // What a route wakes, and when: wake[j] the turn exhibit ex[j] wakes (-1: never), how[j] why
   // (ring, axis, tether, sight, alarm, herald, ally_hit).
+  // Does a timed patrol see the route's tile k at turn i (past its timeline, anything it could)?
+  const seesAt = (e, i, k) => i < e.turns.length ? e.turns[i].some(mask => mask[k] === 1) : e.sight[k] === 1;
   function wakes(M, route) {
     const n = M.ex.length, T = new Array(n).fill(-1), how = new Array(n).fill(null);
     M.ex.forEach((e, j) => {
+      if (e.turns) { for (let i = 0; i < route.length; i++) if (seesAt(e, i, route[i])) { T[j] = i; how[j] = 'sight'; return; } return; }
       if (e.sight) { for (let i = 0; i < route.length; i++) if (e.sight[route[i]]) { T[j] = i; how[j] = 'sight'; return; } return; }
       let pips = 0;
       for (let i = 0; i < route.length; i++) {
@@ -293,13 +349,22 @@ const LRunner = (() => {
         if (pips >= e.need) { T[j] = i; how[j] = ring ? 'ring' : 'axis'; return; }
       }
     });
-    // Each waking's own wakings, earliest first.
+    // Each waking's own wakings, earliest first. Once the runner has a fight, it keeps to no
+    // timetable: from then on a timed patrol finds it wherever it could see it on its round.
     const done = new Uint8Array(n);
+    let fought = false;
     for (;;) {
       let b = -1;
       for (let j = 0; j < n; j++) if (!done[j] && T[j] >= 0 && (b < 0 || T[j] < T[b])) b = j;
       if (b < 0) break;
       done[b] = 1;
+      if (!fought && M.ex[b].fights) {
+        fought = true;
+        M.ex.forEach((e, j) => {
+          if (done[j] || !e.turns) return;
+          for (let i = T[b]; i < route.length && (T[j] < 0 || i < T[j]); i++) if (e.sight[route[i]]) { T[j] = i; how[j] = 'sight'; return; }
+        });
+      }
       for (const [j, delay, why] of M.ex[b].wakes) if (!done[j] && (T[j] < 0 || T[b] + delay < T[j])) { T[j] = T[b] + delay; how[j] = why; }
     }
     return { T, how };
@@ -319,8 +384,17 @@ const LRunner = (() => {
       if (last && w.turn - last.end <= N.RUNNER_TOGETHER_TURNS) { last.list.push(M.ex[w.j].t); last.end = w.turn; }
       else fights.push({ turn: w.turn, end: w.turn, list: [M.ex[w.j].t] });
     }
-    const out = { route, length: route.length - 1, woken: woken.map(w => ({ uid: w.uid, sp: w.sp, turn: w.turn, how: w.how, fights: w.fights })), fights: [] };
+    const out = { route, length: route.length - 1, woken: woken.map(w => ({ uid: w.uid, sp: w.sp, turn: w.turn, how: w.how, fights: w.fights })), fights: [], lines: [] };
     for (const how of CHARGES) out[how] = 0;
+    // A station's line that goes off while the route stands on it, once a station (D2.3: each
+    // special once, at its printed damage), in every charge.
+    for (const e of M.ex) {
+      if (!e.lines) continue;
+      const hit = e.lines.find(([j, mask]) => j < route.length && mask[route[j]] === 1);
+      if (!hit) continue;
+      out.lines.push({ uid: e.a.uid, turn: hit[0] });
+      for (const how of CHARGES) out[how] += 100 * M.lineNet;
+    }
     for (const f of fights) {
       const rec = { turn: f.turn, uids: f.list.map(t => t.uid), sps: f.list.map(t => t.sp) };
       for (const how of CHARGES) { rec[how] = fight(f.list, how).cost; out[how] += rec[how]; }
@@ -336,6 +410,7 @@ const LRunner = (() => {
   function candidates(state, M) {
     const m = state.dept, pen = new Float64Array(m.w * m.h);
     M.ex.forEach(e => {
+      if (e.lines) for (const [, mask] of e.lines) for (let q = 0; q < pen.length; q++) if (mask[q]) pen[q] = Math.max(pen[q], 100 * M.lineNet);
       let k = e.fights ? alone(e.t, 'b') : 0;
       for (const [j] of e.wakes) if (M.ex[j].fights) k += alone(M.ex[j].t, 'b');
       if (!k) return;
@@ -346,14 +421,107 @@ const LRunner = (() => {
       }
     });
     const out = [], seen = [];
-    for (const price of PRICES.concat([BLOCK])) {
-      const r = search(m, M.blocked, pen, price);
-      if (!r || r.length - 1 > M.horizon) continue;
-      const key = r.join(',');
-      if (seen.includes(key)) continue;
-      seen.push(key);
-      out.push(r);
+    const keep = r => { if (!r || r.length - 1 > M.horizon) return; const key = r.join(','); if (seen.includes(key)) return; seen.push(key); out.push(r); };
+    for (const price of PRICES.concat([BLOCK])) keep(search(m, M.blocked, pen, price, M.start));
+    // Then the timed routes, unless a route found already costs nothing (none can cost less).
+    if (out.some(r => cost(M, r).b === 0)) return out;
+    for (const r of timed(m, M, pen, false)) keep(r);
+    for (const r of timed(m, M, pen, true)) keep(r);
+    return out;
+  }
+
+  // The routes that keep out of every timed patrol's sight, waiting where they must (a careful
+  // runner times a patrol): a search over (tile, turn) up to the horizon, each turn a wait or a
+  // step onto a tile no route steps on (blocked), a closed door (as the map stands) taking a
+  // turn more, to open it; never on a tile a timed patrol sees at that turn. Each turn's tile
+  // pays its pen. It gives the soonest such route to an exit (least pen among those), and the
+  // one of least pen (soonest among those); none when there is no timed patrol or no such
+  // route. Ties go to the lower tile index and to waiting, then compass order, so it draws
+  // nothing.
+  function timed(m, M, pen, avoid) {
+    const pats = M.ex.filter(e => e.turns), lines = M.ex.filter(e => e.lines && e.lines.length);
+    if (!pats.length && !lines.length) return [];
+    // INF is read once: a global's every read is slow in a context of its own (the tools').
+    const n = m.w * m.h, w = m.w, L = M.horizon, layers = [], INF = Infinity;
+    // The tiles some timed patrol sees at turn i (past its timeline, everything it could).
+    const tilesOf = new Map(), listOf = mask => {
+      if (!tilesOf.has(mask)) { const t = []; for (let q = 0; q < n; q++) if (mask[q]) t.push(q); tilesOf.set(mask, t); }
+      return tilesOf.get(mask);
+    };
+    const seen = i => {
+      if (layers[i]) return layers[i];
+      const k = new Uint8Array(n);
+      for (const e of pats) for (const mask of i < e.turns.length ? e.turns[i] : [e.sight]) for (const q of listOf(mask)) k[q] = 1;
+      for (const e of lines) for (const [j, mask] of e.lines) if (j === i) for (const q of listOf(mask)) k[q] = 1;
+      return (layers[i] = k);
+    };
+    const exit = new Uint8Array(n);
+    for (const [x, y] of m.exits) exit[y * w + x] = 1;
+    const s = M.start;
+    if (seen(0)[s]) return [];
+    // Each tile's steps, once: from[k] to from[k + 1] in to and how (d, or 10 + d onto a closed
+    // door).
+    const from = new Int32Array(n + 1), to = new Int32Array(8 * n), how = new Uint8Array(8 * n);
+    let e0 = 0;
+    for (let k = 0; k < n; k++) {
+      from[k] = e0;
+      if (M.blocked[k]) continue;
+      const x = k % w, y = Int.idiv(k, w);
+      for (let d = 0; d < 8; d++) {
+        if (!Grid.canStep(m, x, y, d)) continue;
+        const qx = x + Grid.DX[d], qy = y + Grid.DY[d], q = qy * w + qx;
+        if (!M.blocked[q] && !(avoid && pen[q] > 0)) { to[e0] = q; how[e0] = Grid.ch(m, qx, qy) === '+' ? 10 + d : d; e0++; }
+      }
     }
+    from[n] = e0;
+    const val = [0, 1, 2].map(() => new Float64Array(n).fill(INF)), par = new Uint8Array(n * (L + 1));
+    // The tiles holding a value in each of the three layers kept (Int32Array lists).
+    const lists = [0, 1, 2].map(() => new Int32Array(n)), size = [0, 0, 0];
+    val[0][s] = pen[s]; lists[0][0] = s; size[0] = 1;
+    let first = null, least = null;
+    for (let i = 0; i <= L && size[i % 3]; i++) {
+      const a = i % 3, b = (i + 1) % 3, c = (i + 2) % 3, cur = val[a], nxt = val[b], after = val[c];
+      if (i + 2 <= L) { for (let j = 0; j < size[c]; j++) after[lists[c][j]] = INF; size[c] = 0; }
+      const s1 = i + 1 <= L ? seen(i + 1) : null, s2 = i + 2 <= L ? seen(i + 2) : null, live = lists[a].subarray(0, size[a]);
+      const nl = lists[b], cl = lists[c], pb = (i + 1) * n, pc = (i + 2) * n;
+      let firstHere = null;
+      for (let j = 0; j < live.length; j++) {
+        const k = live[j], v = cur[k];
+        if (exit[k]) {
+          if (!first && (!firstHere || v < firstHere.v)) firstHere = { i, k, v };
+          if (!least || v < least.v) least = { i, k, v };
+          continue;
+        }
+        if (!s1) continue;
+        if (!s1[k]) { const u = v + pen[k]; if (u < nxt[k]) { if (nxt[k] === INF) nl[size[b]++] = k; nxt[k] = u; par[pb + k] = 9; } }
+        for (let e = from[k]; e < from[k + 1]; e++) {
+          const q = to[e], code = how[e];
+          if (code >= 10) {
+            if (!s2 || s1[k] || s2[q]) continue;
+            const u = v + pen[k] + pen[q];
+            if (u < after[q]) { if (after[q] === INF) cl[size[c]++] = q; after[q] = u; par[pc + q] = code + 1; }
+          } else if (!s1[q]) {
+            const u = v + pen[q];
+            if (u < nxt[q]) { if (nxt[q] === INF) nl[size[b]++] = q; nxt[q] = u; par[pb + q] = code + 1; }
+          }
+        }
+      }
+      if (firstHere) first = firstHere;
+      if (least && least.v === 0) break;
+    }
+    const back = ({ i, k }) => {
+      const out = [k];
+      for (let ci = i, ck = k; ci > 0;) {
+        const c = par[ci * n + ck] - 1;
+        if (c === 8) { out.push(ck); ci--; }
+        else if (c < 8) { ck -= Grid.DX[c] + Grid.DY[c] * w; out.push(ck); ci--; }
+        else { ck -= Grid.DX[c - 10] + Grid.DY[c - 10] * w; out.push(ck, ck); ci -= 2; }
+      }
+      return out.reverse();
+    };
+    const out = [];
+    if (first) out.push(back(first));
+    if (least && (!first || least.i !== first.i || least.k !== first.k)) out.push(back(least));
     return out;
   }
 
@@ -385,5 +553,5 @@ const LRunner = (() => {
       tiles: b.route.map(k => [k % m.w, Int.idiv(k, m.w)]) };
   }
 
-  return { CHARGES, APPROACH, HORIZON, runner, terms, alone, fight, model, wakes, cost, measure, passes, check };
+  return { CHARGES, APPROACH, HORIZON, runner, terms, alone, fight, model, wakes, cost, measure, passes, check, candidates, timed };
 })();

@@ -9,11 +9,12 @@
 // beside it), (b) per depth, what wakes the fights of (b)'s failing routes, and the species
 // the department does not place yet (their archetype, modifier or trigger still waiting).
 // Usage: node tools/runner-sweep.js [--dept S9,A4,M11] [--seeds 1-200] [--pct 80,50]
-//          [--runner hp] [--doors shut] [--chain off] [--off <module,…>] [--ready] [--json out.json]
-//          [--fails n]
+//          [--runner hp] [--doors shut] [--chain off] [--timing off] [--off <module,…>] [--ready]
+//          [--json out.json] [--fails n]
 //   --runner hp   the runner keeps the median's kit stats and loses only a grade's health;
 //   --doors shut  wake regions with the doors as they stand, not every door open;
 //   --chain off   no waking wakes another (no alarm, herald's call or ally_hit): D2.3's list;
+//   --timing off  no patrol is timed: each sees everything it could on its round, at once;
 //   --off m,…     the departments made with these modules switched off (rulesOff; population
 //                 is the same under any switch, M4 plan A10);
 //   --ready       plants every M4 archetype, modifier and trigger ready (as their packages
@@ -30,7 +31,7 @@ const pctOf = (k, n) => n ? (100 * k / n).toFixed(1) : '-';
 const M4_READY = { ARCHETYPES: ['unobserved_mover', 'patrol_guard', 'demonstrator', 'conservator_healer'], MODIFIERS: ['clockwork'], TRIGGERS: ['period'] };
 
 function parse(argv) {
-  const opt = { depts: ['S9', 'A4', 'M11'], from: 1, to: 200, pcts: [80, 50], runner: null, doors: null, chain: null, off: [], ready: false, json: null, fails: 0 };
+  const opt = { depts: ['S9', 'A4', 'M11'], from: 1, to: 200, pcts: [80, 50], runner: null, doors: null, chain: null, timing: null, off: [], ready: false, json: null, fails: 0 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = () => { if (i + 1 >= argv.length) throw new Error(`runner-sweep: ${a} needs a value`); return argv[++i]; };
     if (a === '--dept') opt.depts = v().split(',');
@@ -39,6 +40,7 @@ function parse(argv) {
     else if (a === '--runner') { opt.runner = v(); if (opt.runner !== 'hp') throw new Error('runner-sweep: --runner takes hp'); }
     else if (a === '--doors') { opt.doors = v(); if (opt.doors !== 'shut') throw new Error('runner-sweep: --doors takes shut'); }
     else if (a === '--chain') { opt.chain = v(); if (opt.chain !== 'off') throw new Error('runner-sweep: --chain takes off'); }
+    else if (a === '--timing') { opt.timing = v(); if (opt.timing !== 'off') throw new Error('runner-sweep: --timing takes off'); }
     else if (a === '--off') opt.off = v().split(',');
     else if (a === '--ready') opt.ready = true;
     else if (a === '--json') opt.json = v();
@@ -63,7 +65,7 @@ function waiting(C, acc) {
 // One department's seeds: a row per seed {seed, depth, attempt, fallback, none, hp, cost: {a, b,
 // c}, ms, made, fights, short, length}.
 function sweep(C, acc, opt) {
-  const rows = [], ropt = { runner: opt.runner || undefined, doors: opt.doors || undefined, chain: opt.chain || undefined };
+  const rows = [], ropt = { runner: opt.runner || undefined, doors: opt.doors || undefined, chain: opt.chain || undefined, timing: opt.timing || undefined };
   const gopt = opt.off.length ? { rulesOff: opt.off } : undefined;
   for (let s = 1; s <= 3; s++) C.LRunner.measure(C.Dept.create(9000 + s, acc, 3), ropt);
   for (let seed = opt.from; seed <= opt.to; seed++) {
@@ -124,7 +126,7 @@ function main(argv) {
   const opt = parse(argv), C = loadCore(), out = {};
   if (opt.ready) for (const t of Object.keys(M4_READY)) for (const id of M4_READY[t]) if (C.Registry[t][id].ready === false) C.Registry[t][id].ready = 'sweep';
   const header = `runner-sweep: charges (a) expected, alone; (b) maximum blow at its chance, woken within ${C.N.RUNNER_TOGETHER_TURNS} turns together; (c) maximum, always hitting, alone` +
-    (opt.runner ? '; runner: health only' : '') + (opt.doors ? '; doors as they stand' : '') + (opt.chain ? '; no chain wakings' : '') +
+    (opt.runner ? '; runner: health only' : '') + (opt.doors ? '; doors as they stand' : '') + (opt.chain ? '; no chain wakings' : '') + (opt.timing ? '; no patrol timed' : '') +
     (opt.off.length ? `; switched off: ${opt.off.join(', ')}` : '') + (opt.ready ? '; every M4 archetype planted ready' : '');
   console.log(header);
   for (const acc of opt.depts) {

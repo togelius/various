@@ -14,11 +14,17 @@
 //   - on real departments: legal routes, (a) never above (b), nothing drawn or changed, the
 //     same report twice, LRunner.check's verdict, and the axis and tether tiles never fewer
 //     than Wake.onAxis and Wake.inTether give;
-//   - the sweep tool's arguments and report.
+//   - the sweep tool's arguments and report;
+//   - (CP1 review) the patrols timed: Patrol.timeline against the game; a route that waits
+//     out a patrol, played in the game, wakes nothing and reaches an exit, where an untimed
+//     patrol sees it; after a fight a timed patrol sees whatever it could; a station's line
+//     charged once when the route stands on it as it goes off, and waited out; the Waders'
+//     rounds (each its own, away from the Intro's mouth, never stalling); the Copying-Room
+//     Bell kept out of call of every exhibit.
 'use strict';
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
-  const { LRunner, Labels, Setup, Roles, Dept, Archetypes, Wake, Grid, N, State } = C;
+  const { LRunner, Labels, Setup, Roles, Dept, Archetypes, Wake, Grid, N, State, Patrol, Step, Modules, Packs, Populate } = C;
   const S = Roles.stats;
   const KIT3 = { weapon: { form: 'balanced', tier: 2 }, garment: { form: 'standard', tier: 2 } };
   // Values from the core's context have its own prototypes, so they are compared as JSON.
@@ -294,11 +300,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const hall = m.rooms.filter(r => r.role === 'centre').map(r => r.id);
       for (const how of LRunner.CHARGES) {
         const r = rep.best[how].route.map(k => Int(k, m));
-        same(r[0], m.entrance, `${where}: starts at the entrance`);
+        same(r[0], [st.actors[0].x, st.actors[0].y], `${where}: starts where you stand, inside the entrance`);
         assert.ok(m.exits.some(e => e[0] === r[r.length - 1][0] && e[1] === r[r.length - 1][1]), `${where}: ends on an exit`);
         for (let i = 1; i < r.length; i++) {
           const [x, y] = r[i], dir = [0, 1, 2, 3, 4, 5, 6, 7].find(k => r[i - 1][0] + Grid.DX[k] === x && r[i - 1][1] + Grid.DY[k] === y);
-          assert.ok(dir !== undefined && Grid.canStep(m, r[i - 1][0], r[i - 1][1], dir), `${where}: step ${i} is a step`);
+          // A turn is a step or a wait (a timed route waits for a patrol, and to open a door).
+          assert.ok((x === r[i - 1][0] && y === r[i - 1][1]) || (dir !== undefined && Grid.canStep(m, r[i - 1][0], r[i - 1][1], dir)), `${where}: turn ${i} is a step or a wait`);
           assert.ok(!'Ss'.includes(Grid.ch(m, x, y)) && !hall.includes(m.roomOf[y][x]), `${where}: (${x}, ${y}) is no staff door and not the hall`);
           assert.ok(!st.actors.some((a, j) => j > 0 && !a.gone && a.mode === 'dormant' && C.Actors.covers(a, x, y)), `${where}: (${x}, ${y}) holds no sleeper`);
         }
@@ -315,9 +322,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   test('on S.9 the alarm wakes every sleeper that can hear two turns after a Wader sees the runner', () => {
+    // With no patrol timed, each Wader sees whatever it could on its round, so most routes are seen.
     let seen = 0;
     for (const d of made.filter(x => x.acc === 'S9')) {
-      const M = LRunner.model(d.state), b = LRunner.measure(d.state).best.b, w = b.woken.filter(x => x.how === 'sight' && x.sp === 'S9.2');
+      const M = LRunner.model(d.state, { timing: 'off' }), b = LRunner.measure(d.state, { timing: 'off' }).best.b, w = b.woken.filter(x => x.how === 'sight' && x.sp === 'S9.2');
       if (!w.length) continue;
       seen++;
       const t = Math.min(...w.map(x => x.turn));
@@ -328,7 +336,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     }
     assert.ok(seen >= 5, 'most S.9 departments put the runner in a Wader\'s sight');
     // With no chain wakings (D2.3's list), only the Waders and what the route itself wakes.
-    const d = made.find(x => x.acc === 'S9' && x.seed === 1), off = LRunner.measure(d.state, { chain: 'off' });
+    const d = made.find(x => x.acc === 'S9' && x.seed === 1), off = LRunner.measure(d.state, { chain: 'off', timing: 'off' });
     assert.ok(off.best.b.woken.every(x => ['ring', 'axis', 'tether', 'sight'].includes(x.how)));
   });
 
@@ -352,6 +360,216 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(axes >= 5 && tethers >= 3, `axes ${axes}, tethers ${tethers}`);
   });
 
+  // ---- Timed patrols (CP1 review) ----
+
+  // Plays a route in the game: a wait where it stays (or, before a closed door it then steps
+  // onto, the step that opens it), else the step onto its next tile. Returns null, or why not.
+  function play(st, route) {
+    const m = st.dept, w = m.w, xy = k => [k % w, (k - (k % w)) / w];
+    for (let i = 1; i < route.length; i++) {
+      const k = route[i - 1];
+      let q = route[i];
+      if (q === k) {
+        const nx = route[i + 1];
+        if (nx === undefined || nx === k || Grid.ch(m, ...xy(nx)) !== '+') { if (Step.step(st, { a: 'wait' }).some(e => e.k === 'refused')) return `turn ${i}: the wait refused`; continue; }
+        q = nx;
+      }
+      const [x, y] = xy(k), [u, v] = xy(q), dir = [0, 1, 2, 3, 4, 5, 6, 7].find(d => x + Grid.DX[d] === u && y + Grid.DY[d] === v);
+      const r = Step.step(st, { a: 'move', dir });
+      if (r.some(e => e.k === 'refused')) return `turn ${i}: the step refused (${r.find(e => e.k === 'refused').reason})`;
+      if (st.over) return `turn ${i}: the visit is over`;
+    }
+    return null;
+  }
+  const waits = route => route.filter((k, i) => i > 0 && k === route[i - 1]).length;
+  // The Intro's exhibits, which the runner leaves out (D2.3), taken away for a game played.
+  const noIntro = st => { const id = st.dept.rooms.find(r => r.role === 'intro').id; for (const a of st.actors.slice(1)) if (st.dept.roomOf[a.y][a.x] === id) a.gone = true; return st; };
+
+  // A corridor (row 1, the route), a doorway at (9, 2), and a side room below where a Wader
+  // walks its round, west to east and back, seeing up through the doorway only near it.
+  const SIDE = ['#########################', 'E.......................X', '#########.###############', '#.......................#', '#.......................#', '#########################'];
+  const SIDE2 = ['#########################', 'E.......................X', '#.......................#', '#########.###############', '#.......................#', '#.......................#', '#########################'];
+  function side(map, more) {
+    const top = map === SIDE ? [1] : [1, 2], low = map === SIDE ? [3, 4] : [4, 5], door = map === SIDE ? 2 : 3;
+    const st = dept({ map, you: [0, 1], exhibits: [{ sp: 'S9.2', at: [1, low[0]], stats: S('warden', 3) }].concat(more || []) },
+      [{ id: 1, role: 'section', cells: [].concat(...top.map(y => row(y, 1, 23))) }, { id: 2, role: 'section', cells: [].concat(...low.map(y => row(y, 1, 23))) }], [0, 1], [[24, 1]]);
+    const a = st.actors[1];
+    a.route = { posts: [[1, low[0]], [23, low[0]]], i: 1 };
+    assert.equal(a.mode, 'awake'); assert.equal(Grid.ch(st.dept, 9, door), '.');
+    return st;
+  }
+
+  test('Patrol.timeline is the game: each Wader stands where it says at every turn while you wait unseen', () => {
+    let compared = 0;
+    const check = (st, where, turns) => {
+      const t = Patrol.timeline(st, turns), pats = st.actors.filter(a => a.arch === 'patrol_guard');
+      assert.ok(t && t.length === pats.length, `${where}: a timeline for each patrol`);
+      for (let k = 1; k <= turns - 2; k++) {
+        Step.step(st, { a: 'wait' });
+        if (pats.some(a => a.mode !== 'awake')) return;
+        for (const p of t) {
+          const a = pats.find(b => b.uid === p.uid), at = p.at.find(q => q.t >= st.tick);
+          same([a.x, a.y], [at.x, at.y], `${where}: ${a.uid} at tick ${st.tick}`);
+        }
+      }
+      compared++;
+    };
+    check(side(SIDE), 'the side room', 60);
+    for (const d of made.filter(x => x.acc === 'S9')) check(noIntro(State.clone(d.state)), `S9 seed ${d.seed}`, 80);
+    assert.ok(compared >= 6, `${compared} compared to the end`);
+    // Where it cannot be told (another exhibit awake on no round): null. Asked again of the
+    // same state, the same answer; of a Wader moved, worked out again.
+    const st = side(SIDE, [{ sp: 'S9.6', at: [20, 4], stats: S('skirmisher', 3), mode: 'awake' }]);
+    assert.equal(Patrol.timeline(st, 20), null);
+    const s2 = side(SIDE), t1 = Patrol.timeline(s2, 30);
+    same(Patrol.timeline(s2, 30), t1);
+    s2.actors[1].x = 5;
+    assert.equal(Patrol.timeline(s2, 30)[0].at[0].x, 5);
+  });
+
+  test('a patrol whose way to a post is blocked for good by an exhibit that stands still is stuck; one behind another patrol is not', () => {
+    // Its east post (23, 3) walled in by a sleeper at (22, 3) and a case at (23, 4)... here, a
+    // sleeper on the only tile beside a post in a dead end.
+    const map = ['#########################', 'E.......................X', '#########.###############', '#.....................###', '#.......................#', '#########################'];
+    const st = dept({ map, you: [0, 1], exhibits: [{ sp: 'S9.2', at: [1, 3], stats: S('warden', 3) }, { sp: 'S9.6', at: [22, 4], stats: S('skirmisher', 3), mode: 'dormant' }] },
+      [{ id: 1, role: 'section', cells: row(1, 1, 23) }, { id: 2, role: 'section', cells: row(3, 1, 21).concat(row(4, 1, 23)) }], [0, 1], [[24, 1]]);
+    st.actors[1].route = { posts: [[1, 3], [23, 4]], i: 1 };
+    const t = Patrol.timeline(st, 80);
+    same(t[0].stuck, { post: 1 });
+    // Free, it walks the round and is not stuck.
+    st.actors[2].gone = true;
+    assert.equal(Patrol.timeline(st, 80)[0].stuck, null);
+  });
+
+  test('the runner times a patrol: it waits for the gap, and the route, played, wakes nothing; untimed, the patrol sees it', () => {
+    const st = side(SIDE), rep = LRunner.measure(st), b = rep.best.b;
+    same([b.b, b.woken.length], [0, 0]);
+    assert.ok(waits(b.route) > 0, 'it waits');
+    const off = LRunner.measure(st, { timing: 'off' });
+    assert.ok(!LRunner.passes(off, 'b', N.RUNNER_PASS_PCT) && off.best.b.woken.some(w => w.how === 'sight'), 'untimed, seen');
+    // Straight through, it is seen as the Wader passes the doorway.
+    assert.equal(LRunner.cost(LRunner.model(st), along(st.dept, ROUTE)).woken[0].how, 'sight');
+    const game = State.clone(st);
+    assert.equal(play(game, b.route), null);
+    same([game.actors[0].x, game.actors[0].y, game.actors[0].hp], [24, 1, game.actors[0].maxHp]);
+    assert.equal(game.actors[1].mode, 'awake', 'the Wader never saw you');
+    // On S.9: routes that wait, played in the game (the Intro's exhibits taken away), reach an
+    // exit with every exhibit as it was, where the untimed model has a Wader see them.
+    let played = 0, seen = 0;
+    for (const seed of [4, 8, 10, 12, 13, 16]) {
+      const s9 = noIntro(Dept.create(seed, 'S9', 1 + ((seed - 1) % 7))), r = LRunner.measure(s9).best.b;
+      if (r.b !== 0 || !waits(r.route)) continue;
+      const modes = s9.actors.map(a => a.mode), g = State.clone(s9);
+      assert.equal(play(g, r.route), null, `S9 seed ${seed}`);
+      assert.ok(g.dept.exits.some(e => e[0] === g.actors[0].x && e[1] === g.actors[0].y), `S9 seed ${seed}: at an exit`);
+      same(g.actors.map(a => a.mode), modes, `S9 seed ${seed}: nothing woke, no Wader hunts`);
+      played++;
+      if (!LRunner.passes(LRunner.measure(s9, { timing: 'off' }), 'b', N.RUNNER_PASS_PCT)) seen++;
+    }
+    assert.ok(played >= 4 && seen >= 3, `played ${played}, seen untimed ${seen}`);
+  });
+
+  test('once the runner has a fight, a timed patrol finds it wherever it could see it on its round', () => {
+    // The same route through both rooms: wait, then straight along row 1. Without a sleeper,
+    // the Wader never sees it; with a Hopper woken on the way, the Wader is taken to find it as
+    // it passes the doorway later.
+    const free = side(SIDE2), M0 = LRunner.model(free);
+    let route = null;
+    for (let w = 0; w < 40 && !route; w++) {
+      const r = along(free.dept, Array.from({ length: w }, () => [0, 1]).concat(ROUTE));
+      if (!LRunner.cost(M0, r).woken.length) route = r;
+    }
+    assert.ok(route, 'a wait that misses the Wader');
+    const st = side(SIDE2, [{ sp: 'S9.6', at: [4, 2], stats: S('skirmisher', 3), mode: 'dormant' }]), rep = LRunner.cost(LRunner.model(st), route);
+    const hop = wokeOf(rep, 'S9.3.room.2'), wader = wokeOf(rep, 'S9.3.room.1');
+    same([hop.how, wader && wader.how], ['ring', 'sight']);
+    assert.ok(wader.turn > hop.turn);
+    // Untimed patrols (timing off) are the same either way: seen at once.
+    assert.ok(wokeOf(LRunner.cost(LRunner.model(free, { timing: 'off' }), route), 'S9.3.room.1'));
+  });
+
+  // ---- A station's line (M.11) ----
+
+  // A corridor of M.11 with a station at (12, 2) whose line runs north across row 1.
+  function station() {
+    const map = ['#########################', 'E.......................X', '#.......................#', '#########################'];
+    const st = dept({ acc: 'M11', map, you: [0, 1], exhibits: [{ sp: 'M11.2', at: [12, 2], stats: S('controller', 3), mode: 'dormant' }] },
+      [{ id: 1, role: 'section', cells: cellsOf(map, 1, 1, 23, 2) }], [0, 1], [[24, 1]]);
+    st.actors[1].route = { dir: 'N' };
+    Modules.init(st, Packs.get('M11'));
+    return st;
+  }
+
+  test('a station\'s line is charged once when the route stands on it as it goes off, and a timed route waits it out', () => {
+    const st = station(), M = LRunner.model(st), e = M.ex[0];
+    // Its chimes at turns 10, 22, … (count ≡ 12 − 2), its line going off at 12, 24, …
+    same(e.lines.slice(0, 2).map(([j, mask]) => [j, mask[st.dept.w + 12]]), [[12, 1], [24, 1]]);
+    const net = Math.max(N.DMG_MIN_ON_HIT, C.Specials.info(st, 'demo_line').gross - M.run.pad);
+    assert.equal(M.lineNet, net);
+    // Straight along row 1, on (12, 1) at turn 12 as it goes off: charged once, in every charge.
+    const straight = LRunner.cost(M, along(st.dept, ROUTE));
+    same([straight.lines, straight.a, straight.b, straight.c], [[{ uid: st.actors[1].uid, turn: 12 }], 100 * net, 100 * net, 100 * net]);
+    // A turn later it is not.
+    assert.equal(LRunner.cost(M, along(st.dept, [[0, 1]].concat(ROUTE))).lines.length, 0);
+    // The cheapest route waits; played in the game, the line misses you; straight, it strikes.
+    const b = LRunner.measure(st).best.b;
+    same([b.b, b.lines.length], [0, 0]);
+    const g = State.clone(st), you = g.actors[0];
+    assert.equal(play(g, b.route), null);
+    assert.equal(you.hp, you.maxHp, 'the waited route is never struck');
+    const g2 = State.clone(st);
+    assert.equal(play(g2, along(st.dept, ROUTE)), null);
+    assert.equal(g2.actors[0].maxHp - g2.actors[0].hp, net, 'the straight route is struck for the charged net');
+    // With the module switched off, no line.
+    const off = State.clone(st);
+    off.options = Object.assign({}, off.options, { rulesOff: ['hourly_demonstration'] });
+    assert.equal(LRunner.model(off).ex[0].lines, undefined);
+    same(LRunner.measure(off).best.b.lines, []);
+  });
+
+  // ---- Content: the Waders' rounds and the Copying-Room Bell (CP1 review) ----
+
+  test('S.9\'s Waders walk the court, each its own round, never past the Intro\'s mouth and never stalling', () => {
+    for (let seed = 1; seed <= 11; seed++) {
+      const g = Dept.generate(seed, 'S9', 1 + ((seed - 1) % 7)), st = g.state, m = st.dept, where = `S9 seed ${seed}`;
+      const pats = st.actors.filter(a => a.arch === 'patrol_guard'), court = m.rooms.find(r => r.id === m.roomOf[pats[0].y][pats[0].x]);
+      assert.equal(pats.length, 2, where);
+      assert.equal(Populate.galleryOf(st, court.id).key, 's1', `${where}: in the Mount Court's room`);
+      // Each starts on its first post; their posts apart.
+      for (const a of pats) same([a.x, a.y], a.route.posts[0], `${where}: ${a.uid} on its first post`);
+      assert.ok(!pats[0].route.posts.some(p => pats[1].route.posts.some(q => p[0] === q[0] && p[1] === q[1])), `${where}: rounds of their own`);
+      // Walking its round, none stalls, and none sees the safe zone (every door open) in its
+      // first SAFE_ZONE_TURNS turns.
+      const t = Patrol.timeline(st, 120);
+      for (const p of t) assert.equal(p.stuck, null, `${where}: ${p.uid} walks its whole round`);
+      const open = Object.assign({}, m, { tiles: m.tiles.map(r => r.replace(/\+/g, "'")), surfaces: [] }), zone = Grid.distances(open, [m.entrance], N.SAFE_ZONE);
+      for (const p of Patrol.timeline(st, N.SAFE_ZONE_TURNS)) for (const q of p.at) for (let k = 0; k < zone.length; k++) {
+        if (zone[k] < 0) continue;
+        const x = k % m.w, y = (k - x) / m.w;
+        assert.ok(!(Grid.disc(x - q.x, y - q.y, N.SIGHT_EXHIBIT) && Grid.los(open, q.x, q.y, x, y)), `${where}: ${p.uid} at ${q.x},${q.y} sees the safe zone at ${x},${y}`);
+      }
+    }
+    // A post its walk would stall on is left out, and the log says so (seeds 1, 6, 7, 9, 10, 11).
+    const g = Dept.generate(6, 'S9', 6);
+    assert.ok(g.log.some(l => /round leaves out its post at \d+,\d+: its walk there would stall$/.test(l.op || '')));
+  });
+
+  test('the Copying-Room Bell stands out of call of every exhibit; apart is a herald\'s option only', () => {
+    let apart = 0;
+    for (let seed = 1; seed <= 14; seed++) {
+      const g = Dept.generate(seed, 'A4', 1 + ((seed - 1) % 7)), st = g.state, bell = st.actors.find(a => a.sp === 'A4.3');
+      if (!bell) continue;
+      const near = st.actors.filter(a => a !== bell && a.uid !== 'you' && !a.gone && !C.Actors.centrepiece(a) && C.Actors.footprint(a).some(([x, y]) => Grid.disc(x - bell.x, y - bell.y, N.HERALD_RANGE)));
+      const said = g.log.some(l => /found no tile in \S+ out of call of every exhibit/.test(l.op || ''));
+      if (!said) { same(near.map(a => a.uid), [], `A4 seed ${seed}`); apart++; }
+      assert.equal(Populate.galleryOf(st, st.dept.roomOf[bell.y][bell.x]).key, 's2', `A4 seed ${seed}: in the Copying Room`);
+    }
+    assert.ok(apart >= 12, `${apart} apart`);
+    const pack = JSON.parse(JSON.stringify(Packs.get('A4')));
+    pack.galleries[1].contents[1].apart = true;
+    assert.ok(Populate.check(pack).some(p => /apart is true, and only for a herald/.test(p)));
+  });
+
   test('LRunner.check is neutral where there is no department, and the sweep tool reports each charge', () => {
     assert.equal(LRunner.check(C.TestRoom.create(1), null), null);
     same(LRunner.measure(Setup.room(1, { acc: 'S9', map: MAP, you: [5, 3] })), { none: 'not a department' });
@@ -359,6 +577,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.throws(() => T.parse(['--seeds', '5']), /--seeds takes a range/);
     assert.throws(() => T.parse(['--pct', '0']), /--pct takes whole numbers/);
     assert.throws(() => T.parse(['--runner', 'x']), /--runner takes hp/);
+    assert.throws(() => T.parse(['--timing', 'on']), /--timing takes off/);
+    assert.equal(T.parse(['--timing', 'off']).timing, 'off');
     const opt = T.parse(['--dept', 'M11', '--seeds', '1-3', '--pct', '80,50']), rows = T.sweep(C, 'M11', opt);
     same(rows.map(r => [r.seed, r.depth]), [[1, 1], [2, 2], [3, 3]]);
     const lines = T.report('M11', rows, opt, T.waiting(C, 'M11'));
