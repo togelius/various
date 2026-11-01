@@ -33,10 +33,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     return null;
   }
 
-  // M3 departments leave the Centrepiece out until M4 places it (BUILD.md §5.5). These tests
-  // keep their Centrepiece and 2×2 cases by standing the pack's Centrepiece where M2 did, on
-  // its plan's plinth (the same plan Dept.create made, from the same seed), asleep, with the
-  // centrepiece role's numbers at the depth.
+  // A department places its Centrepiece (Centrepiece.place) only once its core is past ready
+  // false (BUILD.md §5.5, §8.7), which none is until its own package lands, and only a core
+  // added with the shared rules can be placed. These tests keep their Centrepiece and 2×2
+  // cases by standing the pack's Centrepiece where M2 did, on its plan's plinth (the same plan
+  // Dept.create made, from the same seed), asleep, with the centrepiece role's numbers at the
+  // depth; behaviour/centrepiece.test.js places one with Centrepiece.place.
   function withCentrepiece(s) {
     const p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
     const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
