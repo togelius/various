@@ -328,7 +328,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       // check() is (b) at RUNNER_PASS_PCT.
       const v = LRunner.check(st, null);
       assert.equal(v === null, LRunner.passes(rep, 'b', N.RUNNER_PASS_PCT), where);
-      if (v) assert.match(v.reason, new RegExp(`costs ${Math.ceil(rep.best.b.b / 100)} of its ${rep.hp} HP \\(at most ${Math.floor(N.RUNNER_PASS_PCT * rep.hp / 100)}, ${N.RUNNER_PASS_PCT}%\\)$`), where);
+      if (v) assert.match(v.reason, new RegExp(`costs ${Math.ceil(rep.best.b.b / 100)} of its ${rep.hp} HP \\(at most ${Math.floor(N.RUNNER_PASS_PCT * rep.hp / 100)}, ${N.RUNNER_PASS_PCT}%\\): (the .+ (wakes|sees it).* at turn \\d+(, and \\d+ more join the fight)?|the line of .+ strikes it at turn \\d+)$`), where);
+      if (v) assert.ok(!/undefined|NaN|\[object|null/.test(v.reason), v.reason);
     }
   });
 

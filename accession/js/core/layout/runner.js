@@ -570,8 +570,20 @@ const LRunner = (() => {
     if (rep.none) return { reason: `the worst-case runner finds ${rep.none}`, tiles: [state.dept.entrance.slice()] };
     if (passes(rep, 'b', N.RUNNER_PASS_PCT)) return null;
     const b = rep.best.b, m = state.dept, hp = x => Int.ceilDiv(x, 100);
-    return { reason: `the worst-case runner's cheapest route costs ${hp(b.b)} of its ${rep.hp} HP (at most ${Int.idiv(N.RUNNER_PASS_PCT * rep.hp, 100)}, ${N.RUNNER_PASS_PCT}%)`,
+    return { reason: `the worst-case runner's cheapest route costs ${hp(b.b)} of its ${rep.hp} HP (at most ${Int.idiv(N.RUNNER_PASS_PCT * rep.hp, 100)}, ${N.RUNNER_PASS_PCT}%): ${why(state, b)}`,
       tiles: b.route.map(k => [k % m.w, Int.idiv(k, m.w)]) };
+  }
+  // In words a player would take: what starts the route's costliest fight, and how many more
+  // join it; or the line that strikes it.
+  const HOW = { ring: 'wakes as it passes', axis: 'wakes as it crosses its axis', tether: 'wakes as it nears what it guards', sight: 'sees it',
+    alarm: 'wakes at the alarm', herald: 'wakes at a herald\'s call', ally_hit: 'wakes as one of its group is struck' };
+  function why(state, b) {
+    const name = uid => { const a = state.actors.find(x => x.uid === uid), sp = a ? Packs.speciesFor(state, a) : null; return sp && sp.name ? sp.name : 'an exhibit'; };
+    let top = null;
+    for (const f of b.fights) if (!top || f.b > top.b) top = f;
+    if (!top) return b.lines.length ? `the line of ${name(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
+    const first = b.woken.find(w => w.uid === top.uids[0]) || b.woken[0], more = top.uids.length - 1;
+    return `the ${name(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}` + (more ? `, and ${more} more join the fight` : '');
   }
 
   return { CHARGES, APPROACH, HORIZON, runner, terms, alone, fight, model, wakes, cost, measure, passes, check, candidates, timed };
