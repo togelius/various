@@ -76,8 +76,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // each item a gallery lists in its gallery's room and draws only the rest of §8.5's counts,
   // S.9's Lamp lies in its treasure case, and S.9's hall has its wall case curated deep in it.
   // The weather M.11's cases hold (MOD-WEATHER: weather_cases' own, written by its init onto
-  // the cases, A3) is the module's state too, left out likewise.
-  const M3_START = { 'S9/2': 4158820198, 'S9/5': 493658256, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 948057416, 'M11/5': 235815564 };
+  // the cases, A3) is the module's state too, left out likewise. M.11's re-pinned by D-LV6's
+  // review: the Logbook Trolley's mark one column east in the First Landing's stamp
+  // (content/M11-intro.js), beyond a lit Lamp's ring from the doorway.
+  const M3_START = { 'S9/2': 4158820198, 'S9/5': 493658256, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 1469555670, 'M11/5': 2538675204 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');

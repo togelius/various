@@ -24,8 +24,11 @@
 //   tiles from the doorway (walk 13), beyond your ring there and the door's noise. Without it
 //   the station would be 3 tiles from the doorway, which is in the safe zone: opening the door
 //   would give it a pip, and stepping into the doorway a ring pip.
-// - The Logbook Trolley (M11.5, 't'), at walk 12, follows you, and may step into the line at the
-//   wrong moment and take it instead.
+// - The Logbook Trolley (M11.5, 't'), at walk 13, follows you, and may step into the line at the
+//   wrong moment and take it instead. It stands in column 13, 5 walking tiles from the doorway,
+//   so not even a lit Lamp's ring there (RING_MOVING + LAMP_RING, 4) reaches it, and a Lamp
+//   carried into M.11 changes nothing at the entrance (D-LV6's review, for M5's run; in column
+//   12 that ring reached it from the open doorway in every M.11 department).
 // - Every exhibit is at walk 12 or more, so no waking ring of theirs reaches the safe zone (walk
 //   8 or less), the door open or shut.
 // - The cabinets are glass to the eye and the partition is not, so the Intro's blockers are about
@@ -47,7 +50,7 @@ Packs.part('M11', 'intro', {
     '#.......|f.....',
     'E.......+......',
     '#.......|......',
-    '#..b....|...t..',
+    '#..b....|....t.',
     '#.......|......',
     '#.......|......',
     '#.......|......',
