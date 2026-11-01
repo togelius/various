@@ -32,15 +32,19 @@
 //     you see the piece that gains (seen, judged as the view model and the log judge it: a
 //     tile of it in your sight), and its sentence names that piece only then
 //     (text/cp-ensemble.js). A fall that leaves none standing is the core's: its defeat.
-//   - Inheritance (ENSEMBLE-PHASES): when a piece falls while another stands, each piece still
-//     standing, in its pieces' order, takes on every special the fallen piece had (in the
-//     order it had them) that it lacks, at the end of its own list (ax.specials, which take
-//     turns, Specials.markNext); each told by a phase event {who, phase: the phase it is in,
-//     gained} with the cause `inherited` {from: the fallen piece, seen: whether you see who}, so
-//     its sentence names the piece that takes it on only when you see it (the decision M4
-//     ENSEMBLE-CORE made for the phase's gainer, kept: the fallen piece is named, as its own
-//     died sentence names it). A spent shatter (below) is not taken on. Then its phase, as
-//     above. Inheritance enters no phase, so its event's phase is the one it is in.
+//   - Inheritance (ENSEMBLE-PHASES; the sample's rule, design/samples.md §4.8, decided without
+//     play; revisit once M4 is playable): while its original (dept.cp.uids[0]) stands, when a
+//     copy falls, each piece still standing, in its pieces' order, takes on every special the
+//     fallen copy had (in the order it had them) that it lacks, at the end of its own list
+//     (ax.specials, which take turns, Specials.markNext); each told by a phase event {who,
+//     phase: the phase it is in, gained} with the cause `inherited` {from: the fallen copy,
+//     seen: whether you see who}, so its sentence names the piece that takes it on only when
+//     you see it (the decision M4 ENSEMBLE-CORE made for the phase's gainer, kept: the fallen
+//     copy is named, as its own died sentence names it). The original's own fall passes
+//     nothing on, and once it has fallen (or was left out by `without`) nothing more is taken
+//     on: so the original first leaves the copies only what they hold, with copies_weaken on
+//     or off. A spent shatter (below) is not taken on. Then its phase, as above. Inheritance
+//     enters no phase, so its event's phase is the one it is in.
 //   - Phase 3 gives its first piece still standing the shatter (shatter_all, the record's
 //     phases[2].specials): its shape is the tile of every case of its hall still intact (shut,
 //     on its `v`, in the room dept.cp.room; never a mimic's disguise, and no mimic is placed in
@@ -71,15 +75,20 @@
 //     walking tiles from the hall's reading tile (as no gallery exhibit stands nearer:
 //     populate.js). It is no piece: its health counts in no phase, and it is not in dept.cp.
 //     Then, as for every exhibit made asleep (Setup.settleActors), `without`, else its init.
-//     It is made asleep: a trigger that replaces the wake is refused.
+//     It is made asleep: a trigger that replaces the wake is refused. It wakes as any exhibit
+//     does (its line's waking, a blow, a broken case), and, if it still sleeps, as the
+//     Ordinance enters phase 2 (the sample's "wakes behind the lecterns", M4 plan D3.13;
+//     decided without play; revisit once M4 is playable): onPhase wakes it hunting you
+//     (Wake.wake), with the cause `ensemble` {phase}, whatever brought the phase (a blow, a
+//     fall, its gallery hook). The Clerk's interrupt stays cut (D3.7).
 //   - Its gallery hook (ENSEMBLE_HOOK_PCT): at each turn boundary (the hall's checks), each
-//     original destroyed in the galleries since the last, in the actors' order, while fewer
+//     original destroyed outside its hall since the last, in the actors' order, while fewer
 //     than ENSEMBLE_HOOK_PCT[1] ÷ ENSEMBLE_HOOK_PCT[0] have counted (dept.cp.hook, the uids of
 //     those counted, absent until the first counts), costs it ENSEMBLE_HOOK_PCT[0]% of its full health (its pieces'
 //     maximums together, rounded down: so at most ENSEMBLE_HOOK_PCT[1]% in all), taken from its
 //     first piece standing, never its last point: damaged {who, amount, hp} with the cause
-//     hook {of: the original} (no blow, so no one wakes or hears it; none told when it takes
-//     nothing); then its phase (above). An original destroyed in the galleries: an exhibit
+//     hook {of: the original} (no blow, so no piece wakes and no one hears it; none told when it
+//     takes nothing); then its phase (above), which, if it is phase 2, wakes its Clerk. An original destroyed outside its hall: an exhibit
 //     some spare copies (CopiesWeaken.originalOf), not a piece of its own, every body of whose
 //     line is gone (CopiesWeaken.fallen), its first body not left out by options.without (so
 //     destroyed) and fallen outside its hall. It counts with copies_weaken on or off: the module's rule
@@ -210,8 +219,11 @@
     Centrepiece.advance(state, to, c, ev);
   }
 
-  // A fallen piece's specials, taken on by each piece still standing that lacks them (above).
+  // A fallen copy's specials, taken on by each piece still standing that lacks them, while its
+  // original stands (above): the original's own fall, or any after it, passes nothing on.
   function inherit(state, a, ev) {
+    const orig = Actors.byUid(state, Hall.cp(state).uids[0]);
+    if (!orig || orig === a || orig.gone) return;
     const list = a.ax && Array.isArray(a.ax.specials) ? a.ax.specials.slice() : [], phase = Centrepiece.phase(state), spent = !hallCases(state).length;
     for (const sp of list) {
       if (sp === SHATTER && spent) continue;
@@ -233,8 +245,19 @@
     inherit(state, a, ev);
     phases(state, cause, ev);
   }
-  // Its phase entered: a shatter it gave with no case of its hall intact is spent at once.
-  function onPhase(state, k, ev) { spend(state, ev); }
+  // Its phase entered: a shatter it gave with no case of its hall intact is spent at once; and
+  // on entering phase 2, each of its attachments still asleep (its Clerk) wakes hunting you.
+  function onPhase(state, k, ev) {
+    spend(state, ev);
+    if (k !== 2 || state.over) return;
+    for (const b of attached(state)) if (b.mode === 'dormant') Wake.wake(state, b, 'hunting', { k: 'ensemble', phase: k }, ev);
+  }
+  // Its attachments made in its hall (attach), standing, in the actors' order.
+  function attached(state) {
+    const pack = Packs.get(state.dept.acc), rec = pack && pack.centrepiece;
+    const ids = rec && rec.archetype === ID && Array.isArray(rec.attachments) ? rec.attachments.map(q => q.id) : [];
+    return state.actors.filter(b => !b.gone && ids.includes(b.sp));
+  }
   // After the core's act (its specials in turn) gives nothing: a shatter that could not be
   // marked, its hall's cases gone, is spent; then it acts as it otherwise would.
   function act(state, a, ev) { spend(state, ev); return null; }
@@ -243,7 +266,7 @@
   // ---- Its gallery hook ----
 
   const without = state => (state.options && state.options.without) || [];
-  // The originals destroyed in the galleries (above), in the actors' order: each a first body
+  // The originals destroyed outside its hall (above), in the actors' order: each a first body
   // (made so, no split), gone and not left out, every body of its line gone, its own tile (where
   // it fell) outside its hall, which some other exhibit copies.
   function destroyed(state) {

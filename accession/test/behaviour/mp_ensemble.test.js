@@ -178,23 +178,24 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const r = Roles.stats('centrepiece', d), dmg = span(r.dmin, r.dmax), weak = span(lose(r.dmin), lose(r.dmax));
     return [`Its ${N.ENSEMBLE_PIECES} pieces stand fixed, each striking from beside you for ${dmg} and holding its own equal whole share of its ${r.hp} health, the original also any left over.`,
       'The original’s number has no letter; its copies, its spares, have one.',
-      'Its phases count all its pieces’ health, and their full health, together.',
-      'When a piece falls, each piece still standing takes on every special the fallen piece had that it lacks.',
-      `Each original destroyed in the galleries, a companion piece to it, costs it ${N.ENSEMBLE_HOOK_PCT[0]}% of its full health, at most ${N.ENSEMBLE_HOOK_PCT[1]}% in all, taken from its first piece standing, never that piece’s last point.`,
+      'Its phases count all its pieces’ health together.',
+      'While the original stands, a copy that falls passes its specials to each piece still standing that lacks them.',
+      `Each original destroyed outside its hall costs it ${N.ENSEMBLE_HOOK_PCT[0]}% of its full health, at most ${N.ENSEMBLE_HOOK_PCT[1]}% in all, from its first piece standing, never that piece’s last point.`,
       `Its second phase starts at ${N.CP_PHASE_PCT[0]}% of its full health or less, its third at ${N.CP_PHASE_PCT[1]}%, for good.`,
       'Hunting you in its hall, it seals you in with it once no one stands in an opening.',
       'Its fall drops its Signature piece where it first stood and earns the Certificate, unless you have it.',
       ...(on ? [`When its group’s original is destroyed, each spare loses ${N.COPY_WEAKEN_PCT}% of its health and damage, never its last point (blows then ${weak}), and ${N.COPY_WEAKEN_ACC} Acc, and is slowed until you leave.`] : []),
       `Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`,
-      'From phase 2: its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.',
+      `From phase 2: ${GAIN}.`,
       `From phase 3: each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}; ${SHATTER}.`,
       'Wakes when you stay inside your ring or make noise near it.'].join(' ');
   }
   const FIGHT = 'Its fall earns the Certificate, unless you have it.', REST = 'Its label has the rest.';
-  const SHATTER = 'its first piece standing as the phase begins has a shatter too: it marks every case of its hall still intact, then breaks them all; once none is intact, the shatter is spent';
+  const SHATTER = 'its first piece standing as the phase begins has a shatter too: it marks, then breaks, every intact case of its hall, and is spent once none is intact';
+  const GAIN = 'its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too, and its Senior Countersigning Clerk, if asleep, wakes';
   const wantStrip = (d, k) => [`Phase ${k} of 3.`, FIGHT,
     ...(k === 1 ? [`Copies a and b each mark your tile and the tiles round it while they see you, then strike everything on them for ${gross(d)} before Padding.`]
-      : k === 2 ? ['Its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too.']
+      : k === 2 ? [`${GAIN.charAt(0).toUpperCase() + GAIN.slice(1)}.`]
         : [`Each of its pieces marks a special at most once every ${N.CP_SPECIAL_EVERY[1]} of its actions, not ${N.CP_SPECIAL_EVERY[0]}; ${SHATTER}.`]), REST].join(' ');
 
   test('its line (\'ARCHETYPES.mp_ensemble\', \'CLAUSES.ens_burst\', \'CLAUSES.ens_gain\', \'CLAUSES.ens_quick\', \'CLAUSES.ens_shatter\', with \'MODULES.copies_weaken\' while on) says each piece\'s share, that its phases count its health together, the copies rule, where phase 2\'s special goes and that phase 3 brings its specials more often; its strip, in every phase, its phase\'s own part within the budget (m4-lines\' model), module on and off, at depths 1–7; a planted long part fails in its own phase alone', () => {

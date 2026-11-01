@@ -8,22 +8,25 @@
 // (centrepiece.inv.js, copies.inv.js and arch-d.inv.js among them), the joined-up runs
 // clone-checked; a department places it only with its core planted ready. What each test
 // expects is worked out here from BUILD's sentences, not from the code:
-//   - inheritance: when a piece falls while another stands, each piece still standing, in its
-//     pieces' order, takes on every special the fallen one had that it lacks, at the end of its
-//     own; told by a phase event (cause inherited) naming the piece that takes it on only when
-//     you see it; and it then marks it in its turn, as it showed;
+//   - inheritance (the sample's rule, decided without play; revisit once M4 is playable): while
+//     the original stands, when a copy falls, each piece still standing, in its pieces' order,
+//     takes on every special the fallen copy had that it lacks, at the end of its own; told by a
+//     phase event (cause inherited) naming the piece that takes it on only when you see it; and
+//     it then marks it in its turn, as it showed; the original's fall, and any after it, passes
+//     nothing on, with copies_weaken on or off;
 //   - the shatter: phase 3 gives it to its first piece standing; it marks every case of its
 //     hall still intact, then breaks them (no touch; shards on the first floor tile beside each
 //     in direction order; what stood in one released), then a crash; once no case of its hall is
 //     intact it is spent, told, and holds no other special back;
 //   - its Clerk: an exhibit of its hall, not a piece, asleep, at its tile or the free one
-//     nearest it, never by the reading tile, with its own label (the healer's line); it restores
+//     nearest it, never by the reading tile, with its own label (the healer's line); it wakes as
+//     any exhibit does, or, still asleep, as phase 2 begins, whatever brings it; it restores
 //     a piece as any exhibit, and the Ordinance's phase never goes back, nor are its marks other
 //     than what strikes; with it fallen, the fight goes on;
 //   - its gallery hook: each original destroyed in the galleries costs it ENSEMBLE_HOOK_PCT[0]%
 //     of its full health from its first piece standing, never its last point, at the turn's
 //     boundary, at most ENSEMBLE_HOOK_PCT[1]% in all, with copies_weaken on or off; told without
-//     naming a piece; waking none;
+//     naming a piece; waking no piece (a phase 2 it brings wakes the Clerk);
 //   - the cuts (D3.7): nothing it shows promises spares joining phase 3 or the Clerk's interrupt.
 'use strict';
 const H = require('./_harness.js');
@@ -52,8 +55,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const X = o.core || C, opts = Object.assign({}, o.options || {});
     const n = 5 + (o.more || []).filter(e => (e.room || 'room') === 'centre').length;
     if (o.clerk === false) opts.without = (opts.without || []).concat([`A4.${depth}.centre.${n}`]);
-    const s = H.room(X, o.seed || 1, { acc: 'A4', depth, map: o.map || MAP, you: o.you || [1, 2], exhibits: o.more || [], rooms: o.rooms || ROOMS,
-      clock: { B: 300, G: 60 }, entrance: [11, 3], fixtures: o.fixtures || [caseAt(CASE[0], CASE[1]), STAFF], items: o.items || [] }, opts);
+    // (o.median: you are the single visit's visitor at the depth, Progress.median: its grade, and
+    // a Balanced weapon and Standard garment of its tier; else grade I with the usual kit.)
+    const med = o.median ? X.Progress.median(depth) : null, you = med ? { grade: med.grade, kit: { weapon: { tier: med.tier }, garment: { tier: med.tier } } } : {};
+    const s = H.room(X, o.seed || 1, Object.assign({ acc: 'A4', depth, map: o.map || MAP, you: o.you || [1, 2], exhibits: o.more || [], rooms: o.rooms || ROOMS,
+      clock: { B: 300, G: 60 }, entrance: [11, 3], fixtures: o.fixtures || [caseAt(CASE[0], CASE[1]), STAFF], items: o.items || [] }, you), opts);
     s.actors[0].maxHp = 999; s.actors[0].hp = 999;
     const pack = X.Packs.get('A4');
     X.Centrepiece.place(s, { cpl: AT }, pack);
@@ -107,12 +113,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // ---- Inheritance ----
 
-  test('inheritance, at depths 1–7: a piece that falls while another stands passes every special it had to each piece still standing that lacks it, in its pieces\' order, at the end of its own; told by a phase event, cause inherited, in the phase it is in, in one sentence naming each piece you see; a piece with none passes nothing, and a fall that ends it passes nothing', () => {
+  test('inheritance, at depths 1–7, with copies_weaken on and off: while the original stands, a copy that falls passes every special it had to each piece still standing that lacks it, in its pieces\' order, at the end of its own; told by a phase event, cause inherited, in the phase it is in, in one sentence naming each piece you see; the original\'s fall passes nothing on, nor does any fall after it; a fall that ends it passes nothing', () => {
     const problems = [];
-    for (const depth of H.DEPTHS) {
-      const tag = `d${depth}`;
+    for (const depth of H.DEPTHS) for (const off of [[], ['copies_weaken']]) {
+      const tag = `d${depth}${off.length ? ' off' : ''}`, options = { rulesOff: off };
       // Copy a (the burst) falls in phase 1: the original and copy c take on its burst, copy b has it.
-      let s = room(depth, { clerk: false }), [o, a, b, c] = pieces(C, s);
+      let s = room(depth, { clerk: false, options }), [o, a, b, c] = pieces(C, s);
       const ev = blow(C, s, a, 999), took = ev.filter(e => e.k === 'phase');
       if (json(took.map(e => [e.who, e.phase, e.gained, e.cause])) !== json([[o.uid, 1, 'cp_burst', { k: 'inherited', from: a.uid, seen: true }], [c.uid, 1, 'cp_burst', { k: 'inherited', from: a.uid, seen: true }]])) problems.push(`${tag}: ${json(took)}`);
       if (json([o, b, c].map(p => p.ax.specials)) !== json([['cp_burst'], ['cp_burst'], ['cp_burst']])) problems.push(`${tag}: ${json([o, b, c].map(p => p.ax.specials))}`);
@@ -120,19 +126,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const log = C.Text.log(ev, C.Labels.nameOf(s), () => true);
       if (!log.includes('The Duplicate Ordinance, Signed Original and the Duplicate Ordinance, Certified Copy c took on the burst of the Duplicate Ordinance, Certified Copy a, which fell.')) problems.push(`${tag}: ${json(log)}`);
       if (say(C, s, took[1]) !== 'The Duplicate Ordinance, Certified Copy c took on the burst of the Duplicate Ordinance, Certified Copy a, which fell.') problems.push(`${tag}: ${say(C, s, took[1])}`);
-      // The original (nothing yet, in phase 1) falls first: nothing is passed on.
-      s = room(depth, { clerk: false }); [o] = pieces(C, s);
-      if (blow(C, s, o, 999).some(e => e.k === 'phase' && e.cause.k === 'inherited')) problems.push(`${tag}: the original passed something on`);
-      // A piece with two specials (its burst, and a shatter while the hall's case is intact)
+      // The original falls first, holding a burst (as phase 2 gives it): nothing is passed on;
+      // then copy a falls, with copy c still lacking a burst: nothing is passed on either.
+      s = room(depth, { clerk: false, options }); [o, a, b, c] = pieces(C, s);
+      o.ax.specials = ['cp_burst'];
+      const later = blow(C, s, o, 999).concat(blow(C, s, a, 999));
+      if (later.some(e => e.k === 'phase' && e.cause.k === 'inherited') || json([b, c].map(p => p.ax.specials)) !== json([['cp_burst'], []])) problems.push(`${tag}: with the original fallen, ${json(later.filter(e => e.k === 'phase'))}`);
+      // The original left out (options.without): it never stands, so nothing is passed on.
+      s = room(depth, { clerk: false, options: { rulesOff: off, without: [`A4.${depth}.centre.1`] } }); [, a, , c] = pieces(C, s);
+      if (blow(C, s, a, 999).some(e => e.k === 'phase' && e.cause.k === 'inherited') || c.ax.specials.length) problems.push(`${tag}: with the original left out, copy c took ${json(c.ax.specials)}`);
+      // A copy with two specials (its burst, and a shatter while the hall's case is intact)
       // passes both, in its order, to each piece that lacks them; one that has one takes the other.
-      s = room(depth, { clerk: false }); [o, a, b, c] = pieces(C, s);
+      s = room(depth, { clerk: false, options }); [o, a, b, c] = pieces(C, s);
       a.ax.specials = ['cp_burst', 'shatter_all'];
       const two = blow(C, s, a, 999).filter(e => e.k === 'phase').map(e => [e.who, e.gained]);
       if (json(two) !== json([[o.uid, 'cp_burst'], [c.uid, 'cp_burst'], [o.uid, 'shatter_all'], [b.uid, 'shatter_all'], [c.uid, 'shatter_all']])) problems.push(`${tag}: two specials passed as ${json(two)}`);
       if (json([o, b, c].map(p => p.ax.specials)) !== json([['cp_burst', 'shatter_all'], ['cp_burst', 'shatter_all'], ['cp_burst', 'shatter_all']])) problems.push(`${tag}: ${json([o, b, c].map(p => p.ax.specials))}`);
       // The last piece's fall is its defeat: nothing is passed on.
-      s = room(depth, { clerk: false }); [o, a, b, c] = pieces(C, s);
-      for (const p of [o, b, c]) blow(C, s, p, 999);
+      s = room(depth, { clerk: false, options }); [o, a, b, c] = pieces(C, s);
+      for (const p of [b, c, o]) blow(C, s, p, 999);
       if (blow(C, s, a, 999).some(e => e.k === 'phase' && e.cause.k === 'inherited')) problems.push(`${tag}: the last piece passed something on`);
     }
     assert.deepEqual(problems, []);
@@ -164,13 +176,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
-  // (The original and copy b are left out, so that copy c, which has no special of its own,
-  // takes copy a's burst on; you stand at (4,1), beside copy a and out of copy c's reach, and off
-  // the burst's 3×3 round you, which strikes every piece on it too.)
+  // (Copy b is left out, so that copy c, which has no special of its own, takes copy a's burst
+  // on, as the original, still standing, does; you stand at (4,1), beside copy a and out of
+  // copy c's reach, and off the burst's 3×3 round you, which strikes every piece on it too.)
   test('a burst taken on is marked in its turn and strikes as its mark showed: copy a struck down first, copy c takes on its burst and, hunting you, marks it at its cadence and it strikes you for what the mark showed (centrepiece.marks); its line covers all it causes; joined up at depths 1, 4 and 7, clone-checked', () => {
     const problems = [];
     for (const depth of [1, 4, 7]) {
-      const s = room(depth, { you: [4, 1], clerk: false, options: { rulesOff: ['copies_weaken'], without: [`A4.${depth}.centre.1`, `A4.${depth}.centre.3`] } }), [, a, , c] = pieces(C, s), tag = `d${depth}`;
+      const s = room(depth, { you: [4, 1], clerk: false, options: { rulesOff: ['copies_weaken'], without: [`A4.${depth}.centre.3`] } }), [, a, , c] = pieces(C, s), tag = `d${depth}`;
       let fell = -1;
       const r = H.play(C, s, (st, i, x) => {
         if (fell < 0 && a.gone) fell = i;
@@ -365,6 +377,70 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('its Clerk wakes as any exhibit does, and, still asleep, as phase 2 begins (its phase part): hunting you, with the cause ensemble {phase: 2}, told as "woke and began hunting you: the Centrepiece is in phase 2"; whatever brings phase 2 (blows, a piece\'s fall); not again at phase 3; already awake, no second waking; at depths 1–7', () => {
+    const problems = [];
+    for (const depth of H.DEPTHS) {
+      const tag = `d${depth}`;
+      // Planted blows (no noise) take its pieces to phase 2: the Clerk wakes then, and only then.
+      let s = room(depth, { you: [6, 1] }), [o, a, b, c] = pieces(C, s), clerk = clerkOf(C, s);
+      const one = toPhase(C, s, 2, [c, b]).filter(e => e.who === clerk.uid);
+      if (json(one.map(e => [e.k, e.was, e.mode || null, e.cause])) !== json([['woke', 'dormant', 'hunting', { k: 'ensemble', phase: 2 }], ['hunting', 'dormant', null, { k: 'ensemble', phase: 2 }]]) || clerk.mode !== 'hunting') { problems.push(`${tag}: ${json(one)}`); continue; }
+      const told = C.Text.log(one, C.Labels.nameOf(s), () => true);
+      if (json(told) !== json(['The Senior Countersigning Clerk, Automaton woke and began hunting you: the Centrepiece is in phase 2.'])) problems.push(`${tag}: ${json(told)}`);
+      if (say(C, s, one[0]) !== 'The Senior Countersigning Clerk, Automaton woke: the Centrepiece is in phase 2.') problems.push(`${tag}: ${say(C, s, one[0])}`);
+      // Put back to sleep, it does not wake at phase 3.
+      clerk.mode = 'dormant';
+      if (toPhase(C, s, 3, [c, b, a]).some(e => e.who === clerk.uid) || clerk.mode !== 'dormant') problems.push(`${tag}: it woke at phase 3`);
+      // Awake already (a blow), it is not woken again.
+      s = room(depth, { you: [6, 1] }); [o, a, b, c] = pieces(C, s); clerk = clerkOf(C, s);
+      blow(C, s, clerk, 1);
+      if (toPhase(C, s, 2, [c, b]).some(e => e.who === clerk.uid && (e.k === 'woke' || e.k === 'hunting'))) problems.push(`${tag}: woken twice`);
+      // A piece's fall brings phase 2: the Clerk wakes then too.
+      s = room(depth, { you: [6, 1] }); [o, a, b, c] = pieces(C, s); clerk = clerkOf(C, s);
+      // (Planted: copy b's health lowered, with no event, so that copy c's fall brings phase 2.)
+      const h = C.Centrepiece.health(s);
+      b.hp -= h.hp - c.hp - Int.pct(h.max, N.CP_PHASE_PCT[0]);
+      if (C.Centrepiece.phaseFor(C.Centrepiece.health(s).hp, h.max) !== 1 || b.hp < 1) { problems.push(`${tag}: planted wrong`); continue; }
+      const fell = blow(C, s, c, 999);
+      if (!fell.some(e => e.k === 'phase' && e.phase === 2) || !fell.some(e => e.k === 'woke' && e.who === clerk.uid && e.cause.k === 'ensemble')) problems.push(`${tag}: copy c's fall ${json(fell.map(e => e.k))}`);
+    }
+    // Joined up: a blow of yours brings phase 2 with the Clerk asleep out of your ring's and
+    // the noise's reach (planted health just above the threshold), every invariant on.
+    for (const depth of [1, 4, 7]) {
+      const map = MAP.map((row, y) => y === 1 ? '#.....v.#...#' : row);
+      const s = room(depth, { you: [4, 2], map, fixtures: [caseAt(CASE[0], CASE[1]), STAFF] }), [o, a, b, c] = pieces(C, s), clerk = clerkOf(C, s), max = C.Centrepiece.health(s).max;
+      Object.assign(clerk, { x: 7, y: 1 });
+      const n = C.Centrepiece.health(s).hp - Int.pct(max, N.CP_PHASE_PCT[0]) - 1;
+      c.hp -= Math.min(n, c.hp - 1); b.hp -= n - Math.min(n, c.maxHp - 1);
+      for (const p of pieces(C, s)) Object.assign(p, { mode: 'hunting' });
+      const r = H.play(C, s, (st, i, x) => i > 30 || x.events.some(e => e.k === 'phase') ? null : { a: 'attack', uid: a.uid }, { inv: 'all', clone: true, cap: 40 });
+      problems.push(...bad(r, `d${depth} joined`));
+      const k = r.events.findIndex(e => e.k === 'phase' && e.phase === 2), w = r.events.findIndex(e => e.k === 'woke' && e.who === clerk.uid);
+      if (k < 0 || w < k || r.events[w].cause.k !== 'ensemble') problems.push(`d${depth} joined: phase at ${k}, the Clerk woke at ${w}: ${json(r.events[w])}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  // (The fight's end, measured by its review in real A.4 departments with its core planted
+  // ready, depths 1–7, seeds 1–6, the single visit's visitor made unable to die: striking its
+  // pieces only, original first, never the Clerk, all 42 fights ended, in at most 65 turns,
+  // against at most 44 with the Clerk left out; its restores gave back about 3 health of every
+  // 10 struck (BUILD §5.5). A weaker visitor (grade I at depth 7) cannot out-strike its restores, and must
+  // strike it down first. Here, the single visit's visitor in its harness's hall.)
+  test('its Clerk lengthens the fight but does not stall it for the single visit\'s visitor: woken, restoring its pieces, and never struck, the Ordinance still falls to blows on its pieces alone (original first) within 120 turns, at depths 1, 4 and 7, every invariant on', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const s = room(depth, { you: [1, 1], median: true }), ids = pieces(C, s).map(p => p.uid), clerk = clerkOf(C, s);
+      blow(C, s, clerk, 1);
+      const r = H.play(C, s, fightIn(C, ids, 400), { inv: 'all', cap: 400 });
+      problems.push(...bad(r, `d${depth}`));
+      const healed = r.events.filter(e => e.k === 'healed' && e.cause.k === 'restore' && e.cause.by === clerk.uid).length;
+      if (!pieces(C, s).every(p => p.gone) || s.turn > 120) problems.push(`d${depth}: after ${s.turn} turns the pieces stand at ${json(pieces(C, s).map(p => p.gone ? 0 : p.hp))}`);
+      if (clerk.gone || healed < 1) problems.push(`d${depth}: the Clerk restored ${healed} times`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
   // ---- Its gallery hook ----
 
   // A gallery (s1, x 9–11) holding copy groups: each an original Seated Clerk and a spare.
@@ -391,7 +467,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (o.hp !== o.maxHp - MOST * cost || MOST * cost > Int.pct(max, HOOK[1]) || json(s.dept.cp.hook) !== json(origs.slice(0, MOST).map(g => g.uid))) problems.push(`${tag}: the original at ${o.hp}/${o.maxHp}`);
       if (ps.some(p => p.mode !== 'dormant')) problems.push(`${tag}: a piece woke`);
       const e = each[0][0];
-      if (e && say(C, s, e) !== `An original was destroyed in the galleries, a companion piece to the Centrepiece: its first piece standing lost ${cost} health.`) problems.push(`${tag}: ${say(C, s, e)}`);
+      if (e && say(C, s, e) !== `An original, a companion piece to the Centrepiece, was destroyed outside its hall: its first piece standing lost ${cost} health.`) problems.push(`${tag}: ${say(C, s, e)}`);
     }
     // With its original fallen: from copy a; never its last point; `without`; its own original.
     for (const depth of [1, 7]) {
@@ -410,14 +486,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       s = room(depth, { more: groupIn(depth, 1, 9, 1), clerk: false, you: [10, 5], options: { without: [`A4.${depth}.s1.1`] } }); [o] = pieces(C, s);
       ev = H.play(C, s, [WAIT, WAIT], { inv: 'all' });
       if (ev.events.some(e => e.k === 'damaged') || C.Hall.cp(s).hook !== undefined) problems.push(`d${depth}: an original left out counted`);
+      // An original destroyed inside its hall does not count (its line: "outside its hall").
+      const inHall = groupIn(depth, 1, 5, 3).map(e => Object.assign(e, { room: 'centre' }));
+      s = room(depth, { more: inHall, clerk: false, you: [10, 5] });
+      blow(C, s, s.actors.find(x => x.sp === 'A4.1'), 999);
+      ev = H.play(C, s, [WAIT], { inv: 'all' });
+      if (ev.events.some(e => e.k === 'damaged' && e.cause.k === 'hook') || C.Hall.cp(s).hook !== undefined) problems.push(`d${depth}: an original destroyed in its hall counted`);
     }
     assert.deepEqual(problems, []);
   });
 
-  test('its gallery hook can bring a phase: with its pieces\' health together just above CP_PHASE_PCT[0]%, an original destroyed in the galleries takes it into phase 2, told with its cause, ensemble, naming no one who struck; the Ordinance sleeps on; at depths 1, 4 and 7', () => {
+  test('its gallery hook can bring a phase: with its pieces\' health together just above CP_PHASE_PCT[0]%, an original destroyed in the galleries takes it into phase 2, told with its cause, ensemble, naming no one who struck; the Ordinance sleeps on, and its Clerk, as every phase 2 brings, wakes; at depths 1, 4 and 7', () => {
     const problems = [];
-    for (const depth of [1, 4, 7]) {
-      const s = room(depth, { more: groupIn(depth, 1, 9, 1), clerk: false, you: [10, 5] }), [o, , b, c] = pieces(C, s), max = C.Centrepiece.health(s).max;
+    for (const depth of [1, 4, 7]) for (const withClerk of [false, true]) {
+      const s = room(depth, { more: groupIn(depth, 1, 9, 1), clerk: withClerk, you: [10, 5] }), [o, , b, c] = pieces(C, s), max = C.Centrepiece.health(s).max;
       // Planted: health together 1 above phase 2's threshold, the pieces asleep again.
       const n = C.Centrepiece.health(s).hp - Int.pct(max, N.CP_PHASE_PCT[0]) - 1;
       c.hp -= Math.min(n, c.hp - 1); b.hp -= n - Math.min(n, c.maxHp - 1);
@@ -428,6 +510,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const ph = r.events.filter(e => e.k === 'phase');
       if (json(ph.map(e => [e.phase, e.who, e.gained, e.cause])) !== json([[2, o.uid, 'cp_burst', { k: 'ensemble', seen: false }]])) problems.push(`d${depth}: ${json(ph)}`);
       if (pieces(C, s).some(p => p.mode !== 'dormant')) problems.push(`d${depth}: a piece woke`);
+      const k = clerkOf(C, s);
+      if (withClerk && (!k || k.mode !== 'hunting' || !r.events.some(e => e.k === 'woke' && e.who === k.uid && e.cause.k === 'ensemble' && e.cause.phase === 2))) problems.push(`d${depth}: the Clerk ${json(k && k.mode)}`);
     }
     assert.deepEqual(problems, []);
   });
@@ -438,9 +522,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const rec = C.Packs.get('A4').centrepiece, problems = [];
     for (const depth of H.DEPTHS) for (const off of [[], ['copies_weaken']]) {
       const line = C.Clauses.line(rec, { depth, rulesOff: off });
-      for (const w of ['When a piece falls, each piece still standing takes on every special the fallen piece had that it lacks.',
-        `Each original destroyed in the galleries, a companion piece to it, costs it ${HOOK[0]}% of its full health, at most ${HOOK[1]}% in all, taken from its first piece standing, never that piece’s last point.`,
-        'its first piece standing as the phase begins has a shatter too: it marks every case of its hall still intact, then breaks them all; once none is intact, the shatter is spent.'])
+      for (const w of ['While the original stands, a copy that falls passes its specials to each piece still standing that lacks them.',
+        `Each original destroyed outside its hall costs it ${HOOK[0]}% of its full health, at most ${HOOK[1]}% in all, from its first piece standing, never that piece’s last point.`,
+        'has the burst too, and its Senior Countersigning Clerk, if asleep, wakes.',
+        'its first piece standing as the phase begins has a shatter too: it marks, then breaks, every intact case of its hall, and is spent once none is intact.'])
         if (!line.includes(w)) problems.push(`d${depth}: no "${w}"`);
       for (const k of [1, 2, 3]) { const n = LINES.rows(C.Clauses.strip(rec, { depth, phase: k, rulesOff: off })); if (n > LINES.METRICS.budgetRows) problems.push(`d${depth} phase ${k}: ${n} rows`); }
     }
@@ -448,6 +533,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       C.Registry.SPECIALS.shatter_all.clause, ...[1, 2, 3, 4].map(i => (rec.pieces[i - 1].paragraph || ''))].join(' ');
     for (const cut of [/interrupt/i, /moistener/i, /\bjet\b/i, /join(s|ed)? (it|the fight|phase)/i, /spares? (come|step|wake|join)/i])
       if (cut.test(said)) problems.push(`it says ${cut}`);
+    // Its gateway label claims no rule, but its history says no more than the rules do: the
+    // others take on a copy's duties only while the signed original stands, and the galleries'
+    // labels never say "companion piece" (the Office counted them so).
+    if (!rec.gateway.includes('while the signed one stands, a copy taken down has its duties taken on by the others') || /labell?ed/i.test(rec.gateway)) problems.push(`its gateway label: ${rec.gateway}`);
     // Its own sentences never say "undefined", "NaN" or "[object" (m4-grammar reads them with
     // planted ids too).
     assert.deepEqual(problems, []);

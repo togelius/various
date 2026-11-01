@@ -58,11 +58,17 @@
     return `${said.charAt(0).toUpperCase() + said.slice(1)} took on ${the(list[0].gained)} of ${fell(list[0], w)}.`;
   }, e => `${e.cause.from}\n${e.gained}`);
 
-  // The gallery hook (cause hook {of}): an original destroyed in the galleries, a companion
+  // Its Clerk woken as phase 2 begins (cause ensemble {phase}): it is an exhibit of its own, no
+  // piece, and named as every exhibit's waking names it.
+  const why = e => `the Centrepiece is in phase ${isInt(e.cause.phase) ? e.cause.phase : 2}`;
+  Text.defineCause('woke', 'ensemble', (e, w) => e.was == null ? `${w.Name(e.who)} was already awake: ${why(e)}.` : `${w.Name(e.who)} woke: ${why(e)}.`);
+  Text.defineCause('hunting', 'ensemble', (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and began hunting you: ${why(e)}.` : `${w.Name(e.who)} began hunting you: ${why(e)}.`);
+
+  // The gallery hook (cause hook {of}): an original destroyed outside its hall, a companion
   // piece to the Ordinance, cost its first piece standing this much health. No piece is named:
   // you are in the galleries, it is in its hall.
   const health = n => isInt(n) && n === 1 ? '1 health' : `${n} health`;
-  Text.defineCause('damaged', 'hook', (e, w) => `An original was destroyed in the galleries, a companion piece to the Centrepiece: its first piece standing lost ${health(e.amount)}.`);
+  Text.defineCause('damaged', 'hook', (e, w) => `An original, a companion piece to the Centrepiece, was destroyed outside its hall: its first piece standing lost ${health(e.amount)}.`);
 
   // The shatter's mark and its going off (the combat sentences, text/combat.js, which name the
   // piece) are told only while you see the piece: a piece marks its shatter whether or not it

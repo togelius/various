@@ -33,10 +33,12 @@
   // and now under --strict=M4 (which it passes but for its readiness); mp_ensemble.test.js holds
   // its digits and its form, and the whole line it makes.
   // ENSEMBLE-PHASES added two sentences (M4 plan D3.3, decided without play; revisit once M4 is
-  // playable). Inheritance: when a piece falls while another stands, each piece still standing
-  // takes on every special the fallen piece had that it lacks (rules/arch/mp_ensemble.js; a
-  // shatter only while a case of its hall is intact, its phase part says why), told by a phase
-  // event with the cause `inherited` (below). The gallery hook (ENSEMBLE_HOOK_PCT; the sample's
+  // playable). Inheritance, the sample's rule (design/samples.md §4.8): while the original
+  // stands, when a copy falls, each piece still standing takes on every special the fallen copy
+  // had that it lacks (rules/arch/mp_ensemble.js; a shatter only while a case of its hall is
+  // intact, its phase part says why); the original's fall, and any after it, passes nothing on,
+  // which is what the original first buys with copies_weaken on or off. Told by a phase event
+  // with the cause `inherited` (below). The gallery hook (ENSEMBLE_HOOK_PCT; the sample's
   // originals are labelled "Companion piece to A.4.12"): each original destroyed in the
   // galleries (an exhibit some spare copies, not a piece of its own, whose every body is
   // destroyed, outside its hall) costs it ENSEMBLE_HOOK_PCT[0]% of its full health (its pieces'
@@ -46,7 +48,7 @@
   // at the turn boundary after the original's fall (the hall's checks, Hall.addCheck), and told
   // by a damaged event with the cause `hook` (below), whose sentence names no piece.
   R.define('ARCHETYPES', 'mp_ensemble', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,
-    clause: 'Its {n} pieces stand fixed, each striking from beside you for {dmg} and holding its own equal whole share of its {hp} health, the original also any left over. The original’s number has no letter; its copies, its spares, have one. Its phases count all its pieces’ health, and their full health, together. When a piece falls, each piece still standing takes on every special the fallen piece had that it lacks. Each original destroyed in the galleries, a companion piece to it, costs it {hook}% of its full health, at most {most}% in all, taken from its first piece standing, never that piece’s last point.',
+    clause: 'Its {n} pieces stand fixed, each striking from beside you for {dmg} and holding its own equal whole share of its {hp} health, the original also any left over. The original’s number has no letter; its copies, its spares, have one. Its phases count all its pieces’ health together. While the original stands, a copy that falls passes its specials to each piece still standing that lacks them. Each original destroyed outside its hall costs it {hook}% of its full health, at most {most}% in all, from its first piece standing, never that piece’s last point.',
     params: { n: 'N:ENSEMBLE_PIECES', dmg: 'role:DMG', hp: 'role:HP', hook: 'N:ENSEMBLE_HOOK_PCT[0]', most: 'N:ENSEMBLE_HOOK_PCT[1]' }, covers: ['attacked', 'missed'] });
 
   // Its phase parts (§5.3's "From phase k: …"; Q10, its strip), one a phase. Phase 1, from the
@@ -58,10 +60,15 @@
   // Phase 2: the special phase 2 gives (the record's phases[1].specials, cp_burst) goes, as every
   // Centrepiece's does (Centrepiece.advance), to its first piece still standing as the phase
   // begins: in its pieces' order, the original, then the copies by letter. A copy that has it
-  // already gains nothing; one that falls later passes it on to each piece still standing that
-  // lacks it, as it passes every special it has (inheritance, the archetype's clause).
+  // already gains nothing; a copy that falls later while the original stands passes it on to
+  // each piece still standing that lacks it, as it passes every special it has (inheritance,
+  // the archetype's clause). As phase 2 begins, its Senior Countersigning Clerk (its record's
+  // attachment), if it still sleeps, wakes hunting you (rules/arch/mp_ensemble.js's onPhase,
+  // the cause `ensemble` below; the sample's phase 2, M4 plan D3.13, decided without play;
+  // revisit once M4 is playable): it wakes as any exhibit does before then, as its own line
+  // says, so this part says only that it wakes by then.
   R.define('CLAUSES', 'ens_gain', proved({ icon: null,
-    clause: 'its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too',
+    clause: 'its first piece standing as the phase begins, the original or else the first copy left by letter, has the burst too, and its Senior Countersigning Clerk, if asleep, wakes',
     params: {}, covers: ['telegraphed', 'special', 'damaged'] }));
   // Phase 3: what every Centrepiece's third phase does (§8.1, Specials.cadence): each of its
   // pieces marks a special at most once every CP_SPECIAL_EVERY[1] of its actions, not
@@ -79,7 +86,7 @@
   // at once, with special {cancelled}, cause `spent`), so it never holds a piece's other specials
   // back as one that cannot be marked would (Specials.markNext).
   R.define('CLAUSES', 'ens_shatter', proved({ icon: null,
-    clause: 'its first piece standing as the phase begins has a shatter too: it marks every case of its hall still intact, then breaks them all; once none is intact, the shatter is spent',
+    clause: 'its first piece standing as the phase begins has a shatter too: it marks, then breaks, every intact case of its hall, and is spent once none is intact',
     params: {}, covers: ['telegraphed', 'special', 'glass_broke'] }));
 
   // The shatter (§8.1; the shape shatter_all, rules/arch/mp_ensemble.js): a mark that deals no
@@ -112,13 +119,22 @@
   R.defineCause('phase', 'inherited', { fields: { from: 'uid', seen: 'bool' }, built: 'M4' });
 
   // Its gallery hook (above): damaged {who: its first piece standing, amount, hp}, with the
-  // cause `hook`, of the original destroyed in the galleries (of). No blow: it wakes no one and
-  // no one hears it. (saved and side, which every damage cause's schema accepts, never come.)
+  // cause `hook`, of the original destroyed outside its hall (of). No blow: it wakes no piece
+  // and no one hears it (a phase 2 it brings wakes the Clerk, as every phase 2 does). (saved and
+  // side, which every damage cause's schema accepts, never come.)
   R.defineCause('damaged', 'hook', { fields: { of: 'uid', saved: 'int?', side: 'str?' }, built: 'M4' });
 
   // The shatter going off (above): glass_broke {by: the piece whose shatter it was, x, y,
   // glass, shards, released}, with the cause `shatter` (sp, the special).
   R.defineCause('glass_broke', 'shatter', { fields: { by: 'uid', sp: 'str' }, built: 'M4' });
+
+  // Its Clerk woken as phase 2 begins (ens_gain, above): woke {who: the Clerk, was: 'dormant',
+  // mode: 'hunting'} and hunting {who, was: 'dormant'}, with the cause `ensemble` {phase}, the
+  // phase the Ordinance entered (2). A wake cause of its own (WAKE_CAUSES, which the death
+  // recap reads), into a hunt; no pips, no trigger.
+  R.define('WAKE_CAUSES', 'ensemble', proved({ mode: 'hunting', creation: false }));
+  R.defineCause('woke', 'ensemble', { fields: { phase: 'int' }, built: 'M4' });
+  R.defineCause('hunting', 'ensemble', { fields: { phase: 'int' }, built: 'M4' });
 
   // A shatter spent (above): special {who: the piece that held it, sp, cancelled: true}, with
   // the cause `spent`, by that piece; seen, whether you see it, as for `ensemble`: its sentence

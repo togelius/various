@@ -15,8 +15,9 @@
 //     as a whole, which the lectern's gateway label speaks for;
 //   - copies a and b carry the burst from the start (the sample's /a and /b), the original and
 //     copy c none: the sample's `summon` waits for its owner (TABLEAU-CORE), and copy c takes on
-//     a special only by inheritance (rules/arch/mp_ensemble.js: when a piece falls, each piece
-//     still standing takes on each special of its that it lacks). Phase 2 gives the burst to
+//     a special only by inheritance (rules/arch/mp_ensemble.js: while the original stands, when
+//     a copy falls, each piece still standing takes on each special of its that it lacks; the
+//     sample's rule, decided without play; revisit once M4 is playable). Phase 2 gives the burst to
 //     the first piece still standing (the original, while it stands); phase 3 gives it the
 //     shatter (shatter_all: every case of its hall still intact, marked, then broken), and its
 //     parts say that, and what every Centrepiece's third phase does: its pieces mark their
@@ -27,8 +28,9 @@
 //   - its attachment, the Senior Countersigning Clerk (A.4.13): a conservator_healer with
 //     clockwork, as the gallery's Countersigning Clerk (A.4.5) is, with the healer's rule and
 //     line (M4 plan D3.13): it stands asleep in the hall, at `at` from the footprint's top-left
-//     tile or the free tile of the hall nearest it (mp_ensemble's placement), and restores the
-//     pieces it sees as it restores any exhibit. It is no piece: its health is its own (the
+//     tile or the free tile of the hall nearest it (mp_ensemble's placement), wakes as any
+//     exhibit does or, still asleep, as phase 2 begins (the sample's phase 2; its phase part
+//     says so), and restores the pieces it sees as it restores any exhibit. It is no piece: its health is its own (the
 //     support role's) and counts in no phase;
 //   - its gallery hook (ENSEMBLE_HOOK_PCT): the sample's originals are labelled "Companion
 //     piece to A.4.12", so each original destroyed in the galleries costs the Ordinance
@@ -37,7 +39,7 @@
 //     hall's gallery lists nothing), and the Clerk's interrupt (a Stamp Moistener's jet): nothing
 //     on its line, its Clerk's or its gateway label speaks of either.
 // Its paragraphs and gateway label claim no rule: the Office's note "advises" the original
-// first, and "take on its duties" and the companion pieces are the rules' history, not the
+// first, and the duties "taken on by the others" and the companion pieces are the rules' history, not the
 // rules, which its line states.
 'use strict';
 (() => {
@@ -54,7 +56,7 @@
     name: 'The Duplicate Ordinance, With Its Three Certified Copies',
     tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, four sheets, each framed on its own stand', dims: 'Each sheet 42 × 30 cm', credit },
     paragraph: 'The Ordinance required that it be issued with spares like everything else, so there are four of it. Only one was signed by the Trustees; the other three were certified as true by the Office, which is not the same thing. They have always been displayed together. The Office’s own note, pinned beside them, advises dealing with the signed original first.',
-    gateway: 'The Duplicate Ordinance, With Its Three Certified Copies. The Ordinance required that it be issued with spares like everything else, so there are four of it. Only one was signed by the Trustees: the original, whose number, A.4.12, has no letter. The other three were certified as true by the Office, which is not the same thing, and carry its number with a letter after it. They have always been displayed together, and when one is taken down the others take on its duties. The originals in the galleries are labelled as its companion pieces. Its Senior Countersigning Clerk still attends it. The Office’s own note, pinned beside them, advises dealing with the signed original first.',
+    gateway: 'The Duplicate Ordinance, With Its Three Certified Copies. The Ordinance required that it be issued with spares like everything else, so there are four of it. Only one was signed by the Trustees: the original, whose number, A.4.12, has no letter. The other three were certified as true by the Office, which is not the same thing, and carry its number with a letter after it. They have always been displayed together, and while the signed one stands, a copy taken down has its duties taken on by the others. The Office counted the originals in the galleries as its companion pieces. The Office’s own note, pinned beside them, advises dealing with the signed original first.',
     pieces: [
       { id: 'A4.12', at: [0, 0], sprite: 'ordinance_original', name: 'The Duplicate Ordinance, Signed Original',
         tomb: { maker: 'Drafted by the Ordinance Office; signed by the Trustees', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, signed; framed', dims: '42 × 30 cm', credit },
