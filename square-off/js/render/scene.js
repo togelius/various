@@ -195,8 +195,17 @@
 
   R.setMatch = function (m) {
     st.match = m || null;
-    if (SQ.units && SQ.units.setMatch) try { SQ.units.setMatch(m); } catch (err) { console.error('[render] units.setMatch', err); }
-    if (SQ.fx && SQ.fx.setMatch) try { SQ.fx.setMatch(m); } catch (err) { console.error('[render] fx.setMatch', err); }
+    // "Hang Out" matches (DESIGN-V2.md) are drawn by SQ.hangoutView; the classic units/fx get no match,
+    // so none of the classic overlays (capture rings, glyphs, Setup pads, landmark labels) show.
+    const hang = !!(m && m.state && m.state.mode === 'hangout');
+    const HV = SQ.hangoutView;
+    if (HV) {
+      if (hang) { try { HV.attach({ scene: R.scene, camera: R.camera, match: m }); } catch (err) { console.error('[render] hangoutView.attach', err); } }
+      else if (HV.attached) { try { HV.detach(); } catch (err) { console.error('[render] hangoutView.detach', err); } }
+    }
+    const cm = hang ? null : m;
+    if (SQ.units && SQ.units.setMatch) try { SQ.units.setMatch(cm); } catch (err) { console.error('[render] units.setMatch', err); }
+    if (SQ.fx && SQ.fx.setMatch) try { SQ.fx.setMatch(cm); } catch (err) { console.error('[render] fx.setMatch', err); }
     R.invalidate();
   };
 
@@ -354,7 +363,8 @@
     return { tod, phase: ph };
   }
 
-  const focusPts = [];
+  const focusPts = [], seePts = [];
+  R.frameNo = 0;
   R.frame = function (state, alpha, realDt) {
     if (!R.renderer) return;
     realDt = Math.max(0, Math.min(0.25, realDt || 0));
@@ -364,9 +374,14 @@
     // Render on demand while paused (world animation still ticks at a low rate).
     if (paused && !st.dirty && now - st.lastRender < 125) return;
     st.dirty = false;
+    R.frameNo++;
     const animDt = paused ? Math.min(realDt, 0.05) : realDt;
+    // A "Hang Out" state goes to SQ.hangoutView; the classic modules then only draw ambient park life.
+    const HV = SQ.hangoutView && SQ.hangoutView.attached ? SQ.hangoutView : null;
+    const hang = HV && state && state.mode === 'hangout' ? state : null;
+    if (hang) state = null;
 
-    const td = timeOfDay(state);
+    const td = hang ? HV.timeOfDay(hang) : timeOfDay(state);
     st.tod = td.tod; st.phase = td.phase;
     const cam = R.camera;
     // canopy fade focus: screen centre ground point + up to 3 selected units
@@ -374,14 +389,20 @@
     const c = R.screenToGround(st.w / 2 + R.renderer.domElement.getBoundingClientRect().left, st.h / 2 + R.renderer.domElement.getBoundingClientRect().top, 0);
     if (c) focusPts.push({ x: c.x, z: c.z });
     if (state && SQ.units && SQ.units.selectedFocus) SQ.units.selectedFocus(state, alpha, focusPts, 3);
+    if (hang && HV.focus) try { HV.focus(focusPts, 3); } catch (err) { console.error('[render] hangoutView.focus', err); }
+    // Hang Out: buildings between the camera and a spot (or the selected group) are see-through
+    seePts.length = 0;
+    if (hang && HV.seeThrough) try { HV.seeThrough(seePts, 6); } catch (err) { console.error('[render] hangoutView.seeThrough', err); }
     if (R.env) {
       try {
+        if (R.env.seeThrough) R.env.seeThrough(seePts);
         R.env.canopyFade(cam.position, focusPts);
         R.env.update(animDt, td.tod, td.phase, cam);
       } catch (err) { console.error('[render] env.update', err); R.env = null; }
     }
     if (SQ.units && SQ.units.update) try { SQ.units.update(state, alpha, animDt, cam); } catch (err) { console.error('[render] units.update', err); }
     if (SQ.fx && SQ.fx.update) try { SQ.fx.update(state, alpha, animDt, cam); } catch (err) { console.error('[render] fx.update', err); }
+    if (hang) try { HV.update(hang, alpha, animDt, cam); } catch (err) { console.error('[render] hangoutView.update', err); }
     R.renderer.render(R.scene, cam);
     st.lastRender = now;
   };

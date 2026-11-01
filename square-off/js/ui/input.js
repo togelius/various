@@ -18,6 +18,10 @@
 // SQ.bus events emitted (UI-side): 'selection' {ids, squads[]}, 'landmarkTap' {lm, x, y}, 'buildMenu' {lm, pad},
 //   'inspect' {unit, x, y, cls, faction} | {unit:null}, 'crewMode' {on, kind}, 'undoAvailable' {n, until},
 //   'orderIssued' {type, n}, 'inputDenied' {reason}
+// Hang Out matches (state.mode === 'hangout') use a much smaller model, handled by SQ.hangoutHud:
+//   touch: tap = pick a group / send it; one-finger drag pans; pinch zooms; twist turns. No lasso, no long press.
+//   mouse: left click = pick / send; left drag pans; right or middle drag turns; right click sends; wheel zooms.
+//   keys are forwarded to SQ.hangoutHud.key (1 2 3, Space, Q/E, +/-, P, Esc); WASD/arrows pan in camera.js.
 (function (SQ) {
   'use strict';
   const TAP_MOVE = 10, TAP_MS = 350, DBL_MS = 320;
@@ -34,6 +38,8 @@
   };
 
   // ---------------------------------------------------------------- helpers
+  function HO() { return !!(I.match && I.match.state && I.match.state.mode === 'hangout'); }
+  function hoHud() { return SQ.hangoutHud || null; }
   function M() { return I.match; }
   function S() { return I.match && I.match.state; }
   function me() { const s = S(); return s ? s.player : -1; }
@@ -642,6 +648,12 @@
     if (I.pointers.size === 2 && I.isTouch) { startPinch(); return; }
     if (I.pointers.size > 2) return;
     if (!I.match) { I.gesture = { kind: 'pan', p }; return; }
+    if (HO()) {
+      // Hang Out: a press is a tap until it moves; then it pans (left / touch) or turns (right / middle)
+      if (e.pointerType === 'mouse' && (e.button === 1 || e.button === 2)) { I.gesture = { kind: e.button === 2 ? 'hright' : 'orbit', p }; if (e.button === 1) e.preventDefault(); return; }
+      I.gesture = { kind: 'htap', p, touch: e.pointerType !== 'mouse' };
+      return;
+    }
     if (e.pointerType === 'mouse') {
       if (e.button === 1) { I.gesture = { kind: 'orbit', p }; e.preventDefault(); return; }
       if (e.button === 2) { const pk = pick(e.clientX, e.clientY, { touch: false }); I.gesture = { kind: 'right', p, pick: pk }; return; }
@@ -667,6 +679,8 @@
     if (!G) return;
     if (G.kind === 'pinch') { movePinch(); return; }
     if (G.kind === 'pan') { SQ.camera.panScreen(px, py, p.x, p.y); return; }
+    if (G.kind === 'htap') { if (p.moved) { G.kind = 'pan'; if (hoHud() && hoHud().hoverEnd) hoHud().hoverEnd(); SQ.camera.panScreen(p.sx, p.sy, p.x, p.y); } return; }
+    if (G.kind === 'hright') { if (p.moved) { G.kind = 'orbit'; SQ.camera.rotateNow((p.x - p.sx) * 0.006); } return; }
     if (G.kind === 'orbit') { SQ.camera.rotateNow((p.x - px) * 0.006); SQ.camera.tiltBy((py - p.y) * 0.004); return; }
     if (G.kind === 'crew') { if (p.moved || I.crew.kind !== 'line') previewCrew(p.x, p.y, I.crew.kind === 'line' && G.from ? G.from : null); return; }
     if (G.kind === 'right') { if (p.moved) { G.kind = 'pan'; radial(0, 0, null); SQ.camera.panScreen(p.sx, p.sy, p.x, p.y); } return; }
@@ -712,6 +726,11 @@
     radial(0, 0, null);
     if (e.type === 'pointercancel') { I.box.style.display = 'none'; I.lasso.svg.style.display = 'none'; return; }
     const quick = !p.moved;
+    if (G.kind === 'htap' || G.kind === 'hright') {
+      if (quick && hoHud()) hoHud().tapWorld(e.clientX, e.clientY, { touch: !!G.touch, order: G.kind === 'hright' });
+      return;
+    }
+    if (G.kind === 'orbit' && HO()) { if (SQ.camera && SQ.camera.snapHeading && I.isTouch) SQ.camera.snapHeading(); return; }
     switch (G.kind) {
       case 'left':
         if (quick) onTap(e.clientX, e.clientY, { touch: false, shift: e.shiftKey });
@@ -762,7 +781,7 @@
 
   // long-press timers run in update()
   function longPress() {
-    const G = I.gesture; if (!G) return;
+    const G = I.gesture; if (!G || HO()) return;
     const p = G.p; if (!p || p.moved || G.fired) return;
     const held = I.time - p.t0;
     if (G.kind === 'touch' && G.lp > 0) {
@@ -798,6 +817,7 @@
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     const s = S();
     if (!s || !I.match) return;
+    if (HO()) { if (!menuOpen() && hoHud()) hoHud().key(e); return; }
     if (menuOpen() && e.code !== 'Escape') return;
     const code = e.code, ctrl = e.ctrlKey || e.metaKey;
     const digit = /^Digit([0-5])$/.exec(code) || /^Numpad([0-5])$/.exec(code);
@@ -901,6 +921,7 @@
   function updateHover() {
     if (!I.hoverDirty || I.isTouch || !I.match || I.pointers.size) return;
     I.hoverDirty = false;
+    if (HO()) { if (hoHud() && I.mouse.over && !menuOpen()) hoHud().hover(I.mouse.x, I.mouse.y); return; }
     const p = pick(I.mouse.x, I.mouse.y, { touch: false });
     const lm = p.kind === 'landmark' || p.kind === 'pad' ? p.lm : -1;
     const unit = p.kind === 'unit' ? p.id : -1;
@@ -923,7 +944,7 @@
       viewEl.addEventListener('pointermove', onMove);
       viewEl.addEventListener('pointerup', onUp);
       viewEl.addEventListener('pointercancel', onUp);
-      viewEl.addEventListener('pointerleave', () => { I.mouse.over = false; });
+      viewEl.addEventListener('pointerleave', () => { I.mouse.over = false; if (HO() && hoHud() && hoHud().hoverEnd) hoHud().hoverEnd(); });
       viewEl.addEventListener('wheel', onWheel, { passive: false });
       viewEl.addEventListener('contextmenu', (e) => e.preventDefault());
       viewEl.addEventListener('dblclick', (e) => e.preventDefault());
@@ -942,6 +963,7 @@
       if (I.lasso) I.lasso.svg.style.display = 'none';
       radial(0, 0, null);
       if (!m) return;
+      if (HO()) return;   // Hang Out: selection lives in SQ.hangoutHud
       const onB = (name, fn) => { m.bus.on(name, fn); I.offs.push(() => m.bus.off(name, fn)); };
       const pushAlert = (e) => { if (e.faction === m.state.player || e.faction === undefined) { I.alerts.push({ x: e.x, z: e.z, t: m.state.t, lm: e.lm }); if (I.alerts.length > 8) I.alerts.shift(); } };
       onB('underAttack', pushAlert);
@@ -956,6 +978,7 @@
     update(dt) {
       I.time += dt || 0;
       if (!I.match) return;
+      if (HO()) { updateHover(); return; }
       pruneSelection();
       longPress();
       updateHover();
@@ -972,7 +995,8 @@
     get hover() { return I.hover; },
     get alerts() { return I.alerts; },
     getSelection() { return Array.from(I.selected); },
-    hasSelection() { return I.selected.size > 0; },
+    hasSelection() { return !HO() && I.selected.size > 0; },
+    get hangout() { return HO(); },
     select(ids, opts) { setSelection(ids || [], opts); },
     clearSelection() { I.selected.clear(); selectionChanged(); },
     selectSquad, selectArmy, assignSquad,

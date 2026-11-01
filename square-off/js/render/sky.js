@@ -238,6 +238,13 @@
           u.uFadeAmt.value = 1; u.uFadeR.value = 9 + Math.min(14, camH * 0.06);
         } else u.uFadeAmt.value = 0;
       },
+      // extra see-through sightlines (camera -> point) for walls and roofs: [{x, y, z, r}] (up to 6), or null
+      seeThrough: function (points) {
+        var u = env.U; if ((!u.uSeePts || !u.uSeePts.value) && U.initUniforms) U.initUniforms();
+        var arr = u.uSeePts && u.uSeePts.value; if (!arr) return;
+        var pts = points || [];
+        for (var i = 0; i < arr.length; i++) { var p = pts[i]; if (p) arr[i].set(p.x, p.y || 1.5, p.z, p.r || 12); else arr[i].set(0, 0, 0, 0); }
+      },
       setWind: function (w) { env.U.uWind.value = w; },
       dispose: function () {
         if (scene) { scene.remove(root); scene.fog = prevFog; scene.background = prevBg; }

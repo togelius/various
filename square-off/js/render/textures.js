@@ -763,13 +763,16 @@
   env.U = env.U || {
     uTime: { value: 0 }, uNight: { value: 0 }, uWind: { value: 1 }, uSat: { value: 0.88 },
     uFadeCam: { value: null }, uFadeFocus: { value: null }, uFadeAmt: { value: 0 }, uFadeR: { value: 14 },
-    uCanopyPts: { value: null }, uCanopyAmt: { value: 0 }, uLampWave: { value: 0 }, uCityFog: { value: 0.0028 }
+    uCanopyPts: { value: null }, uCanopyAmt: { value: 0 }, uLampWave: { value: 0 }, uCityFog: { value: 0.0028 },
+    uSeePts: { value: null }
   };
   U.initUniforms = function () {
     var u = env.U;
     if (!u.uFadeCam.value) u.uFadeCam.value = new THREE.Vector3(0, 200, 200);
     if (!u.uFadeFocus.value) u.uFadeFocus.value = new THREE.Vector3(0, 0, 0);
     if (!u.uCanopyPts.value) u.uCanopyPts.value = [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()];
+    if (!u.uSeePts) u.uSeePts = { value: null };
+    if (!u.uSeePts.value) u.uSeePts.value = [0, 1, 2, 3, 4, 5].map(function () { return new THREE.Vector4(); });
   };
   // Pick Standard on high, Lambert otherwise (cheap per-fragment lighting on phones).
   U.mat = function (p, force) {
@@ -784,6 +787,7 @@
     'uniform float uTime; uniform float uNight; uniform float uWind; uniform float uSat;',
     'uniform vec3 uFadeCam; uniform vec3 uFadeFocus; uniform float uFadeAmt; uniform float uFadeR;',
     'uniform vec4 uCanopyPts[4]; uniform float uCanopyAmt; uniform float uLampWave; uniform float uCityFog;',
+    'uniform vec4 uSeePts[6];',
     'varying vec3 vSqW; varying float vSqFade;',
     'float sqHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
   ].join('\n');
@@ -800,7 +804,8 @@
     mat.customProgramCacheKey = function () { return key; };
     mat.onBeforeCompile = function (sh) {
       var U2 = env.U;
-      ['uTime', 'uNight', 'uWind', 'uSat', 'uFadeCam', 'uFadeFocus', 'uFadeAmt', 'uFadeR', 'uCanopyPts', 'uCanopyAmt', 'uLampWave', 'uCityFog'].forEach(function (n) { sh.uniforms[n] = U2[n]; });
+      if (!U2.uSeePts || !U2.uSeePts.value) U.initUniforms();
+      ['uTime', 'uNight', 'uWind', 'uSat', 'uFadeCam', 'uFadeFocus', 'uFadeAmt', 'uFadeR', 'uCanopyPts', 'uCanopyAmt', 'uLampWave', 'uCityFog', 'uSeePts'].forEach(function (n) { sh.uniforms[n] = U2[n]; });
       var v = sh.vertexShader, f = sh.fragmentShader;
       v = v.replace('#include <common>', '#include <common>\n' + GLSL_COMMON + '\n' + (o.vertHead || ''));
       var bv = '#include <begin_vertex>\n';
@@ -840,11 +845,19 @@
       f = f.replace('#include <common>', '#include <common>\n' + GLSL_COMMON + '\n' + GLSL_BAYER + '\n' + (o.fragHead || ''));
       var clip = '#include <clipping_planes_fragment>\n';
       if (o.canopy) clip += 'if (vSqFade > 0.001 && sqBayer(gl_FragCoord.xy) < vSqFade) discard;\n';
+      // see-through: walls and roofs on the sightline camera -> screen-centre focus, and (uSeePts, xyz + radius w)
+      // camera -> each extra point (Hang Out: the five spots and the selected group) are dithered away
       if (o.see) clip += [
-        'if (uFadeAmt > 0.001) { vec3 sqD = uFadeFocus - uFadeCam; float sqT = clamp(dot(vSqW - uFadeCam, sqD) / max(dot(sqD, sqD), 1e-3), 0.0, 1.0);',
-        ' float sqDD = distance(vSqW, uFadeCam + sqD * sqT);',
-        ' float sqS = uFadeAmt * (1.0 - smoothstep(uFadeR * 0.55, uFadeR, sqDD)) * (1.0 - smoothstep(0.8, 0.95, sqT)) * step(1.5, vSqW.y);',
-        ' if (sqS > 0.001 && sqBayer(gl_FragCoord.xy) < sqS * 0.75) discard; }'
+        '{ float sqS = 0.0;',
+        ' if (uFadeAmt > 0.001) { vec3 sqD = uFadeFocus - uFadeCam; float sqT = clamp(dot(vSqW - uFadeCam, sqD) / max(dot(sqD, sqD), 1e-3), 0.0, 1.0);',
+        '  float sqDD = distance(vSqW, uFadeCam + sqD * sqT);',
+        '  sqS = uFadeAmt * (1.0 - smoothstep(uFadeR * 0.55, uFadeR, sqDD)) * (1.0 - smoothstep(0.8, 0.95, sqT)); }',
+        ' for (int i = 0; i < 6; i++) { vec4 sp = uSeePts[i]; if (sp.w > 0.0) {',
+        '  vec3 sqD2 = sp.xyz - uFadeCam; float sqT2 = clamp(dot(vSqW - uFadeCam, sqD2) / max(dot(sqD2, sqD2), 1e-3), 0.0, 1.0);',
+        '  float sqDD2 = distance(vSqW, uFadeCam + sqD2 * sqT2);',
+        '  sqS = max(sqS, (1.0 - smoothstep(sp.w * 0.55, sp.w, sqDD2)) * (1.0 - smoothstep(0.82, 0.96, sqT2))); } }',
+        ' sqS *= step(1.5, vSqW.y);',
+        ' if (sqS > 0.001 && sqBayer(gl_FragCoord.xy) < sqS * 0.8) discard; }'
       ].join('\n') + '\n';
       f = f.replace('#include <clipping_planes_fragment>', clip);
       if (o.frag) f = o.frag(f);

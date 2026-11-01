@@ -8,6 +8,10 @@
 //           reducedMotion, leftHanded, captions, assist, minimap (null = auto), haptics, tips, quality,
 //           volumes {master, sfx, music, ambience}, muted, unlockAll, nudge
 //   SQ.menus.init(menuEl)   showTitle()   showCampaign()   showBriefing(id)   showSkirmish()
+//   Hang Out (the default game): showTitle() is its title (Play / Quick match / Tutorial / Custom match / How to play /
+//   Options / About the park / Classic). pickCrew(cb)  startTutorial(crew)  quickMatch()  showCustom()  showAbout()
+//   openHowTo()  showHangoutReport(matchEndPayload, match, {tutorial})  showClassic() (the Classic RTS menu)
+//   save.data.ho = { tutorialDone, crew, wins, played, custom: {crew, rival, diff}, prompts, taught }
 //   SQ.menus.openOptions()  openFieldGuide(tab?)   showReport(victoryPayload)   isOpen()   close()
 //   SQ.menus.startMission(id, crew?)   quickPlay()   playDaily()   restart()   missionCfg(id, crew?)
 //   SQ.menus.stars(missionId) -> [bool, bool, bool]
@@ -51,7 +55,7 @@
   const DEFAULTS = {
     speed: 1, colorblind: false, textSize: 'm', bubbles: 'on', reducedMotion: prefersReduced, leftHanded: false, captions: false,
     assist: false, minimap: null, haptics: true, tips: true, quality: 'auto', volumes: { master: 0.9, sfx: 0.9, music: 0.6, ambience: 0.7 },
-    muted: false, unlockAll: false, nudge: true,
+    muted: false, unlockAll: false, nudge: true, edgePan: true,
   };
   const settings = {
     get(k) { const v = save.data.settings[k]; return v === undefined ? DEFAULTS[k] : v; },
@@ -70,7 +74,8 @@
     const s = settings.all();
     settings.reducedMotion = !!s.reducedMotion;
     settings.colorblind = !!s.colorblind;
-    if (SQ.game) SQ.game.speed = s.speed || 1;
+    // Game speed is a Classic option: a Hang Out match always runs at 1x (its clock and "back in 0:12" are real seconds)
+    if (SQ.game) SQ.game.speed = SQ.game.mode === 'hangout' ? 1 : (s.speed || 1);
     if (hasDoc) {
       const h = document.documentElement;
       h.classList.toggle('sq-reduced', !!s.reducedMotion);
@@ -87,6 +92,7 @@
     } catch (e) { /* ignore */ }
     try { if (SQ.render && typeof SQ.render.setOptions === 'function') SQ.render.setOptions({ reducedMotion: !!s.reducedMotion, colorblind: !!s.colorblind }); } catch (e) { /* ignore */ }
     try { if (SQ.camera && typeof SQ.camera.setNudge === 'function') SQ.camera.setNudge(!!s.nudge); } catch (e) { /* ignore */ }
+    try { if (SQ.camera && typeof SQ.camera.setEdgePan === 'function' && SQ.game && SQ.game.mode === 'hangout') SQ.camera.setEdgePan(!!s.edgePan); } catch (e) { /* ignore */ }
   }
   applySettings();
 
@@ -140,15 +146,12 @@
     const mission = params.get('mission');
     if (mission && D().missionById[mission]) { M.startMission(mission, params.get('crew')); return; }
     // a URL that already names a match (main.js starts it): no menu, and keep the first-launch drop
-    const urlMatch = ['skirmish', 'quick', 'faction', 'crew'].some((k) => params.has(k));
+    const urlMatch = ['skirmish', 'quick', 'faction', 'crew', 'ho', 'hangout'].some((k) => params.has(k));
     if (urlMatch) { M.lastCfg = null; M.lastMeta = null; return; }
-    if (!save.data.started && !params.has('title') && !params.has('menu')) {
-      // First launch: straight into Mission 1, no menu wall.
-      save.data.started = true; save.write();
-      M.startMission('m1');
-      return;
-    }
     save.data.started = true; save.write();
+    if (params.has('tutorial')) { M.startTutorial(params.get('as') || hoSave().crew || 'hustle'); return; }
+    if (params.has('classic')) { M.showClassic(); return; }
+    // The title (first launch included): one sentence of premise and a big Play that starts the tutorial.
     M.showTitle();
   };
 
@@ -160,7 +163,18 @@
       // a match not started from the menus (URL skirmish, dev hooks): Restart replays that match
       if (!M._starting && p && p.match) { M.lastCfg = p.match.cfg || null; M.lastMeta = { kind: 'skirmish' }; }
     });
-    SQ.bus.on('gameQuit', () => { if (ensureRoot()) M.showTitle(); });
+    SQ.bus.on('gameQuit', (p) => {
+      if (!ensureRoot()) return;
+      if (p && p.mode === 'hangout') M.showTitle(); else M.showClassic();
+    });
+    SQ.bus.on('matchEnd', (p) => {
+      // Hang Out results for the save (the tutorial records its own match)
+      if (!p || !SQ.game || SQ.game.mode !== 'hangout' || (SQ.hangoutTutorial && SQ.hangoutTutorial.active)) return;
+      const h = hoSave();
+      h.played = (h.played || 0) + 1;
+      if (p.playerWon) h.wins = (h.wins || 0) + 1;
+      save.write();
+    });
     SQ.bus.on('victory', onVictory);
     SQ.bus.on('hit', trackHit);
     SQ.bus.on('overIt', trackOverIt);
@@ -229,20 +243,22 @@
     if (typeof c.setMode === 'function') { try { c.setMode('title'); } catch (e) { /* ignore */ } }
   }
 
-  M.showTitle = function () {
+  /** The Classic RTS menu (the old title screen): campaign, quick play, skirmish, daily, field guide. */
+  M.showClassic = function () {
     if (!ensureRoot()) return;
     try { if (SQ.audio && SQ.audio.setMusic) SQ.audio.setMusic('menu'); } catch (e) { /* ignore */ }
     attractCamera();
     const live = liveScene();
-    const s = el('div', 'mn-title' + (live ? ' live' : ' art'));
+    const s = el('div', 'mn-title mn-classic' + (live ? ' live' : ' art'));
     if (!live) s.appendChild(archArt());
     const next = D().missions.find((m) => !starsOf(m.id)[0] && missionUnlocked(m));
     const daily = dailySetup();
     const best = save.data.daily[daily.date];
     const panel = el('div', 'tt-panel');
     panel.innerHTML =
+      '<button class="tt-classic tt-backho" type="button" data-a="hangout">‹ Back to Square Off</button>' +
       '<div class="tt-logo">' + logoSVG() + '</div>' +
-      '<p class="tt-tag">Five minutes, five dollars, the whole park.</p>' +
+      '<p class="tt-tag">Classic mode: the full RTS. Five minutes, five dollars, the whole park.</p>' +
       '<div class="tt-btns">' +
       (next ? '<button class="mbtn primary big" data-a="next"><span class="mb-k">' + (next.n === 1 && !save.data.missions.m1 ? 'START' : 'CONTINUE') + ' · MISSION ' + next.n + '</span><b>' + esc(next.title) + '</b></button>'
         : '<button class="mbtn primary big" data-a="quick"><span class="mb-k">ONE TAP</span><b>QUICK PLAY</b></button>') +
@@ -266,9 +282,10 @@
       else if (a === 'daily') M.showDaily();
       else if (a === 'guide') M.openFieldGuide();
       else if (a === 'options') M.openOptions();
+      else if (a === 'hangout') M.showTitle();
     }));
     s.appendChild(panel);
-    setScreen(s, 'title');
+    setScreen(s, 'classic');
   };
   function totalStars() { let n = 0; for (const m of D().missions) n += starsOf(m.id).filter(Boolean).length; return n; }
 
@@ -382,7 +399,7 @@
   const PIN = { m1: [31, 62], m2: [-134, 49], m3: [0, -46], m4: [20, -4], m5: [58, -14], m6: [-30, 24] };
   M.showCampaign = function () {
     const s = el('div', 'mn-page mn-campaign');
-    s.appendChild(header('One Day in the Square', () => M.showTitle(), '<span class="mn-stars">' + totalStars() + ' / 18 ★</span>'));
+    s.appendChild(header('One Day in the Square', () => M.showClassic(), '<span class="mn-stars">' + totalStars() + ' / 18 ★</span>'));
     const body = el('div', 'cp-body');
     const map = el('div', 'cp-map');
     map.innerHTML = parkSVG(D().missions.map((m) => {
@@ -522,7 +539,7 @@
     M.close();
     if (SQ.game && typeof SQ.game.start === 'function') {
       M._starting = true;
-      try { SQ.game.speed = settings.get('speed') || 1; SQ.game.start(cfg); } catch (e) { console.error('[menus] start', e); M.showTitle(); }
+      try { SQ.game.speed = cfg && cfg.mode === 'hangout' ? 1 : (settings.get('speed') || 1); SQ.game.start(cfg); } catch (e) { console.error('[menus] start', e); if (cfg && cfg.mode === 'hangout') M.showTitle(); else M.showClassic(); }
       M._starting = false;
     }
   }
@@ -568,7 +585,7 @@
     const crews = unlockedCrews();
     if (crews.indexOf(sk.crew) < 0) sk.crew = crews[0];
     const s = el('div', 'mn-page mn-skirmish');
-    s.appendChild(header('Skirmish', () => M.showTitle()));
+    s.appendChild(header('Skirmish', () => M.showClassic()));
     const b = el('div', 'sk-body');
     const fixOpp = () => {
       const used = [sk.crew];
@@ -671,7 +688,7 @@
     const d = dailySetup();
     const best = save.data.daily[d.date];
     const s = el('div', 'mn-page mn-daily');
-    s.appendChild(header('Daily Park', () => M.showTitle()));
+    s.appendChild(header('Daily Park', () => M.showClassic()));
     const b = el('div', 'dl-body');
     b.innerHTML =
       '<div class="dl-date">' + esc(new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })) + '</div>' +
@@ -698,7 +715,8 @@
   // =========================================================================================
   // Options
   // =========================================================================================
-  M.openOptions = function () {
+  M.openOptions = function (opts) {
+    if ((opts && opts.simple) || (!opts && (M.kind === 'title' || (SQ.game && SQ.game.mode === 'hangout')))) return openSimpleOptions();
     const node = el('div', 'mn-sheet mn-options');
     const render = () => {
       const s = settings.all();
@@ -753,7 +771,7 @@
     function toggle(k, on) { return '<button class="tog' + (on ? ' on' : '') + '" data-tog="' + k + '" role="switch" aria-checked="' + !!on + '"><i></i></button>'; }
     function slider(label, k, val) { return '<div class="op-row"><div class="op-l"><b>' + esc(label) + '</b></div><input type="range" min="0" max="100" value="' + Math.round((val === undefined ? 0.8 : val) * 100) + '" data-vol="' + k + '" aria-label="' + esc(label) + ' volume"></div>'; }
     render();
-    const wrap = openOverlay(node, () => { if (M.kind === 'title') M.showTitle(); });
+    const wrap = openOverlay(node, () => { if (M.kind === 'title') M.showTitle(); else if (M.kind === 'classic') M.showClassic(); });
   };
 
   // =========================================================================================
@@ -998,7 +1016,7 @@
       if (a === 'next') { quitQuiet(); M.showBriefing(next.id); }
       else if (a === 'again') M.restart();
       else if (a === 'campaign') { quitQuiet(); M.showCampaign(); }
-      else if (a === 'menu') { quitQuiet(); M.showTitle(); }
+      else if (a === 'menu') { quitQuiet(); M.showClassic(); }
       else if (a === 'chill') { const r = save.mission(mission.id); r.chill = (r.chill || 0) + 1; r.losses = 0; save.write(); M.startMission(mission.id, M.lastMeta && M.lastMeta.crew); }
     }));
     setScreen(s, 'report');
@@ -1071,6 +1089,316 @@
     svg += '<text x="' + pad + '" y="' + (Hh - 8) + '" class="ch-t">0:00</text><text x="' + (W - 8) + '" y="' + (Hh - 8) + '" text-anchor="end" class="ch-t">' + fmt(t1) + '</text></svg>';
     return svg;
   }
+
+  // =========================================================================================
+  // Hang Out — the default game (DESIGN-V2.md): title, crew pick, tutorial, quick / custom match,
+  // How to play, About the park, simple options, Park Report
+  // =========================================================================================
+  const HO_CREWS = ['hustle', 'noise', 'violets', 'pack'];
+  function hoSave() { const d = save.data; if (!d.ho || typeof d.ho !== 'object') d.ho = {}; return d.ho; }
+  M.hoSave = hoSave;
+  function hoData() { return D().hangout; }
+  function hoCol(k) { return (settings.get('colorblind') && U.CB_COLORS && U.CB_COLORS[k]) || undefined; }
+  function hoPlayers(crew, rival, diff) {
+    return [{ crew, ai: false, color: hoCol(crew) }, { crew: rival, ai: { difficulty: diff }, color: hoCol(rival) }];
+  }
+  function randomRival(crew) { const o = HO_CREWS.filter((k) => k !== crew); return o[Math.floor(Math.random() * o.length)]; }
+  function hoGroupsOf(k) { const c = hoData() && hoData().crews[k]; return c ? c.groups.map((g) => g.name) : []; }
+
+  M.showTitle = function () {
+    if (!ensureRoot()) return;
+    try { if (SQ.audio && SQ.audio.setMusic) SQ.audio.setMusic('menu'); } catch (e) { /* ignore */ }
+    attractCamera();
+    const live = liveScene();
+    const h = hoSave();
+    const first = !h.tutorialDone;
+    const diff = h.wins ? 'Normal' : 'Easy';
+    const s = el('div', 'mn-title mn-ho' + (live ? ' live' : ' art'));
+    if (!live) s.appendChild(archArt());
+    const panel = el('div', 'tt-panel');
+    panel.innerHTML =
+      '<div class="tt-logo">' + logoSVG() + '</div>' +
+      '<p class="tt-premise">Your crew wants the best spots in Washington Square Park. <b>Hang out to score. Make the others leave.</b></p>' +
+      '<div class="tt-btns">' +
+      (first
+        ? '<button class="mbtn primary big pulse" data-a="tutorial" type="button"><span class="mb-k">NEW HERE? START HERE</span><b>PLAY</b><small>A 4-minute walk through the park</small></button>' +
+          '<button class="mbtn" data-a="quick" type="button"><b>Quick match</b><small>Skip the lessons: 5 minutes vs ' + anA(diff) + ' crew</small></button>'
+        : '<button class="mbtn primary big" data-a="quick" type="button"><span class="mb-k">5 MINUTES</span><b>PLAY</b><small>Quick match vs ' + anA(diff) + ' crew</small></button>' +
+          '<button class="mbtn" data-a="tutorial" type="button"><b>Tutorial</b><small>First morning in the park, again</small></button>') +
+      '<button class="mbtn" data-a="custom" type="button"><b>Custom match</b><small>Pick your crew, rival and difficulty</small></button>' +
+      '</div>' +
+      '<div class="tt-row">' +
+      '<button class="mbtn small" data-a="how" type="button">How to play</button>' +
+      '<button class="mbtn small" data-a="options" type="button">Options</button>' +
+      '<button class="mbtn small" data-a="about" type="button">The park</button>' +
+      '</div>' +
+      '<button class="tt-classic" data-a="classic" type="button">Classic mode (the full RTS, for experts) ›</button>' +
+      '<p class="tt-foot">Washington Square Park, NYC · every bench is a real bench · map data © OpenStreetMap contributors</p>';
+    panel.querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => {
+      play('click');
+      const a = b.dataset.a;
+      if (a === 'tutorial') M.pickCrew((crew) => M.startTutorial(crew), { forTutorial: true });
+      else if (a === 'quick') M.quickMatch();
+      else if (a === 'custom') M.showCustom();
+      else if (a === 'how') M.openHowTo();
+      else if (a === 'options') M.openOptions({ simple: true });
+      else if (a === 'about') M.showAbout();
+      else if (a === 'classic') M.showClassic();
+    }));
+    s.appendChild(panel);
+    setScreen(s, 'title');
+  };
+
+  /** "Who are you?" Pick one of the four crews (looks and jokes only; everyone plays by the same rules). */
+  M.pickCrew = function (cb, opts) {
+    opts = opts || {};
+    const h = hoSave();
+    let cur = HO_CREWS.indexOf(h.crew) >= 0 ? h.crew : null;
+    const s = el('div', 'mn-page mn-pick');
+    s.appendChild(header('Who are you?', () => M.showTitle()));
+    const b = el('div', 'ho-page-body');
+    const render = () => {
+      b.innerHTML = '<p class="ho-lead">Pick your crew. Every crew plays by the same rules; they just argue differently.</p>' +
+        '<div class="ho-crews">' + HO_CREWS.map((k) => {
+          const f = D().factions[k];
+          return '<button class="ho-crew' + (k === cur ? ' on' : '') + '" data-crew="' + k + '" type="button" style="--c:' + color(k) + '">' +
+            '<b>' + esc(f.name) + '</b><small>' + esc(f.tagline) + '</small><em>' + esc(hoGroupsOf(k).join(' · ')) + '</em></button>';
+        }).join('') + '</div>' +
+        '<div class="ho-go"><button class="mbtn primary big" data-a="go" type="button"' + (cur ? '' : ' disabled') + '><b>' + (opts.forTutorial ? 'Start the tutorial' : 'Play') + '</b>' +
+        (cur ? '<small>as ' + esc(D().factions[cur].name) + '</small>' : '<small>Pick a crew first</small>') + '</button></div>';
+      b.querySelectorAll('[data-crew]').forEach((x) => x.addEventListener('click', () => { cur = x.dataset.crew; play('select'); render(); }));
+      b.querySelector('[data-a="go"]').addEventListener('click', () => {
+        if (!cur) return;
+        play('click');
+        h.crew = cur; save.write();
+        cb(cur);
+      });
+    };
+    render();
+    s.appendChild(b);
+    setScreen(s, 'pick');
+  };
+
+  M.startTutorial = function (crew) {
+    const h = hoSave();
+    if (HO_CREWS.indexOf(crew) >= 0) { h.crew = crew; save.write(); }
+    M.lastCfg = null; M.lastMeta = { kind: 'tutorial', crew: h.crew };
+    M.close();
+    M._starting = true;
+    try { if (SQ.hangoutTutorial) SQ.hangoutTutorial.start(h.crew || 'hustle'); } catch (e) { console.error('[menus] tutorial', e); M.showTitle(); }
+    M._starting = false;
+  };
+
+  M.quickMatch = function () {
+    const h = hoSave();
+    if (HO_CREWS.indexOf(h.crew) < 0) { M.pickCrew(() => M.quickMatch()); return; }
+    const crew = h.crew;
+    const diff = h.wins ? 'normal' : 'easy';
+    startGame({ mode: 'hangout', seed: seedNow(), layout: 'park', players: hoPlayers(crew, randomRival(crew), diff) }, { kind: 'quick', mode: 'hangout' });
+  };
+
+  M.showCustom = function () {
+    const h = hoSave();
+    const c = Object.assign({ crew: HO_CREWS.indexOf(h.crew) >= 0 ? h.crew : 'hustle', rival: 'random', diff: h.wins ? 'normal' : 'easy' }, h.custom || {});
+    const s = el('div', 'mn-page mn-custom');
+    s.appendChild(header('Custom match', () => M.showTitle()));
+    const b = el('div', 'ho-page-body');
+    const DIFF = [['easy', 'Easy', 'Slow to react'], ['normal', 'Normal', 'Helps and walks away'], ['hard', 'Hard', 'Sharp and quick']];
+    const render = () => {
+      if (c.rival === c.crew) c.rival = 'random';
+      b.innerHTML =
+        '<section><div class="mn-label">Your crew</div><div class="ho-crews">' + HO_CREWS.map((k) => {
+          const f = D().factions[k];
+          return '<button class="ho-crew' + (k === c.crew ? ' on' : '') + '" data-crew="' + k + '" type="button" style="--c:' + color(k) + '"><b>' + esc(f.name) + '</b><small>' + esc(f.tagline) + '</small><em>' + esc(hoGroupsOf(k).join(' · ')) + '</em></button>';
+        }).join('') + '</div></section>' +
+        '<section><div class="mn-label">Against</div><div class="ho-seg" data-k="rival">' +
+        ['random'].concat(HO_CREWS.filter((k) => k !== c.crew)).map((k) => '<button type="button" class="' + (k === c.rival ? 'on' : '') + '" data-v="' + k + '">' + (k === 'random' ? 'Anyone' : esc(D().factions[k].name)) + '</button>').join('') + '</div></section>' +
+        '<section><div class="mn-label">Their skill</div><div class="ho-seg" data-k="diff">' +
+        DIFF.map((d) => '<button type="button" class="' + (d[0] === c.diff ? 'on' : '') + '" data-v="' + d[0] + '">' + d[1] + '<small>' + d[2] + '</small></button>').join('') + '</div></section>' +
+        '<p class="mn-note">Every match: 5 spots, 3 groups each, 5 minutes. Most points wins.</p>' +
+        '<div class="ho-go"><button class="mbtn primary big" data-a="go" type="button"><b>Play</b><small>' + esc(D().factions[c.crew].name) + ' vs ' + (c.rival === 'random' ? 'a random crew' : esc(D().factions[c.rival].name)) + ' · ' + esc(c.diff) + '</small></button></div>';
+      b.querySelectorAll('[data-crew]').forEach((x) => x.addEventListener('click', () => { c.crew = x.dataset.crew; play('select'); render(); }));
+      b.querySelectorAll('.ho-seg').forEach((g) => g.querySelectorAll('button').forEach((x) => x.addEventListener('click', () => { c[g.dataset.k] = x.dataset.v; play('click'); render(); })));
+      b.querySelector('[data-a="go"]').addEventListener('click', () => {
+        play('click');
+        h.custom = { crew: c.crew, rival: c.rival, diff: c.diff }; h.crew = c.crew; save.write();
+        const rival = c.rival === 'random' ? randomRival(c.crew) : c.rival;
+        startGame({ mode: 'hangout', seed: seedNow(), layout: 'park', players: hoPlayers(c.crew, rival, c.diff) }, { kind: 'custom', mode: 'hangout' });
+      });
+    };
+    render();
+    s.appendChild(b);
+    setScreen(s, 'custom');
+  };
+
+  M.openHowTo = function () {
+    const node = el('div', 'mn-sheet mn-how');
+    node.innerHTML = '<div class="sh-head"><h2>How to play</h2><button class="mn-x" data-close aria-label="Close">✕</button></div>' +
+      '<div class="sh-body hp-card hp-how" style="box-shadow:none;border-radius:0;width:100%">' + (SQ.hangoutHud && SQ.hangoutHud.howToHTML ? SQ.hangoutHud.howToHTML().replace(/^<h2>How to play<\/h2>/, '') : '') + '</div>';
+    const wrap = openOverlay(node);
+    node.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => wrap._close()));
+  };
+
+  /** About the park: the five spots on a map, what they are, and credits. */
+  M.showAbout = function () {
+    const node = el('div', 'mn-sheet mn-about');
+    const data = hoData();
+    const lay = data.layouts.park;
+    const NAMES = { fountain: 'The Fountain', holley: 'Holley Plaza', garibaldi: 'Garibaldi', toddler: 'Toddler Playground', smallrun: 'Small Dog Run' };
+    const pins = lay.spots.map((id, i) => { const sp = data.spots[id]; return { id, x: sp.x, z: sp.z, label: String(i + 1), cls: 'un lmpin' }; });
+    node.innerHTML = '<div class="sh-head"><h2>The park</h2><button class="mn-x" data-close aria-label="Close">✕</button></div>' +
+      '<div class="sh-body ho-about">' +
+      '<p>Washington Square Park is ten acres in Greenwich Village, New York: a marble arch, a fountain everyone sits on, chess tables, dog runs, and more opinions per square metre than anywhere else in the city.</p>' +
+      '<div class="ho-map">' + parkSVG(pins, { noTrees: true }) + '</div>' +
+      '<div class="ho-spots">' + lay.spots.map((id, i) => { const sp = data.spots[id]; return '<article><i>' + (i + 1) + '</i><div><b>' + esc(NAMES[id] || sp.name) + '</b><p>' + esc(sp.blurb || '') + '</p></div></article>'; }).join('') + '</div>' +
+      '<p>Your crew comes in from <b>Fifth Avenue, under the Arch</b>. Your rivals come from <b>Thompson Street</b>. Every bench, tree and lamp in the game is where it is in the real park.</p>' +
+      '<p class="mn-note">Map data © OpenStreetMap contributors (ODbL). three.js (MIT). Fonts: Barlow and Caveat Brush (SIL OFL). All characters are archetypes, not real people. Not affiliated with NYC Parks or NYU.</p>' +
+      '</div>';
+    const wrap = openOverlay(node);
+    node.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => wrap._close()));
+  };
+
+  function openSimpleOptions() {
+    const node = el('div', 'mn-sheet mn-options');
+    const fine = !(typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
+    const render = () => {
+      const s = settings.all();
+      const v = s.volumes || DEFAULTS.volumes;
+      node.innerHTML =
+        '<div class="sh-head"><h2>Options</h2><button class="mn-x" data-close aria-label="Close">✕</button></div><div class="sh-body">' +
+        '<section><div class="mn-label">Play</div>' +
+        row('Coach tips', toggle('tips', s.tips), 'Short hints during matches, like "send a second group".') +
+        (fine ? row('Edge scrolling', toggle('edgePan', s.edgePan), 'Move the view when the mouse touches the edge of the screen (W A S D and dragging always work).') : '') +
+        '</section><section><div class="mn-label">Easier to see</div>' +
+        row('Colorblind-safe colors', toggle('colorblind', s.colorblind), 'Blue, yellow, pink and orange crews.') +
+        row('Text size', seg('textSize', [['s', 'S'], ['m', 'M'], ['l', 'L'], ['xl', 'XL']], s.textSize)) +
+        row('Reduced motion', toggle('reducedMotion', s.reducedMotion), 'No bouncing, pulsing or floating numbers.') +
+        row('Left-handed', toggle('leftHanded', s.leftHanded), 'Map and camera buttons on the left.') +
+        row('Vibration', toggle('haptics', s.haptics)) +
+        row('Graphics', seg('quality', [['auto', 'Auto'], ['low', 'Low'], ['med', 'Phone'], ['high', 'High']], s.quality)) +
+        '</section><section><div class="mn-label">Sound</div>' +
+        slider('Master', 'master', v.master) + slider('Effects', 'sfx', v.sfx) + slider('Music', 'music', v.music) + slider('Park sounds', 'ambience', v.ambience) +
+        row('Mute', toggle('muted', s.muted)) +
+        '</section><section><div class="mn-label">Progress</div>' +
+        '<button class="mbtn small" data-a="hints" type="button">Show the first-time hints again</button> ' +
+        '<button class="mbtn small warn" data-a="reset" type="button">Reset progress</button>' +
+        '</section></div>';
+      node.querySelectorAll('[data-seg]').forEach((g) => g.querySelectorAll('button').forEach((x) => x.addEventListener('click', () => { settings.set(g.dataset.seg, x.dataset.v); play('click'); render(); })));
+      node.querySelectorAll('[data-tog]').forEach((x) => x.addEventListener('click', () => { const k = x.dataset.tog; settings.set(k, !settings.get(k)); play('click'); render(); }));
+      node.querySelectorAll('input[type=range]').forEach((x) => x.addEventListener('input', () => {
+        const vol = Object.assign({}, settings.get('volumes'));
+        vol[x.dataset.vol] = +x.value / 100;
+        settings.set('volumes', vol, true);
+      }));
+      node.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => wrap && wrap._close()));
+      const hb = node.querySelector('[data-a="hints"]');
+      hb.addEventListener('click', () => { const h = hoSave(); h.taught = {}; h.prompts = 0; save.write(); play('click'); hb.textContent = 'Hints are back'; hb.disabled = true; });
+      const rs = node.querySelector('[data-a="reset"]');
+      rs.addEventListener('click', () => {
+        if (rs.dataset.armed) { save.reset(); play('deny'); rs.textContent = 'Progress reset'; rs.disabled = true; return; }
+        rs.dataset.armed = '1'; rs.textContent = 'Tap again to reset everything';
+      });
+    };
+    function row(label, ctrl, note) { return '<div class="op-row"><div class="op-l"><b>' + esc(label) + '</b>' + (note ? '<small>' + esc(note) + '</small>' : '') + '</div>' + ctrl + '</div>'; }
+    function toggle(k, on) { return '<button class="tog' + (on ? ' on' : '') + '" data-tog="' + k + '" role="switch" aria-checked="' + !!on + '" aria-label="' + esc(k) + '"><i></i></button>'; }
+    function slider(label, k, val) { return '<div class="op-row"><div class="op-l"><b>' + esc(label) + '</b></div><input type="range" min="0" max="100" value="' + Math.round((val === undefined ? 0.8 : val) * 100) + '" data-vol="' + k + '" aria-label="' + esc(label) + ' volume"></div>'; }
+    render();
+    const wrap = openOverlay(node, () => { if (M.kind === 'title') M.showTitle(); });
+  }
+
+  // ------------------------------------------------------------------ Hang Out Park Report
+  function fmtS(sec) { sec = Math.round(sec || 0); return sec < 60 ? sec + ' s' : Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+  // one name per spot (the signs, tags, cards and messages use the same: SQ.data.hangout.spots[id].short)
+  const HO_SPOT = { fountain: 'Fountain', holley: 'Holley Plaza', garibaldi: 'Garibaldi', toddler: 'Toddler Playground', smallrun: 'Small Dog Run' };
+  function hoSpotName(sp) { return (sp && (sp.short || HO_SPOT[sp.id] || sp.name)) || ''; }
+  function anA(w) { return (/^[aeiou]/i.test(w) ? 'an ' : 'a ') + w; }
+  function hoWhy(rep, me, them, won, draw) {
+    const a = rep.sides[me], b = rep.sides[them];
+    const sum = (o) => Object.keys(o || {}).reduce((n, k) => n + (o[k] || 0), 0);
+    const ha = sum(a.held), hb = sum(b.held);
+    // the spot that decided it: where the winner out-held the loser the most
+    let best = null, bd = -1;
+    const sign = won || draw ? 1 : -1;
+    for (const sp of rep.spots) {
+      const d = sign * ((a.held[sp.id] || 0) - (b.held[sp.id] || 0));
+      if (d > bd) { bd = d; best = sp; }
+    }
+    const nm = best ? hoSpotName(best) : '';
+    // points are spot-seconds, so "how many spots at a time, on average" is the whole story
+    const L = Math.max(1, rep.t || 300);
+    const av = (x) => (Math.round(x / L * 10) / 10).toFixed(1);
+    let txt;
+    if (draw) txt = 'Dead even: you both held about ' + av(ha) + ' spots at a time.';
+    else if (won) txt = '<b>You held more spots for longer:</b> ' + av(ha) + ' spots at a time on average, to their ' + av(hb) + '.';
+    else txt = '<b>They held more spots for longer:</b> ' + av(hb) + ' spots at a time on average, to your ' + av(ha) + '.';
+    if (best && bd >= 15) {
+      const ya = a.held[best.id] || 0, yb = b.held[best.id] || 0;
+      txt += ' ' + (best.id === 'fountain' || best.id === 'toddler' || best.id === 'smallrun' ? 'The ' : '') + esc(nm) + ' made the biggest difference: ' + (ya >= yb ? 'you held it ' + fmtS(ya) + ', they held it ' + fmtS(yb) : 'they held it ' + fmtS(yb) + ', you held it ' + fmtS(ya)) + '.';
+    }
+    let tip = '';
+    if (!won) {
+      if (a.coffees >= 3) tip = 'Your groups went for coffee ' + a.coffees + ' times (15 s each). Walk away before patience runs out.';
+      else if (!a.twoOnOne && b.settles >= a.settles) tip = 'To make them leave a spot, send two groups at once: two against one wins.';
+      else tip = 'Keep all three groups busy: a group standing around earns nothing.';
+    } else if (a.twoOnOne) tip = 'Two against one worked ' + a.twoOnOne + ' time' + (a.twoOnOne > 1 ? 's' : '') + '.';
+    return txt + (tip ? ' <span class="ho-tipline">' + tip + '</span>' : '');
+  }
+  function hoChart(rep, me, them, cMe, cThem) {
+    const hist = (rep.history || []).filter((x) => x && x.score);
+    const W = 600, Hh = 150, pad = 26;
+    if (hist.length < 2) return '';
+    const t1 = hist[hist.length - 1].t || 1;
+    let max = 10; for (const x of hist) for (const v of x.score) max = Math.max(max, v);
+    const X = (t) => pad + t / t1 * (W - pad - 8), Y = (v) => Hh - pad - v / (max * 1.08) * (Hh - pad - 8);
+    const line = (k, c) => '<polyline class="ch-line" style="stroke:' + c + '" points="' + [{ t: 0, score: [0, 0] }].concat(hist).map((x) => X(x.t).toFixed(1) + ',' + Y(x.score[k] || 0).toFixed(1)).join(' ') + '"/>';
+    return '<svg class="ho-chart" viewBox="0 0 ' + W + ' ' + Hh + '" preserveAspectRatio="none" aria-label="Points over time">' +
+      '<line class="ch-axis" x1="' + pad + '" x2="' + (W - 8) + '" y1="' + (Hh - pad) + '" y2="' + (Hh - pad) + '"/>' +
+      line(them, cThem) + line(me, cMe) +
+      '<text x="' + pad + '" y="' + (Hh - 8) + '">0:00</text><text x="' + (W - 8) + '" y="' + (Hh - 8) + '" text-anchor="end">' + fmtS(t1) + '</text></svg>';
+  }
+
+  /** The end of a Hang Out match: who won and, in plain words, why; what happened; who held each spot. */
+  M.showHangoutReport = function (e, m, opts) {
+    opts = opts || {};
+    if (!ensureRoot() || !m) return;
+    const st = m.state;
+    const rep = e.report || (m.report && m.report()) || {};
+    const me = st.player >= 0 ? st.player : 0, them = me === 0 ? 1 : 0;
+    const won = e.winner === me, draw = e.winner < 0;
+    const sides = st.sides;
+    const cMe = color(sides[me].crew), cThem = color(sides[them].crew);
+    const sc = e.score || sides.map((q) => q.points);
+    const s = el('div', 'mn-page mn-report ho-rep' + (won ? ' won' : ' lost'));
+    s.style.setProperty('--c', cMe);
+    const headline = draw ? 'A DRAW' : won ? 'YOU WIN' : (sides[e.winner].name || 'They').toUpperCase() + ' WIN';
+    const sub = draw ? 'Same time tomorrow?' : won ? 'Most points when the clock ran out.' : 'They had more points when the clock ran out.';
+    const lines = (rep.lines || []).slice(0, 4);
+    const maxHeld = Math.max(1, ...rep.spots.map((sp) => (rep.sides[me].held[sp.id] || 0) + (rep.sides[them].held[sp.id] || 0)), (rep.t || 300) * 0.5);
+    let html = '<div class="rp-ribbon"><div class="rp-k">PARK REPORT · ' + fmtS(rep.t || st.t) + ' played</div><h2>' + esc(headline) + '</h2><p>' + esc(sub) + '</p></div>' +
+      '<div class="ho-rep-score"><div style="--c:' + cMe + '"><span>You</span><b>' + sc[me] + '</b></div><i>vs</i><div style="--c:' + cThem + '"><span>' + esc(sides[them].name) + '</span><b>' + sc[them] + '</b></div></div>' +
+      '<p class="ho-why">' + hoWhy(rep, me, them, won, draw) + '</p>' +
+      '<div class="rp-grid">' +
+      (lines.length ? '<section><div class="mn-label">What happened</div><ul class="ho-lines">' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul></section>' : '') +
+      '<section><div class="mn-label">Who hung out where</div><div class="ho-spotbars">' + rep.spots.map((sp) => {
+        const a = rep.sides[me].held[sp.id] || 0, b = rep.sides[them].held[sp.id] || 0;
+        return '<div class="ho-spotbar"><span>' + esc(hoSpotName(sp)) + '</span><div class="ho-sb"><i style="width:' + (a / maxHeld * 100).toFixed(1) + '%;background:' + cMe + '"></i><i style="width:' + (b / maxHeld * 100).toFixed(1) + '%;background:' + cThem + ';margin-left:auto"></i><em><span>' + (a ? fmtS(a) : '') + '</span><span>' + (b ? fmtS(b) : '') + '</span></em></div></div>';
+      }).join('') + '</div></section>' +
+      '<section class="rp-chart"><div class="mn-label">Points over time</div>' + hoChart(rep, me, them, cMe, cThem) + '</section>' +
+      '</div>';
+    html += '<div class="rp-btns">' +
+      (opts.tutorial ? '<button class="mbtn primary big" data-a="quick" type="button"><b>Play a real match</b><small>5 minutes vs ' + anA(hoSave().wins ? 'Normal' : 'Easy') + ' crew</small></button>'
+        : '<button class="mbtn primary big" data-a="again" type="button"><b>' + (won ? 'Play again' : 'Try again') + '</b></button>') +
+      '<button class="mbtn" data-a="menu" type="button"><b>Main menu</b></button></div>';
+    s.innerHTML = '<div class="rp-scroll">' + html + '</div>';
+    s.querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => {
+      play('click');
+      const a = b.dataset.a;
+      if (a === 'quick') M.quickMatch();
+      else if (a === 'again') M.restart();
+      else if (a === 'menu') { if (SQ.game && SQ.game.match) SQ.game.quit(true); M.showTitle(); }
+    }));
+    setScreen(s, 'report');
+  };
 
   if (SQ.bus && !M._subs) subscribe();
 

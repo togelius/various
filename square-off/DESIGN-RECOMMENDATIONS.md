@@ -2,6 +2,44 @@
 
 Date: 2026-10-31
 
+## Status (after implementation)
+
+This brief has been built. It is the default game, "Hang Out" (the title screen's PLAY); the exact rules, map,
+tuning, AI, measurements and interfaces are in [DESIGN-V2.md](DESIGN-V2.md). The original RTS is unchanged and
+still reachable as "Classic mode".
+
+**Implemented as recommended (Round 3):** three named, persistent groups per side; five equal spots (the Toddler
+Playground, Holley Plaza, the Fountain, Garibaldi, the Small Dog Run; picked by measured walking times, not
+geography); a 5:00 clock; +1 point a second per spot held, whatever the number of groups there; 3 s of settling in;
+an established occupant keeps earning while argued with; patience (the brief's Composure) drains for each rival at
+the spot and refills away from arguments; at zero a 15 s coffee break, then the group comes back through its home
+entrance and walks back to its spot; identical rules for every crew; no economy, recruitment, Setups, perks,
+counters or events with effects. Humour carries the state: camps unfold while settling in, people check watches and
+pack up as patience drains, and the punchline is the walk-out. The Park Report is built from what happened. A guided
+tutorial teaches looking around, sending, settling, spreading out, arguing, two against one and walking away; the
+screen shows one message at a time and says why an argument ended.
+
+**One rule change:** when everyone at a spot runs out of patience at the same moment, the crew that was already
+hanging out there stays. With the brief's rule (everyone leaves), every fresh one-on-one ended in a mutual walk-out,
+and challengers could never overtake a leader who simply sat.
+
+**What validation found (headless, `tools/hangout-lab.js`; human playtests still to come):**
+- Incumbent dominance: concentration and rotation are real answers. From 20 points down with 3:00 left, two against
+  one wins 6 of 6 against an idle leader, 2-5 of 6 against a leader who reinforces, withdraws or counters, and 0 of 6
+  against the Hard AI. One-for-one attacks never win. Every attack still cuts the leader's lead growth by about
+  50-160 points compared with doing nothing, so a player who is behind always has a move.
+- Concentrating, spreading and withdrawing each matter: Hard beats a copy of itself that never walks away 98-2, one
+  without two-against-one 81-19, and one that never attacks 73-27.
+- No static split: in Hard mirrors spots change hands 16-18 times a match and the 3-2 split lasts 16-19 s of 300.
+- Losing a group early hurts but is not decisive: a coffee break forced at 1:00 drops a crew's win rate from about
+  50% to 20-30% (at 4:00, to 47%).
+- Open risks: Hard-v-Hard matches change leader only 0.75-0.85 times a match; two passive crews end in a walk-out
+  loop at the Fountain (the game now explains it: "Nobody held the Fountain, so you both gave up"); a simple bot
+  that never brings two now loses to Easy (26-34), so whether newcomers beat Easy needs watching; criteria 1 and 6
+  below (newcomers can explain an outcome; nobody pokes at spot edges) need real playtests.
+
+## Original status
+
 Status: proposed direction, following three rounds of concept development and critique. These recommendations have not been validated in playable prototypes and do not describe the current implementation. The existing design is documented in [DESIGN.md](DESIGN.md).
 
 ## Recommendation

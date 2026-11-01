@@ -235,7 +235,7 @@
     'The Row on Washington Square North dates from the 1830s.',
     'Every bench in this game is a real bench. Every lamp, too.',
     'The park has two dog runs: one big, one for small dogs.',
-    'Five minutes, five dollars, the whole park.',
+    'Five spots, three groups each, five minutes. Somebody is always short.',
   ];
 
   // Park Report actionable tips, keyed by what went wrong.

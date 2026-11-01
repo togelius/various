@@ -9,6 +9,15 @@
 //   setSpeed(0.75|1|1.25)   cfgFromParams(URLSearchParams) -> cfg | null
 // URL flags: ?skirmish=1&faction=hustle&seed=1[&opp=violets&ai=turtle&diff=regular&map=whole&events=normal]
 //            ?quick[&crew=pack]   ?mission=m1   ?nav=1 (nav overlay)   ?q=low|med|high   ?nointro   ?paused
+//   (those start the Classic RTS)    ?ho[&crew=pack&rival=noise&diff=easy|normal|hard&len=300&seed=1]  a Hang Out match
+//            ?tutorial  the Hang Out tutorial (menus.js)
+//
+// Two game modes share the loop. start(cfg) with cfg.mode === 'hangout' builds SQ.Hangout.create(cfg) (the default
+// game, DESIGN-V2.md): HUD = SQ.hangoutHud (+ SQ.hangoutTutorial), input/camera switch on state.mode. Anything
+// else is the Classic RTS (SQ.Match, SQ.hud, SQ.tutorial), unchanged. game.mode -> 'hangout' | 'classic' | null.
+// Render contract for Hang Out: when SQ.hangoutView (js/render/hangout-view.js) is loaded, SQ.render.setMatch(m) and
+// frame(m.state, ...) get the Hang Out match (scene.js attaches the view); otherwise the render gets null (the park
+// only) and the HUD's fallback world layer draws groups and spot rings itself.
 (function (SQ) {
   'use strict';
   const DT = (SQ.C && SQ.C.DT) || 0.05;
@@ -39,15 +48,19 @@
   };
 
   let audioDetach = null;
+  // scene.js hands a Hang Out match to SQ.hangoutView (js/render/hangout-view.js) when that module is loaded
+  function hoRender() { const R = SQ.render || {}; return !!(SQ.hangoutView || R.hangout || R.supportsHangout || (R.modes && R.modes.hangout)); }
   const game = {
-    match: null, paused: false, speed: 1, alpha: 0, running: false, hitStopping: false,
+    match: null, paused: false, speed: 1, alpha: 0, running: false, hitStopping: false, mode: null,
     _acc: 0, _last: 0, _raf: 0, _slow: 0, _slowScale: 1, _hitFrames: 0, _lastHitTick: -1, _autoPaused: false,
     start(cfg) {
+      if (cfg && cfg.mode === 'hangout') return startHangout(cfg);
       game.quit(true);
       let m;
       try { m = SQ.Match.create(cfg || {}); }
       catch (err) { console.error('[main] Match.create failed', err); return null; }
       game.match = m;
+      game.mode = 'classic';
       game.paused = false;
       game._acc = 0; game._slow = 0; game._hitFrames = 0; game.hitStopping = false;
       call(SQ.render, 'setMatch', m);
@@ -70,17 +83,20 @@
     quit(silent) {
       if (!game.match) return;
       const m = game.match;
+      const mode = game.mode;
       game.match = null;
+      game.mode = null;
+      game.lastMode = mode;
       game.paused = false;
       if (audioDetach) { try { audioDetach(); } catch (e) { /* */ } audioDetach = null; }
       call(SQ.render, 'setMatch', null);
       call(SQ.camera, 'setMatch', null);
       call(SQ.input, 'setMatch', null);
-      call(SQ.hud, 'setMatch', null);
-      call(SQ.tutorial, 'setMatch', null);
+      if (mode === 'hangout') call(SQ.hangoutHud, 'setMatch', null);
+      else { call(SQ.hud, 'setMatch', null); call(SQ.tutorial, 'setMatch', null); }
       call(SQ.audio, 'setMatch', null);
       if (!silent) call(SQ.audio, 'setMusic', 'menu');
-      if (!silent && SQ.bus) SQ.bus.emit('gameQuit', { match: m });
+      if (!silent && SQ.bus) SQ.bus.emit('gameQuit', { match: m, mode });
     },
     pause(on) {
       const next = on === undefined ? !game.paused : !!on;
@@ -101,6 +117,31 @@
     cfgFromParams,
   };
   SQ.game = game;
+
+  // ---------------------------------------------------------------- Hang Out
+  function startHangout(cfg) {
+    game.quit(true);
+    let m;
+    try { m = SQ.Hangout.create(cfg); }
+    catch (err) { console.error('[main] Hangout.create failed', err); return null; }
+    game.match = m;
+    game.mode = 'hangout';
+    game.paused = false;
+    game.speed = 1;   // Classic's game-speed option never applies here: the 5:00 clock is real time
+    game._acc = 0; game._slow = 0; game._hitFrames = 0; game.hitStopping = false;
+    // the Classic HUD and tutorial stay off; the 3D layer gets the match only if it draws Hang Out
+    call(SQ.hud, 'setMatch', null);
+    call(SQ.tutorial, 'setMatch', null);
+    call(SQ.render, 'setMatch', hoRender() ? m : null);
+    call(SQ.camera, 'setMatch', m);
+    call(SQ.input, 'setMatch', m);
+    call(SQ.hangoutHud, 'setMatch', m);
+    call(SQ.audio, 'setPlayer', m.state.player);
+    if (SQ.audio && SQ.audio.setStateProvider) call(SQ.audio, 'setStateProvider', null);
+    if (/[?&]paused/.test(location.search)) game.pause(true);
+    if (SQ.bus) SQ.bus.emit('gameStart', { match: m, mode: 'hangout' });
+    return m;
+  }
 
   // ---------------------------------------------------------------- loop
   function frame(now) {
@@ -135,9 +176,16 @@
     game.alpha = m ? Math.min(1, game._acc / DT) : 0;
     call(SQ.camera, 'update', real);
     call(SQ.input, 'update', real);
-    call(SQ.render, 'frame', m ? m.state : null, game.alpha, real);
-    call(SQ.hud, 'update', m, real);
-    call(SQ.tutorial, 'update', real);
+    if (game.mode === 'hangout') {
+      call(SQ.render, 'frame', hoRender() ? m.state : null, game.alpha, real);
+      call(SQ.hangoutHud, 'update', m, real);
+      call(SQ.hangoutTutorial, 'update', real);
+    } else {
+      call(SQ.render, 'frame', m ? m.state : null, game.alpha, real);
+      call(SQ.hud, 'update', m, real);
+      call(SQ.tutorial, 'update', real);
+      if (!m) call(SQ.hangoutTutorial, 'update', real);
+    }
   }
 
   // ---------------------------------------------------------------- URL → match cfg
@@ -147,6 +195,20 @@
     const seedParam = params.get('seed');
     const seed = seedParam !== null && seedParam !== '' ? (parseInt(seedParam, 10) >>> 0) : (Date.now() >>> 0);
     const rng = SQ.util.mulberry32(seed ^ 0x5bd1e995);
+    if (params.has('ho') || params.has('hangout')) {
+      // a Hang Out match straight from the URL (dev / playtests)
+      const HC = ['hustle', 'noise', 'violets', 'pack'];
+      let crew = params.get('crew');
+      if (HC.indexOf(crew) < 0) crew = HC[Math.floor(rng() * HC.length)];
+      let rival = params.get('rival') || params.get('opp');
+      if (HC.indexOf(rival) < 0 || rival === crew) { const o = HC.filter((c) => c !== crew); rival = o[Math.floor(rng() * o.length)]; }
+      const diff = ['easy', 'normal', 'hard'].indexOf(params.get('diff')) >= 0 ? params.get('diff') : 'easy';
+      const ai = { difficulty: diff };
+      if (params.has('noai')) ai.flags = { passive: true };
+      const out = { mode: 'hangout', seed, layout: 'park', players: [{ crew, ai: false }, { crew: rival, ai }] };
+      if (params.get('len') !== null) out.length = Math.max(0, parseInt(params.get('len'), 10) || 0);
+      return out;
+    }
     if (params.get('mission')) {
       const mid = params.get('mission');
       const mis = SQ.data.missionById && SQ.data.missionById[mid];
@@ -210,6 +272,8 @@
         call(SQ.input, 'init', view);
         call(SQ.hud, 'init', $('hud'), game);
         call(SQ.tutorial, 'init', $('hud'));
+        call(SQ.hangoutHud, 'init');
+        call(SQ.hangoutTutorial, 'init');
         call(SQ.audio, 'init');
         loading.set(1, 'Park is open.');
         loading.done();

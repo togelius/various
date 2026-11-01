@@ -25,6 +25,10 @@ const FILES = [
   'js/sim/economy.js',
   'js/sim/abilities.js',
   'js/sim/match.js',
+  // "Hang Out" (the default mode since the rework): inert for classic matches.
+  'js/data/hangout.js',
+  'js/sim/hangout.js',
+  'js/sim/hangout-ai.js',
 ];
 // Other engineers' sim plug-ins, loaded when present (opt out with { plugins: false }).
 const PLUGINS = ['js/sim/ai.js', 'js/sim/director.js', 'js/sim/campaign.js'];

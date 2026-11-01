@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#1d2a24">
-  <meta name="description" content="SQUARE OFF: a real-time strategy game in the real Washington Square Park. Five minutes, five dollars, the whole park.">
-  <title>SQUARE OFF — Washington Square Park RTS</title>
+  <meta name="description" content="SQUARE OFF: a five-minute game about getting the best spots in the real Washington Square Park. Hang out to score. Make the others leave.">
+  <title>SQUARE OFF — Washington Square Park</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/hud.css">
+  <link rel="stylesheet" href="css/hangout.css">
 
   <!-- Engine + real park geometry -->
   <script defer src="js/vendor/three.min.js"></script>
@@ -24,6 +25,7 @@
   <script defer src="js/data/events.js"></script>
   <script defer src="js/data/text.js"></script>
   <script defer src="js/data/navOverrides.js"></script>
+  <script defer src="js/data/hangout.js"></script>
   <!-- Simulation (headless) -->
   <script defer src="js/sim/nav.js"></script>
   <script defer src="js/sim/world.js"></script>
@@ -36,6 +38,9 @@
   <script defer src="js/sim/ai.js"></script>
   <script defer src="js/sim/director.js"></script>
   <script defer src="js/sim/campaign.js"></script>
+  <!-- "Hang Out" (the default game; DESIGN-V2.md): rules + AI, headless -->
+  <script defer src="js/sim/hangout.js"></script>
+  <script defer src="js/sim/hangout-ai.js"></script>
   <!-- Render -->
   <script defer src="js/render/textures.js"></script>
   <script defer src="js/render/ground.js"></script>
@@ -46,12 +51,16 @@
   <script defer src="js/render/scene.js"></script>
   <script defer src="js/render/units.js"></script>
   <script defer src="js/render/fx.js"></script>
+  <script defer src="js/render/hangout-view.js"></script>
   <!-- UI -->
   <script defer src="js/ui/camera.js"></script>
   <script defer src="js/ui/input.js"></script>
   <script defer src="js/ui/hud.js"></script>
   <script defer src="js/ui/menus.js"></script>
   <script defer src="js/ui/tutorial.js"></script>
+  <!-- "Hang Out" HUD, controls and tutorial (the default game) -->
+  <script defer src="js/ui/hangout-hud.js"></script>
+  <script defer src="js/ui/hangout-tutorial.js"></script>
   <!-- Audio -->
   <script defer src="js/audio/audio.js"></script>
   <script defer src="js/audio/music.js"></script>
@@ -66,7 +75,7 @@
     <div id="loading" role="status">
       <div class="loading-card">
         <div class="loading-logo">SQUARE <span>OFF</span></div>
-        <div class="loading-tag">Five minutes, five dollars, the whole park.</div>
+        <div class="loading-tag">Hang out to score. Make the others leave.</div>
         <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
         <div class="loading-step" id="loading-step">Unfolding the park…</div>
         <div class="loading-fact" id="loading-fact">Every bench in this game is a real bench.</div>
