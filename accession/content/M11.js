@@ -15,7 +15,7 @@ Packs.add({
     { id: 'M11.2', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period', flags: ['hourly_demonstration', 'weather_cases'],
       name: 'Semaphore Station, Two-Armed',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
-      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
+      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station stands where it is and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
     { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], modParams: { old_repair: { side: 'W' } }, trigger: null,
       name: 'Signal Lamp on a Walking Tripod',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; the west leg, as displayed, a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },
@@ -43,8 +43,12 @@ Packs.add({
   // ranged attack, which is the same bolt without the damage kind; the Apron's armour(S) and
   // resist(light, S) become Padding(M); the Signal Flag keeps its reach flag, which the slice
   // has. The Spare Lamp Hood is cut: its extinguish(M) needs light, which the slice lacks.
-  // The Pocket Heliograph is the Signature piece, which waits for M4. The Flag's paragraph
-  // says what Reach does: it strikes across an empty tile, never past someone.
+  // The Flag's paragraph says what Reach does: it strikes across an empty tile, never past
+  // someone.
+  // The Line Superintendent's Pocket Heliograph (M11.10) is the Signature piece (M4 plan
+  // D2.9): the sample's bolt(light, L) and flash(S), 4, as a Pin-Driver (its bolt, 2) with
+  // Acc(M), 2; the slice has no flash, so its paragraph makes no one drop anything. The
+  // Centrepiece names it (`signature`), so no stand-in places it as loot.
   items: [
     { id: 'M11.6', kind: 'instrument', instrument: 'pin_driver', prims: [],
       name: 'Hand Lamp With a Signalling Shutter',
@@ -58,6 +62,10 @@ Packs.add({
       name: 'Signal Flag on Its Staff, Furled',
       tomb: { maker: 'Line stores', date: 'After the Second Calibration', medium: 'Wool bunting, ash staff, iron ferrule', dims: 'L. 2.6 m', credit: 'Transferred from the Line Superintendent’s Office' },
       paragraph: 'Flags were used where lamps could not be lit and heliographs could not be carried. Furled, the staff is long enough to reach a person across an empty space, though never past someone standing in between, which, the logbooks suggest, is how queues were kept apart on busy days. The bunting has faded from red to a colour the Line called signal pink.' },
+    { id: 'M11.10', kind: 'instrument', instrument: 'pin_driver', prims: [{ id: 'acc', cls: 'M' }],
+      name: 'The Line Superintendent’s Pocket Heliograph',
+      tomb: { maker: 'Made for the First Line Superintendent', date: 'Before the Second Calibration', medium: 'Silvered glass, nickel case; lid engraved with the timetable', dims: 'Diam. 7 cm', credit: 'Gift of the Retired Line Superintendent' },
+      paragraph: 'The Superintendent carried this on the walk down the line, flashing each station in turn and noting the reply. Snapped open, it throws a hard, bright bolt at whatever it is aimed at, and whoever carries it finds their aim a little surer, as the Superintendent’s was. The timetable engraved on the lid is the original. It has never been correct.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
@@ -77,7 +85,34 @@ Packs.add({
       ticket: 'The Re-admission Ticket is a printed slip that lets a linesman start the round again from the first station. Read, it returns you to the department’s entrance, and everything hunting you loses your trail, except the Night Watchman, who never loses anyone’s. The Line printed them on the backs of old timetables.',
     },
   },
-  centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2,
+  // The gallery list (§5.2, §5.5; M4 plan A9, A10): design/samples.md §2.3's galleries, in its
+  // order, mapped onto a Cabinet enfilade's rooms (Populate.mapping) by tour order: every
+  // section is a row (`row`), s1 and s2 on the axis beside the Intro and the hall, s3 the
+  // long room beyond them. The Intro's exhibits are its stamp's (content/M11-intro.js: the
+  // First Landing's own station, M11.12, which no gallery lists, and a Logbook Trolley), so
+  // its gallery lists none.
+  //   - The Line (s1): a Heliograph and a Signal Lamp.
+  //   - Weather Kept for Trials (s2, where the cases are; s3 has none in 98 of 100 plans): the
+  //     section's Semaphore Station (M4 plan DE7; its line along the longest run of its room,
+  //     which stays in the room), the Reflecting Dish, the second Heliograph and the second
+  //     Signal Lamp. The sample's two Heliographs stand at the ends of the axis: one in each
+  //     axis room, so a fog case can break an axis where the weather is, and so neither stands
+  //     often at the west end of s1, whose axis runs along the entrance row into the Intro's
+  //     doorway once its door is open (28 of 700 departments with both in s1, 13 with one,
+  //     every M4 archetype ready; D-LV6 decides whether an axis counts).
+  //   - The Logbook Room (the samples' study room) joins the last section (s3): the Signal
+  //     Flag. The Logbook Trolley and the Apron stay the Orientation's (M11.5, M11.7).
+  //   - The Central Station: the Great Board is placed by its own rule; its rain case is
+  //     MOD-WEATHER's.
+  galleries: [
+    { key: 'intro', name: 'The First Landing', contents: [] },
+    { key: 's1', name: 'The Line', contents: [{ sp: 'M11.1' }, { sp: 'M11.3' }] },
+    { key: 's2', name: 'Weather Kept for Trials', contents: [{ sp: 'M11.2' }, { sp: 'M11.4' }, { sp: 'M11.1' }, { sp: 'M11.3' }] },
+    { key: 'last', name: 'The Logbook Room', contents: [{ item: 'M11.9' }] },
+    { key: 'centre', name: 'The Central Station', contents: [] },
+    { key: 'coda', name: 'The Linesmen’s Canteen', contents: [] },
+  ],
+  centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2, signature: 'M11.10',
     name: 'The Great Board of the Central Station',
     tomb: { maker: 'Painted by the Workshops of the Line, with later panels', date: 'Before the Second Calibration; repainted until the line closed', medium: 'Oil on boards, forty hinged panels; iron frame', dims: 'H. 3.2 m, W. 3.6 m', credit: 'Transferred from the Central Station' },
     paragraph: 'Every signal on the line arrived here and was posted on the Board by hand, so that the Central Station could see the state of the whole building at a glance. The Board shows times of sending and times of arrival, and nothing else. The clerks who kept it were trained to step out of its row whenever a panel changed.' },

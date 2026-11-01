@@ -24,12 +24,17 @@
 //   column at 12 hides the Grazer from them: turning to fight them turns your back on it.
 // - The entrance row east of the cut holds nothing opaque (the vista; the noOpaque line), and the
 //   tiles against the walls from column 12 on are floor, so the onward openings can be made there.
-// - Rows 0 and 10, plain, stretch to the Intro's height (5 or 6 rows each side of the entrance in
-//   the court); no exhibit stands on a stretch row (Populate.check refuses one).
+// - Rows 0 and 10 stretch to the Intro's height (5 or 6 rows each side of the entrance in the
+//   court, so row 10 stands once or twice); no exhibit stands on a stretch row (Populate.check
+//   refuses one). Row 0 is plain. Row 10 is low cabinets (f) in the vestibule, so in the court
+//   no tile of the safe zone lies against the Intro's south wall: the band room beyond that
+//   wall runs the length of the court, and the Brooder may guard a case on its north wall,
+//   whose tether (TETHER_RANGE, which needs no sight) would otherwise reach the vestibule's
+//   last row through the wall, in 89 of 700 S.9 departments (D-PACKS).
 // - near('g', 3): every walk from the entrance to an onward opening passes within 3 tiles of the
 //   Grazer (it passes the door), which LV4 checks on every plan.
 // The floor lamp of the sample is left out: the slice has no light (§5.5).
-// Owned by D-STAMPS (then D-PACKS).
+// Owned by D-STAMPS (then D-PACKS, which added the south cabinets).
 'use strict';
 Packs.part('S9', 'intro', {
   map: [
@@ -43,7 +48,7 @@ Packs.part('S9', 'intro', {
     '#.......|....h.',
     '#.......|.o....',
     '#.......|....h.',
-    '#.......|......',
+    '#fffffff|......',
   ],
   legend: {
     g: { tile: 'p', sp: 'S9.1' },

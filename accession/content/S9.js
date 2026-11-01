@@ -15,7 +15,7 @@ Packs.add({
     { id: 'S9.2', sprite: 'wader', archetype: 'patrol_guard', role: 'warden', modifiers: [], trigger: 'awake', flags: ['alarm_network'],
       name: 'Lantern-Crop Wader',
       tomb: { maker: 'Mounted from the first entry in Round Book 1', date: 'Collected after the Great Reshelving', medium: 'Feathers, hide, wire; crop lined with luminous paint by the preparators', dims: 'H. 1.1 m', credit: 'Accessioned on the night staff’s report' },
-      paragraph: 'Reported, not observed. The wader keeps the same round as the night staff, in the same direction, pausing at the same lecterns, and the night staff describe it as the only colleague who has never been late. Its crop glows faintly, which they find companionable. When it meets something on its round that was not there the last time, the round books say, it stands quite still for a moment and then calls.' },
+      paragraph: 'Reported, not observed. The wader keeps the same round as the night staff, corner to corner, in the same direction, and the night staff describe it as the only colleague who has never been late. Its crop glows faintly, which they find companionable. When it meets something on its round that was not there the last time, the round books say, it stands quite still for a moment and then calls.' },
     { id: 'S9.3', sprite: 'dawn_caller', archetype: 'herald', role: 'support', modifiers: [], trigger: null,
       name: 'Dawn-Caller on a Perch',
       tomb: { maker: 'Mounted from Round Book 5', date: 'Collected after the Great Reshelving', medium: 'Feathers, wire; perch of varnished applewood', dims: 'H. 64 cm', credit: 'Accessioned on the night staff’s report' },
@@ -38,9 +38,12 @@ Packs.add({
   // of the same budget (S 1, M 2, L 3; a flag such as quiet 2; each of the slice's
   // instruments 2, the Pin-Driver's price as the sample's bolt(edge, M)): the Overshoes'
   // muffled(M) becomes quiet; the Tongs' knockback(S) becomes Acc(S); Round Book 9's
-  // perception(L) becomes Eva(L). The Day Curator's Lamp is the Signature piece, which waits
-  // for M4. A paragraph says no more than its item does: the Overshoes let you come a little
-  // closer while you move, and the Tongs' bonus is small.
+  // perception(L) becomes Eva(L). A paragraph says no more than its item does: the Overshoes
+  // let you come a little closer while you move, and the Tongs' bonus is small.
+  // The Day Curator's Lamp (S9.11) is the Signature piece and the treasure (M4 plan D2.9,
+  // §5.5): a curio with the `observing` primitive, taken hooded, whose rule is its own
+  // (Kit.observing); its paragraph names no case and no hall, since a visitor may carry it
+  // anywhere. The Centrepiece names it (`signature`), so no stand-in places it as loot.
   items: [
     { id: 'S9.7', kind: 'garment', form: 'light', prims: [{ id: 'quiet', cls: 'M' }],
       name: 'Overshoes of the Night Staff',
@@ -58,6 +61,10 @@ Packs.add({
       name: 'Round Book 9',
       tomb: { maker: 'The night staff, in several hands', date: 'From the Great Reshelving until the brooder took it', medium: 'Pencil on ruled paper; pages 40–112 in the nest (see S.9.4)', dims: 'H. 21 cm', credit: 'Gift of the Night Staff' },
       paragraph: 'The last round book before the nest. Every animal in the court is entered, with what it does and what wakes it, in the plain language of people who had to walk past them every night. Carried open, it is said to keep its reader out of the court’s way, as it kept the night staff.' },
+    { id: 'S9.11', kind: 'curio', prims: [{ id: 'observing', cls: 'L' }],
+      name: 'The Day Curator’s Lamp',
+      tomb: { maker: 'Bought by the day curator for one night’s visit to the court', date: 'After the Great Reshelving', medium: 'Nickel-plated reservoir, chimney, hooded reflector', dims: 'H. 38 cm', credit: 'Gift of the Day Curator' },
+      paragraph: 'The day curator visited the court once, at night, to confirm the round books, and brought this lamp. Round Book 8 records the visit in the curator’s own hand: “Nothing moved while I watched.” Lit, it keeps whatever stands near its bearer in view, even round a corner, and makes its bearer easier to notice. Hooded, it is only a lamp. The curator has declined to discuss the morning after.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
@@ -77,7 +84,43 @@ Packs.add({
       ticket: 'The Re-admission Ticket lets a keeper who has lost their way begin the round again. Read, it returns you to the department’s entrance, and everything hunting you loses your trail, except the Night Watchman, who never loses anyone’s. The night staff keep one in every pocket, and the round books record nobody ever using the last.',
     },
   },
-  centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2,
+  // The gallery list (§5.2, §5.5; M4 plan A9, A10): design/samples.md §3.3's galleries, in its
+  // order, mapped onto a Cabinet court's rooms (Populate.mapping): the Intro, the court (the
+  // filled central space, `central`), one band room south of it (`band`), the hall and the
+  // coda. Tour order at layout version 3 puts the band room first and the court second, so
+  // each section gallery names its element. The Intro's exhibits are its stamp's
+  // (content/S9-intro.js: a Grazer and two Hoppers), so its gallery lists none.
+  //   - The Mount Court (the court): the sample's two Mount Court galleries but for their
+  //     Waders and the Tortoise: a Grazer, the Dawn-Caller, and the two Hoppers the Intro does
+  //     not hold (the preparators mounted four). The court has no wall cases (p50 0), so the
+  //     Overshoes' case is the floor where none is left.
+  //   - The Brooders' Bay (the band room, which has 6–16 cases): the Brooder first, so it has
+  //     the first pick of a case to guard (its nest, Round Book 9 inside, when one passes the
+  //     take rule: 59% of S.9 departments, 416 of 700, where the court has no case and the
+  //     coda's pass in 1 of 700; the Lamp Corridor's south cabinets keep its tether, which
+  //     needs no sight, out of the safe zone beyond the band room's north wall); the Tortoise
+  //     beside a real case, among the cases (DE6); both Waders, on the band room's round; and
+  //     the preparators' tools.
+  //     The Waders walk the band room, not the court: the court opens onto the Intro along
+  //     the entrance row, and a Wader on the court's round sees the Intro's partition doorway,
+  //     which is in the safe zone, once its door is open (16 of 100 departments with one in
+  //     the court; 0 of 700 with both here, doors shut or open).
+  //   - The Round-Book Room (the samples' study room) joins the last section: nothing in it is
+  //     an exhibit or an item of the slice.
+  //   - The Day Curator's Case (the hall): two Grazers flanking the Lamp's case (the Lamp, the
+  //     Signature piece, in a case: D-ITEMS' treasure case); the Composite is placed by its
+  //     own rule.
+  // Item entries are the item placement's (D-ITEMS); `case: true` puts one in an empty case
+  // of its room, or on its floor when none is left.
+  galleries: [
+    { key: 'intro', name: 'The Lamp Corridor', contents: [] },
+    { key: 's1', where: 'central', name: 'The Mount Court', contents: [{ sp: 'S9.1' }, { sp: 'S9.3' }, { sp: 'S9.6', count: 2 }, { item: 'S9.7', case: true }] },
+    { key: 's2', where: 'band', name: 'The Brooders’ Bay', contents: [{ sp: 'S9.4', guards: 'case' }, { item: 'S9.10', case: true }, { sp: 'S9.5', near: 'case' }, { sp: 'S9.2', count: 2 }, { item: 'S9.8', case: true }, { item: 'S9.9', case: true }] },
+    { key: 'last', name: 'The Round-Book Room', contents: [] },
+    { key: 'centre', name: 'The Day Curator’s Case', contents: [{ sp: 'S9.1', count: 2 }, { item: 'S9.11', case: true }] },
+    { key: 'coda', name: 'The Night Staff’s Tea Room', contents: [] },
+  ],
+  centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2, signature: 'S9.11',
     name: 'The Composite, Assembled From the Round Books',
     tomb: { maker: 'Mounted by the preparators from every description in Round Books 1–8 that matched no other specimen', date: 'After the Great Reshelving', medium: 'Hide, feathers, horn, wire, carved lime; parts added as descriptions were found', dims: 'H. 2.9 m', credit: 'Accessioned on the night staff’s report' },
     paragraph: 'Reported in pieces. The preparators built it from the descriptions no other mount accounted for: a neck from Round Book 2, legs from Round Book 6, a tail from a note in a margin. They added each part as its description turned up in the galleries, and they do not believe it is finished. The night staff say it is more complete on nights when more of the court has been walked.' },

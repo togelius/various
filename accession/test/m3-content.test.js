@@ -177,7 +177,13 @@ module.exports = ({ test, assert, loadCore }) => {
   const TOMB_KEYS = ['maker', 'date', 'medium', 'dims', 'credit'];
   const WEAPON_FORMS = ['light', 'balanced', 'heavy', 'reach'], GARMENT_FORMS = ['light', 'standard', 'heavy'];
 
-  test('every pack item has the §5.2 schema exactly, with primitives the slice implements in M3', () => {
+  // Each pack's Signature piece (M4 plan D2.9), the item its Centrepiece names: the one item
+  // that may carry an M4 primitive (the Lamp's `observing`), and the one instrument that
+  // carries a primitive beside its instrument (the Pocket Heliograph's Acc, its sample's
+  // flash and stronger bolt).
+  const SIGNATURE = { S9: 'S9.11', A4: 'A4.11', M11: 'M11.10' };
+  test('every pack item has the §5.2 schema exactly, with primitives the slice implements in M3, but for the Signature pieces\' own', () => {
+    for (const p of packs) assert.equal(p.centrepiece.signature, SIGNATURE[p.acc], `${p.acc}: its Centrepiece names its Signature piece`);
     for (const p of packs) {
       assert.ok(Array.isArray(p.items) && p.items.length, `${p.acc} has items`);
       for (const it of p.items) {
@@ -194,11 +200,11 @@ module.exports = ({ test, assert, loadCore }) => {
         for (const pr of it.prims) {
           assert.equal(json(Object.keys(pr).sort()), json(['cls', 'id']), `${it.id}: ${json(pr)}`);
           assert.ok(Registry.ITEM_PRIMS[pr.id], `${it.id}: ${pr.id} is not a primitive the slice implements (§8.5)`);
-          assert.equal(Registry.ITEM_PRIMS[pr.id].built, 'M3', `${it.id}: ${pr.id} waits for M4`);
+          if (it.id !== SIGNATURE[p.acc]) assert.equal(Registry.ITEM_PRIMS[pr.id].built, 'M3', `${it.id}: ${pr.id} waits for M4`);
           assert.ok(['S', 'M', 'L'].includes(pr.cls), `${it.id}: ${pr.id} class ${pr.cls}`);
         }
         assert.equal(new Set(it.prims.map(pr => pr.id)).size, it.prims.length, `${it.id}: a primitive given twice`);
-        if (it.kind === 'instrument') assert.equal(it.prims.length, 0, `${it.id}: an instrument's effect is its instrument, and its charges come from §8.10`);
+        if (it.kind === 'instrument' && it.id !== SIGNATURE[p.acc]) assert.equal(it.prims.length, 0, `${it.id}: an instrument's effect is its instrument, and its charges come from §8.10`);
         assert.ok(typeof it.name === 'string' && it.name.length, `${it.id}: name`);
         assert.equal(json(Object.keys(it.tomb).sort()), json(TOMB_KEYS.slice().sort()), `${it.id}: tombstone fields`);
         for (const k of TOMB_KEYS) assert.ok(typeof it.tomb[k] === 'string' && it.tomb[k].length, `${it.id}: tomb.${k}`);
@@ -219,13 +225,17 @@ module.exports = ({ test, assert, loadCore }) => {
   // in points (S 1, M 2, L 3; a flag 2, as the samples price `reach`, `sweep` and `breaker`;
   // each of the slice's instruments 2, the Pin-Driver's price as the sample's bolt(edge, M))
   // and each weapon's form as its sample's Hidden line gives it ("light, fast", "heavy", or
-  // no note, which is Balanced). What is kept, cut, or left for M4 is §5.5's trim rule
-  // applied item by item: a primitive the slice lacks becomes one it has, of the same budget,
-  // and the form stays the sample's, so a flag never becomes a form.
+  // no note, which is Balanced). What is kept or cut is §5.5's trim rule applied item by item:
+  // a primitive the slice lacks becomes one it has, of the same budget, and the form stays
+  // the sample's, so a flag never becomes a form. The Signature pieces (M4, plan D2.9) are
+  // trimmed the same way, last in each list: the Pen's strike_kind(edge, S), breaker and
+  // surprise_bonus(S) as Light {dmg S, breaker, acc S}, 4; the Pocket Heliograph's
+  // bolt(light, L) and flash(S) as a Pin-Driver with Acc(M), 4. The Lamp's toggled light is
+  // a rule of its own, `observing` (§5.5), which has no size and no price.
   const SAMPLES = {
     S9: { kept: { 'S9.7': 2, 'S9.8': 2, 'S9.9': 2, 'S9.10': 3 }, forms: { 'S9.8': 'light' }, cut: [], signature: 'S9.11' },
-    A4: { kept: { 'A4.6': 3, 'A4.7': 3, 'A4.8': 2, 'A4.10': 2 }, forms: { 'A4.6': 'light', 'A4.7': 'heavy' }, cut: ['A4.9'], signature: 'A4.11' },
-    M11: { kept: { 'M11.6': 2, 'M11.7': 2, 'M11.9': 4 }, forms: { 'M11.9': 'balanced' }, cut: ['M11.8'], signature: 'M11.10' },
+    A4: { kept: { 'A4.6': 3, 'A4.7': 3, 'A4.8': 2, 'A4.10': 2, 'A4.11': 4 }, forms: { 'A4.6': 'light', 'A4.7': 'heavy', 'A4.11': 'light' }, cut: ['A4.9'], signature: 'A4.11' },
+    M11: { kept: { 'M11.6': 2, 'M11.7': 2, 'M11.9': 4, 'M11.10': 4 }, forms: { 'M11.9': 'balanced' }, cut: ['M11.8'], signature: 'M11.10' },
   };
   const POINTS = { S: 1, M: 2, L: 3 }, FLAGS = ['reach', 'quiet', 'breaker'];
   // An item's budget in the slice: its primitives (a flag is 2 whatever its class), and an
@@ -233,14 +243,19 @@ module.exports = ({ test, assert, loadCore }) => {
   // the damage it lacks against Balanced (§8.1), so it is no stand-in for a sample's flag.
   const budget = it => it.prims.reduce((t, pr) => t + (FLAGS.includes(pr.id) ? 2 : POINTS[pr.cls]), 0) + (it.kind === 'instrument' ? 2 : 0);
 
-  test('the samples\' items are trimmed per §5.5: each kept at its budget and in its form, cut only if nothing in the slice matches it, no Signature piece', () => {
+  test('the samples\' items are trimmed per §5.5: each kept at its budget and in its form, cut only if nothing in the slice matches it, the Signature piece last', () => {
     for (const p of packs) {
       const S = SAMPLES[p.acc], ids = p.items.map(it => it.id);
-      assert.equal(json(ids), json(Object.keys(S.kept)), `${p.acc}: the kept items, in the sample's order`);
-      for (const it of p.items) assert.equal(budget(it), S.kept[it.id], `${it.id}: budget ${budget(it)} against the sample's ${S.kept[it.id]}`);
+      const priced = ids.filter(id => id !== 'S9.11');
+      assert.equal(json(ids), json(p.acc === 'S9' ? Object.keys(S.kept).concat(['S9.11']) : Object.keys(S.kept)), `${p.acc}: the kept items, in the sample's order, the Signature piece last`);
+      assert.equal(ids[ids.length - 1], S.signature, `${p.acc}: its Signature piece`);
+      for (const it of p.items.filter(i => priced.includes(i.id))) assert.equal(budget(it), S.kept[it.id], `${it.id}: budget ${budget(it)} against the sample's ${S.kept[it.id]}`);
       for (const it of p.items.filter(i => i.kind === 'weapon')) assert.equal(it.form, S.forms[it.id], `${it.id}: the sample's form`);
-      for (const id of [...S.cut, S.signature]) assert.ok(!ids.includes(id), `${id} is cut or waits for M4`);
+      for (const id of S.cut) assert.ok(!ids.includes(id), `${id} is cut`);
     }
+    // The Lamp is a curio with the one primitive the slice gives it.
+    const lamp = packs[0].items.find(it => it.id === 'S9.11');
+    assert.equal(json([lamp.kind, lamp.prims.map(pr => pr.id)]), json(['curio', ['observing']]), 'the Lamp is an observing curio');
     // The trims, named: what each off-set primitive became.
     const item = id => packs.flatMap(p => p.items).find(it => it.id === id);
     const prims = id => json(item(id).prims.map(pr => pr.id + ':' + pr.cls));
@@ -253,6 +268,8 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(item('M11.6').instrument, 'pin_driver', 'the Hand Lamp: its bolt is the Pin-Driver\'s');
     assert.equal(prims('M11.7'), json(['pad:M']), 'the Apron: armour and resist(light) become Padding');
     assert.equal(prims('M11.9'), json(['dmg:M', 'reach:M']), 'the Signal Flag keeps its reach flag, which the slice has');
+    assert.equal(prims('A4.11'), json(['dmg:S', 'breaker:M', 'acc:S']), 'the Pen: edge is damage, breaker kept, surprise_bonus becomes Acc');
+    assert.equal(json([item('M11.10').instrument, prims('M11.10')]), json(['pin_driver', json(['acc:M'])]), 'the Pocket Heliograph: its bolt is the Pin-Driver\'s, its flash becomes Acc');
     // No pack weapon takes the Reach form: each sample weapon's form is Light, Heavy or none.
     assert.ok(packs.every(p => p.items.every(it => it.form !== 'reach')), 'a flag never becomes the Reach form');
   });
@@ -284,6 +301,16 @@ module.exports = ({ test, assert, loadCore }) => {
     none('S9.7', /court could not hear|could not hear the keepers|unheard|silent/i, 'silences you');
     says('S9.7', /closer/i, 'lets you come closer');
     none('S9.8', /\balways\b|never miss/i, 'never misses');
+    // The Signature pieces: the Lamp lit keeps exhibits near you seen even out of sight, and
+    // makes you easier to notice (its ring); it names no case or hall, since you may carry it
+    // anywhere. The Pen names glass only (no plaster or paper bonus in the slice). The
+    // Heliograph makes no one drop anything (no flash).
+    says('S9.11', /round a corner|out of sight/i, 'says a lit Lamp sees round corners');
+    says('S9.11', /easier to notice/i, 'says a lit Lamp gives you away');
+    none('S9.11', /\bcase\b|\bhall\b|wide enough to keep a court/i, 'names its place or overstates its reach');
+    none('A4.11', /plaster|paper/i, 'claims a bonus the slice lacks');
+    says('A4.11', /glass/i, 'says breaker');
+    none('M11.10', /drop|dazed|blind/i, 'flashes');
   });
 
   test('ids are unique: every species, Centrepiece and item across the packs and the shared species', () => {
@@ -303,8 +330,11 @@ module.exports = ({ test, assert, loadCore }) => {
 
   // §5.2 asks 40–70 words of a species' or Centrepiece's paragraph. The M2 paragraphs below,
   // taken from the samples (§5.5) and kept as written (R26), fall outside it; the list is
-  // pinned, so that it cannot grow, and each stays within 10–80.
-  const LONG_OR_SHORT = ['S9.1', 'S9.2', 'S9.3', 'S9.4', 'S9.12', 'A4.1', 'A4.1a', 'A4.4', 'M11.1'];
+  // pinned, so that it cannot grow, and each stays within 10–80. A.4.1/a's sample paragraph
+  // ("Spare (a) of three. For the original, see the case at the end of this row.") was
+  // rewritten by D-PACKS within 40–70: the Intro's original stands in no case, and every spare
+  // read "(a)".
+  const LONG_OR_SHORT = ['S9.1', 'S9.2', 'S9.3', 'S9.4', 'S9.12', 'A4.1', 'A4.4', 'M11.1'];
   test('a species\' or Centrepiece\'s paragraph is 40–70 words, but for the samples\' paragraphs kept as written', () => {
     const outside = [];
     for (const p of packs) for (const sp of [...p.species, p.centrepiece]) {
@@ -448,25 +478,33 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  // The stand-in placement (Dept.create's place/ stream, until M4's population) puts a
-  // group's members anywhere in the department, so a member is within ALLY_HIT_RANGE of
-  // another of its group only sometimes: over seeds 1–20 and depths 1–7, 52 of the 280
-  // same-group pairs, in 52 of the 140 departments, and never both pairs of one department.
-  // Department monkeys exercise ally_hit rarely; it needs scenarios of its own (Wave 2).
-  test('in an A.4 department, every ally_hit exhibit carries its group and has another of its group in the department, sometimes within ALLY_HIT_RANGE', () => {
-    let near = 0;
+  // A.4's gallery list (M4, D-PACKS) places each copy group as one instance in one room
+  // (§4.1: group is <group>@<room key>, plan DE5): the Intro's clerks (its stamp: the original
+  // and two spares), and the maze's clerks (the original and three spares) and trustees (the
+  // original and two spares). Each instance's members share its room, and an instance has
+  // another member within ALLY_HIT_RANGE in most departments, so a blow on one is heard.
+  test('in an A.4 department, every ally_hit exhibit carries its group\'s instance, one original and its spares in one room, the instances of its gallery list', () => {
+    let near = 0, groups = 0;
     for (let depth = 1; depth <= 7; depth++) for (const seed of [1, 2, 3]) {
       const s = Dept.create(seed, 'A4', depth), ex = s.actors.filter(a => a.uid !== 'you' && !a.gone);
+      const inst = {};
       for (const a of ex) {
-        const sp = Packs.speciesFor(s, a);
-        assert.equal(a.group, sp.group || null, `${a.uid}: group`);
-        if (a.trigger === 'ally_hit') assert.ok(ex.some(b => b !== a && b.group === a.group), `seed ${seed} depth ${depth}: ${a.uid} is alone in ${a.group}`);
+        const sp = Packs.speciesFor(s, a), rm = s.dept.rooms.find(r => r.id === s.dept.roomOf[a.y][a.x]);
+        if (!sp.group) { assert.equal(a.group, null, `${a.uid}: no group`); continue; }
+        assert.equal(a.group, `${sp.group}@${rm.key}`, `${a.uid}: its group's instance in room ${rm.key}`);
+        (inst[a.group] = inst[a.group] || []).push(a);
       }
-      assert.ok(ex.some(a => a.group === 'clerks') && ex.some(a => a.group === 'trustees'), `seed ${seed} depth ${depth}: both groups placed`);
-      const hear = ex.filter(a => a.trigger === 'ally_hit').some(a => ex.some(b => b !== a && b.group === a.group && Grid.disc(a.x - b.x, a.y - b.y, N.ALLY_HIT_RANGE)));
-      if (hear) near++;
+      const names = Object.keys(inst).sort();
+      assert.equal(json(names), json(['clerks@intro', 'clerks@s2', 'trustees@s2']), `seed ${seed} depth ${depth}: the instances`);
+      for (const g of names) {
+        const ms = inst[g], originals = ms.filter(a => !Packs.speciesFor(s, a).copyOf);
+        assert.equal(originals.length, 1, `seed ${seed} depth ${depth}: ${g} has one original`);
+        assert.equal(ms.length, { 'clerks@intro': 3, 'clerks@s2': 4, 'trustees@s2': 3 }[g], `seed ${seed} depth ${depth}: ${g}'s members`);
+        groups++;
+        if (ms.some(a => ms.some(b => b !== a && Grid.disc(a.x - b.x, a.y - b.y, N.ALLY_HIT_RANGE)))) near++;
+      }
     }
-    assert.ok(near >= 1 && near < 21, `${near} of 21 departments have a pair of one group within ALLY_HIT_RANGE`);
+    assert.ok(near * 2 > groups, `${near} of ${groups} instances have two members within ALLY_HIT_RANGE`);
   });
 
   test('modifier parameters: old_repair names a compass side, which its Behaviour line and its tombstone both name', () => {

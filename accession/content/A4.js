@@ -11,11 +11,11 @@ Packs.add({
     { id: 'A4.1', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['marble'], trigger: 'ally_hit', group: 'clerks',
       name: 'Seated Clerk of the Ordinance Office',
       tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble; pen hand replaced', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
-      paragraph: 'The Ordinance Office commissioned a figure of a clerk at work to sit at its counter, and was then obliged by its own rule to commission a spare. It commissioned three. The original sat behind glass and the spares sat at the counter, where they turned out to be better at the work. Keepers note that the spares have kept their posture only while the original keeps its own. The one time it was knocked over, all three slumped.' },
+      paragraph: 'The Ordinance Office commissioned a figure of a clerk at work to sit at its counter, and was then obliged by its own rule to commission a spare. It commissioned three. The original was kept from harm and the spares sat at the counter, where they turned out to be better at the work. Keepers note that the spares have kept their posture only while the original keeps its own. The one time it was knocked over, all three slumped.' },
     { id: 'A4.1a', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['plaster'], trigger: 'ally_hit', group: 'clerks', copyOf: 'A4.1',
       name: 'Seated Clerk, Certified Spare',
       tomb: { maker: 'After A.4.1', date: 'During the Duplicate Ordinance', medium: 'Plaster cast after the marble; base stamped CERTIFIED TRUE COPY', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
-      paragraph: 'Spare (a) of three. For the original, see the case at the end of this row.' },
+      paragraph: 'A certified spare of the Seated Clerk, cast in plaster after the marble, with CERTIFIED TRUE COPY stamped on its base. The Office commissioned its spares for the counter and kept its originals from harm, and the spares, by every account, were the better clerks. Under the Ordinance a spare was never valid without its original, and the night staff say the spares have not forgotten it.' },
     { id: 'A4.2', sprite: 'flimsies', archetype: 'mote_swarm', role: 'swarm', modifiers: [], trigger: null,
       name: 'Carbon Flimsies, in Bundles',
       tomb: { maker: 'The Ordinance Office typing pool', date: 'During the Duplicate Ordinance', medium: 'Onionskin and carbon, tied with pink tape', dims: 'Each sheet 33 × 21 cm', credit: 'Transferred from the Ordinance Office' },
@@ -43,8 +43,11 @@ Packs.add({
   // Date Stamp, Light as in the sample, swaps its sweep flag for the reach flag; the Sleeve
   // Protectors' resist(fire, S) becomes Eva(S); the Register takes the sample's own fallback
   // without L+, perception(M), as Acc(M). The Stamp Moistener is cut: its effect,
-  // bolt(water, S), is worth 1, and each instrument the slice has is worth 2. The Repealing
-  // Pen is the Signature piece, which waits for M4.
+  // bolt(water, S), is worth 1, and each instrument the slice has is worth 2.
+  // The Repealing Pen (A4.11) is the Signature piece (M4 plan D2.9): the sample's
+  // strike_kind(edge, S), breaker and surprise_bonus(S), 4, as Light {dmg S, breaker, acc S},
+  // 4; the slice has no plaster or paper bonus, so its paragraph names only glass. The
+  // Centrepiece names it (`signature`), so no stand-in places it as loot.
   items: [
     { id: 'A4.6', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'reach', cls: 'M' }],
       name: 'Long-Handled Date Stamp',
@@ -62,6 +65,10 @@ Packs.add({
       name: 'Register of Certified Spares, Volume II',
       tomb: { maker: 'Ordinance Office registry', date: 'During the Duplicate Ordinance', medium: 'Paper, bound in green cloth; Volume I missing, its spare also missing', dims: 'H. 34 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'Every original issued under the Ordinance, with every spare made of it, the date, the material, and the clerk responsible. Its readers learned to look for the one detail that tells an original from its spare, and the habit of looking hard stayed with them. The Office considered a forgery and a spare two different things.' },
+    { id: 'A4.11', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'breaker', cls: 'M' }, { id: 'acc', cls: 'S' }],
+      name: 'The Repealing Pen',
+      tomb: { maker: 'Borrowed from the Ordinance Office counter', date: 'Used once, at the Repeal, after the Second Inventory', medium: 'Steel nib, ebonised holder', dims: 'L. 17 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'The Trustees signed the Repeal with a pen borrowed from the Office’s own counter, and returned it with a note forbidding any copy to be made. It is light and sharp, a little surer of its mark than a clerk’s hand, and it goes through the glass of a case with less fuss than anything else on the counter. The Office made a spare anyway. The spare is missing.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
@@ -81,7 +88,33 @@ Packs.add({
       ticket: 'The Re-admission Ticket is the Office’s permission to start again. Read, it returns you to the department’s entrance, and everything hunting you loses your trail, except the Night Watchman, who never loses anyone’s. Each ticket was issued with a spare, so that no visitor could be turned away twice for the same mistake.',
     },
   },
-  centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1,
+  // The gallery list (§5.2, §5.5; M4 plan A9, A10): design/samples.md §4.3's galleries, in its
+  // order, mapped onto a Cabinet labyrinth's rooms (Populate.mapping): the Intro, the maze (the
+  // filled central space, `central`, 25–42 cases), one band room (`band`, 6–16 cases), the
+  // hall and the coda. Tour order at layout version 3 puts the band room first and the maze
+  // second, so each section gallery names its element. The Intro's exhibits are its stamp's
+  // (content/A4-intro.js: an original Seated Clerk and two spares, the instance clerks@intro),
+  // so its gallery lists none.
+  //   - Originals Under Glass (the maze): copy group 1, the Seated Clerk's original in a case
+  //     and its three spares (4, COPY_GROUP's most), and copy group 2, the Proposing Trustee's
+  //     original in a case and its two spares (3), one instance each (clerks@s2,
+  //     trustees@s2); and the Countersigning Clerk. The originals stand in cases, as the
+  //     Trustee's paragraph says ("kept under glass"): the maze always has an empty case left
+  //     (test/sweep/population.check.js).
+  //   - The Copying Room (the band room): two swarms of Carbon Flimsies, the Copying-Room Bell,
+  //     and the Date Stamp in a case.
+  //   - The Registry (the samples' study room) joins the last section: the Register.
+  //   - The Lectern Hall: the Ordinance is placed by its own rule; the sample's four side
+  //     vitrines of spares joined phase 3, which is cut (M4 plan D3.7).
+  galleries: [
+    { key: 'intro', name: 'The Office Counter', contents: [] },
+    { key: 's1', where: 'central', name: 'Originals Under Glass', contents: [{ sp: 'A4.1', case: true }, { sp: 'A4.1a', count: 3 }, { sp: 'A4.4', case: true }, { sp: 'A4.4a', count: 2 }, { sp: 'A4.5' }] },
+    { key: 's2', where: 'band', name: 'The Copying Room', contents: [{ sp: 'A4.2', count: 2 }, { sp: 'A4.3' }, { item: 'A4.6', case: true }] },
+    { key: 'last', name: 'The Registry', contents: [{ item: 'A4.10' }] },
+    { key: 'centre', name: 'The Lectern Hall', contents: [] },
+    { key: 'coda', name: 'The Forms Counter', contents: [] },
+  ],
+  centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1, signature: 'A4.11',
     name: 'The Duplicate Ordinance, With Its Four Certified Copies',
     tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, five sheets, each framed on its own lectern', dims: 'Each sheet 42 × 30 cm', credit: 'Transferred from the Ordinance Office' },
     paragraph: 'The Ordinance required that it be issued with spares like everything else, so there are five of it. Only one was signed by the Trustees; the other four were certified as true by the Office, which is not the same thing. They have always been displayed together. The Office’s own note, pinned to the first lectern, advises dealing with the signed original first.' },
