@@ -298,7 +298,9 @@ for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   await page.evaluate(() => {
     const s = window.ACCESSION.state, p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
     const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
-    Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+    // Its uid counts on from the hall's exhibits, as Centrepiece.place's does (§3.2), so it is no
+    // gallery's hall exhibit's (S.9's Grazers), which every reading by uid would find first.
+    Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.${s.actors.filter(q => q.uid.startsWith(`${p.acc}.${s.dept.depth}.centre.`)).length + 1}`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
   });
   const melee = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state;

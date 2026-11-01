@@ -42,7 +42,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   function withCentrepiece(s) {
     const p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
     const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
-    return Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+    // Its uid counts on from the hall's exhibits, as Centrepiece.place's does (§3.2): a gallery
+    // list stands exhibits in the hall (S.9's two Grazers), and a uid of one of theirs would
+    // make every reading by uid read that exhibit, not this.
+    const prefix = `${p.acc}.${s.dept.depth}.centre.`, n = s.actors.filter(a => a.uid.startsWith(prefix)).length;
+    return Actors.spawn(s, Object.assign({}, stats, { uid: prefix + (n + 1), sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
   }
 
   test('the odds readout and the Attack button equal an independent count, over varied states', () => {

@@ -185,8 +185,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       const K = core(), X = K.X, pack = X.Packs.get(acc);
       pack.galleries = [];
       const plain = X.Dept.create(seed, acc, 3);
-      pack.centrepiece = Object.assign({}, K.rec, { id: pack.centrepiece.id, form: pack.centrepiece.form, signature: pack.centrepiece.form === 'fight' ? 'T9.11' : undefined });
-      if (pack.centrepiece.signature === undefined) delete pack.centrepiece.signature;
+      // The planted record names the pack's own Signature piece, as the pack's record does (a
+      // fight needs one of its pack): the stand-in places no Signature piece as loot (BUILD.md
+      // §8.5), so naming another would change the items it places, which is no part of placing it.
+      pack.centrepiece = Object.assign({}, K.rec, { id: pack.centrepiece.id, form: pack.centrepiece.form, signature: pack.centrepiece.signature });
       const s = X.Dept.create(seed, acc, 3), cpl = X.Layout.generate(pack.programme, 0, seed, { acc, depth: 3 }).plan.cpl, m = s.dept;
       const hall = m.rooms.find(r => r.key === 'centre'), cp = X.Hall.cp(s), a = X.Centrepiece.pieces(s)[0];
       assert.ok(cp && a, `${acc} seed ${seed}: no Centrepiece`);
@@ -221,6 +223,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const K = core(), X = K.X;
     X.Registry.ARCHETYPES.mp_tableau.ready = 'unit';
     X.Archetypes.add('mp_tableau', {});
+    delete X.Packs.get('M11').centrepiece.signature;
     const got = readiness(X);
     assert.ok(got.some(l => /M11: mp_tableau is ready but not added with Centrepiece\.hooks/.test(l)) && got.some(l => /M11: its fight names no Signature piece/.test(l)), json(got));
   });

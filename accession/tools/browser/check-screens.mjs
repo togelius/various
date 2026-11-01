@@ -208,7 +208,9 @@ for (const view of registered) {
   const placed = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state, p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
     const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
-    const a = Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+    // Its uid counts on from the hall's exhibits, as Centrepiece.place's does (§3.2), so it is no
+    // gallery's hall exhibit's (S.9's Grazers), which every reading by uid would find first.
+    const a = Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.${s.actors.filter(q => q.uid.startsWith(`${p.acc}.${s.dept.depth}.centre.`)).length + 1}`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
     if (a.size !== 2 || !Grid.walkable(s.dept, a.x, a.y - 1) || Actors.at(s, a.x, a.y - 1) || !Path.to(s, a.x, a.y - 1).length) return null;
     const me = s.actors[0];
     me.x = a.x; me.y = a.y - 1;
