@@ -266,9 +266,10 @@ module.exports = (C) => {
 
   // "A cast: it has {PLASTER_HP_PCT}% of the usual health, and when destroyed it crumbles into
   // dust that blocks sight round it for {PLASTER_DUST_TURNS} turns." A cast's maximum health
-  // never changes, a half split from one has the cast's, and in a department (where every
-  // exhibit's numbers are its role's at the depth, §8.1) it is max(1, PLASTER_HP_PCT% of its
-  // role's health). A test room may give a body any health, so there the scenarios check the
+  // never changes (but once, when a spare loses heart, M4's copies_weaken), a half split from
+  // one has the cast's, and in a department (where every exhibit's numbers are its role's at
+  // the depth, §8.1) it is max(1, PLASTER_HP_PCT% of its role's health), weakened so once it
+  // has lost heart. A test room may give a body any health, so there the scenarios check the
   // share. A cast destroyed in the step leaves dust on its tile, PLASTER_DUST_SIZE a side,
   // made by it, lying until the boundary PLASTER_DUST_TURNS turns after the next.
   const plaster = {
@@ -276,7 +277,14 @@ module.exports = (C) => {
     applies: (a, post) => has(a, 'plaster', post),
     check(pre, events, post, ctx) {
       const a = ctx.actor, b = ctx.before;
-      if (b && b.maxHp !== a.maxHp) return `its maximum health went from ${b.maxHp} to ${a.maxHp}`;
+      // A spare that loses heart (copies_weaken, §5.4) loses COPY_WEAKEN_PCT% of its maximum
+      // health once (at least 1, never below 1), in the step whose module event says so; one
+      // that has (it holds slowed for the rest of the visit, which only that rule gives in M4)
+      // has the cast's share weakened so.
+      const weak = v => v > 1 ? Math.max(1, v - Math.max(1, Int.pct(v, N.COPY_WEAKEN_PCT))) : v;
+      const lostNow = events.some(e => e.k === 'module' && e.id === 'copies_weaken' && e.rule === 'weaken' && e.who === a.uid);
+      const lost = (a.statuses || []).some(s => s.id === 'slowed' && s.perm === true);
+      if (b && b.maxHp !== a.maxHp && !(lostNow && a.maxHp === weak(b.maxHp))) return `its maximum health went from ${b.maxHp} to ${a.maxHp}`;
       if (!b) {
         const f = events.find(e => e.k === 'woke' && e.was === null && e.who === a.uid);
         const from = f && f.cause && typeof f.cause.from === 'string' ? post.actors.find(x => x.uid === f.cause.from) : null;
@@ -284,7 +292,7 @@ module.exports = (C) => {
       }
       if (post.dept.rooms && a.role) {
         const want = Math.max(1, Int.pct(Roles.stats(a.role, post.dept.depth).hp, N.PLASTER_HP_PCT));
-        if (a.maxHp !== want) return `has ${a.maxHp} maximum health; a cast of a ${a.role} at depth ${post.dept.depth} has ${want}`;
+        if (a.maxHp !== want && !(lost && a.maxHp === weak(want))) return `has ${a.maxHp} maximum health; a cast of a ${a.role} at depth ${post.dept.depth} has ${want}${lost ? `, or ${weak(want)} once it has lost heart` : ''}`;
       }
       const died = events.find(e => e.k === 'died' && e.who === a.uid);
       if (died) {

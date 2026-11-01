@@ -6,7 +6,10 @@
 //                       decision: put on for N, it holds turns from … from + N − 1, its start
 //                       is the turn of your next decision, it ends (with a status event) at the
 //                       boundary of its last turn, put on again it keeps its start and lasts to
-//                       the later end, and nothing else changes it;
+//                       the later end, and nothing else changes it; one for the rest of
+//                       the visit (put on with turns 'perm': its event says turns null, its
+//                       record carries perm, M4 plan A3) starts as a timed one does, holds
+//                       every turn from then, keeps its start, and never ends during the visit;
 //   fixed_only_waits    a fixed actor only waits: you only wait, rest or answer a choice, and an
 //                       exhibit fixed for the whole step makes no step, blow, mark or door (a
 //                       move your own action makes, the pole's, is not its step);
@@ -26,6 +29,8 @@ module.exports = (C) => {
   const has = (a, id) => !!(a && a.statuses && a.statuses.some(s => s.id === id));
   const find = (a, id) => { for (const s of (a && a.statuses) || []) if (s.id === id) return s; return null; };
   const isInt = Number.isInteger;
+  // A status for the rest of the visit (M4 plan A3: its record carries perm: true, only then).
+  const isPerm = s => !!s && s.perm === true;
   const refused = events => events.length === 1 && events[0].k === 'refused';
   const turnOf = tick => Int.idiv(tick, N.TICKS_PER_TURN);
   const actorIn = (state, uid) => { for (const a of state.actors) if (a.uid === uid) return a; return null; };
@@ -41,8 +46,14 @@ module.exports = (C) => {
       const mine = events.filter(e => e.k === 'status' && e.who === a.uid);
       const held = a.statuses || [], had = b ? b.statuses || [] : [];
       if (!mine.length && !held.length && !had.length) return null;
-      // Every status is settled by the end of every step: its end turn known, after its start.
+      // Every status is settled by the end of every step: its end turn known, after its start;
+      // one for the rest of the visit has its start and no end.
       for (const s of held) {
+        if (isPerm(s)) {
+          if (s.until !== null || (s.turns !== null && s.turns !== undefined) || !isInt(s.from)) return `${s.id}, for the rest of the visit, is not settled at the end of the step (from ${s.from}, until ${s.until}, turns ${s.turns})`;
+          continue;
+        }
+        if (s.perm !== undefined) return `${s.id} carries perm ${JSON.stringify(s.perm)}: a record carries perm only when it lasts for the rest of the visit`;
         if (!isInt(s.until) || (s.turns !== null && s.turns !== undefined)) return `${s.id} is not settled at the end of the step (until ${s.until}, turns ${s.turns})`;
         if (isInt(s.from) && s.until <= s.from) return `${s.id} ends at turn ${s.until}, not after its start ${s.from}`;
       }
@@ -54,15 +65,22 @@ module.exports = (C) => {
       const you = a.uid === 'you', decision = turnOf(a.next);
       for (const id of ids) {
         const now = find(a, id), was = find(b, id);
-        let holding = !!was, fresh = !was, ons = 0, most = 0;
+        let holding = !!was, fresh = !was, ons = 0, most = 0, forGood = !!was && isPerm(was);
         for (const e of mine) {
           if (e.id !== id) continue;
           if (e.on) {
+            // Put on for the rest of the visit: turns null (Status.apply with 'perm').
+            if (e.turns === null) {
+              if (!holding) { fresh = true; ons = 0; most = 0; }
+              holding = true; forGood = true;
+              continue;
+            }
             if (!isInt(e.turns) || e.turns < 1) return `${id} was put on for ${e.turns} turns`;
-            if (!holding) { fresh = true; ons = 0; most = 0; }
+            if (!holding) { fresh = true; ons = 0; most = 0; forGood = false; }
             holding = true; ons++; most = Math.max(most, e.turns);
           } else {
             if (!holding) return `${id} ended while it was not held`;
+            if (forGood) return `${id}, for the rest of the visit, ended at turn ${e.turn}`;
             holding = false;
             // Ended by its timer: at the boundary of the turn after its last.
             if (e.cause && e.cause.k === 'status' && e.until !== e.turn) return `${id} ran out at turn ${e.turn}, but its last turn was ${e.until - 1}`;
@@ -71,6 +89,17 @@ module.exports = (C) => {
         if (holding && !now) return `${id} is gone with no status event to say so`;
         if (!holding && now) return `${id} is held with no status event putting it on`;
         if (!now) continue;
+        // For the rest of the visit: so only once put on so (now or before), with its start as
+        // a timed one's would be, kept from then on (a timed one made so keeps its start too).
+        if (isPerm(now) !== forGood) return forGood ? `${id} was put on for the rest of the visit, but its record ends at turn ${now.until}` : `${id} is held for the rest of the visit, but was never put on so`;
+        if (forGood) {
+          if (was && isInt(was.from) && now.from !== was.from) return `${id} moved its start from turn ${was.from} to ${now.from}`;
+          if (!was || !isInt(was.from)) {
+            if (you && now.from !== decision) return `${id} starts at turn ${now.from}, not at the turn of your next decision, ${decision}`;
+            if (!you && (now.from < pre.turn || now.from > Math.max(decision, post.turn + 1))) return `${id} starts at turn ${now.from}, outside turns ${pre.turn}–${Math.max(decision, post.turn + 1)}`;
+          }
+          continue;
+        }
         // One put on by hand before the step and not yet settled has nothing to compare with.
         if (was && !isInt(was.until)) continue;
         if (fresh) {
@@ -88,7 +117,7 @@ module.exports = (C) => {
         }
       }
       // At your decision every status you hold is in force: its start has come, its end has not.
-      if (you && !post.over) for (const s of held) if ((isInt(s.from) && s.from > post.turn) || s.until <= post.turn) return `you hold ${s.id} (${span(s)}) at your decision in turn ${post.turn}`;
+      if (you && !post.over) for (const s of held) if ((isInt(s.from) && s.from > post.turn) || (!isPerm(s) && s.until <= post.turn)) return `you hold ${s.id} (${isPerm(s) ? `from turn ${s.from}, for the rest of the visit` : span(s)}) at your decision in turn ${post.turn}`;
       return null;
     },
   };

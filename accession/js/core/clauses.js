@@ -7,6 +7,8 @@
 // phase (Q10), and a module's panel sentence (Clauses.sentence). M4's FU1 made a
 // Centrepiece's strip short in every phase (the plan's amendment after ARCH-CP-CORE: its
 // whole line takes up to 23 of the strip's 14 rows). Frozen until LABELS-M4.
+// MOD-COPIES added spare:DMG (a spare's blow once weakened), and Clauses.sentence reads only the
+// parameters its sentence names.
 'use strict';
 const Clauses = (() => {
   // The event kinds any exhibit may cause or suffer. They need no clause of their own;
@@ -31,11 +33,27 @@ const Clauses = (() => {
   //   lock:GLASS[i]  the locks a case of glass i + 1 can have at the depth (Cases.lockSpan,
   //               §8.3: its glass's range, never above the depth + 1), as on the badge:
   //               "Grade II", or "Grade II to Grade IV"
+  //   spare:DMG   the damage a spare of the species' copy group deals at the depth once it has
+  //               lost heart (§5.4's weakened spares): its role's damage, each end losing
+  //               COPY_WEAKEN_PCT% of itself, at least 1 and never below 1, as "min–max"; the
+  //               species' own role for a spare (copyOf), its spares' for an original (the
+  //               species of the packs that copy it), the widest span if they differ
   // Anything missing throws, naming what is missing, so a line never shows a gap.
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   const grade = n => 'Grade ' + (ROMAN[n] || String(n));
+  // A number a spare that has lost heart keeps (Modules' tier effect, as copies_weaken uses it).
+  const weakened = v => v > 1 ? Math.max(1, v - Math.max(1, Int.pct(v, N.COPY_WEAKEN_PCT))) : v;
+  // The roles of a species' copy group's spares: its own for a spare, else those of the
+  // species that copy it.
+  function spareRoles(sp) {
+    if (!sp || typeof sp.id !== 'string') return [];
+    if (typeof sp.copyOf === 'string') return sp.role ? [sp.role] : [];
+    const out = [];
+    for (const p of Packs.list()) for (const q of p.species) if (q.copyOf === sp.id && q.role && !out.includes(q.role)) out.push(q.role);
+    return out;
+  }
   function value(ref, sp, depth, mod) {
-    const m = /^(N|curve|cp|role|mod|lock):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
+    const m = /^(N|curve|cp|role|mod|lock|spare):([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(ref);
     const where = `${sp && sp.id ? sp.id : 'a species'}: ${ref}`;
     if (!m) throw new Error(`Clauses: cannot read the parameter reference ${where}`);
     const [, kind, key, index] = m;
@@ -53,6 +71,17 @@ const Clauses = (() => {
       if (key === 'HP') return s.hp;
       if (key === 'DMG') return range(s.dmin, s.dmax);
       throw new Error(`Clauses: ${where}: a role gives only HP or DMG`);
+    }
+    if (kind === 'spare') {
+      if (key !== 'DMG' || index !== undefined) throw new Error(`Clauses: ${where}: a spare gives only DMG`);
+      const roles = spareRoles(sp);
+      if (!roles.length) throw new Error(`Clauses: ${where} needs a species of a copy group: a spare (copyOf), or an original another species copies`);
+      let lo = null, hi = null;
+      for (const role of roles) {
+        const s = Roles.stats(role, depth), a = weakened(s.dmin), b = weakened(s.dmax);
+        lo = lo === null ? a : Math.min(lo, a); hi = hi === null ? b : Math.max(hi, b);
+      }
+      return range(lo, hi);
     }
     if (kind === 'lock') {
       if (key !== 'GLASS' || index === undefined || +index >= N.GLASS_LOCK_MIN.length) throw new Error(`Clauses: ${where}: a lock is lock:GLASS[i], i a glass's index`);
@@ -309,10 +338,14 @@ const Clauses = (() => {
 
   // Clauses.sentence(id, {depth, params}) → module id's panel sentence (§5.4: "a template over
   // params"), its parameters filled at the depth; `mod:NAME` reads the pack's params for it.
+  // Only the parameters the sentence names are read: a clause's parameter that needs a
+  // species (role:DMG, spare:DMG) means nothing for the module as a whole.
   function sentence(id, ctx) {
     const M = entry('MODULES', id);
     if (typeof M.sentence !== 'string') throw new Error(`Clauses: the module ${id} has no panel sentence`);
-    const values = params(M.params, { id: `the module ${id}`, modParams: { [id]: (ctx && ctx.params) || {} } }, ctxOf(ctx), id);
+    const refs = {};
+    for (const [, name] of M.sentence.matchAll(/\{([A-Za-z0-9_:]+)\}/g)) if (M.params && own(M.params, name)) refs[name] = M.params[name];
+    const values = params(refs, { id: `the module ${id}`, modParams: { [id]: (ctx && ctx.params) || {} } }, ctxOf(ctx), id);
     return fill(M.sentence, values);
   }
 

@@ -561,10 +561,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(H.species(X, 'CLAUSES.planted_quick', { m4: true }).map(g => `${g.sp.id}@${g.depth}`)), json(H.DEPTHS.map(d => `M11.11@${d}`)));
   });
 
-  test('Clauses.sentence: a module\'s panel sentence, its parameters filled at the depth, mod: from the pack\'s params; the five slice modules\' as written', () => {
-    for (const id of ['unobserved_motion', 'alarm_network', 'copies_weaken', 'hourly_demonstration', 'weather_cases']) assert.equal(C.Clauses.sentence(id, { depth: 3 }), C.Registry.MODULES[id].sentence);
+  test('Clauses.sentence: a module\'s panel sentence, its parameters filled at the depth, mod: from the pack\'s params; the five slice modules\' as written; a parameter only its clause uses is not read', () => {
+    // copies_weaken's (MOD-COPIES) is a template over its numbers.
+    const filled = { copies_weaken: t => t.replace('{COPY_WEAKEN_PCT}', C.N.COPY_WEAKEN_PCT).replace('{COPY_WEAKEN_ACC}', C.N.COPY_WEAKEN_ACC) };
+    for (const id of ['unobserved_motion', 'alarm_network', 'copies_weaken', 'hourly_demonstration', 'weather_cases']) assert.equal(C.Clauses.sentence(id, { depth: 3 }), (filled[id] || (t => t))(C.Registry.MODULES[id].sentence));
     const X = loadCore();
-    X.Registry.define('MODULES', 'planted_s', { built: 'M4', sentence: 'Every {p} turns a chime; {share}% of cases hold weather.', params: { p: 'N:DEMO_PERIOD', share: 'mod:share' } });
+    X.Registry.define('MODULES', 'planted_s', { built: 'M4', sentence: 'Every {p} turns a chime; {share}% of cases hold weather.', params: { p: 'N:DEMO_PERIOD', share: 'mod:share', blow: 'spare:DMG' } });
     assert.equal(X.Clauses.sentence('planted_s', { depth: 2, params: { share: 30 } }), `Every ${X.N.DEMO_PERIOD} turns a chime; 30% of cases hold weather.`);
     assert.throws(() => X.Clauses.sentence('planted_s', { depth: 2 }), /needs modParams\.planted_s\.share/);
     assert.throws(() => X.Clauses.sentence('planted_none', {}), /MODULES has no planted_none/);

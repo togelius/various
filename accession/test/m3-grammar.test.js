@@ -247,7 +247,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const slotted = cl => Clauses.slots(cl || '').filter(sl => (s.flags || []).includes(sl.id) && C.Modules.defined(sl.id)).flatMap(sl => [sl.id, ...(R.MODULES[sl.id].special ? [R.MODULES[sl.id].special] : [])]);
       const trig = s.trigger ? R.TRIGGERS[s.trigger] : null;
       const form = typeof s.form === 'string' && R.CLAUSES['cp_' + s.form] ? ['cp_' + s.form] : [];
-      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []),
+      // A module no slot of its clauses holds is a sentence of its own after the modifiers, its
+      // special inside it (MOD-COPIES: copies_weaken on A.4's Seated Clerks).
+      const inSlot = id => [arch.clause, trig && trig.clause].some(cl => Clauses.slots(cl || '').some(sl => sl.id === id));
+      const own = (s.flags || []).filter(id => C.Modules.defined(id) && !inSlot(id)).flatMap(id => [id, ...(R.MODULES[id].special ? [R.MODULES[id].special] : [])]);
+      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []), ...own,
         ...(trig && trig.replacesWake ? [] : [arch.wake || 'wake']), ...(trig ? [s.trigger, ...slotted(trig.clause)] : [])];
       same(got, want, s.id);
     }

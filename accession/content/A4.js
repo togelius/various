@@ -8,11 +8,11 @@ Packs.add({
   blurb: 'For the length of the Duplicate Ordinance, every object the Museum made or acquired had to be issued with a certified spare.',
   modules: [{ id: 'copies_weaken', role: 'signature', params: {} }],
   species: [
-    { id: 'A4.1', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['marble'], trigger: 'ally_hit', group: 'clerks',
+    { id: 'A4.1', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['marble'], trigger: 'ally_hit', group: 'clerks', flags: ['copies_weaken'],
       name: 'Seated Clerk of the Ordinance Office',
       tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble; pen hand replaced', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'The Ordinance Office commissioned a figure of a clerk at work to sit at its counter, and was then obliged by its own rule to commission a spare. It commissioned three. The original was kept from harm and the spares sat at the counter, where they turned out to be better at the work. Keepers note that the spares have kept their posture only while the original keeps its own. The one time it was knocked over, all three slumped.' },
-    { id: 'A4.1a', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['plaster'], trigger: 'ally_hit', group: 'clerks', copyOf: 'A4.1',
+    { id: 'A4.1a', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['plaster'], trigger: 'ally_hit', group: 'clerks', copyOf: 'A4.1', flags: ['copies_weaken'],
       name: 'Seated Clerk, Certified Spare',
       tomb: { maker: 'After A.4.1', date: 'During the Duplicate Ordinance', medium: 'Plaster cast after the marble; base stamped CERTIFIED TRUE COPY', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'A certified spare of the Seated Clerk, cast in plaster after the marble, with CERTIFIED TRUE COPY stamped on its base. The Office commissioned its spares for the counter and kept its originals from harm, and the spares, by every account, were the better clerks. Under the Ordinance a spare was never valid without its original, and the night staff say the spares have not forgotten it.' },

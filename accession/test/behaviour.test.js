@@ -23,7 +23,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore();
   const R = C.Registry, json = x => JSON.stringify(x);
   const built = (X, sp) => Object.prototype.hasOwnProperty.call(X.Registry.ARCHETYPES, sp.archetype) && X.Registry.ARCHETYPES[sp.archetype].built === 'M3';
-  const KIND = { ARCHETYPES: 'archetype', SPECIALS: 'special', STATUSES: 'status', MODIFIERS: 'modifier', TRIGGERS: 'trigger' };
+  const KIND = { ARCHETYPES: 'archetype', SPECIALS: 'special', STATUSES: 'status', MODIFIERS: 'modifier', TRIGGERS: 'trigger', MODULES: 'module' };
 
   // What a species uses, worked out from the species and core X's registry alone (§5.3), as
   // [table, id] in the line's order.
@@ -34,6 +34,14 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const st of A.inflicts || []) out.push(['STATUSES', st]);
     if (typeof sp.role === 'string' && has('CLAUSES', 'role_' + sp.role)) out.push(['CLAUSES', 'role_' + sp.role]);
     for (const m of sp.modifiers || []) if (!rulesOff.includes(m)) out.push(['MODIFIERS', m]);
+    // M4: each module the species is flagged with, once its rules are defined and while it is
+    // not switched off, a sentence of its own after the modifiers (no M3 clause has a slot for
+    // one), its special inside it (MOD-COPIES: A.4's Seated Clerks, plodders, carry
+    // copies_weaken). It is an M4 entry, which --strict checks at M4's acceptance.
+    for (const id of sp.flags || []) if (has('MODULES', id) && X.Modules.defined(id) && !rulesOff.includes(id)) {
+      out.push(['MODULES', id]);
+      if (Q.MODULES[id].special) out.push(['SPECIALS', Q.MODULES[id].special]);
+    }
     if (!(T && T.replacesWake)) out.push(['CLAUSES', A.wake || 'wake']);
     if (sp.trigger) out.push(['TRIGGERS', sp.trigger]);
     return out;
@@ -60,7 +68,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
         if (json(got.map(p => p.id)) !== json(want.map(([, id]) => id))) problems.push(`${where}: the line's parts are ${json(got.map(p => p.id))}, but it uses ${json(want.map(([t, id]) => t + '.' + id))}`);
         for (let i = 0; i < want.length; i++) {
           const [t, id] = want[i], e = Object.prototype.hasOwnProperty.call(Q[t], id) ? Q[t][id] : null, p = got[i];
-          if (!e || e.built !== 'M3') problems.push(`${where}: ${t}.${id} is not an M3 entry`);
+          if (!e || (e.built !== 'M3' && !(t === 'MODULES' && e.built === 'M4'))) problems.push(`${where}: ${t}.${id} is not an M3 entry${t === 'MODULES' ? ', nor an M4 module' : ''}`);
           if (!p) continue;
           const kind = KIND[t] || (id.startsWith('role_') ? 'role' : 'wake');
           if (p.id === id && p.kind !== kind) problems.push(`${where}: ${t}.${id} gives a part of kind ${p.kind}, not ${kind}`);

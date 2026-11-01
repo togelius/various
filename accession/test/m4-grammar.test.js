@@ -40,7 +40,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // Reworded by MOD-ALARM's review: M2's "then the whole court is awake" claimed more than the
     // call does, since the Centrepiece and a mimic sleep on.
     ['MODULES', 'alarm_network', 'mod-alarm', 'The waders raise the alarm when they see you; then every sleeping exhibit in the department that can hear, but the Centrepiece, wakes.'],
-    ['MODULES', 'copies_weaken', 'mod-copies', 'When an original is broken, its spares lose heart.'],
+    // Reworded by MOD-COPIES: the sentence teaches the rule whole, as a template over its params.
+    ['MODULES', 'copies_weaken', 'mod-copies', 'When an original is destroyed, its spares lose heart: each, and any body split from one, loses {COPY_WEAKEN_PCT}% of its health and damage and {COPY_WEAKEN_ACC} Acc, and is slowed until you leave.'],
     // Reworded by MOD-CHIME: M2's "the stations exchange signals down the length of the gallery"
     // said neither that a line is marked first nor that it strikes.
     ['MODULES', 'hourly_demonstration', 'mod-chime', 'On the chime, every station marks its line across its room, and two turns later the line strikes everything on it.'],
@@ -122,7 +123,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   // M4 plan A5: each kind M4 adds (with its fields) or adds causes to, and those causes. A
   // module's events take their module's id as their cause.
-  const MODULE_RULES = { unobserved_motion: ['stride'], alarm_network: ['alarm_shown', 'call', 'alarm_over'], copies_weaken: ['weaken'],
+  // (copies_weaken's split: MOD-COPIES' second rule, a body split from a spare that lost heart.)
+  const MODULE_RULES = { unobserved_motion: ['stride'], alarm_network: ['alarm_shown', 'call', 'alarm_over'], copies_weaken: ['weaken', 'split'],
     hourly_demonstration: ['chime', 'line', 'blocked', 'settle'], weather_cases: ['release', 'rain_stop'] };
   const A5 = {
     certificate: { fields: ['acc', 'how'], causes: ['defeat', 'view', 'treasure'] },
@@ -202,7 +204,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // tells an event about no exhibit whatever is in view, never gives away a rule acting out of
   // view (a Grazer's stride), and a joined-up scenario's sentence check fails on it: every rule
   // of unobserved_motion, and these rules of the others (by the cause, which picks the sentence).
-  const ABOUT = { alarm_network: ['alarm_shown', 'call'], copies_weaken: ['weaken'], hourly_demonstration: ['line', 'blocked', 'settle'], weather_cases: ['rain_stop'] };
+  const ABOUT = { alarm_network: ['alarm_shown', 'call'], copies_weaken: ['weaken', 'split'], hourly_demonstration: ['line', 'blocked', 'settle'], weather_cases: ['rain_stop'] };
   const unsaid = e => e.k === 'module' && e.who === undefined && !!e.cause
     && (e.cause.k === 'unobserved_motion' || (own(ABOUT, e.cause.k) && ABOUT[e.cause.k].includes(e.rule)));
 

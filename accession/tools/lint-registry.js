@@ -176,7 +176,8 @@ if (followUps) for (const [where, why] of Object.entries(follow)) {
 }
 
 // Clause templates (§5.3).
-const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|cp:[A-Z][A-Z0-9_]*|role:(HP|DMG)|mod:[a-z][a-z0-9_]*|lock:GLASS\[\d+\])$/;
+// The kinds of reference Clauses.value reads (§5.3); spare:DMG is a weakened spare's blow (MOD-COPIES).
+const REF = /^(N:[A-Z][A-Z0-9_]*(\[\d+\])?|curve:[A-Z][A-Z0-9_]*|cp:[A-Z][A-Z0-9_]*|role:(HP|DMG)|spare:DMG|mod:[a-z][a-z0-9_]*|lock:GLASS\[\d+\])$/;
 // A clause as it reads with every module slot ({module:<id>|<fallback>}, Clauses.slots) at its
 // fallback: the words a player reads with the module off, which the word rules read, and
 // whose holes are its own. A slot naming no module, or one that does not parse, fails.

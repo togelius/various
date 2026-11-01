@@ -345,7 +345,9 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
       const s = A.build(A.parse(stamp(['arena: t', 'goal: kill', `legend: P exhibit ${args}`], room)), 1), a = s.actors[1], l = C.Labels.of(s, a.uid);
       const sp = C.Packs.speciesFor(s, a);
       if (sp) {
-        assert.equal(l.behaviour, C.Clauses.line(sp, { depth: s.dept.depth }), args);
+        // The line as the room runs it: an arena holds no department's modules (M4: A.4's
+        // Seated Clerk carries copies_weaken only where that module is on).
+        assert.equal(l.behaviour, C.Clauses.line(sp, { depth: s.dept.depth, modules: C.Modules.active(s) }), args);
         eq([a.arch, a.role, a.trigger, a.mods], [sp.archetype, sp.role, sp.trigger || null, sp.modifiers || []]);
       } else assert.equal(l.behaviour, '', `${args}: no species, no Behaviour line`);
     }

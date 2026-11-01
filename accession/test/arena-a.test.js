@@ -104,7 +104,8 @@ module.exports = ({ test, assert, root, path }) => {
           assert.ok(C.AI.sees(s, a), `${id} seed ${seed}: ${a.uid} sees you from the start`);
           const label = C.Obs.text(C.Labels.of(s, a.uid));
           clean(label, `${id} ${a.uid}'s label`);
-          assert.ok(label.includes(C.Clauses.line(C.Packs.speciesFor(s, a), { depth: s.dept.depth, rulesOff: [] })), `${id}: ${a.uid}'s label has its Behaviour line`);
+          // As the room runs it: an arena holds no department's modules (M4).
+          assert.ok(label.includes(C.Clauses.line(C.Packs.speciesFor(s, a), { depth: s.dept.depth, rulesOff: [], modules: C.Modules.active(s) })), `${id}: ${a.uid}'s label has its Behaviour line`);
         }
         // The arena's kit (§10.3): at depth d, grade d with its health (MEDIAN_MAX_HP, a
         // Certificate in each earlier department), a weapon (Balanced unless a policy brings
