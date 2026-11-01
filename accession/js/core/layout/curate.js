@@ -105,10 +105,11 @@ const LCurate = (() => {
         const ring = tiles.filter(i => free(i) && wallAdj(i));
         for (const i of rng.shuffle(ring.slice())) if (G.t[i] === T.FLOOR && cheb(i, px, py) >= 4 && tryPut(i, T.COL)) break;
         // The hall's wall case. In a treasure's hall (L.meta.treasure) it is the treasure's case
-        // (BUILD.md §5.5): the wall tile deepest in the hall (treasureFirst), at least
-        // TREASURE_CASE_GAP tiles from every tile of the footprint; elsewhere, as before.
+        // (BUILD.md §5.5): beside the guardian, at least TREASURE_CASE_GAP tiles from every tile
+        // of the footprint, and far enough from the hall's openings (treasureOrder); elsewhere,
+        // as before.
         const shuffled = rng.shuffle(ring.slice()), deep = L.meta.treasure === true;
-        for (const i of deep ? treasureFirst(L, r, shuffled) : shuffled) {
+        for (const i of deep ? treasureOrder(L, r, shuffled, px, py) : shuffled) {
           if (G.t[i] === T.FLOOR && (deep ? fromFootprint(i, W, px, py) >= TREASURE_CASE_GAP : cheb(i, px, py) >= 4) && tryPut(i, T.VIT)) break;
         }
         placeLectern(L, r, tiles, tryPut);
@@ -142,24 +143,47 @@ const LCurate = (() => {
   }
 
   // A treasure's hall (M4, BUILD.md §5.5; L.meta.treasure, which Layout sets for a pack whose
-  // Centrepiece is a treasure: S.9's). Its wall case holds the treasure, and the treasure
-  // validator (js/core/layout/treasure.js) wants it far from every way in, so it stands as
-  // deep in the hall as the wall allows: the tiles of `order` (the shuffled ring) by their
-  // walking distance from the tiles outside the hall one steps in from (its openings, staff
-  // doors included), farthest first, the shuffle breaking ties, so no draw changes. A curated
-  // case elsewhere keeps 4 tiles from the footprint's first tile; this one keeps
-  // TREASURE_CASE_GAP from each of its tiles, as near the guardian as that on every side
-  // (its Chebyshev distance to the 2×2 footprint, fromFootprint).
+  // Centrepiece is a treasure: S.9's). Its wall case holds the treasure, which the design has
+  // under its guardian's eye (design/samples.md §3.8: the Composite stands over the case) and
+  // the treasure rule (js/core/layout/treasure.js, its validator) at least LAMP_CASE_MIN_WALK
+  // walking tiles from every way into the hall, so a grab at the threshold is no way to take
+  // it. Curation aims at both: the tiles of `order` (the shuffled ring) whose walk from the
+  // hall's openings is at least LAMP_CASE_MIN_WALK, nearest the footprint first (its Chebyshev
+  // distance to the 2×2 footprint, fromFootprint); then, should none be that far, the rest,
+  // farthest first; the shuffle breaking every tie, so no draw changes. The walk is measured as
+  // the validator measures a case's (1 + the nearest tile beside it, a diagonal past a corner
+  // included, from the tiles outside the hall one steps in from, staff doors included), on the
+  // plan as it stands, with the footprint as floor, as the department has it. The validator
+  // still judges the department (the furniture curation adds after the case can only lengthen
+  // a walk). The case keeps TREASURE_CASE_GAP from each tile of the footprint, as near the
+  // guardian as a curated case elsewhere keeps from the footprint's first tile (4).
+  // The deepest tile instead put the case 11–13 walking tiles in for a third of S.9's halls,
+  // more than TREASURE_SEAL_TURNS leave for breaking a Security case, taking the Lamp and
+  // walking out, and away from the guardian in half of them.
   const TREASURE_CASE_GAP = 3;
-  function treasureFirst(L, r, order) {
-    const G = L.G, W = G.W, outside = [];
-    for (let i = 0; i < G.t.length; i++) {
-      if (G.room[i] === r.id || !B.walk(G.t[i], B.ALL)) continue;
+  function treasureOrder(L, r, order, px, py) {
+    const G = L.G, W = G.W, t = G.t.slice(), outside = [];
+    for (let i = 0; i < t.length; i++) if (t[i] === T.CPL) t[i] = T.FLOOR;
+    for (let i = 0; i < t.length; i++) {
+      if (G.room[i] === r.id || !B.walk(t[i], B.ALL)) continue;
       const x = i % W, y = (i - x) / W;
       if (N4.some(([dx, dy]) => G.rid(x + dx, y + dy) === r.id)) outside.push(i);
     }
-    const D = B.bfs(G, outside, B.ALL);
-    return order.map((i, k) => [i, k]).sort((p, q) => (D[q[0]] - D[p[0]]) || (p[1] - q[1])).map(p => p[0]);
+    const D = B.bfs({ W, H: G.H, t, room: G.room }, outside, B.ALL);
+    const walkAt = i => {
+      const x = i % W, y = (i - x) / W;
+      let best = -1;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || !G.in(x + dx, y + dy)) continue;
+        const d = D[(y + dy) * W + x + dx];
+        if (d >= 0 && (best < 0 || d + 1 < best)) best = d + 1;
+      }
+      return best;
+    };
+    const keyed = order.map((i, k) => ({ i, k, walk: walkAt(i), gap: fromFootprint(i, W, px, py) }));
+    const far = keyed.filter(e => e.walk >= N.LAMP_CASE_MIN_WALK).sort((p, q) => (p.gap - q.gap) || (p.k - q.k));
+    const near = keyed.filter(e => e.walk < N.LAMP_CASE_MIN_WALK).sort((p, q) => (q.walk - p.walk) || (p.k - q.k));
+    return far.concat(near).map(e => e.i);
   }
   function fromFootprint(i, W, px, py) {
     const x = i % W, y = (i - x) / W;

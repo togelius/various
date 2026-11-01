@@ -119,7 +119,8 @@ const Layout = (() => {
     const L = B.newLayout();
     L.meta.programme = programme;
     // A treasure's hall (M4, BUILD.md §5.5): the pack opts.acc names guards a treasure (its
-    // Centrepiece's form), so curation stands the hall's wall case deep in it (LCurate).
+    // Centrepiece's form), so curation stands the hall's wall case beside the guardian, far
+    // enough from the hall's openings (LCurate).
     const pack = typeof opts.acc === 'string' ? Packs.get(opts.acc) : null;
     L.meta.treasure = !!(pack && pack.centrepiece && pack.centrepiece.form === 'treasure');
     P.embed(L, K, B.stream(seed, base + '/embed'), LStamp.of(opts));
