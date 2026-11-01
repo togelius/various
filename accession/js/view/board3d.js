@@ -17,6 +17,13 @@ const Board3D = (() => {
   const H = { wall: 1.2, column: 1.2, partition: 1.0, caseBase: 0.25, caseTop: 0.85, plinth: 0.5, furniture: 0.45,
     bench: 0.3, lectern: 0.7, rail: 0.5, rope: 0.4 };
   const COS = Math.cos(ELEV * Math.PI / 180), SIN = Math.sin(ELEV * Math.PI / 180);
+  // The device pixels a canvas takes along a side of n CSS pixels at ratio dpr: a whole number,
+  // whose box is a whole number of CSS pixels too when one of the 4 nearest below n allows it,
+  // else the most device pixels that fit (as topdown.js).
+  function wholePx(n, dpr) {
+    for (let css = Math.floor(n); css > Math.floor(n) - 4 && css > 0; css--) if (Number.isInteger(css * dpr)) return css * dpr;
+    return Math.floor(n * dpr);
+  }
   let loading = null;
 
   // three.js arrives as an inert <script type="text/x-three"> block, inlined in dist/ or
@@ -234,10 +241,13 @@ const Board3D = (() => {
 
     // Both canvases are a whole number of device pixels, and their boxes exactly that size, so
     // the page never resamples them: a board of fractional height would otherwise blur the
-    // sprites and shift each mark by up to a device pixel.
+    // sprites and shift each mark by up to a device pixel. Their boxes are a whole number of CSS
+    // pixels too wherever the ratio allows (wholePx): the page resamples a canvas whose box is
+    // not (a box 524.5 px tall at a ratio of 2, 1049 device pixels, drew every sprite half a
+    // device pixel off).
     function resize() {
       const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-      const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
+      const w = wholePx(r.width, dpr), h = wholePx(r.height, dpr);
       renderer.setPixelRatio(1);
       renderer.setSize(w, h, false);
       if (over.width !== w || over.height !== h) { over.width = w; over.height = h; }

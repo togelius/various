@@ -16,10 +16,16 @@ Views.register('topdown', 'Flat', host => {
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page
-  // never resamples it (a board of fractional height would blur the pixel art).
+  // never resamples it (a board of fractional height would blur the pixel art); its box is a
+  // whole number of CSS pixels too wherever the ratio allows (wholePx), since the page resamples
+  // a canvas whose box is not (524.5 px tall at a ratio of 2 drew the art half a device pixel off).
+  function wholePx(n, dpr) {
+    for (let css = Math.floor(n); css > Math.floor(n) - 4 && css > 0; css--) if (Number.isInteger(css * dpr)) return css * dpr;
+    return Math.floor(n * dpr);
+  }
   function resize() {
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
+    const w = wholePx(r.width, dpr), h = wholePx(r.height, dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     canvas.style.width = w / dpr + 'px'; canvas.style.height = h / dpr + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
