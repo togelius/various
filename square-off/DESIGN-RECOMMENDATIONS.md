@@ -34,8 +34,9 @@ and challengers could never overtake a leader who simply sat.
 - Losing a group early hurts but is not decisive: a coffee break forced at 1:00 drops a crew's win rate from about
   50% to 20-30% (at 4:00, to 47%).
 - Open risks: Hard-v-Hard matches change leader only 0.75-0.85 times a match; two passive crews end in a walk-out
-  loop at the Fountain (the game now explains it: "Nobody held the Fountain, so you both gave up"); a simple bot
-  that never brings two now loses to Easy (26-34), so whether newcomers beat Easy needs watching; criteria 1 and 6
+  loop at the Fountain (the game now explains it: "Nobody held the Fountain, so you both gave up"); Easy was made
+  gentler (slower to start arguments and to notice a spot that came free), so a simple bot that never brings two
+  now beats it 60-0, though real newcomers still need watching; criteria 1 and 6
   below (newcomers can explain an outcome; nobody pokes at spot edges) need real playtests.
 
 ## Original status

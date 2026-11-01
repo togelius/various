@@ -160,28 +160,34 @@ and where groups were sent, `react` s late; no fog exists in this mode.
 |---|---|---|---|
 | thinks every / notices after | 5 s / 4 s, starts 10 s late | 2 s / 1.5 s | 1 s / 0.5 s |
 | helps, walks away, avoids lost returns | no | yes (walks away at the last 3 s) | yes (swaps as soon as outnumbered) |
-| two against one, pulling a holder | one attack per 90 s | every 20 s if it pays by 4+ | whenever it pays by 2+ |
+| two against one, pulling a holder | one attack per 150 s | every 20 s if it pays by 4+ | whenever it pays by 2+ |
+| notices a spot that came free | after 15 s | at once | at once |
 
 Ladder (60 matches per row, sides alternate; `node tools/hangout-lab.js ladder`):
 
 | Pairing | Result | North : south wins | Lead changes / match | Unchanged map, mean (max) s |
 |---|---|---|---:|---:|
-| reacting newcomer bot v Easy | 26 - 34 (was 41 - 18) | 22 : 38 | 0.53 | 121 (231) |
+| reacting newcomer bot v Easy | 60 - 0 (was 26 - 34) | 30 : 30 | 0 | 43 (52) |
 | newcomer v Normal | 0 - 60 | 30 : 30 | 1.0 | 204 (222) |
-| Easy v Normal | 0 - 60 | 30 : 30 | 0.07 | 64 (193) |
+| Easy v Normal | 1 - 59 | 31 : 29 | 0.05 | 113 (193) |
 | Normal v Hard | 24 - 36 | 30 : 30 | 1.08 | 36 (77) |
-| Easy v Hard | 0 - 60 | 30 : 30 | 0 | 77 (198) |
+| Easy v Hard | 0 - 60 | 30 : 30 | 0 | 108 (178) |
 | Hard v Hard | – | 28 : 32 | 0.75 | 33 (89) |
 | Normal v Normal | – | 25 : 35 | 1.17 | 44 (90) |
 
-(Re-measured after the standing-place fix in §3.) The "newcomer" bot sends idle groups to the nearest empty
-spot (else the nearest rival spot) and, when one of its spots is argued over, sends its nearest other group to
-help; it never walks away and never brings two. Before the fix it beat Easy 41 - 18; with the fix it loses
-26 - 34. The fix moved only the south crew's third standing place at the Small Dog Run (it used to share a point
-with a north group); that changes which Easy group the AI sends first, Easy then re-takes Garibaldi, and the bot
-keeps attacking it one against one and losing every tie to the holder. Easy still loses to any crew that brings
-two (Normal 60 - 0), and the UI now says "send a second group" when a one-on-one against a holder starts, but
-**whether a human newcomer beats Easy is an open question** (§9).
+(Re-measured after the standing-place fix in §3 and the gentler Easy below.) The "newcomer" bot sends idle
+groups to the nearest empty spot (else the nearest rival spot) and, when one of its spots is argued over, sends
+its nearest other group to help; it never walks away and never brings two. It beat the first Easy 41 - 18. The
+standing-place fix moved only the south crew's third standing place at the Small Dog Run (it used to share a point
+with a north group); that changed which Easy group the AI sends first, Easy then re-took Garibaldi whenever the
+bot left it, and the bot lost 26 - 34, attacking one against one and losing every tie to the holder.
+
+Easy is what a new player meets after the tutorial, so it was made gentler without touching the rules: it starts
+an argument of its own only every 150 s (was 90 s), and a spot that comes free during the match counts as empty
+for it only after 15 s (`noticeFree`; spots free at its first look count at once), so it no longer pounces on
+every spot a newcomer leaves to help a friend. The bot now beats Easy 60 - 0, by about 100 points. Easy still
+takes spots and argues (8.7 spot changes a match, as before), Normal and Hard are unchanged, and any crew that
+brings two still beats Easy every time.
 
 ## 7. Validation
 
@@ -266,10 +272,8 @@ recover, or come back from coffee), `firstMatch` (a full match against Easy). AI
 
 ## 9. Open risks
 
-- **Easy may beat a newcomer who never brings two.** The reacting-newcomer bot now loses to Easy 26 - 34 (§6):
-  it attacks a holder one against one and loses every tie. The UI teaches two against one (tutorial step 6, the
-  coach line when a one-on-one against a holder starts, the Park Report tip), but the first real matches should be
-  watched; a gentler Easy (slower to re-take an empty spot) is the obvious lever.
+- **Easy against real newcomers.** The reacting-newcomer bot beats the gentler Easy 60 - 0 (§6), but the bot is
+  only a stand-in: watch whether first-time players win their first match, and whether Easy now feels too passive.
 - **Hard v Hard rarely changes leader** (0.85 lead changes a match, mean margin ~136): an early two-against-one
   that works tends to stick. Against humans this may be fine; watch real matches.
 - **Two passive players draw** (a 2-2 split with the Fountain in a permanent mutual-walkout loop). Any crew

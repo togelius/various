@@ -229,11 +229,14 @@
   //   (false | 'spares' | 'holders': may also pull a group off another spot);  walkAway: leave an argument it
   //   would lose (holders when walkAwayAt s of patience are left);  smartReturn: after coffee, don't walk
   //   back into a lost cause;  attack: start arguments;  pairs: two against one;  pull: take a group off a
-  //   spot to attack ('never' | 'behind' | 'always');  attackEvery: s between attacks it starts;  horizon/tail/margin/noise: the forward model that
-  //   scores attacks (s looked ahead, s of holding counted after it, points it must beat carrying on by, jitter)
+  //   spot to attack ('never' | 'behind' | 'always');  attackEvery: s between attacks it starts;  noticeFree: s a spot
+  //   that comes free must stay free before it sends a group there (spots free at its first look count at once);
+  //   horizon/tail/margin/noise: the forward model that scores attacks (s looked ahead, s of holding counted after
+  //   it, points it must beat carrying on by, jitter)
   const ai = {
+    // Easy: slow to react, slow to notice a spot that came free, and an argument of its own only every 2.5 minutes.
     easy: { think: 5, react: 4, lazyStart: 10, help: false, walkAway: false, smartReturn: false, attack: true, pairs: true, pull: 'always',
-      attackEvery: 90, horizon: 45, tail: 10, margin: 0, noise: 6, responders: ['static'] },
+      attackEvery: 150, noticeFree: 15, horizon: 45, tail: 10, margin: 0, noise: 6, responders: ['static'] },
     normal: { think: 2, react: 1.5, lazyStart: 0, help: 'spares', walkAway: true, walkAwayAt: 3, smartReturn: true, attack: true, pairs: true,
       pull: 'always', attackEvery: 20, horizon: 60, tail: 15, margin: 4, noise: 3, responders: ['static'] },
     hard: { think: 1, react: 0.5, lazyStart: 0, help: 'spares', walkAway: 'swap', walkAwayAt: 6, smartReturn: true, attack: true, pairs: true,

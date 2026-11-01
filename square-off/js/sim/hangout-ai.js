@@ -5,7 +5,8 @@
 // (least total walking), attack (two against one, or one against a worn-out group). Attacks are scored by a
 // small forward model of the same rules (nav-measured walking times, settling, arguing, patience, coffee,
 // the holder-keeps-ties rule) against "carry on as we are", with one or two guesses of the rival's replies.
-// Difficulty = how often it thinks, how late it notices, which of the rules it uses, and how picky it is.
+// Difficulty = how often it thinks, how late it notices (Easy: also that a spot has come free), which of the rules
+// it uses, and how picky it is.
 // Headless, deterministic (own RNG stream). Sees what a player sees: positions, patience, where groups were
 // sent, `react` seconds late.
 (function (SQ) {
@@ -35,7 +36,7 @@
     return {
       side: k, diff, P, flags: Object.assign({}, cfg.flags || {}), rng: SQ.util.rngStream(match.seed, 'hangout-ai:' + k),
       nextThink: (P.lazyStart || 0) + 0.2, hist: [], scriptDone: {}, sent: {}, rerouted: {}, ops: [], decisions: 0, orders: 0, plansTried: 0,
-      M0: null, M: null, last: null,
+      M0: null, M: null, last: null, freeSince: null,
     };
   }
 
@@ -362,7 +363,8 @@
   //   1. finish operations under way (two-against-one, rotations, help);
   //   2. defend: a spot of ours is losing an argument -> send help that arrives in time, else walk away
   //      (Normal/Hard) when the group would only go for coffee;
-  //   3. fill: groups with nothing to do take the nearest empty spot nobody else will reach first;
+  //   3. fill: groups with nothing to do take the nearest empty spot nobody else will reach first (a spot that
+  //      came free during the match only once the crew has noticed it: P.noticeFree);
   //   4. attack: the forward model scores "two against one", "one against a tired group" and "rotate"
   //      against carrying on; the best goes ahead if it beats carrying on by a margin.
   function opsOf(b, gid) { return b.ops.find((o) => o.groups.indexOf(gid) >= 0) || null; }
@@ -513,10 +515,28 @@
     });
   }
 
+  // P.noticeFree (Easy): a spot that comes free during the match counts as empty only once it has been free this
+  // many seconds (spots already free at the crew's first look count at once). A slow crew doesn't see at once that a
+  // rival walked off a spot, so it doesn't pounce on every spot a newcomer leaves to help a friend.
+  function noteFree(match, b, S) {
+    if (!b.P.noticeFree) return;
+    const first = !b.freeSince;
+    const since = b.freeSince || (b.freeSince = []);
+    for (const sp of S.spots) {
+      if (sp.holder >= 0 || sp.rivals.length || sp.mine.length) since[sp.idx] = null;
+      else if (since[sp.idx] === null || since[sp.idx] === undefined) since[sp.idx] = first ? -Infinity : match.state.t;
+    }
+  }
+  function noticedFree(match, b, idx) {
+    if (!b.P.noticeFree) return true;
+    const t0 = b.freeSince ? b.freeSince[idx] : null;
+    return t0 !== null && t0 !== undefined && match.state.t - t0 >= b.P.noticeFree;
+  }
+
   function bestEmpty(match, b, S, g) {
     let best = -1, bv = Infinity;
     for (const sp of S.spots) {
-      if (sp.holder >= 0 || sp.rivals.length || sp.mine.length) continue;
+      if (sp.holder >= 0 || sp.rivals.length || sp.mine.length || !noticedFree(match, b, sp.idx)) continue;
       if (match.state.groups.some((q) => q.side === b.side && q.id !== g.id && (q.spot === sp.idx || (q.coffee && q.pending && q.pending.spot === sp.idx)))) continue;
       const e = etaOf(match, g, sp.idx);
       // someone of theirs gets there clearly first: not empty for long
@@ -612,7 +632,7 @@
 
   function emptyFor(match, b, S, g, idx) {
     const sp = S.spots[idx];
-    if (sp.holder >= 0 || sp.rivals.length || sp.mine.length) return false;
+    if (sp.holder >= 0 || sp.rivals.length || sp.mine.length || !noticedFree(match, b, idx)) return false;
     if (match.state.groups.some((q) => q.side === b.side && q.id !== g.id && (q.spot === idx || (q.coffee && q.pending && q.pending.spot === idx)))) return false;
     const e = etaOf(match, g, idx);
     return !sp.comingRivals.some((id) => HO().walkTime(match, S.per[id].x, S.per[id].z, idx, match.state.groups[id].side, match.state.groups[id].slot) < e - 2);
@@ -780,6 +800,7 @@
   function decide(match, b) {
     const S = situation(match, b);
     b.decisions++;
+    noteFree(match, b, S);
     stepOps(match, b, S);
     defend(match, b, S);
     fill(match, b, S);
