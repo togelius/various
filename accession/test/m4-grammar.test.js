@@ -485,7 +485,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       { id: 'T9.3', archetype: 'plodder', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion'] },
       { id: 'T9.4', archetype: 'plodder', role: 'warden', modifiers: [], trigger: null },
       { id: 'T9.5', archetype: 'patrol_guard', role: 'fodder', modifiers: [], trigger: null, flags: ['alarm_network'] },
-      { id: 'T9.6', archetype: 'plodder', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion', 'alarm_network'] },
+      { id: 'T9.6', archetype: 'patrol_guard', role: 'ambusher', modifiers: [], trigger: null, flags: ['unobserved_motion', 'alarm_network'] },
     ] }, more || {}))});`;
 
   tmpTest('lint-registry\'s Intro rule (WO6): the Intro teaches only its signature module, in its panel and its stamp', () => {
