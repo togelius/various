@@ -77,9 +77,10 @@
 
   // Other events the alarm makes, by cause: the call's crash, at the Wader's tile (noise);
   // the clock brought nearer (stage, ClockRules.advance: bell_sooner, watch_sooner or
-  // nothing_sooner, with the turns it moved), by the Wader that raised it.
+  // nothing_sooner, with the turns it moved), by the Wader that raised it; sealed while a hall
+  // is sealed, when the clock is stopped and those are turns it counts once it starts again.
   R.defineCause('noise', 'alarm', { fields: { by: 'uid' }, built: 'M4' });
-  R.defineCause('stage', 'alarm_network', { fields: { by: 'uid' }, built: 'M4' });
+  R.defineCause('stage', 'alarm_network', { fields: { by: 'uid', sealed: 'bool?' }, built: 'M4' });
   // A patrol done searching goes back to its round, not to sleep (§8.2's searching, for an
   // exhibit that never sleeps): alerted, to look at its next post.
   R.defineCause('alerted', 'round', { fields: {}, built: 'M4' });

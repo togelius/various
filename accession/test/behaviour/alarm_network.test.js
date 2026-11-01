@@ -197,6 +197,7 @@ module.exports = ({ test, assert, loadCore }) => {
       if (c.stage === 0 && chip.next !== `bell in ${toBell} turns`) return `the stage chip says "${chip.name} ${chip.next}", not the bell ${n} turns nearer (in ${toBell} turns)`;
       if (c.stage === 0 && !Text.clock(Clock.view(r.state)).endsWith(`the bell rings in ${toBell} turns.`)) return `the dial says "${Text.clock(Clock.view(r.state))}"`;
       if (!/never sooner than the next turn|nothing sooner/.test(Text.event(e, C.Labels.nameOf(r.state)))) return `its sentence does not state the clamp: ${Text.event(e)}`;
+      if (e.cause.sealed !== undefined || /stopped/.test(Text.event(e))) return `with no hall sealed, its sentence speaks of a stopped clock: ${Text.event(e)}`;
       return null;
     },
   }));
@@ -244,6 +245,9 @@ module.exports = ({ test, assert, loadCore }) => {
       if (r.state.actors[2].mode !== 'dormant') return 'the Centrepiece woke';
       if (c.count !== 50) return `the count moved (${c.count}) while the hall was sealed`;
       if (c.B !== 200 - N.ALARM_CLOCK_ADVANCE) return `the bell is at ${c.B}: a sealed hall stops the count, not the alarm's advance`;
+      // Its sentence says the turns are the stopped clock's, counted once it starts again.
+      const st = r.events.find(e => e.k === 'stage' && e.cause.k === ID), said = st && Text.event(st);
+      if (!st || st.cause.sealed !== true || !said.endsWith('The clock is stopped while the hall is sealed: these are turns it counts once it starts again.')) return `the alarm's stage sentence in a sealed hall: ${said}`;
       if (r.state.actors.slice(3).some(b => b.mode !== 'dormant' && (b.x < 11))) return 'a sleeper outside came into the sealed hall';
       return null;
     },
@@ -281,6 +285,13 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(say('bell_sooner', 0), 'The alarm cannot bring the bell any sooner: it comes at the next turn, and nothing comes sooner than that.');
     assert.equal(say('watch_sooner', A), `The alarm brings the night watch ${A} turns sooner (never sooner than the next turn).`);
     assert.equal(say('nothing_sooner', 0), 'The alarm brings nothing sooner: the night watch has begun, and the clock has no stage left to bring nearer.');
+    // While a hall is sealed the clock is stopped: the turns are the ones it counts once it
+    // starts again, and its next turn is the clock's, not the next turn.
+    const sealed = (stage, n) => Text.event({ k: 'stage', turn: 3, tick: 300, stage, n, cause: { k: ID, by: 'S9.1.room.1', sealed: true } });
+    const STOPPED = ' The clock is stopped while the hall is sealed: these are turns it counts once it starts again.';
+    assert.equal(sealed('bell_sooner', A), `The alarm brings the bell ${A} turns sooner, and the night watch with it (never sooner than the clock’s next turn).${STOPPED}`);
+    assert.equal(sealed('bell_sooner', 3), `The alarm brings the bell 3 turns sooner, to the clock’s next turn, and the night watch with it: an alarm brings it up to ${A} turns sooner, but never sooner than the clock’s next turn.${STOPPED}`);
+    assert.equal(sealed('watch_sooner', 0), `The alarm cannot bring the night watch any sooner: it comes at the clock’s next turn, and nothing comes sooner than that.${STOPPED}`);
     // The rules' sentences: shown, the call, over; a crash; a patrol back to its round.
     const names = uid => uid === 'x.1' ? 'the Lantern-Crop Wader' : null;
     const mod = (rule, more) => Text.event(Object.assign({ k: 'module', turn: 3, tick: 300, id: ID, rule, cause: { k: ID } }, more), names);

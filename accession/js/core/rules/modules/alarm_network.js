@@ -28,7 +28,9 @@
 //     alarm event {by, until}) and the `clock` effect (ClockRules.advance by
 //     ALARM_CLOCK_ADVANCE, cause alarm_network with the Wader's uid: the bell, and the night
 //     watch with it, or after the bell the night watch, comes that much sooner, never sooner
-//     than the next turn, and nothing in the night watch; its stage event says which).
+//     than the next turn, and nothing in the night watch; its stage event says which, and,
+//     while a hall is sealed (its cause's sealed), that these are turns the stopped clock
+//     counts once it starts again).
 //   - While it runs (turns since ≤ t < until): no pip decays (pipsDecay), no exhibit goes back
 //     to its place for being left undisturbed or done searching (mayReturn: AI's idle and
 //     searched returns; one already going back goes on, and a tethered warden still goes back
@@ -111,7 +113,7 @@ const AlarmNetwork = (() => {
         when: (state, e, m) => !runningIn(state, m),
         fields: (state, e, m, a) => ({ at: [a.x, a.y], n: woken(state, a) }),
         telegraph: { turns: 1, shown: 'alarm' },
-        do: [{ k: 'alarm', turns: N.ALARM_TURNS }, { k: 'clock', n: N.ALARM_CLOCK_ADVANCE, cause: (state, e, m, a) => ({ k: ID, by: a.uid }) }] },
+        do: [{ k: 'alarm', turns: N.ALARM_TURNS }, { k: 'clock', n: N.ALARM_CLOCK_ADVANCE, cause: (state, e, m, a) => Object.assign({ k: ID, by: a.uid }, Clock.sealed(state) ? { sealed: true } : {}) }] },
     ],
     bespoke: ['pipsDecay', 'mayReturn', 'alarmDecay', 'AlarmNetwork.call', 'patrol_guard.act'],
     // While it runs, no pip decays and no idle or searched exhibit goes back.

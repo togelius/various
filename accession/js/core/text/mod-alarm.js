@@ -65,15 +65,19 @@
   // is what it moved, never sooner than the next turn (so fewer than ALARM_CLOCK_ADVANCE when
   // the stage was nearer than that), and nothing in the night watch. Before the bell, the
   // night watch moves with it.
-  const NEXT = 'never sooner than the next turn';
-  function sooner(what, n, also) {
-    if (!isInt(n) || n <= 0) return `The alarm cannot bring ${what} any sooner: it comes at the next turn, and nothing comes sooner than that.`;
-    if (n >= N.ALARM_CLOCK_ADVANCE) return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner${also} (${NEXT}).`;
-    return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner, to the next turn${also}: an alarm brings it up to ${Text.count(N.ALARM_CLOCK_ADVANCE, 'turn')} sooner, but ${NEXT}.`;
+  // While a hall is sealed (the cause's sealed) the clock is stopped (§8.4): the turns are the
+  // clock's, which it counts once it starts again, and its next turn is not the next turn.
+  const STOPPED = ' The clock is stopped while the hall is sealed: these are turns it counts once it starts again.';
+  function sooner(what, n, also, sealed) {
+    const next = sealed ? 'the clock’s next turn' : 'the next turn', NEXT = `never sooner than ${next}`, after = sealed ? STOPPED : '';
+    if (!isInt(n) || n <= 0) return `The alarm cannot bring ${what} any sooner: it comes at ${next}, and nothing comes sooner than that.${after}`;
+    if (n >= N.ALARM_CLOCK_ADVANCE) return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner${also} (${NEXT}).${after}`;
+    return `The alarm brings ${what} ${Text.count(n, 'turn')} sooner, to ${next}${also}: an alarm brings it up to ${Text.count(N.ALARM_CLOCK_ADVANCE, 'turn')} sooner, but ${NEXT}.${after}`;
   }
   Text.defineCause('stage', 'alarm_network', e => {
-    if (e.stage === 'bell_sooner') return sooner('the bell', e.n, ', and the night watch with it');
-    if (e.stage === 'watch_sooner') return sooner('the night watch', e.n, '');
+    const sealed = !!e.cause && e.cause.sealed === true;
+    if (e.stage === 'bell_sooner') return sooner('the bell', e.n, ', and the night watch with it', sealed);
+    if (e.stage === 'watch_sooner') return sooner('the night watch', e.n, '', sealed);
     if (e.stage === 'nothing_sooner') return 'The alarm brings nothing sooner: the night watch has begun, and the clock has no stage left to bring nearer.';
     return 'The alarm brings the clock nearer.';
   });
