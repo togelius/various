@@ -25,7 +25,8 @@
 //   perks_a.light_fingers  your open of a case is within your grade, and the grade above it
 //                          (PERK_LIGHT_FINGERS_ABOVE) only with Light Fingers at the second
 //                          rank; with Light Fingers it makes no noise and costs
-//                          PERK_LIGHT_FINGERS_COST ticks (doubled while you are slowed); and the
+//                          PERK_LIGHT_FINGERS_COST ticks (doubled while you are slowed; less
+//                          PERK_DUCK_AND_COVER while Duck and Cover's discount waits); and the
 //                          case's rules as they read before the open (Cases.rules, its label's
 //                          Behaviour line) state the ticks it cost and whether it made a noise,
 //                          name Light Fingers only while it counts, and the grade above yours
@@ -45,9 +46,10 @@ module.exports = (C) => {
   };
   const refused = events => events.length === 1 && events[0].k === 'refused';
   const isWatchman = a => !!a && a.arch === 'night_watchman';
-  // The perks that change what an action of yours costs (plan A6: Duck and Cover, Close the
-  // Distance), whose discounts the cost checks below leave to their own invariants.
-  const TIMING = ['duck_and_cover', 'close_the_distance'];
+  // What Duck and Cover takes off your opening (plan A6; PG-PERKS-TIMING): PERK_DUCK_AND_COVER
+  // while its discount waits (dept.perk.duck), which your next action that takes time spends;
+  // Close the Distance frees only steps, never an opening.
+  const duckCut = s => rank(s, 'duck_and_cover') && s.dept.perk && s.dept.perk.duck === true ? N.PERK_DUCK_AND_COVER : 0;
 
   const softSoles = {
     id: 'perks_a.soft_soles',
@@ -144,8 +146,8 @@ module.exports = (C) => {
       const noise = events.some(e => e.k === 'noise' && e.cause && e.cause.k === 'case_opened' && e.cause.by === 'you');
       const raw = r ? N.PERK_LIGHT_FINGERS_COST : N.COST_OPEN_CASE;
       if (r && noise) return 'with Light Fingers your opening of a case made a noise';
-      const timed = !(pre.run.perks || []).some(p => TIMING.includes(p.id)), spent = post.actors[0].next - you.next;
-      if (timed && spent !== (slowed ? Int.pct(raw, N.SPEED_SLOW_PCT) : raw)) return `your open cost ${spent} ticks, not ${raw}${slowed ? ' doubled, as you are slowed' : ''}${r ? ', with Light Fingers' : ''}`;
+      const cut = duckCut(pre), spent = post.actors[0].next - you.next;
+      if (spent !== (slowed ? Int.pct(raw, N.SPEED_SLOW_PCT) : raw) - cut) return `your open cost ${spent} ticks, not ${raw}${slowed ? ' doubled, as you are slowed' : ''}${r ? ', with Light Fingers' : ''}${cut ? `, less Duck and Cover's ${cut}` : ''}`;
       // What the case's rules said of opening it, before the open: what it cost and whether it
       // made a noise; Light Fingers named only while it counts; the grade above yours only
       // while you open it.

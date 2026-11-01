@@ -197,7 +197,9 @@ const Labels = (() => {
   // chance and damage, within ROLE_ARTILLERY_RANGE (Ranged.shoot), so its first line says it
   // shoots. With Reach (a Reach weapon, or any weapon with the reach primitive, whose blows
   // reach as a Reach weapon's do, Kit.derive's you.reach) you strike from REACH_RANGE away as
-  // from beside it (§8.1); and each special has its line.
+  // from beside it (§8.1); and each special has its line. Whether a blow now would surprise it is
+  // asked with the state, so a surprise the perks you hold make counts (Perks.surprise: Duck and
+  // Cover's waiting surprise attack, M4 PG-PERKS-TIMING).
   // An exhibit in an intact case keeps its lines, which say what its blows would do once out,
   // but the surprise line: no blow of yours reaches it now (behind_glass), and getting it out
   // wakes it (§8.3), so no blow could ever catch it as the line would say.
@@ -223,7 +225,7 @@ const Labels = (() => {
     const taken = said.find(r => r.k === 'taken');
     if (taken) lines.push(`Its ${spNoun(taken.sp) || 'special'} is marked: until it goes off, it takes ${taken.pct}% of the damage dealt to it, and your figures count it.`);
     if (you.reach) lines.push(`Your weapon also strikes it with Reach, from exactly ${N.REACH_RANGE} tiles away in a straight line, over a clear tile between.`);
-    if (Combat.surprised(you, a) && !Cases.encased(state, a)) {
+    if (Combat.surprised(you, a, state) && !Cases.encased(state, a)) {
       const m = surprise(state, you, a, 'melee', at), r = you.reach ? surprise(state, you, a, 'reach', at) : m;
       lines.push(r.min === m.min && r.max === m.max ? `A surprise attack now would hit for certain, for ${range(m)}.`
         : `A surprise attack now would hit for certain, for ${range(m)} from beside it, or ${range(r)} with Reach from ${N.REACH_RANGE} tiles away.`);
@@ -280,10 +282,11 @@ const Labels = (() => {
   const behaviour = (state, sp) => Clauses.line(sp, { depth: state.dept.depth, rulesOff: (state.options && state.options.rulesOff) || [], modules: Modules.active(state) });
 
   // The Attack button says what the blow you would make now does (§7.1): a surprise blow hits
-  // for certain (§8.1), so it shows no chance; a Reach blow says so.
+  // for certain (§8.1), so it shows no chance (a perk's surprise among them: Perks.surprise, asked
+  // with the state); a Reach blow says so.
   function attackText(state, you, a, kind) {
     const at = [you.x, you.y], what = kind === 'reach' ? 'Attack with Reach' : 'Attack';
-    if (Combat.surprised(you, a)) return `${what}: certain hit, ${range(surprise(state, you, a, kind, at))} damage`;
+    if (Combat.surprised(you, a, state)) return `${what}: certain hit, ${range(surprise(state, you, a, kind, at))} damage`;
     return `${what}: ${Combat.hitChance(you, a)}%, ${range(rolls(state, you, a, at))} damage`;
   }
 

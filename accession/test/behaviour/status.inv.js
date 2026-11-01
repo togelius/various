@@ -10,6 +10,10 @@
 //                       the visit (put on with turns 'perm': its event says turns null, its
 //                       record carries perm, M4 plan A3) starts as a timed one does, holds
 //                       every turn from then, keeps its start, and never ends during the visit;
+//                       M4 (plan A6): coughing or restoring put on you when your next decision
+//                       falls in a turn whose boundary has run already (mid-turn, after an
+//                       action Duck and Cover made cheaper) starts at the turn after it, so
+//                       each of its N turns still has its boundary;
 //   fixed_only_waits    a fixed actor only waits: you only wait, rest or answer a choice, and an
 //                       exhibit fixed for the whole step makes no step, blow, mark or door (a
 //                       move your own action makes, the pole's, is not its step);
@@ -35,6 +39,12 @@ module.exports = (C) => {
   const turnOf = tick => Int.idiv(tick, N.TICKS_PER_TURN);
   const actorIn = (state, uid) => { for (const a of state.actors) if (a.uid === uid) return a; return null; };
 
+  // The statuses whose only rule is a per-turn effect, which count from the next turn when the
+  // boundary of the turn of your next decision has run already (BUILD §8.1, M4 plan A6).
+  const LATE_NEXT = ['coughing', 'restoring'];
+  // The turn a status put on you in this step starts at: the turn of your next decision, or
+  // for one of LATE_NEXT the turn after, when that turn's boundary ran before the step.
+  const startOf = (id, decision, pre) => decision + (LATE_NEXT.includes(id) && decision <= pre.turn ? 1 : 0);
   // The turns a status record covers, for messages.
   const span = s => `turns ${s.from}–${s.until - 1}`;
 
@@ -107,17 +117,17 @@ module.exports = (C) => {
           if (now.until - now.from < most) return `${id}, put on for ${most} turns, covers only ${span(now)}`;
           // It starts at the turn of its bearer's next decision: yours is where this step ends;
           // an exhibit's is no earlier than this step and no later than its own next.
-          if (you && now.from !== decision) return `${id} starts at turn ${now.from}, not at the turn of your next decision, ${decision}`;
+          if (you && now.from !== startOf(id, decision, pre)) return `${id} starts at turn ${now.from}, not at ${startOf(id, decision, pre) === decision ? 'the turn of your next decision' : 'the turn after your next decision\'s, whose boundary had run'}, ${startOf(id, decision, pre)}`;
           if (!you && (now.from < pre.turn || now.from > Math.max(decision, post.turn + 1))) return `${id} starts at turn ${now.from}, outside turns ${pre.turn}–${Math.max(decision, post.turn + 1)}`;
         } else {
           if (now.from !== was.from) return `${id} moved its start from turn ${was.from} to ${now.from}`;
           if (now.until < was.until) return `${id} was cut short from turn ${was.until} to ${now.until}`;
           if (!ons && now.until !== was.until) return `${id} changed its end from turn ${was.until} to ${now.until} with no status event`;
-          if (ons && you && now.until !== Math.max(was.until, decision + most)) return `${id}, put on again for ${most} turns at your decision in turn ${decision}, ends at ${now.until}, not ${Math.max(was.until, decision + most)}`;
+          if (ons && you && now.until !== Math.max(was.until, startOf(id, decision, pre) + most)) return `${id}, put on again for ${most} turns at your decision in turn ${decision}, ends at ${now.until}, not ${Math.max(was.until, startOf(id, decision, pre) + most)}`;
         }
       }
       // At your decision every status you hold is in force: its start has come, its end has not.
-      if (you && !post.over) for (const s of held) if ((isInt(s.from) && s.from > post.turn) || (!isPerm(s) && s.until <= post.turn)) return `you hold ${s.id} (${isPerm(s) ? `from turn ${s.from}, for the rest of the visit` : span(s)}) at your decision in turn ${post.turn}`;
+      if (you && !post.over) for (const s of held) if ((isInt(s.from) && s.from > post.turn && !(LATE_NEXT.includes(s.id) && s.from === post.turn + 1 && !isPerm(s))) || (!isPerm(s) && s.until <= post.turn)) return `you hold ${s.id} (${isPerm(s) ? `from turn ${s.from}, for the rest of the visit` : span(s)}) at your decision in turn ${post.turn}`;
       return null;
     },
   };

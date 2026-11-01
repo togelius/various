@@ -9,6 +9,13 @@
 // tick 100k) and the next turn for a sleeping one. Its per-turn effect runs at the boundaries
 // of turns from … until − 1, and it ends at the boundary of turn until. Applied again while
 // held, it lasts to the later of the two ends, from the same start.
+// M4 (plan A6): a cheaper action (Duck and Cover's) can leave your next decision mid-turn
+// after that turn's boundary has run. Coughing and restoring, whose only rule is their
+// per-turn effect, put on you then (a Fumigant or a Consolidant drunk), count their N turns
+// from the next turn, start + 1, so each of them still has its boundary and nothing is lost:
+// the same ticks as the action at its full cost gives. Every other status keeps its start
+// (Fixative's forced waits are counted from your next decision), and a status that comes
+// with its own rule for this keeps it (M4's second_wind, reg/perk-status.js).
 //
 // At a boundary the timers run at step 2 (Status.tick: expiry), and the per-turn effects
 // after the wake checks of step 4 (Status.effects), so that a cough's noise comes after your
@@ -101,14 +108,16 @@ const Status = (() => {
   // Give every newly applied status its end turn (see the timing rule above), and a status
   // for the rest of the visit its first turn only. step() calls it after each of your
   // actions, and after each exhibit's.
+  const LATE_NEXT = ['coughing', 'restoring'];
   function settle(state) {
     for (const a of state.actors) {
       if (!a.statuses || !a.statuses.length) continue;
       for (const s of a.statuses) {
         const fresh = s.perm ? s.from === null || s.from === undefined : s.turns !== null && s.turns !== undefined;
         if (!fresh) continue;
-        const start = Actors.scheduled(a) ? Int.idiv(a.next, N.TICKS_PER_TURN) : state.turn + 1;
+        let start = Actors.scheduled(a) ? Int.idiv(a.next, N.TICKS_PER_TURN) : state.turn + 1;
         if (s.perm) { s.from = start; continue; }
+        if (start <= state.turn && LATE_NEXT.includes(s.id)) start++;
         const until = start + s.turns;
         if (s.until === null) { s.until = until; s.from = start; } else s.until = Math.max(s.until, until);
         s.turns = null;

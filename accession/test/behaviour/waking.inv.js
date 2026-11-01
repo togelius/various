@@ -83,6 +83,10 @@ module.exports = (C) => {
   // what is derived from it are either side of the step's end. What your perks take (M4:
   // Soft Soles, PERK_SOFT_SOLES[rank − 1], Perks.ringDelta) is asked of the perks you held
   // either side of the step, which change only by a choice, a step with no boundary.
+  // M4 (plan A6): after a free or cheaper action (Duck and Cover's, Close the Distance's) your
+  // next decision may come before any boundary, and the first boundary after it applies the
+  // largest ring of your actions since the last one (you.ringMax, held over from an earlier
+  // step), so that ring, or this action's if larger, is a radius it could apply too.
   const STILL = ['wait', 'rest', 'view', 'sit'];
   const FLAGS = ['x', 'y', 'still', 'lastAct', 'seated'];
   function radii(pre, post, action) {
@@ -99,6 +103,8 @@ module.exports = (C) => {
       const r = Math.max(N.RING_MIN, base + (TILE(Grid.ch(m, you.x, you.y)).loud ? N.RING_LOUD_FLOOR : 0) + d);
       if (!out.includes(r)) out.push(r);
     }
+    const owed = pre.actors[0].ringMax;
+    if (Number.isInteger(owed)) for (const r of out.slice()) { const k = Math.max(owed, r); if (!out.includes(k)) out.push(k); }
     return out.sort((a, b) => a - b);
   }
 
