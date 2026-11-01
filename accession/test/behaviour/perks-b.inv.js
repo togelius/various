@@ -11,8 +11,8 @@
 //                        before in the visit; it never comes otherwise, nor while the perk does
 //                        not count, nor twice for one uid (dept.perk.filed keeps them, in
 //                        order); at the second rank, and only then, it is dealt exactly
-//                        PERK_SINGLE_FILE_DMG damage, cause perk single_file, which no Padding
-//                        reduces (a swarm body's own rule takes all its health); then, if it
+//                        PERK_SINGLE_FILE_DMG damage, cause perk single_file (its raw), which no
+//                        Padding reduces (a swarm body's own rule takes all its health); then, if it
 //                        still stands, it is staggered for STAGGER_TURNS turns, cause perk
 //                        single_file (perks_a.staggered holds its lost action);
 //   perks_b.elbow_room   with Elbow Room, your Padding once the step is done (counted where all
@@ -90,8 +90,11 @@ module.exports = (C) => {
           if (r >= 2) {
             const d = events[j];
             if (!d || d.k !== 'damaged' || d.who !== e.who || !d.cause || d.cause.k !== 'perk' || d.cause.id !== 'single_file') return `Single File at the second rank dealt ${e.who} no damage at once: ${json(d)}`;
-            const swarm = !!a && a.arch === 'mote_swarm';
-            if (d.amount !== N.PERK_SINGLE_FILE_DMG && !(swarm && d.hp === 0)) return `Single File dealt ${e.who} ${d.amount} damage, not ${N.PERK_SINGLE_FILE_DMG}`;
+            // It is dealt exactly the perk's damage (its cause's raw), and loses that, unless its
+            // own rule makes it all its health (a swarm body's, which falls to any hit).
+            const swarm = !!a && a.arch === 'mote_swarm', was = actorIn(pre, e.who);
+            if (d.cause.raw !== N.PERK_SINGLE_FILE_DMG) return `Single File's damage on ${e.who} says it dealt ${d.cause.raw}, not ${N.PERK_SINGLE_FILE_DMG}`;
+            if (d.amount !== N.PERK_SINGLE_FILE_DMG && !(swarm && d.hp === 0 && (!was || d.amount === was.hp))) return `Single File dealt ${e.who} ${d.amount} damage, not ${N.PERK_SINGLE_FILE_DMG}`;
             j++;
           }
           const died = events.slice(j).some(x => x.k === 'died' && x.who === e.who && x.cause && x.cause.k === 'perk' && x.cause.id === 'single_file');

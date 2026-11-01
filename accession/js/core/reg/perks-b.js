@@ -50,6 +50,6 @@
   R.defineCause('perk', 'single_file', { fields: { who: 'uid?' }, built: 'M4' });
   R.defineCause('perk', 'wind', { fields: { total: 'int?' }, built: 'M4' });
   // An exhibit that Single File's damage destroys (Combat.die, with the damage's own cause:
-  // perk single_file, as damaged's, reg/perks.js).
-  R.defineCause('died', 'perk', { fields: { id: 'str', saved: 'int?', side: 'str?' }, built: 'M4' });
+  // perk single_file, raw its damage, as damaged's, reg/perks.js).
+  R.defineCause('died', 'perk', { fields: { id: 'str', raw: 'int?', saved: 'int?', side: 'str?' }, built: 'M4' });
 })();

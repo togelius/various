@@ -204,6 +204,36 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const rank of [1, 2]) ok(H.sweep(C, split(rank), list), `rank ${rank}`);
   });
 
+  // A swarm body (A.4's Carbon Flimsies) at the second rank: it is dealt the perk's 3 (raw),
+  // through no Padding, and its own rule (any hit takes all its health) makes that all its
+  // health, which the log says with both numbers, so "dealt 3" and the health it lost are both
+  // told true; it falls, and so is never staggered.
+  const swarm = H.scenario({
+    name: 'Single File at the second rank and a swarm body: dealt its 3, it falls to it, losing all its health, and the log says so',
+    id: 'PERKS.single_file', clone: true,
+    build(params, sp, depth, opts) {
+      const s = C.Setup.room(opts.seed, { acc: 'T0', depth, map: DOOR("'"), you: [6, 2], exhibits: [{ sp: sp.id, at: [3, 2], mode: 'hunting', stats: Roles.stats(sp.role, depth), lastKnown: [6, 2], sawYou: true, stim: 0 }] },
+        { rulesOff: opts.rulesOff, invulnerable: true });
+      return hold(s, 'single_file', 2);
+    },
+    actions: waits(4),
+    expect(r, params) {
+      const a = r.state.actors[1], hp = r.start.actors[1].hp, hurt = r.events.filter(e => e.k === 'damaged' && e.who === a.uid);
+      if (perkEvents(r, a.uid).length !== 1) return 'Single File did not count it';
+      if (hurt.length !== 1 || hurt[0].cause.raw !== params.dmg || hurt[0].amount !== hp || !a.gone) return `it was dealt ${json(hurt.map(e => [e.cause.raw, e.amount]))} and ${a.gone ? 'fell' : 'stands'}, not ${params.dmg} taking all its ${hp} health`;
+      const words = hp === params.dmg ? `${Labels.nameOf(r.state)(a.uid)} took ${hp} damage from Single File.`
+        : `${Labels.nameOf(r.state)(a.uid)} took ${hp} damage from Single File (${params.dmg}; it falls to any one hit: all ${hp} of its health).`;
+      if (say(r.state, hurt[0]) !== words.charAt(0).toUpperCase() + words.slice(1)) return say(r.state, hurt[0]);
+      if (r.events.some(e => e.k === 'status' && e.who === a.uid)) return 'it fell and was still staggered';
+      return say(r.state, r.events.find(e => e.k === 'died' && e.who === a.uid)) === `${Labels.nameOf(r.state)(a.uid).replace(/^./, c => c.toUpperCase())} broke apart under Single File.` ? null : 'its fall reads wrong';
+    },
+  });
+  test('Single File at the second rank and a swarm body (A.4\'s Carbon Flimsies, depths 1–7): dealt the perk\'s 3, which its own rule makes all its health, it falls, and the log gives both numbers; with the perk off, nothing', () => {
+    const list = H.species(C, 'mote_swarm').filter(x => x.sp.id === 'A4.2');
+    assert.equal(list.length, 7);
+    ok(H.sweep(C, swarm, list), 'swarm');
+  });
+
   // The night watch (clock B 1, G 1): the Night Watchman comes in at the entrance (0, 2) and
   // walks to you through the doorway beside you. Single File names no exception, so it is
   // staggered as any exhibit is.
@@ -585,31 +615,76 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(merged > 0, 'no run had its next decision mid-turn as Second Wind came');
   });
 
+  // Brought at a boundary: a line due there (M.11's station, its chime's line, §5.4) takes you
+  // below the line as the boundary runs, after its statuses' turn (step 4), with you to act
+  // first after it. second_wind is settled as the boundary ends (Step.boundary), so it covers
+  // the 5 turns from that decision of yours, "5 turns left" there, its first share coming at
+  // the next boundary with the second's, and every share healed; and every status is settled
+  // at the end of the step (status_timing).
+  test('Second Wind brought by a line due at a boundary (M.11\'s station): its status covers the turns from your next decision, settled as the boundary ends, and heals its whole total, at both ranks, depths 1–7', () => {
+    const ROW = ['################', '#..............#', '#..............#', '#..............#', '#..............#', '#..............#', '################'];
+    const SECTION = [{ key: 'sone', role: 'section', x0: 1, y0: 1, x1: 14, y1: 5 }];
+    for (const depth of H.DEPTHS) for (const rank of [1, 2]) {
+      const sp = C.Packs.species('M11', 'M11.2');
+      const s = H.room(C, depth, { acc: 'M11', depth, map: ROW, you: [8, 1], rooms: SECTION, grade: Math.min(N.GRADE_MAX, depth),
+        exhibits: [{ sp: 'M11.2', at: [2, 1], stats: Roles.stats(sp.role, depth), pips: 1 }] }, { invulnerable: true });
+      s.actors[1].route = { dir: 'E' };
+      C.Modules.init(s, C.Packs.get('M11'));
+      hold(s, 'second_wind', rank);
+      const you = s.actors[0], net = Specials.net(C.Roles.at(N.DEMO_LINE_DMG, depth), you.pad), max = you.maxHp;
+      assert.ok(lowest(max) + net - 1 <= max, `depth ${depth}: the line cannot take you below the line from health you can have`);
+      let at = null, left = null;
+      const r = H.play(C, s, (st, i) => {
+        const w = st.dept.perk && st.dept.perk.wind;
+        if (!w) st.actors[0].hp = lowest(max) + net - 1;
+        else if (at === null) { at = i; left = Status.left(st, st.actors[0], 'second_wind'); }
+        return at !== null && i > at + N.PERK_SECOND_WIND_TURNS + 1 ? null : WAIT;
+      }, { cap: 60 });
+      assert.deepEqual(r.violations.map(v => v.text), [], `depth ${depth} rank ${rank}`);
+      const w = winds(r), hit = r.events[r.events.indexOf(w[0]) - 1];
+      assert.ok(w.length === 1 && hit && hit.cause.k === 'special' && hit.tick % N.TICKS_PER_TURN === 0, `depth ${depth}: Second Wind came from the line at a boundary: ${json(hit)}`);
+      assert.equal(left, N.PERK_SECOND_WIND_TURNS, `depth ${depth}: at your next decision it has ${left} turns left`);
+      const total = Int.pct(max, N.PERK_SECOND_WIND_PCT[rank - 1]), got = heals(r);
+      assert.equal(got.reduce((n, e) => n + e.amount, 0), total, `depth ${depth} rank ${rank}: healed ${json(got.map(e => [e.turn, e.amount]))}, not ${total}`);
+      assert.ok(got.every(e => e.turn > w[0].turn && e.turn < w[0].turn + N.PERK_SECOND_WIND_TURNS), `depth ${depth}: healed at turns ${json(got.map(e => e.turn))}, after turn ${w[0].turn}, within its turns`);
+    }
+  });
+
   // ---- The threat of a staggered owner's mark ----
 
   // A tethered warden (S.9's) beside you marks its ring of blows on your tile; then it is staggered
   // (as a rule may stagger an exhibit that shows a mark: perks-a.test.js), so its next action is
   // lost and the ring waits with it. At each step the threat of a wait (Specials.threat) warns of
-  // the ring exactly when the ring goes off before your next decision.
-  test('the threat counts a staggered owner\'s lost action: a mark that waits with it is warned of only when it will go off before your next decision (S.9\'s warden, depths 1–7)', () => {
+  // the ring exactly when the ring goes off before your next decision. Played twice: at your
+  // usual speed, the lost action and then the ring each come after your next decision, so the
+  // threat must not warn while it waits (over-warning); and with you slowed (every wait of yours
+  // 200 ticks), the lost action and the ring both come before your next decision, so it must
+  // warn even though the owner is staggered (under-warning, which would let the ring strike
+  // unannounced).
+  test('the threat counts a staggered owner\'s lost action: a mark that waits with it is warned of only when it will go off before your next decision, never later (S.9\'s warden, depths 1–7; you at your speed, and slowed)', () => {
     const list = H.species(C, 'tethered_warden').filter(x => x.sp.id === 'S9.4');
-    for (const { sp, depth } of list) {
+    for (const slow of [false, true]) for (const { sp, depth } of list) {
       const s = C.Setup.room(depth, { acc: 'T0', depth, map: ROOM, you: [3, 2], exhibits: [{ sp: sp.id, at: [4, 2], mode: 'hunting', stats: Roles.stats(sp.role, depth), sawYou: true, stim: 0 }] }, { invulnerable: true });
       s.actors[0].hp = s.actors[0].maxHp = 999;
+      if (slow) { Status.apply(s, s.actors[0], 'slowed', 'perm', { k: 'status', id: 'slowed' }, []); Status.settle(s); }
       let staggered = null;
-      const said = [];
+      const said = [], held = [];
       const r = H.play(C, s, (st, i, c) => {
         const w = st.actors[1];
         if (staggered === null && w.telegraph) { staggered = i; Status.apply(st, w, 'staggered', N.STAGGER_TURNS, { k: 'perk', id: 'single_file' }, []); Status.settle(st); }
         if (staggered !== null && i > staggered + 4) return null;
-        if (staggered !== null) said.push(!!Specials.threat(st, WAIT));
+        if (staggered !== null) { said.push(!!Specials.threat(st, WAIT)); held.push(Status.has(w, 'staggered') && !!w.telegraph); }
         return WAIT;
       }, { cap: 20 });
-      assert.deepEqual(r.violations.map(v => v.text), [], `depth ${depth}`);
-      assert.ok(staggered !== null, `depth ${depth}: the warden never marked`);
+      const where = `depth ${depth}${slow ? ', slowed' : ''}`;
+      assert.deepEqual(r.violations.map(v => v.text), [], where);
+      assert.ok(staggered !== null, `${where}: the warden never marked`);
       const went = r.steps.slice(staggered).map(st => st.events.some(e => e.k === 'damaged' && e.who === 'you' && e.cause && e.cause.k === 'special'));
-      assert.equal(json(said), json(went.slice(0, said.length)), `depth ${depth}: warned ${json(said)}, went off ${json(went)}`);
-      assert.equal(json(went.slice(0, 2)), json([false, true]), `depth ${depth}: the ring waits one action, then goes off`);
+      assert.equal(json(said), json(went.slice(0, said.length)), `${where}: warned ${json(said)}, went off ${json(went)}`);
+      // At your speed the ring waits one action, then goes off; slowed, it goes off within your
+      // first wait, its owner staggered as you decided, and was warned of.
+      assert.equal(json(went.slice(0, 2)), json(slow ? [true, false] : [false, true]), `${where}: the ring went off ${json(went)}`);
+      assert.ok(held[0] && said[0] === slow, `${where}: staggered with its mark at your decision, warned ${said[0]}`);
     }
   });
 

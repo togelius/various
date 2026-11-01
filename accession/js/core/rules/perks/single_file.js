@@ -21,9 +21,10 @@
 //     it counts once too.
 //   - Then, in order: the perk event (cause single_file, who: it; the perk's doing, not its,
 //     so the cause names it as who, never by); at the second rank
-//     PERK_SINGLE_FILE_DMG damage (Combat.hurt, cause perk single_file), which no Padding
-//     reduces, taken as every damage is taken (its archetype's rules apply: a swarm body
-//     falls to it, a splitter left with 2 or more health splits); and, if it still stands,
+//     PERK_SINGLE_FILE_DMG damage (Combat.hurt, cause perk single_file, raw the perk's
+//     damage), which no Padding reduces, taken as every damage is taken (its archetype's
+//     rules apply: a swarm body falls to it, losing all its health, which its sentence says
+//     with the 3 it was dealt; a splitter left with 2 or more health splits); and, if it still stands,
 //     staggered for STAGGER_TURNS (cause perk single_file), so it loses its next action
 //     (§8.1's timing rule), and only that one.
 'use strict';
@@ -52,7 +53,7 @@
       if (filed(state).includes(a.uid) || !into(state, a, from)) return;
       file(state, a.uid);
       Causes.emit(state, ev, 'perk', { id: ID, rank }, { k: ID, who: a.uid });
-      if (rank >= 2) Combat.hurt(state, a, N.PERK_SINGLE_FILE_DMG, { k: 'perk', id: ID }, ev);
+      if (rank >= 2) Combat.hurt(state, a, N.PERK_SINGLE_FILE_DMG, { k: 'perk', id: ID, raw: N.PERK_SINGLE_FILE_DMG }, ev);
       if (!a.gone) Status.apply(state, a, 'staggered', N.STAGGER_TURNS, { k: 'perk', id: ID }, ev);
     },
   });
