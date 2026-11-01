@@ -20,7 +20,14 @@
 //     patrol sees it; after a fight a timed patrol sees whatever it could; a station's line
 //     charged once when the route stands on it as it goes off, and waited out; the Waders'
 //     rounds (each its own, away from the Intro's mouth, never stalling); the Copying-Room
-//     Bell kept out of call of every exhibit.
+//     Bell kept out of call of every exhibit;
+//   - (D-RUNNER) LV11 as a validator: a corridor of wardens fails (two moves tried, then
+//     undone, the state as it was) and, planted in S.9's coda, reseeds; a move repairs a
+//     planted department with its sentence, and with RUNNER_MOVES 0 the same is rejected; the
+//     moves never leave LV6 rejecting; the verdict LV11 reaches early is the full report's; an
+//     accept that skips LV11 is caught by the sweep's check and the tool's gate; LV11 is the
+//     same under any switch and with an exhibit left out; a Brooder with no case to guard stands
+//     where a keeper can walk round it.
 'use strict';
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
@@ -32,8 +39,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // A room for tests made a department the runner can read: rooms [{id, role, cells}], each
   // cell a tile the room holds; the rest of roomOf null.
-  function dept(spec, rooms, entrance, exits) {
-    const st = Setup.room(5, Object.assign({ acc: 'S9', depth: 3, grade: 2, kit: KIT3 }, spec));
+  function dept(spec, rooms, entrance, exits, Y) {
+    const st = (Y || C).Setup.room(5, Object.assign({ acc: 'S9', depth: 3, grade: 2, kit: KIT3 }, spec));
     const m = st.dept;
     m.roomOf = m.tiles.map(row => row.split('').map(() => null));
     m.rooms = rooms.map(r => ({ id: r.id, key: r.id, role: r.role, number: 0, x0: 0, y0: 0, x1: 0, y1: 0 }));
@@ -279,8 +286,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(viaStaff.every(([, y]) => y <= 3), 'never through a staff door, at any cost');
     // A sleeper standing in the only way: no route.
     const shut = dept({ map: ['#####', 'E...X', '#####'], you: [0, 1], exhibits: [{ sp: 'S9.6', at: [2, 1], stats: S('skirmisher', 3) }] }, [{ id: 1, role: 'section', cells: row(1, 1, 3) }], [0, 1], [[4, 1]]);
-    assert.match(LRunner.measure(shut).none, /^no route reaches an exit/);
-    assert.match(LRunner.check(shut, null).reason, /^the worst-case runner finds no route/);
+    assert.match(LRunner.measure(shut).none, /^no way to an exit but through/);
+    assert.match(LRunner.check(shut, null).reason, /^the worst-case runner finds no way to an exit but through the hall, a staff door or an exhibit that stands still$/);
   });
   const Int = (k, m) => [k % m.w, (k - (k % m.w)) / m.w];
 
@@ -635,5 +642,166 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.match(lines[2], /^ {2}pass at 50%/);
     // The stations are placed once clockwork is ready (ARCH-CLOCKWORK); the Centrepiece waits.
     assert.ok(lines.some(l => /not placed yet: M11\.11 \(the Centrepiece, mp_tableau\)$/.test(l)), lines.join('\n'));
+  });
+
+  // ---- LV11, the validator, its moves and its gate (D-RUNNER) ----
+
+  // A corridor five tiles tall from the entrance (0, 1) to the exit (34, 1), one room, with
+  // Brooders (tethered wardens, each guarding its own tile) at the given tiles, beyond the
+  // safe zone.
+  function corridor(at, Y) {
+    const wall = '#'.repeat(35), floor = '#' + '.'.repeat(33) + '#', map = [wall, 'E' + '.'.repeat(33) + 'X', floor, floor, floor, floor, wall];
+    return dept({ map, you: [0, 1], exhibits: at.map(t => ({ sp: 'S9.4', at: t, stats: S('warden', 3), guards: t.slice() })) },
+      [{ id: 1, role: 'section', cells: cellsOf(map, 1, 1, 33, 5) }], [0, 1], [[34, 1]], Y);
+  }
+
+  test('a corridor of wardens fails LV11: two moves are tried and undone, and the state is as it was; planted in S.9\'s coda, an attempt reseeds', () => {
+    // Each Brooder in row 3 holds every row of the corridor within its tether (2 tiles), so no
+    // way through misses all three; two moves clear two of them, never the third.
+    const st = corridor([[14, 3], [20, 3], [26, 3]]), before = JSON.stringify(st), log = [];
+    const no = LRunner.check(st, null, log);
+    assert.ok(no, 'rejected');
+    assert.match(no.reason, /^the worst-case runner's cheapest route costs \d+ of its 25 HP \(at most 20, 80%\): the Ground-Nesting Brooder, With Its Nest wakes as it nears what it guards at turn \d+; with the Ground-Nesting Brooder, With Its Nest, moved from 14,3 to \d+,5, then with the Ground-Nesting Brooder, With Its Nest, moved from 20,3 to \d+,5, it still costs \d+$/);
+    assert.equal(JSON.stringify(st), before, 'every move undone');
+    same(log, []);
+    // With RUNNER_MOVES 3 a third move clears the way.
+    const Y3 = loadCore(null, { numbers: { RUNNER_MOVES: 3 } }), st3 = corridor([[14, 3], [20, 3], [26, 3]], Y3), log3 = [];
+    assert.equal(Y3.LRunner.check(st3, null, log3), null);
+    assert.equal(log3.length, 3);
+    // Nine more Brooders planted in S.9's coda, through which every way to an exit runs: an
+    // attempt the moves cannot repair is rejected and reseeds; a department made passes LV11 run
+    // again, or is the certified fallback with LV11's rejection kept; none has an exhibit removed.
+    const coda = Packs.get('S9').galleries.find(g => g.key === 'coda'), had = coda.contents;
+    coda.contents = had.concat([{ sp: 'S9.4', count: 9 }]);
+    try {
+      let reseeded = 0;
+      for (let seed = 2; seed <= 3; seed++) {
+        const g = Dept.generate(seed, 'S9', 3), lv11 = g.tries.flat().filter(f => f.id === 'lv11');
+        for (const f of lv11) assert.match(f.why, /^the worst-case runner(?: finds no way to an exit but through .+|'s cheapest route costs \d+ of its 25 HP \(at most 20, 80%\): the .+)$/);
+        if (lv11.length) reseeded++;
+        assert.ok(LRunner.passes(LRunner.measure(g.state), 'b', N.RUNNER_PASS_PCT) || (g.fallback && g.rejected.id === 'lv11'), `S9 seed ${seed}`);
+        assert.equal(g.state.actors.filter(a => a.sp === 'S9.4' && !a.gone).length, 10, `S9 seed ${seed}: no Brooder removed`);
+      }
+      assert.equal(reseeded, 2);
+    } finally { coda.contents = had; }
+  });
+
+  test('a move repairs a planted department: the costliest exhibit the route wakes goes to the nearest tile clear of it, said in a sentence; with RUNNER_MOVES 0 it is rejected', () => {
+    // A Brooder at (14, 2) holds the corridor's way along row 1 within its tether.
+    const st = corridor([[14, 2]]), b = st.actors[1], log = [];
+    assert.ok(!LRunner.passes(LRunner.measure(st), 'b', N.RUNNER_PASS_PCT));
+    assert.equal(LRunner.check(st, null, log), null);
+    same([b.x, b.y, b.home, b.guards], [13, 5, [13, 5], [13, 5]]);
+    same(log, [{ check: 'LV11', room: 1, op: 'moved the Ground-Nesting Brooder, With Its Nest, from 14,2 to 13,5: the worst-case runner\'s way came within 2 tiles of what it guards, which wakes it at once; from 13,5 it passes clear of it' }]);
+    const rep = LRunner.measure(st);
+    same([rep.best.b.b, rep.best.b.woken.length], [0, 0]);
+    // Played in the game, the way the runner now takes wakes nothing.
+    const g = State.clone(st);
+    assert.equal(play(g, rep.best.b.route), null);
+    same(g.actors.map(a => a.mode), st.actors.map(a => a.mode));
+    // With no move allowed, the same department is rejected, as it stands.
+    const Y0 = loadCore(null, { numbers: { RUNNER_MOVES: 0 } }), st0 = corridor([[14, 2]], Y0);
+    assert.match(Y0.LRunner.check(st0, null, []).reason, /: the Ground-Nesting Brooder, With Its Nest wakes as it nears what it guards at turn \d+$/);
+    same([st0.actors[1].x, st0.actors[1].y], [14, 2]);
+    // On real departments a move is made only where LV6 still passes, and never onto a tile a
+    // patrol walks or a station's line takes (A.4 seed 10, M.11 seeds 13 and 37 move).
+    for (const [acc, seed] of [['A4', 10], ['M11', 13], ['M11', 37]]) {
+      const made = Dept.generate(seed, acc, 1 + ((seed - 1) % 7)), s2 = made.state, moves = made.log.filter(l => l.check === 'LV11');
+      assert.ok(moves.length >= 1 && moves.length <= N.RUNNER_MOVES, `${acc} seed ${seed}: ${moves.length} moves`);
+      assert.equal(C.LV6.check(s2, null), null, `${acc} seed ${seed}`);
+      for (const l of moves) {
+        const q = /from (\d+),(\d+) to (\d+),(\d+)/.exec(l.op), a = s2.actors.find(x => x.x === +q[3] && x.y === +q[4]);
+        assert.ok(a && a.mode === 'dormant' && C.Labels.nameOf(s2)(a.uid) && l.op.startsWith(`moved ${C.Labels.nameOf(s2)(a.uid)}`), l.op);
+        assert.ok(!(C.Patrol.timeline(s2, 120) || []).some(p => p.at.some(t => t.x === a.x && t.y === a.y)), l.op);
+        for (const st2 of s2.actors.filter(x => C.HourlyDemonstration.isStation(s2, x))) assert.ok(!C.HourlyDemonstration.reach(s2, st2).some(t => t[0] === a.x && t[1] === a.y), l.op);
+      }
+    }
+  });
+
+  test('LV11\'s early verdict is the full report\'s, and LV11 is the same under any switch and with an exhibit left out', () => {
+    // On departments made with LV11 stood aside (some fail), check accepts one as it stands
+    // (no move logged) exactly when the full report passes it.
+    const keep = LRunner.check;
+    let failed = 0;
+    for (const [acc, seed] of [['S9', 9], ['A4', 10], ['M11', 13], ['A4', 2]]) {
+      LRunner.check = () => null;
+      const st = Dept.create(seed, acc, 1 + ((seed - 1) % 7));
+      LRunner.check = keep;
+      const pass = LRunner.passes(LRunner.measure(st), 'b', N.RUNNER_PASS_PCT), log = [], v = LRunner.check(st, null, log);
+      assert.equal(v === null && !log.length, pass, `${acc} seed ${seed}`);
+      if (!pass) failed++;
+    }
+    assert.equal(failed, 3);
+    // Where LV11 reseeds (S.9 seed 9) or moves (M.11 seed 37), a module switched off or an
+    // exhibit left out changes no exhibit's place (M4 plan A10: paired runs share rooms).
+    const where = s => JSON.stringify(s.actors.map(a => [a.uid, a.x, a.y, a.home, a.route]));
+    for (const [acc, seed] of [['S9', 9], ['M11', 37]]) {
+      const depth = 1 + ((seed - 1) % 7), made = Dept.generate(seed, acc, depth), base = made.state;
+      for (const m of Packs.get(acc).modules) assert.equal(where(Dept.create(seed, acc, depth, { rulesOff: [m.id] })), where(base), `${acc} seed ${seed}, ${m.id} off`);
+      for (const q of made.log.filter(l => l.check === 'LV11').map(l => /from (\d+),(\d+) to (\d+),(\d+)/.exec(l.op))) {
+        const out = base.actors.find(x => x.x === +q[3] && x.y === +q[4]);
+        const s = Dept.create(seed, acc, depth, { without: [out.uid] }), rest = q2 => JSON.stringify(q2.actors.filter(x => x.uid !== out.uid).map(x => [x.uid, x.x, x.y]));
+        assert.equal(rest(s), rest(base), `${acc} seed ${seed} without ${out.uid}`);
+      }
+    }
+  });
+
+  test('an accept that skips LV11 is caught: the sweep\'s check and the tool\'s gate find the departments it fails', () => {
+    const keep = LRunner.check, measure = LRunner.measure, check = require(path.join(root, 'test/sweep/runner.check.js'))(C), T = require(path.join(root, 'tools/runner-sweep.js'));
+    const record = (acc, seed) => { const depth = 1 + ((seed - 1) % 7), g = Dept.generate(seed, acc, depth); return { state: g.state, seed, acc, depth, made: { attempt: g.attempt, fallback: g.fallback, tries: g.tries, rejected: g.rejected, log: g.log } }; };
+    const opt = T.parse(['--dept', 'M11', '--seeds', '13-13', '--pct', '80', '--check']);
+    LRunner.check = () => null;
+    try {
+      const found = [];
+      for (const [acc, seed] of [['S9', 9], ['A4', 10], ['M11', 13]]) { const p = check.each(record(acc, seed)); if (p && /^LV11 fails the department made/.test(p)) found.push(acc); }
+      same(found, ['S9', 'A4', 'M11']);
+      // The gate on M.11's seed 13, as the tool's --check prints it. (LV11 never ran, so it
+      // never reseeded: its first-attempt share alone would pass.)
+      const g = T.gate('M11', T.sweep(C, 'M11', opt), opt, check.oracle);
+      assert.ok(!g.ok);
+      assert.match(g.lines[0], /^M11 gate: every final department passes LV11 at 80%: 0 of 1 \(failing: seeds 13\)$/);
+      assert.match(g.lines[1], /^ {2}at the first attempt LV11 judged: 1 of 1 /);
+      assert.match(g.lines[g.lines.length - 1], /^ {2}FAILS: a final department fails$/);
+    } finally { LRunner.check = keep; }
+    // With LV11, the same seed holds, and the oracle agrees.
+    const g2 = T.gate('M11', T.sweep(C, 'M11', opt), opt, check.oracle);
+    assert.ok(g2.ok, g2.lines.join('\n'));
+    assert.match(g2.lines[3], /^ {2}the oracle agrees on 1 of 1 \(seeds 1–100\)$/);
+    // A runner whose charge is halved is caught by the oracle: A.4 seed 1 passes, its cheapest
+    // route waking a fight of three that the oracle charges as LRunner does, until halved.
+    const d1 = record('A4', 1), rep = LRunner.measure(d1.state);
+    assert.ok(rep.best.b.b > 0 && rep.best.b.fights.some(f => f.uids.length === 3));
+    assert.equal(check.each(d1), null);
+    LRunner.measure = (st, o) => { const r = measure(st, o); if (!r.none) r.best.b = Object.assign({}, r.best.b, { b: Math.floor(r.best.b.b / 2) }); return r; };
+    try { assert.match(check.each(d1), /^the oracle's charge of the reported route is \d+ \(woken .+\), LRunner's \d+ \(woken .+\)$/); } finally { LRunner.measure = measure; }
+  });
+
+  test('a Brooder with no case to guard stands where a keeper can walk round it: its tether off the safe zone, every way into its room joined outside its tether and ring', () => {
+    let own = 0;
+    for (let seed = 1; seed <= 14; seed++) {
+      const g = Dept.generate(seed, 'S9', 1 + ((seed - 1) % 7)), s = g.state, m = s.dept, b = s.actors.find(a => a.sp === 'S9.4');
+      if (b.guards[0] !== b.x || b.guards[1] !== b.y) continue;
+      own++;
+      const rm = m.roomOf[b.y][b.x], cells = [];
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (m.roomOf[y][x] === rm && Grid.walkable(m, x, y)) cells.push([x, y]);
+      const zone = Grid.distances(m, [m.entrance], N.SAFE_ZONE);
+      for (let y = b.y - 2; y <= b.y + 2; y++) for (let x = b.x - 2; x <= b.x + 2; x++) if (Grid.inside(m, x, y) && Grid.disc(x - b.x, y - b.y, N.TETHER_RANGE) && Grid.walkable(m, x, y)) assert.ok(Grid.reachDist(zone, m, x, y) < 0, `S9 seed ${seed}: its tether holds ${x},${y} of the safe zone`);
+      // You, standing on each tile of the room, wake it at once (Wake.inTether) or would be
+      // inside your ring of it (Vision.ringDist at RING_MOVING): those tiles are off-limits;
+      // every way in is reached from the first through the rest.
+      const me = Object.assign({}, s, { actors: [Object.assign({}, s.actors[0])].concat(s.actors.slice(1)) }), near = new Set();
+      for (const [x, y] of cells) {
+        me.actors[0].x = x; me.actors[0].y = y;
+        const f = { r: N.RING_MOVING, x, y, dist: Grid.distances(m, [[x, y]], N.RING_MOVING) };
+        if (Wake.inTether(me, b) || C.Vision.ringDist(me, b.x, b.y, f) >= 0) near.add(y * m.w + x);
+      }
+      const ways = cells.filter(([x, y]) => [0, 2, 4, 6].some(d => { const nx = x + Grid.DX[d], ny = y + Grid.DY[d]; return Grid.walkable(m, nx, ny) && m.roomOf[ny][nx] !== rm; })).map(([x, y]) => y * m.w + x);
+      for (const k of ways) assert.ok(!near.has(k), `S9 seed ${seed}: a way in at ${k % m.w},${(k - k % m.w) / m.w} wakes it`);
+      const free = new Set(cells.map(([x, y]) => y * m.w + x).filter(k => !near.has(k) && !s.actors.some((a, i) => i > 0 && a !== b && a.mode === 'dormant' && C.Actors.covers(a, k % m.w, (k - k % m.w) / m.w)))), seen = new Set([ways[0]]), todo = [ways[0]];
+      while (todo.length) { const k = todo.pop(), x = k % m.w, y = (k - x) / m.w; for (let d = 0; d < 8; d++) { const j = (y + Grid.DY[d]) * m.w + x + Grid.DX[d]; if (Grid.canStep(m, x, y, d) && free.has(j) && !seen.has(j)) { seen.add(j); todo.push(j); } } }
+      for (const k of ways) assert.ok(seen.has(k), `S9 seed ${seed}: the way in at ${k % m.w},${(k - k % m.w) / m.w} is cut off by it`);
+      assert.ok(g.log.some(l => /S9\.4 found no case in \S+ it could guard and guards its own tile$/.test(l.op)), `S9 seed ${seed}`);
+    }
+    assert.ok(own >= 4, `${own} of 14 with no case`);
   });
 };

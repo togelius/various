@@ -1,9 +1,9 @@
 // ACCESSION — LV11, the worst-case runner (design/layout.md §9.2; M4 plan D2.3, Q2; BUILD.md §5.5,
 // §10.3): a route from the entrance to an exit, the exhibits it would wake, and what they would
 // cost a runner of the median visitor less one Certificate. It passes at RUNNER_PASS_PCT of the
-// runner's health. D-RUNNER-EST built it in report mode: nothing registers it as a validator,
-// so it changes no department, and tools/runner-sweep.js measures it. D-RUNNER registers it
-// with Populate.addValidator('lv11', …) from here and adds its RUNNER_MOVES logged moves.
+// runner's health. D-RUNNER-EST built it in report mode; D-RUNNER registers it as a validator
+// (Populate.addValidator('lv11', …), below, after LV6 and the treasure case), with its
+// RUNNER_MOVES logged moves (LRunner.check), and tools/runner-sweep.js --check is its gate.
 //
 // The runner (D2.3): the median visitor at the department's depth (Progress.median: a Balanced
 // weapon and a Standard garment of the lower tier on offer there) at one grade less (never
@@ -50,10 +50,12 @@
 //       take to destroy it hitting every blow at your least damage, and APPROACH turns more
 //       for a ranged exhibit, each fought alone.
 // The cheapest route is searched among a few: the shortest, and shortest ones that pay more
-// and more for the tiles of wake regions (each tile costing what waking there would wake);
-// so a pass found is a route that exists, and a failure may miss a cheaper one.
+// and more for the tiles of wake regions (each tile costing what waking there would wake),
+// then those that wait for timed patrols (timed, its work bounded by TIMED_WORK); so a pass
+// found is a route that exists, and a failure may miss a cheaper one.
 //
-// It draws on no stream and changes nothing in the state.
+// It draws on no stream. Only LV11's moves (LRunner.check) change the state: where an exhibit
+// stands, as generation makes the department.
 'use strict';
 const LRunner = (() => {
   const CHARGES = ['a', 'b', 'c'];
@@ -66,6 +68,11 @@ const LRunner = (() => {
   // route (0), then dearer and dearer, then such tiles never stepped on (BLOCK).
   const PRICES = [0, 1, 4, 32];
   const BLOCK = -1;
+  // The timed search's work, in steps tried (each tile reached at a turn, and each step from
+  // it), past which it stops with what it has found: it bounds the rare department whose
+  // patrols leave a great many ways to wait (some 200 CPU-ms at CP1). A route it then misses
+  // is a pass missed, never a cost understated.
+  const TIMED_WORK = 600000;
   // A chain waking's delay: the alarm and a herald's call are shown for a turn, then go off at
   // the caller's next action; ally_hit wakes as the first blow lands.
   const CALL_DELAY = 2, ALLY_DELAY = 1;
@@ -193,17 +200,22 @@ const LRunner = (() => {
         if (e2 < dx) { err += dx; y += 1; }
       }
     };
-    return (fx, fy) => {
+    // Each mask's tiles as a list (lists), for reading it whole.
+    const lists = new Map();
+    const sightOf = (fx, fy) => {
       const key = fy * w + fx;
       if (made.has(key)) return made.get(key);
-      const k = new Uint8Array(w * h);
+      const k = new Uint8Array(w * h), list = [];
       for (let y = max(0, fy - r); y <= min(h - 1, fy + r); y++) for (let x = max(0, fx - r); x <= min(w - 1, fx + r); x++) {
         const dx = x - fx, dy = y - fy;
-        if (stand[y * w + x] && dx * dx + dy * dy <= r * r + r && los(fx, fy, x, y)) k[y * w + x] = 1;
+        if (stand[y * w + x] && dx * dx + dy * dy <= r * r + r && los(fx, fy, x, y)) { k[y * w + x] = 1; list.push(y * w + x); }
       }
       made.set(key, k);
+      lists.set(k, list);
       return k;
     };
+    sightOf.lists = lists;
+    return sightOf;
   }
   const near = (a, b, r) => Actors.footprint(a).some(([x, y]) => Actors.footprint(b).some(([u, v]) => Grid.disc(x - u, y - v, r)));
   const sleeps = (state, b) => b.mode === 'dormant' && !Archetypes.pipless(state, b);
@@ -231,9 +243,9 @@ const LRunner = (() => {
     }
     // The route starts where you stand as the visit begins (inside the entrance), so that its
     // i-th tile is where you stand after your i-th action.
-    const you = state.actors[0], start = you.y * m.w + you.x;
-    const short = shortest(m, blocked, start);
-    if (short < 0) return { none: 'no route reaches an exit without the hall, a staff door or an exhibit that stands still' };
+    const you = state.actors[0], start = you.y * m.w + you.x, steps = stepsOf(m, blocked);
+    const first = search(m, steps, null, 0, start), short = first ? first.length - 1 : -1;
+    if (short < 0) return { none: 'no way to an exit but through the hall, a staff door or an exhibit that stands still' };
     const run = runner(state, opts), horizon = HORIZON * short, view = opts && opts.doors === 'shut' ? state : opened(state), vm = view.dept;
     // The patrols' timeline (Patrol.timeline), unless it cannot be told or is switched off.
     const told = opts && opts.timing === 'off' ? null : Patrol.timeline(state, horizon), walked = new Map();
@@ -243,7 +255,7 @@ const LRunner = (() => {
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
       if (a.gone || Archetypes.pipless(state, a) || roomOf(m, a.x, a.y) === intro) continue;
-      const e = { a, i, t: Object.assign(terms(state, a, run), { i, sp: a.sp }), fights: !Cases.encased(state, a), need: 0, ring: null, axis: null, tether: null, sight: null, wakes: [] };
+      const e = { a, i, t: null, fights: !Cases.encased(state, a), need: 0, ring: null, axis: null, tether: null, sight: null, wakes: [] };
       if (a.mode === 'dormant') {
         e.need = Math.max(1, N.PIPS_TO_WAKE - (a.pips || 0));
         e.ring = maskOf(vm, Archetypes.wakeRegion(view, a, N.PIPS_TO_WAKE));
@@ -253,16 +265,21 @@ const LRunner = (() => {
         // A patrol whose walk is told: what it sees at each of its actions (AI.look, before it
         // moves), by the runner's turn: an action in the ticks of turn i comes after the
         // runner's i-th move (ties go to you), so it sees the route's tile i + 1.
-        e.turns = [];
+        // (e.walk: the tiles it stands on, each once, which no move may take.)
+        e.turns = []; e.walk = [];
+        const masks = new Set();
         for (const p of walked.get(a.uid)) {
+          const q = p.y * m.w + p.x;
+          if (!e.walk.includes(q)) e.walk.push(q);
           const i = Int.idiv(p.t - state.tick, N.TICKS_PER_TURN) + 1;
           while (e.turns.length <= i) e.turns.push([]);
           const k = sightOf(p.x, p.y);
           if (!e.turns[i].includes(k)) e.turns[i].push(k);
+          masks.add(k);
         }
         // Everything it could see on its round: after a fight starts, and past its timeline.
         e.sight = new Uint8Array(m.w * m.h);
-        for (const list of e.turns) for (const k of list) for (let q = 0; q < k.length; q++) if (k[q]) e.sight[q] = 1;
+        for (const k of masks) for (const q of sightOf.lists.get(k)) e.sight[q] = 1;
       } else {
         e.sight = maskOf(vm, Archetypes.wakeRegion(view, a, horizon));
         // An exhibit awake from the start whose rules give no region is taken to find you at once.
@@ -295,40 +312,64 @@ const LRunner = (() => {
         else if (call && !piece && Actors.footprint(b).some(([x, y]) => call[y * m.w + x])) e.wakes.push([j, CALL_DELAY, 'herald']);
       });
     }
-    return { run, blocked, start, short, horizon, ex, lineNet };
+    return { state, run, blocked, start, short, first, steps, horizon, ex, lineNet, costs: new Map(), lists: sightOf.lists };
   }
 
-  // The number of steps of the shortest route from the entrance to an exit, or -1.
-  function shortest(m, blocked, start) {
-    const p = search(m, blocked, null, 0, start);
-    return p ? p.length - 1 : -1;
+  // The terms of M's exhibit e (LRunner.terms, with its spawn index and species), worked out
+  // the first time a charge needs them.
+  function termsOf(M, e) {
+    if (!e.t) e.t = Object.assign(terms(M.state, e.a, M.run), { i: e.i, sp: e.a.sp });
+    return e.t;
   }
 
   // ---- The route ----
 
+  // Every step the route may take, worked out once a model (Grid.canStep, in Grid's direction
+  // order): for each tile k not blocked, its steps from[k] … from[k + 1] − 1, each onto to[e]
+  // (never a blocked tile) in direction how[e], or 10 + that direction onto a closed door.
+  function stepsOf(m, blocked) {
+    const n = m.w * m.h, w = m.w, from = new Int32Array(n + 1), to = new Int32Array(8 * n), how = new Uint8Array(8 * n);
+    let e = 0;
+    for (let k = 0; k < n; k++) {
+      from[k] = e;
+      if (blocked[k]) continue;
+      const x = k % w, y = Int.idiv(k, w);
+      for (let d = 0; d < 8; d++) {
+        if (!Grid.canStep(m, x, y, d)) continue;
+        const qx = x + Grid.DX[d], qy = y + Grid.DY[d], q = qy * w + qx;
+        if (!blocked[q]) { to[e] = q; how[e] = Grid.ch(m, qx, qy) === '+' ? 10 + d : d; e++; }
+      }
+    }
+    from[n] = e;
+    return { from, to, how };
+  }
+
   // A cheapest walk (Dijkstra, 100 a step and price × pen[k] for entering tile k, never a
   // blocked tile, nor a priced tile when price is BLOCK) from the entrance to an exit: its tile
   // indices, the entrance first, or null. Ties go to the lower tile index, so it draws nothing.
-  function search(m, blocked, pen, price, start) {
+  // The heap holds (distance, tile) pairs in two typed arrays, least distance first, then the
+  // lower tile.
+  function search(m, steps, pen, price, start) {
     const n = m.w * m.h, dist = new Float64Array(n).fill(-1), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
-    const exit = new Uint8Array(n);
+    const exit = new Uint8Array(n), { from, to, how } = steps;
     for (const [x, y] of m.exits) exit[y * m.w + x] = 1;
-    const s = start;
-    const heap = [];
-    const less = (i, j) => heap[i][0] < heap[j][0] || (heap[i][0] === heap[j][0] && heap[i][1] < heap[j][1]);
-    const push = (d, k) => { heap.push([d, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (!less(i, p)) break; const t = heap[i]; heap[i] = heap[p]; heap[p] = t; i = p; } };
-    const pop = () => {
-      const first = heap[0], last = heap.pop();
-      if (heap.length) {
-        heap[0] = last;
-        let i = 0;
-        for (;;) { const l = 2 * i + 1, r = l + 1; let b = i; if (l < heap.length && less(l, b)) b = l; if (r < heap.length && less(r, b)) b = r; if (b === i) break; const t = heap[i]; heap[i] = heap[b]; heap[b] = t; i = b; }
-      }
-      return first;
+    let cap = 64, hd = new Float64Array(cap), hk = new Int32Array(cap), size = 0;
+    const less = (i, j) => hd[i] < hd[j] || (hd[i] === hd[j] && hk[i] < hk[j]);
+    const swap = (i, j) => { const d = hd[i], k = hk[i]; hd[i] = hd[j]; hk[i] = hk[j]; hd[j] = d; hk[j] = k; };
+    const push = (d, k) => {
+      if (size === cap) { cap *= 2; const d2 = new Float64Array(cap), k2 = new Int32Array(cap); d2.set(hd); k2.set(hk); hd = d2; hk = k2; }
+      hd[size] = d; hk[size] = k;
+      let i = size++;
+      while (i > 0) { const p = (i - 1) >> 1; if (!less(i, p)) break; swap(i, p); i = p; }
     };
-    dist[s] = 0; push(0, s);
-    while (heap.length) {
-      const [d, k] = pop();
+    dist[start] = 0; push(0, start);
+    while (size) {
+      const d = hd[0], k = hk[0];
+      size--;
+      if (size) {
+        hd[0] = hd[size]; hk[0] = hk[size];
+        for (let i = 0; ;) { const l = 2 * i + 1, r = l + 1; let b = i; if (l < size && less(l, b)) b = l; if (r < size && less(r, b)) b = r; if (b === i) break; swap(i, b); i = b; }
+      }
       if (done[k]) continue;
       done[k] = 1;
       if (exit[k]) {
@@ -338,11 +379,9 @@ const LRunner = (() => {
         for (let q = k; q >= 0; q = prev[q]) { out.push(q); if (prev[q] >= 0 && Grid.ch(m, q % m.w, Int.idiv(q, m.w)) === '+') out.push(prev[q]); }
         return out.reverse();
       }
-      const x = k % m.w, y = Int.idiv(k, m.w);
-      for (let dir = 0; dir < 8; dir++) {
-        if (!Grid.canStep(m, x, y, dir)) continue;
-        const q = (y + Grid.DY[dir]) * m.w + x + Grid.DX[dir];
-        if (blocked[q] || done[q]) continue;
+      for (let e = from[k]; e < from[k + 1]; e++) {
+        const q = to[e];
+        if (done[q]) continue;
         if (pen && pen[q] && price === BLOCK) continue;
         const nd = d + 100 + (pen && price > 0 ? price * pen[q] : 0);
         if (dist[q] < 0 || nd < dist[q]) { dist[q] = nd; prev[q] = k; push(nd, q); }
@@ -394,6 +433,12 @@ const LRunner = (() => {
   // uids, sps, a, b, c}], a, b, c}: what the route wakes, its fights (exhibits not in a case, woken
   // within RUNNER_TOGETHER_TURNS of the one before, in the order they wake), and each charge.
   function cost(M, route) {
+    if (M.costs && M.costs.has(route)) return M.costs.get(route);
+    const out = costOf(M, route);
+    if (M.costs) M.costs.set(route, out);
+    return out;
+  }
+  function costOf(M, route) {
     const { T, how } = wakes(M, route), woken = [];
     M.ex.forEach((e, j) => { if (T[j] >= 0) woken.push({ j, uid: e.a.uid, sp: e.a.sp, turn: T[j], how: how[j], fights: e.fights }); });
     woken.sort((p, q) => (p.turn - q.turn) || (M.ex[p.j].i - M.ex[q.j].i));
@@ -401,8 +446,8 @@ const LRunner = (() => {
     for (const w of woken) {
       if (!w.fights) continue;
       const last = fights[fights.length - 1];
-      if (last && w.turn - last.end <= N.RUNNER_TOGETHER_TURNS) { last.list.push(M.ex[w.j].t); last.end = w.turn; }
-      else fights.push({ turn: w.turn, end: w.turn, list: [M.ex[w.j].t] });
+      if (last && w.turn - last.end <= N.RUNNER_TOGETHER_TURNS) { last.list.push(termsOf(M, M.ex[w.j])); last.end = w.turn; }
+      else fights.push({ turn: w.turn, end: w.turn, list: [termsOf(M, M.ex[w.j])] });
     }
     const out = { route, length: route.length - 1, woken: woken.map(w => ({ uid: w.uid, sp: w.sp, turn: w.turn, how: w.how, fights: w.fights })), fights: [], lines: [] };
     for (const how of CHARGES) out[how] = 0;
@@ -426,13 +471,17 @@ const LRunner = (() => {
   // The routes the search tries: the shortest, then dearer prices for the tiles where a waking
   // would cost (pen: each exhibit's charge (b) alone and what its waking wakes, over the pips it
   // lacks for a ring or axis tile), then those tiles never stepped on; each once, and none
-  // longer than the horizon.
-  function candidates(state, M) {
-    const m = state.dept, pen = new Float64Array(m.w * m.h);
+  // longer than the horizon. verdict, given (LV11's), stops the search at the first route
+  // that passes charge (b) at RUNNER_PASS_PCT: the routes kept so far, that one last.
+  function candidates(state, M, verdict) {
+    const m = state.dept, pen = new Float64Array(m.w * m.h), K = { M, out: [], keys: [], verdict: !!verdict, done: false };
+    // The shortest first: when it is enough, nothing else need be priced.
+    keepRoute(K, M.first);
+    if (K.done) return K.out;
     M.ex.forEach(e => {
       if (e.lines) for (const [, mask] of e.lines) for (let q = 0; q < pen.length; q++) if (mask[q]) pen[q] = Math.max(pen[q], 100 * M.lineNet);
-      let k = e.fights ? alone(e.t, 'b') : 0;
-      for (const [j] of e.wakes) if (M.ex[j].fights) k += alone(M.ex[j].t, 'b');
+      let k = e.fights ? alone(termsOf(M, e), 'b') : 0;
+      for (const [j] of e.wakes) if (M.ex[j].fights) k += alone(termsOf(M, M.ex[j]), 'b');
       if (!k) return;
       const per = Int.ceilDiv(k, Math.max(1, e.need));
       for (let q = 0; q < pen.length; q++) {
@@ -440,15 +489,23 @@ const LRunner = (() => {
         else if ((e.ring && e.ring[q]) || (e.axis && e.axis[q])) pen[q] += per;
       }
     });
-    const out = [], seen = [];
-    const keep = r => { if (!r || r.length - 1 > M.horizon) return; const key = r.join(','); if (seen.includes(key)) return; seen.push(key); out.push(r); };
-    for (const price of PRICES.concat([BLOCK])) keep(search(m, M.blocked, pen, price, M.start));
+    for (const price of PRICES.concat([BLOCK])) if (!K.done && price !== 0) keepRoute(K, search(m, M.steps, pen, price, M.start));
     // Then the timed routes, unless a route found already costs nothing (none can cost less).
-    if (out.some(r => cost(M, r).b === 0)) return out;
-    for (const r of timed(m, M, pen, false)) keep(r);
+    if (K.done || K.out.some(r => cost(M, r).b === 0)) return K.out;
+    for (const r of timed(m, M, pen, false, K)) keepRoute(K, r);
     // And, unless one of those costs nothing, those that keep off every priced tile.
-    if (!out.some(r => cost(M, r).b === 0)) for (const r of timed(m, M, pen, true)) keep(r);
-    return out;
+    if (!K.done && !K.out.some(r => cost(M, r).b === 0)) for (const r of timed(m, M, pen, true, K)) keepRoute(K, r);
+    return K.out;
+  }
+  // A route the search found, kept once (K.out), unless it is longer than the horizon or the
+  // search is done; with K.verdict, the search is done once one passes charge (b) at
+  // RUNNER_PASS_PCT.
+  function keepRoute(K, r) {
+    if (K.done || !r || r.length - 1 > K.M.horizon) return;
+    const key = r.join(',');
+    if (K.keys.includes(key)) return;
+    K.keys.push(key); K.out.push(r);
+    if (K.verdict && cost(K.M, r).b <= N.RUNNER_PASS_PCT * K.M.run.maxHp) K.done = true;
   }
 
   // The routes that keep out of every timed patrol's sight, waiting where they must (a careful
@@ -459,132 +516,321 @@ const LRunner = (() => {
   // one of least pen (soonest among those); none when there is no timed patrol or no such
   // route. Ties go to the lower tile index and to waiting, then compass order, so it draws
   // nothing.
-  function timed(m, M, pen, avoid) {
+  function timed(m, M, pen, avoid, K) {
     const pats = M.ex.filter(e => e.turns), lines = M.ex.filter(e => e.lines && e.lines.length);
     if (!pats.length && !lines.length) return [];
     // INF is read once: a global's every read is slow in a context of its own (the tools').
-    const n = m.w * m.h, w = m.w, L = M.horizon, layers = [], INF = Infinity;
-    // The tiles some timed patrol sees at turn i (past its timeline, everything it could).
-    const tilesOf = new Map(), listOf = mask => {
-      if (!tilesOf.has(mask)) { const t = []; for (let q = 0; q < n; q++) if (mask[q]) t.push(q); tilesOf.set(mask, t); }
-      return tilesOf.get(mask);
-    };
-    const seen = i => {
-      if (layers[i]) return layers[i];
-      const k = new Uint8Array(n);
-      for (const e of pats) for (const mask of i < e.turns.length ? e.turns[i] : [e.sight]) for (const q of listOf(mask)) k[q] = 1;
-      for (const e of lines) for (const [j, mask] of e.lines) if (j === i) for (const q of listOf(mask)) k[q] = 1;
-      return (layers[i] = k);
-    };
+    const n = m.w * m.h, w = m.w, L = M.horizon, INF = Infinity;
+    const T = { pats, lines, layers: [], n, lists: M.lists || new Map() };
     const exit = new Uint8Array(n);
     for (const [x, y] of m.exits) exit[y * w + x] = 1;
     const s = M.start;
-    if (seen(0)[s]) return [];
-    // Each tile's steps, once: from[k] to from[k + 1] in to and how (d, or 10 + d onto a closed
-    // door).
-    const from = new Int32Array(n + 1), to = new Int32Array(8 * n), how = new Uint8Array(8 * n);
-    let e0 = 0;
-    for (let k = 0; k < n; k++) {
-      from[k] = e0;
-      if (M.blocked[k]) continue;
-      const x = k % w, y = Int.idiv(k, w);
-      for (let d = 0; d < 8; d++) {
-        if (!Grid.canStep(m, x, y, d)) continue;
-        const qx = x + Grid.DX[d], qy = y + Grid.DY[d], q = qy * w + qx;
-        if (!M.blocked[q] && !(avoid && pen[q] > 0)) { to[e0] = q; how[e0] = Grid.ch(m, qx, qy) === '+' ? 10 + d : d; e0++; }
-      }
-    }
-    from[n] = e0;
-    const val = [0, 1, 2].map(() => new Float64Array(n).fill(INF)), par = new Uint8Array(n * (L + 1));
-    // The tiles holding a value in each of the three layers kept (Int32Array lists).
-    const lists = [0, 1, 2].map(() => new Int32Array(n)), size = [0, 0, 0];
-    val[0][s] = pen[s]; lists[0][0] = s; size[0] = 1;
-    let first = null, least = null;
-    for (let i = 0; i <= L && size[i % 3]; i++) {
-      const a = i % 3, b = (i + 1) % 3, c = (i + 2) % 3, cur = val[a], nxt = val[b], after = val[c];
-      if (i + 2 <= L) { for (let j = 0; j < size[c]; j++) after[lists[c][j]] = INF; size[c] = 0; }
-      const s1 = i + 1 <= L ? seen(i + 1) : null, s2 = i + 2 <= L ? seen(i + 2) : null, live = lists[a].subarray(0, size[a]);
-      const nl = lists[b], cl = lists[c], pb = (i + 1) * n, pc = (i + 2) * n;
-      let firstHere = null;
-      for (let j = 0; j < live.length; j++) {
-        const k = live[j], v = cur[k];
+    if (seenAt(T, 0)[s]) return [];
+    // Each tile's steps (the model's: from[k] to from[k + 1] in to and how, d or 10 + d onto a
+    // closed door); keeping off the priced tiles, none onto one.
+    const { from, to, how } = M.steps;
+    const par = new Uint8Array(n * (L + 1));
+    // Three layers kept, turn i's (cur), i + 1's (nxt) and i + 2's (after): each tile's value
+    // (INF where none) and the list of the tiles holding one; turned round each turn.
+    let cur = new Float64Array(n).fill(INF), nxt = new Float64Array(n).fill(INF), after = new Float64Array(n).fill(INF);
+    let curL = new Int32Array(n), nxtL = new Int32Array(n), afterL = new Int32Array(n), curN = 1, nxtN = 0, afterN = 0;
+    cur[s] = pen[s]; curL[0] = s;
+    let first = null, least = null, work = 0;
+    for (let i = 0; i <= L && curN && work <= TIMED_WORK; i++) {
+      if (i + 2 <= L) { for (let j = 0; j < afterN; j++) after[afterL[j]] = INF; afterN = 0; }
+      const s1 = i + 1 <= L ? seenAt(T, i + 1) : null, s2 = i + 2 <= L ? seenAt(T, i + 2) : null, pb = (i + 1) * n, pc = (i + 2) * n;
+      let fk = -1, fv = INF;
+      for (let j = 0; j < curN; j++) {
+        const k = curL[j], v = cur[k];
         if (exit[k]) {
-          if (!first && (!firstHere || v < firstHere.v)) firstHere = { i, k, v };
+          if (!first && v < fv) { fk = k; fv = v; }
           if (!least || v < least.v) least = { i, k, v };
           continue;
         }
-        if (!s1) continue;
-        if (!s1[k]) { const u = v + pen[k]; if (u < nxt[k]) { if (nxt[k] === INF) nl[size[b]++] = k; nxt[k] = u; par[pb + k] = 9; } }
+        // Values only grow along a way (pen ≥ 0), so once an exit is reached at least at v, a
+        // state at v or more can bring neither a sooner exit nor a cheaper one.
+        if (!s1 || (least && v >= least.v)) continue;
+        if (!s1[k]) { const u = v + pen[k]; if (u < nxt[k]) { if (nxt[k] === INF) nxtL[nxtN++] = k; nxt[k] = u; par[pb + k] = 9; } }
+        work += from[k + 1] - from[k] + 1;
         for (let e = from[k]; e < from[k + 1]; e++) {
           const q = to[e], code = how[e];
+          if (avoid && pen[q] > 0) continue;
           if (code >= 10) {
             if (!s2 || s1[k] || s2[q]) continue;
             const u = v + pen[k] + pen[q];
-            if (u < after[q]) { if (after[q] === INF) cl[size[c]++] = q; after[q] = u; par[pc + q] = code + 1; }
+            if (u < after[q]) { if (after[q] === INF) afterL[afterN++] = q; after[q] = u; par[pc + q] = code + 1; }
           } else if (!s1[q]) {
             const u = v + pen[q];
-            if (u < nxt[q]) { if (nxt[q] === INF) nl[size[b]++] = q; nxt[q] = u; par[pb + q] = code + 1; }
+            if (u < nxt[q]) { if (nxt[q] === INF) nxtL[nxtN++] = q; nxt[q] = u; par[pb + q] = code + 1; }
           }
         }
       }
-      if (firstHere) first = firstHere;
-      if (least && least.v === 0) break;
-    }
-    const back = ({ i, k }) => {
-      const out = [k];
-      for (let ci = i, ck = k; ci > 0;) {
-        const c = par[ci * n + ck] - 1;
-        if (c === 8) { out.push(ck); ci--; }
-        else if (c < 8) { ck -= Grid.DX[c] + Grid.DY[c] * w; out.push(ck); ci--; }
-        else { ck -= Grid.DX[c - 10] + Grid.DY[c - 10] * w; out.push(ck, ck); ci -= 2; }
+      if (fk >= 0) {
+        first = { i, k: fk, v: fv };
+        // LV11's verdict: the soonest route, kept at once, may already be enough.
+        if (K && K.verdict) { keepRoute(K, traceBack(par, n, w, i, fk)); if (K.done) return []; }
       }
-      return out.reverse();
-    };
+      if (least && least.v === 0) break;
+      // Turned round: turn i's layer, cleared by its list at the next turn, becomes i + 3's.
+      const v0 = cur, l0 = curL, n0 = curN;
+      cur = nxt; curL = nxtL; curN = nxtN;
+      nxt = after; nxtL = afterL; nxtN = afterN;
+      after = v0; afterL = l0; afterN = n0;
+    }
     const out = [];
-    if (first) out.push(back(first));
-    if (least && (!first || least.i !== first.i || least.k !== first.k)) out.push(back(least));
+    if (first) out.push(traceBack(par, n, w, first.i, first.k));
+    if (least && (!first || least.i !== first.i || least.k !== first.k)) out.push(traceBack(par, n, w, least.i, least.k));
     return out;
+  }
+  // The tiles some timed patrol sees at turn i (past its timeline, everything it could), or a
+  // station's line could take as it goes off then: T.layers[i], made once.
+  function seenAt(T, i) {
+    if (T.layers[i]) return T.layers[i];
+    const k = new Uint8Array(T.n);
+    for (const e of T.pats) for (const mask of i < e.turns.length ? e.turns[i] : [e.sight]) for (const q of tilesOf(T, mask)) k[q] = 1;
+    for (const e of T.lines) for (const [j, mask] of e.lines) if (j === i) for (const q of tilesOf(T, mask)) k[q] = 1;
+    return (T.layers[i] = k);
+  }
+  function tilesOf(T, mask) {
+    if (!T.lists.has(mask)) { const t = []; for (let q = 0; q < T.n; q++) if (mask[q]) t.push(q); T.lists.set(mask, t); }
+    return T.lists.get(mask);
+  }
+  // The route to tile k at turn i, from the timed search's parents: its tiles, the entrance
+  // first (a wait repeats a tile; a closed door, opened, two turns on one tile).
+  function traceBack(par, n, w, i, k) {
+    const out = [k];
+    for (let ci = i, ck = k; ci > 0;) {
+      const c = par[ci * n + ck] - 1;
+      if (c === 8) { out.push(ck); ci--; }
+      else if (c < 8) { ck -= Grid.DX[c] + Grid.DY[c] * w; out.push(ck); ci--; }
+      else { ck -= Grid.DX[c - 10] + Grid.DY[c - 10] * w; out.push(ck, ck); ci -= 2; }
+    }
+    return out.reverse();
   }
 
   // LRunner.measure(state, opts?) → the runner's report on a department: {none} as model gives
   // it, or {hp, grade, short, horizon, routes, best: {a, b, c}}, best[how] the cheapest route
   // tried under that charge (LRunner.cost's record), hp the runner's health. A charge passes at
   // pct% when best[how][how] ≤ pct × hp (LRunner.passes).
-  function measure(state, opts) {
+  const measure = (state, opts) => judge(state, opts).rep;
+  // The report with the model it was read from. verdict, given (LV11's), stops the search at
+  // the first route that passes charge (b) at RUNNER_PASS_PCT: the verdict is the full
+  // report's (a route that passes is never cheaper than the cheapest), and a department that
+  // fails has had every route tried, as the full report has.
+  function judge(state, opts, verdict) {
     const M = model(state, opts);
-    if (M.none) return { none: M.none };
-    const tried = candidates(state, M).map(r => cost(M, r)), best = {};
+    if (M.none) return { M, rep: { none: M.none } };
+    const tried = candidates(state, M, verdict).map(r => cost(M, r)), best = {};
     for (const how of CHARGES) for (const c of tried) if (!best[how] || c[how] < best[how][how]) best[how] = c;
-    return { hp: M.run.maxHp, grade: M.run.grade, short: M.short, horizon: M.horizon, routes: tried.length, best };
+    return { M, rep: { hp: M.run.maxHp, grade: M.run.grade, short: M.short, horizon: M.horizon, routes: tried.length, best } };
   }
   // LRunner.passes(report, how, pct) → bool: does the cheapest route under charge how cost at
   // most pct% of the runner's health? (No route never passes.)
   const passes = (rep, how, pct) => !rep.none && rep.best[how][how] <= pct * rep.hp;
 
-  // LRunner.check(state, plan) → null, or {reason, tiles}: LV11 under charge (b) at
-  // RUNNER_PASS_PCT (Q2), with the route that fails it. In report mode nothing calls it while a
-  // department is made. A state that is no department (a room for tests) has nothing to check.
-  function check(state, plan) {
-    const rep = measure(state);
-    if (rep.none === 'not a department') return null;
-    if (rep.none) return { reason: `the worst-case runner finds ${rep.none}`, tiles: [state.dept.entrance.slice()] };
-    if (passes(rep, 'b', N.RUNNER_PASS_PCT)) return null;
-    const b = rep.best.b, m = state.dept, hp = x => Int.ceilDiv(x, 100);
-    return { reason: `the worst-case runner's cheapest route costs ${hp(b.b)} of its ${rep.hp} HP (at most ${Int.idiv(N.RUNNER_PASS_PCT * rep.hp, 100)}, ${N.RUNNER_PASS_PCT}%): ${why(state, b)}`,
+  // ---- LV11: the validator, and its moves (D-RUNNER; layout.md §9.2, §10.1; plan D2.3) ----
+  //
+  // LRunner.check(state, plan, log?) → null, or {reason, tiles}: LV11 under charge (b) at
+  // RUNNER_PASS_PCT (Q2). A department the runner passes is accepted as it stands. One it
+  // fails is repaired, as layout.md §9.2 says ("move the costliest enemy on the cheapest route
+  // into an adjacent alcove or off the walkway, then retest"), by at most RUNNER_MOVES moves,
+  // each of another exhibit, never a removal:
+  //   - the exhibit moved is the costliest the cheapest route wakes by itself (its ring, its
+  //     axis or its tether, not a waking's chain or a patrol's sight): what it costs fought
+  //     alone under (b), and what its waking wakes in turn (LRunner.blame), that a move may
+  //     take (movable: asleep, on the floor, one tile, and neither a station on its line, a
+  //     swarm's body, a warden whose nest is a case, a Centrepiece's piece, nor in the hall or
+  //     the Intro, whose placement their own rules fix);
+  //   - it goes to the nearest tile of its own room (walking from where it stood; row-major
+  //     on a tie) where population could have put it and where the route that woke it would
+  //     not (LRunner.spots): floor, beyond the safe zone, off the Centrepiece's footprint and
+  //     the reading tile's ring (Populate's rules), no actor or item on it, no exhibit beside
+  //     it, never where a patrol walks or a station's line could run, out of call of every
+  //     exhibit for a herald its gallery keeps apart; and where none of its ring, its axis or
+  //     its tether (a warden guarding its own tile takes it along) holds a tile of that route;
+  //     one that LV6, which judged the department before it, would now reject is passed over;
+  //   - the runner is asked again; once it passes, each move is logged as a sentence
+  //     ({check: 'LV11', room, op}) and the department is accepted. If it still fails after
+  //     the last move, every move is undone and the attempt is rejected, which reseeds.
+  // The department is judged as it is made with every module on and nothing left out
+  // (asMade): a switch (rulesOff) or an exhibit left out (without) must not change which
+  // attempt is taken, or where anything stands (M4 plan A10: population is the same under any
+  // switch, so paired runs share rooms); the moves made there are made here too. A state that
+  // is no department (a room for tests) has nothing to check. The moves draw on no stream
+  // (D2.3: "the runner's moves draw nothing").
+  function check(state, plan, log) {
+    const v = asMade(state), r = verdict(v, plan);
+    if (r === null) return null;
+    if (r.reason) return { reason: r.reason, tiles: r.tiles };
+    if (v !== state) for (const mv of r.moves) put(Object.assign({}, mv, { a: Actors.byUid(state, mv.a.uid) }), mv.to);
+    if (log) for (const mv of r.moves) log.push({ check: 'LV11', room: mv.room, op: mv.op });
+    return null;
+  }
+  // LV11 on department v, moving what it must: null when it passes as it stands; {moves} when
+  // the moves (made on v) make it pass; {reason, tiles} when it fails, every move undone.
+  function verdict(v, plan) {
+    let got = judge(v, null, true);
+    const first = got.rep;
+    if (first.none === 'not a department') return null;
+    if (first.none) return { reason: `the worst-case runner finds ${first.none}`, tiles: [v.dept.entrance.slice()] };
+    if (passes(first, 'b', N.RUNNER_PASS_PCT)) return null;
+    const moves = [];
+    while (moves.length < N.RUNNER_MOVES) {
+      const mv = move(v, plan, got, moves);
+      if (!mv) break;
+      moves.push(mv);
+      got = judge(v, null, true);
+      if (passes(got.rep, 'b', N.RUNNER_PASS_PCT)) return { moves };
+    }
+    for (let i = moves.length - 1; i >= 0; i--) undo(moves[i]);
+    const b = first.best.b, m = v.dept, tried = moves.length ? `; ${moves.map(q => q.tried).join(', then ')}, it still costs ${hp(got.rep.none ? 0 : got.rep.best.b.b)}` : '';
+    return { reason: `the worst-case runner's cheapest route costs ${hp(b.b)} of its ${first.hp} HP (at most ${Int.idiv(N.RUNNER_PASS_PCT * first.hp, 100)}, ${N.RUNNER_PASS_PCT}%): ${why(v, b)}${tried}`,
       tiles: b.route.map(k => [k % m.w, Int.idiv(k, m.w)]) };
   }
+  // The department as made with every module on and nothing left out: the state itself when
+  // no switch is off and nothing is left out; else a copy with every module on (its entry's
+  // on, and rulesOff empty) and each exhibit left out back, as its archetype's init makes it
+  // (Setup.settleActors).
+  function asMade(state) {
+    const o = state.options || {}, off = o.rulesOff || [], out = o.without || [];
+    if (!off.length && !out.length) return state;
+    const v = State.clone(state);
+    v.options = Object.assign({}, v.options, { rulesOff: [], without: [] });
+    for (const m of (v.dept && v.dept.modules) || []) if (off.includes(m.id)) m.on = true;
+    for (const a of v.actors) if (out.includes(a.uid) && a.gone) { a.gone = 0; Archetypes.init(v, a); }
+    return v;
+  }
+  const hp = x => Int.ceilDiv(x, 100);
+
+  // LRunner.movable(state, a) → may a move take exhibit a (above)?
+  function movable(state, a) {
+    const m = state.dept, rm = m.rooms.find(r => r.id === roomOf(m, a.x, a.y));
+    if (!rm || rm.role === 'centre' || rm.role === 'intro' || a.uid === 'you' || a.gone || a.mode !== 'dormant') return false;
+    if ((a.size || 1) !== 1 || Archetypes.pipless(state, a) || Cases.encased(state, a) || Actors.centrepiece(a)) return false;
+    if (a.arch === 'mote_swarm' || HourlyDemonstration.isStation(state, a)) return false;
+    if (Array.isArray(a.guards) && (a.guards[0] !== a.x || a.guards[1] !== a.y)) return false;
+    return Grid.ch(m, a.x, a.y) === '.';
+  }
+  // LRunner.blame(M, j) → what waking M.ex[j] costs, in hundredths of a hit point: its charge
+  // (b) fought alone, if it can fight, and that of each sleeper its waking wakes in turn.
+  function blame(M, j) {
+    const e = M.ex[j];
+    let k = e.fights ? alone(termsOf(M, e), 'b') : 0;
+    for (const [i] of e.wakes) if (M.ex[i].fights) k += alone(termsOf(M, M.ex[i]), 'b');
+    return k;
+  }
+  const DIRECT = ['ring', 'axis', 'tether'];
+  // One move (above) on the department as judged (got: {M, rep}), none of the exhibits already
+  // moved (done) taken again: the move made, {a, from, to, home, guards, room, op, tried}, or
+  // null when no exhibit the route wakes by itself can be moved anywhere.
+  function move(state, plan, got, done) {
+    const { M, rep } = got, b = rep.best.b, m = state.dept;
+    // An exhibit awake on no told walk could walk anywhere, a moved one's tile included.
+    if (M.ex.some(e => e.a.mode !== 'dormant' && !e.turns && !Cases.encased(state, e.a))) return null;
+    const list = [];
+    for (const w of b.woken) {
+      if (!DIRECT.includes(w.how)) continue;
+      const j = M.ex.findIndex(e => e.a.uid === w.uid), a = M.ex[j].a;
+      if (done.some(v => v.a === a) || !movable(state, a)) continue;
+      list.push({ j, a, w, k: blame(M, j) });
+    }
+    list.sort((p, q) => (q.k - p.k) || (p.w.turn - q.w.turn) || (M.ex[p.j].i - M.ex[q.j].i));
+    for (const c of list) {
+      const from = [c.a.x, c.a.y], home = c.a.home ? c.a.home.slice() : null, guards = c.a.guards ? c.a.guards.slice() : null;
+      for (const to of spots(state, plan, M, c.a, b.route)) {
+        const mv = { a: c.a, from, to, home, guards, room: roomOf(m, from[0], from[1]) };
+        put(mv, to);
+        if (!clear(state, c.a, b.route) || (typeof LV6 !== 'undefined' && LV6.check(state, plan))) { undo(mv); continue; }
+        const who = name(state, c.a), as = who.includes(',') ? `${who},` : who, where = galleryName(state, mv.room);
+        mv.op = `moved ${as} from ${from[0]},${from[1]} to ${to[0]},${to[1]}${where ? `, in ${where}` : ''}: the worst-case runner's way ${WAKE[c.w.how]}; from ${to[0]},${to[1]} it passes clear of it`;
+        mv.tried = `with ${as} moved from ${from[0]},${from[1]} to ${to[0]},${to[1]}`;
+        return mv;
+      }
+    }
+    return null;
+  }
+  // Exhibit a set on tile t (its home and, a warden guarding its own tile, what it guards with
+  // it), or back where the move found it.
+  function put(mv, t) {
+    const a = mv.a;
+    a.x = t[0]; a.y = t[1];
+    if (mv.home && mv.home[0] === mv.from[0] && mv.home[1] === mv.from[1]) a.home = t.slice();
+    if (mv.guards) a.guards = t.slice();
+  }
+  function undo(mv) {
+    const a = mv.a;
+    a.x = mv.from[0]; a.y = mv.from[1];
+    a.home = mv.home ? mv.home.slice() : null;
+    if (mv.guards) a.guards = mv.guards.slice();
+  }
+  // How the route would wake it, in words a player would take.
+  const WAKE = {
+    ring: `passed within ${N.RING_MOVING} walking tiles of it, in its sight, for ${N.PIPS_TO_WAKE} turns, which wakes it`,
+    axis: `crossed its row or column within ${N.AXIS_RANGE} tiles, in its sight, which wakes it`,
+    tether: `came within ${N.TETHER_RANGE} tiles of what it guards, which wakes it at once`,
+  };
+  const name = (state, a) => (a && Labels.nameOf(state)(a.uid)) || 'an exhibit';
+  // A room's gallery by name, as a sentence says it ("the Brooders’ Bay").
+  const galleryName = (state, id) => { const g = Populate.galleryOf(state, id); return g && g.name ? g.name.replace(/^The /, 'the ') : null; };
+
+  // LRunner.spots(state, plan, M, a, route) → the tiles a move may take exhibit a to, nearest
+  // first (above), before its ring, axis and tether are read there (clear): [[x, y]…]. plan,
+  // given, holds the Centrepiece's footprint ('C'); the reading tile is the department's.
+  function spots(state, plan, M, a, route) {
+    const m = state.dept, w = m.w, n = m.w * m.h, id = roomOf(m, a.x, a.y);
+    const reach = Grid.distances(m, [m.entrance], n), view = m.viewTile ? Grid.distances(m, [m.viewTile], N.RING_STILL + 1) : null;
+    const near = Grid.distances(m, [[a.x, a.y]], n), on = new Uint8Array(n), shut = new Uint8Array(n);
+    for (const k of route) on[k] = 1;
+    // Where a patrol walks (its timeline), and where a station's line could run.
+    for (const e of M.ex) {
+      if (e.walk) for (const k of e.walk) shut[k] = 1;
+      if (HourlyDemonstration.isStation(state, e.a)) for (const [x, y] of HourlyDemonstration.reach(state, e.a)) shut[y * w + x] = 1;
+    }
+    const others = state.actors.filter(b => b !== a && !b.gone);
+    const apart = Populate.galleriesOf(state, id).some(g => g.contents.some(c => c.sp === a.sp && c.apart));
+    const free = (x, y) => !others.some(b => Actors.covers(b, x, y)) && !state.items.some(it => it.where && it.where.at === 'floor' && it.where.x === x && it.where.y === y);
+    const spaced = (x, y) => !others.some(b => b.uid !== 'you' && Actors.footprint(b).some(([u, v]) => Grid.chebyshev(u, v, x, y) <= 1));
+    const outOfCall = (x, y) => !others.some(b => b.uid !== 'you' && Actors.footprint(b).some(([u, v]) => Grid.disc(u - x, v - y, N.HERALD_RANGE)));
+    const list = [];
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < w; x++) {
+      const k = y * w + x;
+      if (roomOf(m, x, y) !== id || (x === a.x && y === a.y) || Grid.ch(m, x, y) !== '.' || shut[k] || on[k] || near[k] < 0) continue;
+      if (plan && plan.tiles && plan.tiles[y][x] === 'C') continue;
+      const d = Grid.reachDist(reach, m, x, y);
+      if (d < 0 || d <= N.SAFE_ZONE) continue;
+      if (view) { const v = Grid.reachDist(view, m, x, y); if (v >= 0 && v <= N.RING_STILL + 1) continue; }
+      if (!free(x, y) || !spaced(x, y) || (apart && !outOfCall(x, y))) continue;
+      list.push([near[k], k]);
+    }
+    list.sort((p, q) => (p[0] - q[0]) || (p[1] - q[1]));
+    return list.map(([, k]) => [k % w, Int.idiv(k, w)]);
+  }
+  // Is exhibit a, where it stands, clear of the route: none of its ring, its axis or its tether
+  // (with every ordinary door open, as the model reads them) holds a tile of it?
+  function clear(state, a, route) {
+    const vm = opened(state), on = new Set(route);
+    for (const [u, v] of Archetypes.wakeRegion(vm, a, N.PIPS_TO_WAKE)) if (on.has(v * vm.dept.w + u)) return false;
+    if (a.trigger === 'axis') { const ax = axisMask(vm.dept, a); for (const q of route) if (ax[q]) return false; }
+    if (a.trigger === 'tether' && a.guards) { const t = tetherMask(vm.dept, a); for (const q of route) if (t[q]) return false; }
+    return true;
+  }
+
   // In words a player would take: what starts the route's costliest fight, and how many more
   // join it; or the line that strikes it.
   const HOW = { ring: 'wakes as it passes', axis: 'wakes as it crosses its axis', tether: 'wakes as it nears what it guards', sight: 'sees it',
     alarm: 'wakes at the alarm', herald: 'wakes at a herald\'s call', ally_hit: 'wakes as one of its group is struck' };
   function why(state, b) {
-    const name = uid => { const a = state.actors.find(x => x.uid === uid), sp = a ? Packs.speciesFor(state, a) : null; return sp && sp.name ? sp.name : 'an exhibit'; };
+    const who = uid => name(state, state.actors.find(x => x.uid === uid));
     let worst = null;
     for (const f of b.fights) if (!worst || f.b > worst.b) worst = f;
-    if (!worst) return b.lines.length ? `the line of ${name(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
+    if (!worst) return b.lines.length ? `the line of ${who(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
     const first = b.woken.find(w => w.uid === worst.uids[0]) || b.woken[0], more = worst.uids.length - 1;
-    return `the ${name(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}` + (more ? `, and ${more} more join the fight` : '');
+    return `${who(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}` + (more ? `, and ${more} more join the fight` : '');
   }
 
-  return { CHARGES, APPROACH, HORIZON, runner, terms, alone, fight, model, wakes, cost, measure, passes, check, candidates, timed };
+  // Registered through the namespace, so that a test may stand in for it (LRunner.check); after
+  // LV6 and the treasure case (load order), before LV7 and LV13.
+  Populate.addValidator('lv11', (state, plan, log) => LRunner.check(state, plan, log));
+
+  return { CHARGES, APPROACH, HORIZON, runner, terms, alone, fight, model, wakes, cost, measure, passes, check, candidates, timed, movable, blame, spots };
 })();
