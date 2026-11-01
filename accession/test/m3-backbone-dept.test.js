@@ -146,10 +146,12 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(r.actors.map(a => a.uid)), json(['you', 'T0.3.room.1', 'T0.3.s2.1', 'T0.3.room.2', 'T0.3.s2.2', 'named.one']));
   });
 
-  // A pack with no gallery list (each of the three until D-PACKS gives them one) is placed by
-  // the stand-in; test/m4-population.test.js holds the placement from gallery lists.
+  // A pack with no gallery list is placed by the stand-in: since D-PACKS gives each of the
+  // three one, in a core of its own whose packs have had their lists taken away;
+  // test/m4-population.test.js holds the placement from gallery lists.
   test('a pack with no gallery list places one of each species whose archetype M3 builds, a swarm as its first count of bodies, and no Centrepiece', () => {
-    const placedEver = new Set();
+    const X = loadCore(), { Dept, Packs } = X, placedEver = new Set();
+    for (const acc of ACCS) delete Packs.get(acc).galleries;
     for (const acc of ACCS) for (const depth of [1, 3, 5, 7]) for (const seed of [1, 2, 3, 4]) {
       const s = Dept.create(seed, acc, depth), pack = Packs.get(acc);
       assert.equal(pack.galleries, undefined, `${acc} has a gallery list: this test is the stand-in's`);

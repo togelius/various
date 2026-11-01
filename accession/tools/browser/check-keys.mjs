@@ -411,7 +411,9 @@ async function alone(page, d, tag, W, did, once) {
         return { id: a.uid };
       }
       // A case in sight, 3 or 4 tiles from a free tile you are put on, that cannot be opened
-      // or broken from there.
+      // or broken from there, with no exhibit in sight: since the gallery lists (D-PACKS) the
+      // exhibits stand among the cases, so they are taken out of the way first.
+      for (const a of s.actors) if (a.uid !== 'you' && !a.gone) a.gone = 1;
       for (const f of s.dept.fixtures) {
         if (f.k !== 'case' || f.mimic || f.st !== 'shut') continue;
         for (let y = f.y - 4; y <= f.y + 4; y++) for (let x = f.x - 4; x <= f.x + 4; x++) {

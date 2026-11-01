@@ -214,7 +214,12 @@ module.exports = (C) => {
     },
     {
       // A patrol walking its round: each step it takes shortens its walk to the post it heads
-      // for, the one after the post it has just stood on.
+      // for, the one after the post it has just stood on. A post another actor stands on is
+      // left for the next once the patrol stands beside it and no step toward it is free
+      // (patrol_guard's round()): the step toward it round a case's corner, or onto it once
+      // its occupant has moved off before the patrol acts, still heads for it, so where the
+      // post was taken before or after the step, a step toward it or toward the next is its
+      // round (two Waders on one round, S.9's band room, meet this every round).
       id: 'alarm.round',
       applies: patrolGuard,
       check(pre, events, post, ctx) {
@@ -230,15 +235,22 @@ module.exports = (C) => {
         const taken = p => [pre, post].some(st => st.actors.some(o => o.uid !== a.uid && !o.gone && Actors.footprint(o).some(t => same(t, p))));
         for (const e of events) {
           if (e.k !== 'moved' || e.who !== a.uid || e.cause !== undefined) continue;
-          // It leaves a post for the next once it stands on it, once it stands beside it with
-          // someone on it, or when it can get no nearer to it at all.
-          for (let n = 0; P.length > 1 && n < P.length; n++) {
-            const p = P[i];
-            if (!(same(e.from, p) || dist(i, e.from[0], e.from[1]) < 0 || (Grid.chebyshev(e.from[0], e.from[1], p[0], p[1]) === 1 && taken(p)))) break;
-            i = (i + 1) % P.length;
+          // It leaves a post for the next once it stands on it, or when it can get no nearer
+          // to it at all; and it may leave it once it stands beside it with someone on it.
+          // The step shortens its walk to the first post of that run it still heads for.
+          const shortens = k => { const d0 = dist(k, e.from[0], e.from[1]); return d0 > 0 && dist(k, e.to[0], e.to[1]) === d0 - 1; };
+          let j = i, found = -1;
+          for (let n = 0; n <= P.length; n++) {
+            if (shortens(j)) { found = j; break; }
+            const p = P[j];
+            if (!(P.length > 1 && (same(e.from, p) || dist(j, e.from[0], e.from[1]) < 0 || (Grid.chebyshev(e.from[0], e.from[1], p[0], p[1]) === 1 && taken(p))))) break;
+            j = (j + 1) % P.length;
           }
-          const d0 = dist(i, e.from[0], e.from[1]), d1 = dist(i, e.to[0], e.to[1]);
-          if (!(d0 > 0 && d1 === d0 - 1)) return `on its round, it stepped from ${e.from} to ${e.to}, which does not shorten its walk to its post ${P[i]} (${d0} to ${d1})`;
+          if (found < 0) {
+            const d0 = dist(j, e.from[0], e.from[1]), d1 = dist(j, e.to[0], e.to[1]);
+            return `on its round, it stepped from ${e.from} to ${e.to}, which does not shorten its walk to its post ${P[j]} (${d0} to ${d1})`;
+          }
+          i = found;
         }
         return null;
       },

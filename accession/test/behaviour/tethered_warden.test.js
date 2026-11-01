@@ -381,16 +381,27 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('made with the department, a warden guards its own tile, its first ring due at its ROLE_WARDEN_SPECIAL_EVERY-th action; its line names its numbers', () => {
+  // Since S.9's gallery list (D-PACKS), its warden guards a case of its room where one passes
+  // the take rule (Populate.takeOk, within its tether: its nest), and its own tile where none
+  // does; both are met over these seeds.
+  test('made with the department, a warden guards its own tile or the case population gave it, its first ring due at its ROLE_WARDEN_SPECIAL_EVERY-th action; its line names its numbers', () => {
+    const met = { own: 0, nest: 0 };
     for (let depth = 1; depth <= 7; depth++) {
       const s = C.Dept.create(depth + 10, 'S9', depth), w = warden(s);
       assert.ok(w, `S9 d${depth} places a warden`);
-      assert.equal(json([w.guards, w.ax.due]), json([[w.x, w.y], N.ROLE_WARDEN_SPECIAL_EVERY]));
+      const own = json(w.guards) === json([w.x, w.y]), f = C.Cases.at(s, w.guards[0], w.guards[1]);
+      if (own) met.own++;
+      else {
+        assert.ok(f && f.k === 'case' && C.Grid.disc(w.x - w.guards[0], w.y - w.guards[1], N.TETHER_RANGE) && C.Populate.takeOk(s, w.guards[0], w.guards[1]), `S9 d${depth}: it guards ${json(w.guards)}`);
+        met.nest++;
+      }
+      assert.equal(w.ax.due, N.ROLE_WARDEN_SPECIAL_EVERY);
       const line = Clauses.line(C.Packs.speciesFor(s, w), { depth }), gross = Roles.at(N.ROLE_WARDEN_SPECIAL, depth);
       assert.ok(line.includes(`within ${N.TETHER_RANGE} tiles`) && line.includes(`one action in ${N.ROLE_WARDEN_SPECIAL_EVERY}`) && line.includes(`for ${gross} before Padding`), line);
       assert.ok(line.includes('waits there while it sees you') && line.includes('unless it has no home'), line);
       assert.ok(!/undefined|NaN|\[object/.test(line), line);
     }
+    assert.ok(met.own > 0 && met.nest > 0, json(met));
   });
 
   test('the cadence is counted again from each waking', () => {

@@ -434,6 +434,9 @@ for (const [w, h] of SIZES) for (const view of registered) {
   }
   const died = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state, me = s.actors[0], a = s.actors.find(q => q.uid !== 'you' && !q.gone && q.arch === 'plodder');
+    // Only the plodder takes part: every other exhibit is out of the way, so none marks your
+    // tile (a mark there would ask before each wait) or wakes to your coughing.
+    for (const q of s.actors) if (q !== me && q !== a && !q.gone) { q.mode = 'dormant'; q.telegraph = null; q.gone = 1; }
     for (let d = 0; d < 8 && a; d++) { const x = me.x + Grid.DX[d], y = me.y + Grid.DY[d]; if (!Grid.walkable(s.dept, x, y) || Actors.at(s, x, y) || !Step.adjacent(s, me, { x, y, size: 1 })) continue; Object.assign(a, { x, y, mode: 'hunting', sawYou: true, acc: 40, next: me.next }); break; }
     me.hp = 1;
     for (let i = 0; i < 12 && !s.over; i++) A.request({ a: 'wait' });

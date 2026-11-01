@@ -122,10 +122,11 @@ module.exports = ({ test, assert, loadCore }) => {
   // A planted stamp is given to S.9 here, in a core of its own whose S.9 and A.4 have had their
   // own stamps (content/*-intro.js, D-STAMPS) taken away: S.9's departments' plans, and its
   // certified fallback, take the planted stamp; A.4's take the fixture. test/m4-intro.test.js
-  // holds the packs' own stamps to the same.
+  // holds the packs' own stamps to the same. S.9's gallery list (D-PACKS) is taken away too,
+  // since the planted stamp's exhibit is no species of S.9's, which population would refuse.
   test('a pack\'s own stamp is the Intro of its departments and of its certified fallback', () => {
     const X = loadCore();
-    delete X.Packs.get('S9').intro; delete X.Packs.get('A4').intro;
+    delete X.Packs.get('S9').intro; delete X.Packs.get('A4').intro; delete X.Packs.get('S9').galleries;
     const st = { map: ['#....|.........', '#....|...p.....', 'E....+....s....', '#....|...p.....', '#....|.........'],
       legend: { s: { sp: 'X.1' } }, stretch: [0, 4], cut: '+', invariants: [{ near: 's', k: 6 }] };
     assert.equal(X.LStamp.check(st), null);

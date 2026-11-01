@@ -380,8 +380,11 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(seen), json([['M11', true, true]]), 'M.11\'s core is ready: placed, once, after the exhibits');
   });
 
+  // The packs have gallery lists since D-PACKS, so the stand-in is met in a core whose packs
+  // have had theirs taken away.
   test('with no gallery list, the stand-in places exactly as before, and Dept.generate gives Dept.create\'s department', () => {
     const X = loadCore();
+    for (const acc of ACCS) delete X.Packs.get(acc).galleries;
     for (const acc of ACCS) for (const seed of [1, 2]) {
       const out = X.Dept.generate(seed, acc, 3), s = X.Dept.create(seed, acc, 3);
       assert.equal(X.State.hash(out.state), X.State.hash(s));

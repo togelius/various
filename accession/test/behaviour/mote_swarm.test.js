@@ -94,15 +94,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     });
   }
 
+  // A department places each swarm its pack's gallery list names (its count, D-PACKS: A.4's
+  // Copying Room holds two), or one with no list (the stand-in), each as SWARM_BODIES[0] bodies.
+  const swarmsOf = (pack, id) => !pack.galleries ? 1 : pack.galleries.filter(g => !(g.key === 'intro' && pack.intro))
+    .reduce((n, g) => n + g.contents.filter(e => e.sp === id).reduce((k, e) => k + (e.count === undefined ? 1 : e.count), 0), 0);
   test('mote_swarm: a department places a swarm as SWARM_BODIES[0] bodies at every depth, the number its line gives', () => {
     assert.ok(N.SWARM_BODIES[0] >= 2);
     for (const { sp, depth, acc } of list) {
       if (!acc) continue;
-      const s = Dept.create(1, acc, depth), got = s.actors.filter(a => a.sp === sp.id && !a.gone);
-      assert.equal(got.length, N.SWARM_BODIES[0], `${sp.id} at depth ${depth}`);
+      const s = Dept.create(1, acc, depth), got = s.actors.filter(a => a.sp === sp.id && !a.gone), swarms = swarmsOf(Packs.get(acc), sp.id);
+      assert.ok(swarms >= 1, `${sp.id}: its department places it`);
+      assert.equal(got.length, N.SWARM_BODIES[0] * swarms, `${sp.id} at depth ${depth}: ${swarms} swarm(s)`);
       // The line names the number of record, as §5.3 asks of every clause ("Vague words are not allowed").
       const line = C.Clauses.line(sp, { depth });
-      assert.ok(line.startsWith(`Comes as ${got.length} bodies that each fall to a single hit;`), `${sp.id} at depth ${depth}: ${line}`);
+      assert.ok(line.startsWith(`Comes as ${N.SWARM_BODIES[0]} bodies that each fall to a single hit;`), `${sp.id} at depth ${depth}: ${line}`);
       assert.ok(got.every(a => a.arch === 'mote_swarm' && a.speed === 'fast'), `${sp.id} at depth ${depth}: fast bodies`);
     }
   });

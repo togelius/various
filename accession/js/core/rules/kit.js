@@ -677,16 +677,18 @@ const Kit = (() => {
   }
   // Where an item may be placed in room rm, row-major: its floor tiles that no actor stands
   // on (a removed one included, so removing an exhibit moves no item) and no item lies on,
-  // and its empty cases (shut, not on loan, not a mimic's). A Restoration kit (a Highlight)
-  // goes only where you can walk from the entrance without a staff door, and only into a
-  // case whose lock is within the grade you came in with (Cases.highlightOk).
+  // and its empty cases (shut, not on loan, not a mimic's, holding no item, and with no
+  // exhibit in it, a removed one included: a gallery list stands exhibits in cases, M4). A
+  // Restoration kit (a Highlight) goes only where you can walk from the entrance without a
+  // staff door, and only into a case whose lock is within the grade you came in with
+  // (Cases.highlightOk).
   function spotsIn(state, rm, highlight, reach) {
     const m = state.dept, out = [];
     for (let y = rm.y0; y <= rm.y1; y++) for (let x = rm.x0; x <= rm.x1; x++) {
       if (m.roomOf[y][x] !== rm.id) continue;
       const f = Cases.at(state, x, y);
       if (f) {
-        if (f.k !== 'case' || f.st !== 'shut' || f.loan || f.mimic !== null || f.holds !== null) continue;
+        if (f.k !== 'case' || f.st !== 'shut' || f.loan || f.mimic !== null || f.holds !== null || state.actors.some(a => Actors.covers(a, x, y))) continue;
         if (highlight && !(Cases.highlightOk(state, f) && Grid.reachDist(reach.dist, reach.map, x, y, 'exhibit') >= 0)) continue;
         out.push([x, y, true]);
       } else if (m.tiles[y][x] === '.') {
@@ -700,7 +702,9 @@ const Kit = (() => {
   // Kit.standIn(state, base, pop): the M3 stand-in placement (§8.5), until M4's population.
   // On the department's `${base}/items` stream (in pop): first the pieces, EQUIPMENT_PER_DEPT
   // of the pack's weapons and garments and CURIO_OR_INSTRUMENT_PER_DEPT of its curios and
-  // instruments, each list shuffled and taken in turn (again from its start if it is short),
+  // instruments (but its Signature piece, the item its Centrepiece names: a fight drops it,
+  // and a treasure is its own, never loot, M4 plan D2.9), each list shuffled and taken in
+  // turn (again from its start if it is short),
   // then KITS_PER_DEPT Restoration kits; then, for each piece in that order, its room, drawn
   // from the sections and studies (the next one in order if it has no place left). Then, on
   // that room's populate stream (in pop, after the cases' draws): its place (spotsIn), and a
@@ -709,7 +713,8 @@ const Kit = (() => {
   function standIn(state, base, pop) {
     const m = state.dept, pack = Packs.get(m.acc);
     if (!pack || !m.rooms || !m.roomOf) return;
-    const rng = Rng.stream(pop, `${base}/items`), items = pack.items || [], pieces = [];
+    const sig = pack.centrepiece ? pack.centrepiece.signature : undefined;
+    const rng = Rng.stream(pop, `${base}/items`), items = (pack.items || []).filter(i => i.id !== sig), pieces = [];
     const take = (list, n) => { const l = rng.shuffle(list); for (let i = 0; i < n && l.length; i++) pieces.push(l[i % l.length]); };
     take(items.filter(i => i.kind === 'weapon' || i.kind === 'garment'), N.EQUIPMENT_PER_DEPT);
     take(items.filter(i => i.kind === 'curio' || i.kind === 'instrument'), N.CURIO_OR_INSTRUMENT_PER_DEPT);
