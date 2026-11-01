@@ -263,6 +263,39 @@ module.exports = ({ test, assert, loadCore }) => {
     ok(H.sweep(W, walks, list()), walks.name);
   });
 
+  // Through the same door you watch two more, beyond their own sight of you: one whose search
+  // of where it last knew you were is done, one settling back in that was moved off its home.
+  // In your sight neither sets off home nor is told as giving anything up, for longer than its
+  // search; you close the door, and out of your sight each goes home (searched; displaced) and
+  // settles in there.
+  const settles = H.scenario({
+    name: 'in your sight a search done, or a Grazer moved off its home while settling in, waits; out of it, it goes home',
+    id: 'MODULES.' + ID, clone: true,
+    build: (params, sp, depth, opts) => {
+      const st = Roles.stats(sp.role, depth);
+      return room(opts, { depth, map: DOOR, you: [3, 2], exhibits: [
+        { sp: sp.id, at: [13, 1], mode: 'searching', lastKnown: [13, 1], home: [22, 1], stim: 0, stats: st },
+        { sp: sp.id, at: [13, 3], mode: 'reinstalling', home: [22, 3], stim: 0, stats: st }] });
+    },
+    actions: (s, i) => i < 5 ? { a: 'wait' } : i === 5 ? { a: 'close', x: 4, y: 2 } : i < 16 ? { a: 'wait' } : null,
+    expect(r) {
+      const [c, d] = [r.start.actors[1], r.start.actors[2]], shut = r.events.find(e => e.k === 'closed');
+      if (!shut) return 'the door was not closed';
+      if (shut.turn <= N.SEARCH_TURNS) return 'the door closed before the search was done';
+      if (r.events.some(e => e.k === 'alerted' && e.cause.k === 'blocked')) return 'a walk was told as blocked';
+      for (const [g, why, home] of [[c, 'searched', [22, 1]], [d, 'displaced', [22, 3]]]) {
+        if (r.events.some(e => e.who === g.uid && e.tick < shut.tick && ['moved', 'alerted', 'lost', 'returned'].includes(e.k))) return `${g.uid} stepped or changed its mode in your sight`;
+        const off = r.events.find(e => e.k === 'lost' && e.who === g.uid && e.to === 'returning');
+        if (!off || off.cause.k !== why || off.tick < shut.tick) return `${g.uid} set off home ${json(off)}, not out of your sight for ${why}`;
+        if (!r.events.some(e => e.k === 'returned' && e.who === g.uid && e.phase === 'arrived' && e.cause.x === home[0] && e.cause.y === home[1])) return `${g.uid} never got home`;
+      }
+      return null;
+    },
+  });
+  test('in your sight a Grazer whose search is done, or one moved off its home while settling in, waits; out of it, it goes home', () => {
+    ok(H.sweep(W, settles, list()), settles.name);
+  });
+
   // ---- The Lamp Corridor: S.9's Intro stamp, its staggered columns ----
   // The stamp's map (content/S9-intro.js, D-STAMPS: "you can see it from some tiles of that way
   // and not from others"), with the Grazer awake on its plinth, its home, hunting you: you walk

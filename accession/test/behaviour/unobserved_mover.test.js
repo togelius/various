@@ -124,7 +124,8 @@ module.exports = ({ test, assert, loadCore }) => {
     const s = room({ seed: 1, rulesOff: [] }, { depth: 3, map: ROW, you: [10, 2], exhibits: [{ sp: 'S9.1', at: [3, 1], home: [3, 2], mode: 'awake', stim: 0, stats: Roles.stats('ambusher', 3) }] }, true);
     const moved = (to, home) => { const pre = State.clone(s), post = State.clone(s), a = post.actors[1]; a.home = home; const ev = [{ k: 'moved', turn: 0, tick: 0, who: a.uid, from: [a.x, a.y], to }]; a.x = to[0]; a.y = to[1]; return check(pre, { a: 'wait' }, ev, post).map(v => v.inv); };
     assert.equal(json(moved([3, 2], [3, 2])), '[]', 'onto its home plinth');
-    assert.equal(json(moved([2, 2], [3, 2])), json(['modes_exhibit_steps']), 'onto another plinth');
+    assert.equal(json(moved([3, 2], [4, 2])), json(['modes_exhibit_steps']), 'straight onto another plinth');
+    assert.equal(json(moved([3, 2], null)), json(['modes_exhibit_steps']), 'onto a plinth, with no home');
     assert.equal(json(moved([4, 2], [3, 2])), json(['modes_exhibit_steps']), 'onto another plinth');
     assert.equal(json(moved([2, 2], [2, 2])), json(['modes_exhibit_steps']), 'onto its home plinth past a corner');
   });
