@@ -59,6 +59,9 @@ module.exports = ({ test, assert, loadCore }) => {
     if (ready) for (const t of ['ARCHETYPES', 'MODIFIERS', 'TRIGGERS']) for (const id of M4_READY[t]) X.Registry[t][id].ready = 'unit';
     const real = X.Populate.exhibits;
     X.Populate.exhibits = (state, plan, pack, base, log) => { plans.push(plan); return real(state, plan, pack, base, log); };
+    // The worst-case runner (LV11, D-RUNNER) is stood aside: these fixture galleries are not the
+    // packs' content, which its gate measures (test/m4-runner.test.js, test/sweep/runner.check.js).
+    X.LRunner.check = () => null;
     return { X, plans };
   }
   const exhibitsOf = s => s.actors.filter(a => a.uid !== 'you');

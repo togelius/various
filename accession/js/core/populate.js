@@ -432,15 +432,51 @@ const Populate = (() => {
       return near.length < N.SWARM_BODIES[0] - 1 ? null : near.slice(0, N.SWARM_BODIES[0] - 1);
     };
 
+    // Could a keeper walk round a warden guarding its own tile (x, y) in room rm, as the night
+    // staff sweep round S.9's Brooder? Its tether (TETHER_RANGE of the tile, through walls)
+    // holds no tile of the safe zone you could stand on; every way into the room (its tiles
+    // you could stand on beside another room's) lies outside its tether and its ring
+    // (RING_MOVING walking tiles of it, in its sight); and they are all joined by steps through
+    // the room's tiles outside both that no exhibit placed so far covers. No draw.
+    function roundable(rm, x, y) {
+      for (let ty = y - N.TETHER_RANGE; ty <= y + N.TETHER_RANGE; ty++) for (let tx = x - N.TETHER_RANGE; tx <= x + N.TETHER_RANGE; tx++) {
+        if (!Grid.inside(m, tx, ty) || !Grid.disc(tx - x, ty - y, N.TETHER_RANGE) || !Grid.walkable(m, tx, ty)) continue;
+        const d = dist(reach, tx, ty);
+        if (d >= 0 && d <= N.SAFE_ZONE) return false;
+      }
+      const cells = tilesOf.get(rm.id) || [], ring = Grid.distances(m, [[x, y]], N.RING_MOVING), free = new Uint8Array(m.w * m.h), ways = [];
+      const out = (tx, ty) => [0, 2, 4, 6].some(d => { const nx = tx + Grid.DX[d], ny = ty + Grid.DY[d]; return Grid.inside(m, nx, ny) && Grid.walkable(m, nx, ny) && m.roomOf[ny][nx] !== rm.id; });
+      for (const [tx, ty] of cells) {
+        if (!Grid.walkable(m, tx, ty) || covered(tx, ty)) continue;
+        const near = Grid.disc(tx - x, ty - y, N.TETHER_RANGE) || (ring[ty * m.w + tx] >= 0 && Grid.los(m, x, y, tx, ty));
+        if (out(tx, ty)) { if (near) return false; ways.push(ty * m.w + tx); }
+        if (!near) free[ty * m.w + tx] = 1;
+      }
+      if (ways.length < 2) return true;
+      const reached = new Uint8Array(m.w * m.h), stack = [ways[0]];
+      reached[ways[0]] = 1;
+      while (stack.length) {
+        const k = stack.pop(), kx = k % m.w, ky = (k - kx) / m.w;
+        for (let d = 0; d < 8; d++) {
+          if (!Grid.canStep(m, kx, ky, d)) continue;
+          const j = (ky + Grid.DY[d]) * m.w + kx + Grid.DX[d];
+          if (free[j] && !reached[j]) { reached[j] = 1; stack.push(j); }
+        }
+      }
+      return ways.every(k => reached[k] === 1);
+    }
+
     // One exhibit (a swarm's bodies) of entry e in room rm, on rm's exhibits stream: the tiles
     // its option asks for (an empty case, a tile beside a case, a tile within the tether of a
     // case it could guard), or, when none is left, the room's floor; kept by the rules above,
     // and as far from every exhibit as the set allows: one drawn from the widest level. A mimic
     // takes only a tile that keeps those rules as the case it becomes and whose disguise cuts
     // nothing off, counting the mimics placed before it: each level in turn, its tiles shuffled
-    // on the stream, the first that does. Then a swarm's further bodies on the nearest such
-    // floor tiles to the first (no draw). Returns null, or why it could not be placed (nothing
-    // then stands).
+    // on the stream, the first that does. A warden that finds no case to guard guards its own
+    // tile, and takes, in the same way, the first floor tile a keeper could walk round
+    // (roundable), else any (M4 D-RUNNER: "they simply sweep around it", design/samples.md
+    // S.9.4). Then a swarm's further bodies on the nearest such floor tiles to the first (no
+    // draw). Returns null, or why it could not be placed (nothing then stands).
     function placeOne(sp, e, rm, gallery) {
       const all = tilesOf.get(rm.id) || [], rng = Rng.stream(holder, `${base}/room/${rm.key}/exhibits`);
       const swarm = (sp.archetype || 'plodder') === 'mote_swarm';
@@ -473,7 +509,12 @@ const Populate = (() => {
       } else if (e.guards === 'case') {
         nests = nestsIn(all);
         at = take(floor.filter(([x, y]) => nests.some(([gx, gy]) => Grid.disc(x - gx, y - gy, N.TETHER_RANGE))));
-        if (!at) { nests = null; say(rm, `${sp.id} found no case in ${rm.key} it could guard and guards its own tile`); }
+        if (!at) {
+          nests = null;
+          say(rm, `${sp.id} found no case in ${rm.key} it could guard and guards its own tile`);
+          for (const pool of levels(floor)) { at = rng.shuffle(pool).find(([x, y]) => roundable(rm, x, y)) || null; if (at) break; }
+          if (!at) say(rm, `${sp.id} found no tile in ${rm.key} a keeper could walk round`);
+        }
       }
       if (!at) at = take(floor);
       const name = (pack.galleries[gallery] || {}).name || 'its gallery';

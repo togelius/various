@@ -188,7 +188,10 @@ module.exports = ({ test, assert, loadCore }) => {
   // stream, on a floor tile no actor stands on, gone or not (as KIT's will).
   function planted() {
     const X = loadCore(), calls = [];
-    X.Archetypes.init = (state, a) => { calls.push('init ' + a.uid); if (a.arch === 'mimic_vitrine') X.Cases.disguise(state, a); };
+    // (LV11 judges a department as made, every exhibit in it, D-RUNNER: it inits a removed one
+    // on a copy whose options leave nothing out, never in the department; those calls are told
+    // apart.)
+    X.Archetypes.init = (state, a) => { calls.push('init ' + a.uid + ((state.options.without || []).length ? '' : ' (as made)')); if (a.arch === 'mimic_vitrine') X.Cases.disguise(state, a); };
     const items = tag => (state, base, pop) => {
       calls.push(tag);
       for (const rm of state.dept.rooms) {

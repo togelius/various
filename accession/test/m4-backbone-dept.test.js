@@ -78,8 +78,11 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // The weather M.11's cases hold (MOD-WEATHER: weather_cases' own, written by its init onto
   // the cases, A3) is the module's state too, left out likewise. M.11's re-pinned by D-LV6's
   // review: the Logbook Trolley's mark one column east in the First Landing's stamp
-  // (content/M11-intro.js), beyond a lit Lamp's ring from the doorway.
-  const M3_START = { 'S9/2': 4158820198, 'S9/5': 493658256, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 1469555670, 'M11/5': 2538675204 };
+  // (content/M11-intro.js), beyond a lit Lamp's ring from the doorway. S.9's re-pinned by
+  // D-RUNNER: in both, the Brooder finds no case to guard, and population now stands such a
+  // warden where a keeper can walk round it (populate.js, roundable), so the band room's draws
+  // move.
+  const M3_START = { 'S9/2': 3318663684, 'S9/5': 3642343743, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 1469555670, 'M11/5': 2538675204 };
   test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');

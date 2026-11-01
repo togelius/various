@@ -106,7 +106,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     ['LStamp.shape', 1, L + 'stamp.js', null, X => X.LStamp.shape(null), null],
     ['LV6.check', 2, L + 'lv6.js', ['D-LV6', 'function check(state, plan) { return null; }'], (X, s) => X.LV6.check(s, null), null],
     ['LTreasure.check', 2, L + 'treasure.js', ['D-ITEMS', 'function check(state, plan) { return null; }'], (X, s) => X.LTreasure.check(s, null), null],
-    ['LRunner.check', 2, L + 'runner.js', ['D-RUNNER-EST', 'function check(state, plan) { return null; }'], (X, s) => X.LRunner.check(s, null), null],
+    ['LRunner.check', 3, L + 'runner.js', ['D-RUNNER-EST', 'function check(state, plan) { return null; }'], (X, s) => X.LRunner.check(s, null, []), null],
     ['LVM4.lv7', 2, L + 'lv-m4.js', ['D-VALIDATORS', 'function lv7(state, plan) { return null; }'], (X, s) => X.LVM4.lv7(s, null), null],
     ['LVM4.lv13', 2, L + 'lv-m4.js', ['D-VALIDATORS', 'function lv13(state, plan) { return null; }'], (X, s) => X.LVM4.lv13(s, null), null],
   ];

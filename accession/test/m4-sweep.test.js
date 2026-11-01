@@ -6,10 +6,12 @@
 //
 // A check file, test/sweep/<name>.check.js, exports a function of the loaded core,
 // C => ({each, done}):
-//   each(d) → null, or a problem (a sentence). d = {state, seed, acc, depth}, one department,
-//            given in the order acc (S9, A4, M11), then depth, then seed. A check reads
-//            d.state and never changes it (the sweep fails one that does, by name); one that
-//            needs to play a department clones it (C.State.clone);
+//   each(d) → null, or a problem (a sentence). d = {state, seed, acc, depth, made}, one
+//            department, given in the order acc (S9, A4, M11), then depth, then seed; made is
+//            how Dept.generate made it ({attempt, fallback, tries, rejected, log}, which the
+//            state does not keep). A check reads d.state and never changes it (the sweep fails
+//            one that does, by name); one that needs to play a department clones it
+//            (C.State.clone);
 //   done() → null, or a problem: called once after the last department, for a check over the
 //            whole sweep (a rate, a count).
 // Each check is a test of its own here, failing with its first problems and where they are.
@@ -39,12 +41,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     let built = 0;
     if (!live.length) return { problems, built };
     for (const acc of size.accs) for (const depth of size.depths) for (let seed = 1; seed <= size.seeds; seed++) {
-      const state = C.Dept.create(seed, acc, depth), where = `${acc} depth ${depth} seed ${seed}`;
+      const g = C.Dept.generate(seed, acc, depth), state = g.state, where = `${acc} depth ${depth} seed ${seed}`;
+      const made = { attempt: g.attempt, fallback: g.fallback, tries: g.tries, rejected: g.rejected, log: g.log };
       built++;
       let before = JSON.stringify(state);
       for (const [name, c] of live) {
         let p = null;
-        try { p = c.each({ state, seed, acc, depth }); } catch (e) { p = `threw: ${e && e.message}`; }
+        try { p = c.each({ state, seed, acc, depth, made }); } catch (e) { p = `threw: ${e && e.message}`; }
         if (p) problems.push({ check: name, where, text: String(p) });
         const after = JSON.stringify(state);
         if (after !== before) { problems.push({ check: name, where, text: 'changed the department it was given' }); before = after; }
