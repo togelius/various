@@ -67,7 +67,9 @@
     // guardian's label says).
     hall: (d, nameOf) => {
       const who = (typeof nameOf === 'function' && d.by && nameOf(d.by)) || 'the Centrepiece';
-      const line = d.seals ? `${cap(who)} is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
+      // A treasure's hall seals by its own rule, never on the hunt: its words never say hunting.
+      const line = d.seals && d.form === 'treasure' ? `The hall will seal behind you as this turn ends, as its guardian’s label says, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
+        : d.seals ? `${cap(who)} is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
         : d.form === 'treasure' ? `This hall can seal while you are inside it, as its guardian’s label says: ${shut}; ${opens()}.`
         : `If the Centrepiece hunts you while you are inside, the hall seals at the end of a turn when no one stands in its openings: ${shut}; ${opens()}.`;
       return { title: 'Step into the Centrepiece’s hall?', yes: 'Step in', line };

@@ -20,8 +20,11 @@
   const since = (e, w) => e.cause.why === 'hunt' && e.cause.by !== undefined && e.cause.by !== 'you' ? `, since ${w.name(e.cause.by)} is hunting you` : '';
   const STAGES = {
     sealed: (e, w) => `Shutters closed over the hall’s openings${since(e, w)}: it is sealed, and while it is, the clock is stopped and you do not recover health. ${opens}`,
-    unsealed: e => `The shutters opened${lift(e)}.`,
-    waiting: (e, w) => `The hall would seal, but ${e.cause.by === 'you' ? 'you stand' : e.cause.by !== undefined ? w.name(e.cause.by) + ' stands' : 'someone stands'} in an opening: its shutters close once every opening is clear while you are inside.`,
+    // After a quiet lift you may still be inside, hunted: the hall does not seal again until you
+    // have stood outside it at a turn's end (rules/hall.js), so the sentence says so.
+    unsealed: e => `The shutters opened${lift(e)}.${e.cause.why === 'quiet' ? ' They do not close again until you have stepped out of the hall.' : ''}`,
+    // The seal still needs its call when the openings clear: for a fight's, a piece hunting you.
+    waiting: (e, w) => `The hall would seal, but ${e.cause.by === 'you' ? 'you stand' : e.cause.by !== undefined ? w.name(e.cause.by) + ' stands' : 'someone stands'} in an opening: its shutters close once every opening is clear while you are inside${e.cause.why === 'hunt' ? ' and the Centrepiece hunts you' : ''}.`,
   };
   Text.defineCause('stage', 'hall', (e, w) => own(STAGES, e.stage) ? STAGES[e.stage](e, w) : 'The hall changed.');
 

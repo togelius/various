@@ -101,7 +101,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       problems.push(...bad(r, `d${depth}`));
       const w = stages(r.events, 'waiting');
       if (w.length !== 1 || w[0].turn !== 1 || w[0].cause.by !== who || stages(r.events, 'sealed').length || tilesAt(s) !== ',S') problems.push(`d${depth}: waiting ${json(w)} with ${tilesAt(s)}`);
-      if (w[0] && say(C, s, w[0]) !== 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside.') problems.push(`d${depth}: ${say(C, s, w[0])}`);
+      if (w[0] && say(C, s, w[0]) !== 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside and the Centrepiece hunts you.') problems.push(`d${depth}: ${say(C, s, w[0])}`);
       r = H.play(C, s, (state, i) => i < 10 && !state.actors[2].gone ? { a: 'attack', uid: who } : null, { inv: 'all', clone: true });
       problems.push(...bad(r, `d${depth} clearing`));
       const died = r.events.find(e => e.k === 'died' && e.who === who), sealed = stages(r.events, 'sealed');
@@ -111,17 +111,21 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(problems, []);
   });
 
-  test('a staff door is shuttered with the archway, the board shows no staff door under its shutter, and it is a staff door again when the shutters open', () => {
-    const s = hall(C, 3);
+  test('a staff door is shuttered with the archway, the board shows no staff door under its shutter, nor a label for it (one open on it closes), and it is a staff door again when the shutters open', () => {
+    const s = hall(C, 3, { you: [7, 4] });
     const staff = () => C.Cases.staffView(s, allVisible(s)).map(f => [f.x, f.y]);
     assert.equal(json(staff()), json([[8, 4]]));
+    assert.equal(C.Labels.of(s, 'staff:8,4').odds[0], 'Your grade (Grade I) opens it.');
     H.play(C, s, [wait], { inv: 'all' });
     assert.equal(tilesAt(s), 'ZZ');
     assert.equal(json(staff()), '[]');
     assert.equal(json(C.ViewModel.derive(s, {}).staff), '[]');
+    // A label selected on it before the seal: js/main.js closes a label Labels.of no longer gives.
+    assert.equal(C.Labels.of(s, 'staff:8,4'), null);
     C.Hall.onDefeat(s, []);
     assert.equal(tilesAt(s), ',S');
     assert.equal(json(staff()), json([[8, 4]]));
+    assert.equal(C.Labels.of(s, 'staff:8,4').title, 'A staff door');
   });
 
   // ---- While sealed ----
@@ -173,6 +177,33 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('a Night Watchman that falls inside a sealed hall: the next comes when the clock has counted WATCHMAN_RETURN more turns, as its line says, so not while the clock is stopped, and that many turns after the shutters open', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const s = hall(C, depth, { you: [7, 2], clock: { B: 10, G: 10, count: 25 } });
+      const w = C.ClockRules.spawnWatchman(s, []);
+      Object.assign(w, { x: 6, y: 3, hp: 1 });
+      // It falls to your blows inside the sealed hall; then you wait out the quiet count.
+      let r = H.play(C, s, (state, i) => i < 30 && !w.gone ? (i === 0 ? wait : { a: 'attack', uid: w.uid }) : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const fell = r.events.find(e => e.k === 'died' && e.who === w.uid);
+      if (!fell || !C.Clock.sealed(s)) { problems.push(`d${depth}: fell ${json(fell)}, sealed ${C.Clock.sealed(s)}`); continue; }
+      // The dial, while the clock is stopped, says when the next comes, as the line does.
+      const dial = C.Text.clock(Object.assign({ sealed: true }, C.Clock.view(s)));
+      if (!dial.endsWith(` Another Night Watchman comes once it has counted ${C.N.WATCHMAN_RETURN} more turns.`)) problems.push(`d${depth}: ${dial}`);
+      r = H.play(C, s, (state, i) => i < 2 * N_LIFT + C.N.WATCHMAN_RETURN + 5 && !r2(state) ? wait : null, { inv: 'all' });
+      problems.push(...bad(r, `d${depth} after`));
+      // The boundary that opens the shutters counts the first of those turns (the hall's step
+      // comes before the clock's), so the next comes WATCHMAN_RETURN − 1 turns after it.
+      const lift = stages(r.events, 'unsealed')[0], came = r.events.find(e => e.k === 'entered');
+      if (!lift || !came || came.turn - lift.turn !== C.N.WATCHMAN_RETURN - 1 || came.cause.count !== 25 + C.N.WATCHMAN_RETURN) problems.push(`d${depth}: fell at ${fell.turn}, lifted ${lift && lift.turn}, the next came ${json(came)}`);
+    }
+    function r2(state) { return state.actors.filter(a => a.arch === 'night_watchman' && !a.gone).length > 0; }
+    assert.deepEqual(problems, []);
+    const line = C.Clauses.line(C.Packs.shared('night_watchman'), { depth: 3 });
+    assert.ok(line.includes(`If defeated, another comes when the clock has counted ${C.N.WATCHMAN_RETURN} more turns.`), line);
+  });
+
   // ---- The lift ----
 
   test('the quiet lift: after SEAL_LIFT_TURNS turns in a row in which the Centrepiece neither hurt you nor ended a turn beside you; then no seal until you have stood outside the hall at a turn\'s end; at depths 1–7, clone-checked', () => {
@@ -183,7 +214,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       problems.push(...bad(r, `d${depth}`));
       const sealed = stages(r.events, 'sealed'), lift = stages(r.events, 'unsealed');
       if (json(sealed.map(e => e.turn)) !== '[1]' || json(lift.map(e => [e.turn, e.cause.why])) !== json([[1 + N_LIFT, 'quiet']])) problems.push(`d${depth}: sealed ${json(sealed.map(e => e.turn))}, lifted ${json(lift.map(e => [e.turn, e.cause.why]))}`);
-      if (lift[0] && say(C, s, lift[0]) !== `The shutters opened: the Centrepiece has neither hurt you nor ended a turn beside you for ${N_LIFT} turns.`) problems.push(`d${depth}: ${say(C, s, lift[0])}`);
+      // The sentence says what comes next: still inside and hunted, no seal until you have stepped out.
+      if (lift[0] && say(C, s, lift[0]) !== `The shutters opened: the Centrepiece has neither hurt you nor ended a turn beside you for ${N_LIFT} turns. They do not close again until you have stepped out of the hall.`) problems.push(`d${depth}: ${say(C, s, lift[0])}`);
       if (tilesAt(s) !== ',S' || s.dept.clock.pausedSince !== null) problems.push(`d${depth}: after the lift ${tilesAt(s)} ${s.dept.clock.pausedSince}`);
       // Still inside, still hunted: no seal. A step out into the archway, a step back in: sealed again.
       r = H.play(C, s, Array(5).fill(wait).concat([{ a: 'move', dir: 2 }, { a: 'move', dir: 2 }, { a: 'move', dir: 2 }, { a: 'move', dir: 6 }]), { inv: 'all', clone: true });
@@ -390,6 +422,23 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(C.Hall.entering(at([8, 2], [], { piece: { mode: 'dormant' } }), step)), json({ by: null, form: 'fight', seals: false }));
     s = at([8, 2], [], { form: 'treasure' });
     assert.match(C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s)).line, /^This hall can seal while you are inside it, as its guardian’s label says: /);
+    // A treasure's hall whose own rule calls for the seal (a planted one, as COMPOSITE-PHASES's
+    // will): it seals behind you, and the words never say its guardian hunts you, though it does;
+    // and once it waits on an opening, the waiting words do not either. Both come true.
+    {
+      const X = loadCore();
+      X.Hall.defineSeal('treasure', () => ({ why: 'touched' }));
+      const t = hall(X, 3, { you: [8, 2], form: 'treasure' }), te = X.Hall.entering(t, step);
+      assert.equal(json(te), json({ by: null, form: 'treasure', seals: true }));
+      const line = X.Text.confirm('hall', te, nameOf(t)).line;
+      assert.match(line, /^The hall will seal behind you as this turn ends, as its guardian’s label says, unless someone then stands in one of its openings: /);
+      assert.doesNotMatch(line, /hunt/);
+      const q = H.play(X, t, [step], { inv: 'all' });
+      assert.equal(json(stages(q.events).map(e => [e.stage, e.cause.why])), json([['sealed', 'touched']]));
+      const u = hall(X, 3, { you: [7, 2], form: 'treasure', more: [{ sp: 'dummy', at: [8, 4], mode: 'dormant', stats: BODY }] });
+      const w = stages(H.play(X, u, [wait], { inv: 'all' }).events, 'waiting');
+      assert.equal(say(X, u, w[0]), 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside.');
+    }
     // Sealed, or its Centrepiece gone: nothing to ask.
     s = at([8, 2]); s.actors[1].gone = 1;
     assert.equal(C.Hall.entering(s, step), null);
@@ -482,9 +531,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(C.Text.stage(Object.assign({ sealed: true, chime: true }, v))), json({ name: 'Sealed:', next: 'the clock is stopped, the chime still sounds' }));
     assert.equal(json(C.Text.stage(Object.assign({ sealed: false, chime: true }, v))), json({ name: 'Open:', next: 'bell in 260 turns' }));
     assert.equal(C.Text.clock(v), 'The clock: open hours, turn 40; the bell rings in 260 turns.');
-    assert.equal(C.Text.clock(Object.assign({ sealed: true }, v)), 'The clock is stopped while the hall is sealed: open hours, turn 40; the bell rings 260 turns after it starts again.');
+    assert.equal(C.Text.clock(Object.assign({ sealed: true }, v)), 'The clock is stopped while the hall is sealed: open hours, turn 40; the bell rings once it has counted 260 more turns.');
     const night = C.Clock.view(hall(C, 3, { clock: { B: 10, G: 10, count: 21 } }));
-    assert.equal(C.Text.clock(Object.assign({ sealed: true }, night)), 'The clock is stopped while the hall is sealed: the night watch, turn 21; the next night-watch bell rings 29 turns after it starts again.');
+    assert.equal(C.Text.clock(Object.assign({ sealed: true }, night)), 'The clock is stopped while the hall is sealed: the night watch, turn 21; the next night-watch bell rings once it has counted 29 more turns.');
+    const soon = C.Clock.view(hall(C, 3, { clock: { B: 10, G: 10, count: 19 } }));
+    assert.equal(C.Text.clock(Object.assign({ sealed: true }, soon)), 'The clock is stopped while the hall is sealed: after the bell, turn 19; the night watch begins once it has counted 1 more turn.');
     // js/main.js gives the chip and the dial the hall's seal and the chime's module.
     const src = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
     assert.match(src, /Object\.assign\(\{ sealed: Clock\.sealed\(state\), chime: Modules\.on\(state, 'hourly_demonstration'\) \}, vm\.clock\)/);
@@ -502,6 +553,46 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     out.push(C.Text.refusal('sealed'));
     for (const t of out) assert.ok(clean(t) && /^[A-Z].*\.$/.test(t), t);
     assert.equal(C.Text.refusal('sealed'), 'A shutter is closed over that opening: the hall is sealed.');
+  });
+
+  // ---- The shutters as drawn ----
+
+  test('the shutters are drawn in the same two colours in every board view, the two at 3:1 or more to each other, and against every department\'s walls, wall tops and floors one of them at 3:1 or more', () => {
+    // WCAG's relative luminance and contrast ratio.
+    const lum = hex => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const vm = require('node:vm'), ctx = vm.createContext({});
+    vm.runInContext(fs.readFileSync(path.join(root, 'js/view/art.gen.js'), 'utf8') + ';this.ART = ART;', ctx);
+    const depts = ctx.ART.palettes.dept;
+    // Every board view (each file that registers one), as the 3D guard finds them.
+    const views = fs.readdirSync(path.join(root, 'js/view')).map(f => 'js/view/' + f).filter(f => /Views\.register\(/.test(fs.readFileSync(path.join(root, f), 'utf8')));
+    const colours = views.map(v => {
+      const m = fs.readFileSync(path.join(root, v), 'utf8').match(/const SHUTTER = \{ steel: '(#[0-9a-f]{6})', rib: '(#[0-9a-f]{6})' \};/);
+      assert.ok(m, `${v} gives the shutter's two colours in const SHUTTER`);
+      return { steel: m[1], rib: m[2] };
+    });
+    assert.ok(colours.length >= 1);
+    for (const c of colours) assert.deepEqual(c, colours[0], 'every board view draws the shutter in the same two colours');
+    const { steel, rib } = colours[0], problems = [];
+    if (ratio(steel, rib) < 3) problems.push(`steel ${steel} and rib ${rib} are ${ratio(steel, rib).toFixed(2)}:1`);
+    for (const k of Object.keys(depts).sort()) for (const part of ['wall', 'wallTop', 'floor', 'floor2']) {
+      const n = depts[k][part], best = Math.max(ratio(steel, n), ratio(rib, n));
+      if (best < 3) problems.push(`${k}'s ${part} ${n}: steel ${ratio(steel, n).toFixed(2)}:1, rib ${ratio(rib, n).toFixed(2)}:1`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('the floor plan draws a shutter as a striped tile, never as a wall, and its key says so while one is shut', () => {
+    // js/ui/bag.js's tileLook, run on the core's Grid (the browser's global).
+    const acorn = require(path.join(root, 'tools/vendor/acorn/acorn.js')), vm = require('node:vm');
+    const src = fs.readFileSync(path.join(root, 'js/ui/bag.js'), 'utf8'), ast = acorn.parse(src, { ecmaVersion: 2022, sourceType: 'script' });
+    const found = {};
+    (function walk(n) { if (!n || typeof n.type !== 'string') return; if (n.type === 'FunctionDeclaration' && n.id && n.id.name === 'tileLook') found.fn = n; if (n.type === 'VariableDeclarator' && n.id && n.id.name === 'MAP') found.map = n; for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); } })(ast);
+    assert.ok(found.fn && found.map, 'bag.js has tileLook and its MAP');
+    const look = vm.runInNewContext(`const MAP = ${src.slice(found.map.init.start, found.map.init.end)}; (${src.slice(found.fn.start, found.fn.end)})`, { Grid: C.Grid });
+    const z = look('Z'), wall = look('#'), door = look('+');
+    assert.ok(z && z.shape && z.fill !== wall.fill && z.shape !== door.shape, `a shutter is drawn ${json(z)}, a wall ${json(wall)}, a door ${json(door)}`);
+    assert.match(src, /vm\.tiles\.some\(r => r\.includes\('Z'\)\) \? ' Shutters: a striped tile\.' : ''/);
   });
 
   // ---- The invariants catch what they say ----

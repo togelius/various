@@ -56,11 +56,12 @@
 
   // The dial's sentence (§7.2), from Clock.view(state): the stage, the clock's turn, and
   // what comes next and when. While a hall is sealed (view.sealed) the count is stopped, so
-  // what comes next comes that many turns after it starts again.
+  // what comes next comes once the clock has counted that many more turns: the boundary that
+  // opens the shutters counts the first of them (the hall's step comes before the clock's).
   function dial(v) {
     if (!v) return 'The clock: this room has no closing time.';
     const at = `turn ${v.count}`, head = v.sealed ? 'The clock is stopped while the hall is sealed:' : 'The clock:';
-    const when = n => v.sealed ? `${turns(n)} after it starts again` : `in ${turns(n)}`;
+    const when = n => v.sealed ? `once it has counted ${n} more ${n === 1 ? 'turn' : 'turns'}` : `in ${turns(n)}`;
     if (v.stage === 0) return `${head} open hours, ${at}; the bell rings ${when(v.toBell)}.`;
     if (v.stage === 1) return `${head} after the bell, ${at}; the night watch begins ${when(v.toWatch)}.`;
     const back = v.watchBack !== null && v.watchBack !== undefined ? ` Another Night Watchman comes ${when(v.watchBack)}.` : '';
