@@ -80,17 +80,21 @@ module.exports = (C) => {
   // below RING_MIN." A boundary runs in a step only if your action cost time, so that action
   // sets the radius. What your kit takes (Kit.ringDelta) is asked of the states the boundary
   // could have seen: your action's flags are set before any boundary, while your kit and
-  // what is derived from it are either side of the step's end.
+  // what is derived from it are either side of the step's end. What your perks take (M4:
+  // Soft Soles, PERK_SOFT_SOLES[rank − 1], Perks.ringDelta) is asked of the perks you held
+  // either side of the step, which change only by a choice, a step with no boundary.
   const STILL = ['wait', 'rest', 'view', 'sit'];
   const FLAGS = ['x', 'y', 'still', 'lastAct', 'seated'];
   function radii(pre, post, action) {
     const base = action && STILL.includes(action.a) ? N.RING_STILL : N.RING_MOVING, you = post.actors[0], out = [];
-    const deltas = [C.Kit.ringDelta(pre), C.Kit.ringDelta(post)];
+    const kits = [C.Kit.ringDelta(pre), C.Kit.ringDelta(post)];
     for (const body of [pre, post]) for (const kit of [pre, post]) {
       const me = Object.assign({}, body.actors[0]);
       for (const f of FLAGS) me[f] = you[f];
-      deltas.push(C.Kit.ringDelta(Object.assign({}, body, { actors: [me].concat(body.actors.slice(1)), you: kit.you, items: kit.items })));
+      kits.push(C.Kit.ringDelta(Object.assign({}, body, { actors: [me].concat(body.actors.slice(1)), you: kit.you, items: kit.items })));
     }
+    const perks = [C.Perks.ringDelta(pre), C.Perks.ringDelta(post)], deltas = [];
+    for (const k of kits) for (const p of perks) if (!deltas.includes(k + p)) deltas.push(k + p);
     for (const m of [pre.dept, post.dept]) for (const d of deltas) {
       const r = Math.max(N.RING_MIN, base + (TILE(Grid.ch(m, you.x, you.y)).loud ? N.RING_LOUD_FLOOR : 0) + d);
       if (!out.includes(r)) out.push(r);

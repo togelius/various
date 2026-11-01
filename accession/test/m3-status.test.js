@@ -379,8 +379,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       fixed: [`${N.FIXATIVE_TURNS} turns`, `+${N.HIT_FIXED_TARGET} to hit`], rooted: [`${N.MIMIC_GRIP_TURNS} turns`], coughing: [`${N.COUGH_TURNS} turns`, `${N.NOISE_SOFT} tiles`],
       restoring: [`${N.CONSOLIDANT_HOT_PCT}%`, `${N.CONSOLIDANT_HOT_TURNS} turns`], slowed: [`${N.SPEED_SLOW_PCT}%`], dazed: [`${N.HIT_DAZED_ATTACKER} to hit`],
     };
-    assert.equal(json(R.order('STATUSES')), json(Object.keys(want)));
-    for (const id of R.order('STATUSES')) {
+    // M3's six, in order; M4's perk statuses (reg/perk-status.js: staggered) come after them,
+    // each proved by its own package's tests (behaviour/perks-a.test.js).
+    const m3 = R.order('STATUSES').filter(id => R.STATUSES[id].built === 'M3');
+    assert.equal(json(m3), json(Object.keys(want)));
+    assert.equal(json(R.order('STATUSES').slice(0, m3.length)), json(m3));
+    for (const id of m3) {
       const e = R.STATUSES[id], text = Clauses.fill(e.clause, Clauses.params(e.params, null, { depth: 4 }));
       assert.equal(json([e.ready, e.tests, e.inv, e.built]), json([true, ['m3-status.test.js', 'behaviour/status.test.js'], 'status', 'M3']), id);
       for (const w of want[id]) assert.ok(text.includes(w), `${id}: "${text}" names ${w}`);

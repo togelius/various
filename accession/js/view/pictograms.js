@@ -69,6 +69,8 @@ const Pictograms = (() => {
     restoring: ['...xx...', '...xx...', '...xx...', 'xxxxxxxx', 'xxxxxxxx', '...xx...', '...xx...', '...xx...'],
     slowed:    ['xxxxxxxx', '.x....x.', '..x..x..', '...xx...', '...xx...', '..x..x..', '.x....x.', 'xxxxxxxx'],
     dazed:     ['.x....x.', 'xxx..xxx', '.x....x.', '........', '...x....', '..xxx...', '...x....', '........'],
+    // M4's perk status (reg/perk-status.js): a staggering zigzag, its bearer losing its next action
+    staggered: ['........', 'x...x...', '.x.x.x..', '..x...x.', '.......x', 'x...x...', '.x.x.x..', '..x...x.'],
     fumigant:  ['........', '..xx....', '.xxxx.x.', 'xxxxxxxx', 'xxxxxxxx', '.xxxxxx.', '........', '........'],
     dust:      ['x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.', 'x...x...', '..x...x.'],
   };
@@ -86,6 +88,7 @@ const Pictograms = (() => {
     seal_anchor: 'item', seal_key: 'item', seal_bell: 'item', seal_hand: 'item',
     // A harmful status, and a surface, is a hazard; restoring is yours.
     fixed: 'hazard', rooted: 'hazard', coughing: 'hazard', restoring: 'player', slowed: 'hazard', dazed: 'hazard', fumigant: 'hazard', dust: 'hazard',
+    staggered: 'hazard',
   };
   const colourOf = (id, override) => override || ART.palettes.semantic[COLOUR[id]];
 

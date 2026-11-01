@@ -78,9 +78,10 @@ const Wake = (() => {
   // Wake.wake, never here. Returns false if nothing changed.
   // An exhibit in an intact case changes mode by the modes' timers as any other does, but
   // only waits in its case (§8.3, AI): a change by those timers (out_of_sight, idle,
-  // searched) then says so in its cause (how: 'case'), so its sentence never has it search
-  // where it last knew you were or go back to a place it never left.
-  const CASE_TIMERS = ['out_of_sight', 'idle', 'searched'];
+  // searched, and M4's vanished, Vanishing Act's out_of_sight) then says so in its cause
+  // (how: 'case'), so its sentence never has it search where it last knew you were or go back
+  // to a place it never left.
+  const CASE_TIMERS = ['out_of_sight', 'vanished', 'idle', 'searched'];
   function setMode(state, a, mode, cause, ev, opts) {
     if (!MODES.includes(mode)) throw new Error(`Wake.setMode: no mode ${mode}`);
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);

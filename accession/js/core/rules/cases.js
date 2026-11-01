@@ -427,11 +427,23 @@ const Cases = (() => {
   // A glass's clause names the locks a case of it can have in the department at its depth; in
   // a room that is no department (dept.place, the Orientation's practice room) it says so of
   // a department at that depth (OF_PLACE), the rule being the same.
+  // While Light Fingers changes how you open a case (M4, PG-PERKS-A: what it costs you and that
+  // it makes no noise, Perks.openCost and openQuiet, and at the second rank the locks above your
+  // grade you open, Perks.lockBonus), the case's first sentence, how it opens, is the perk's
+  // (CLAUSES.case_light_fingers, or case_light_fingers2 with a lock bonus), filled with what
+  // opening it costs you (openCost), so it says what opening it does to you. A staff door's
+  // sentence is never changed: it takes your grade alone.
   const IN_DEPT = 'in this department', OF_PLACE = 'in a department at this depth';
+  function opening(state) {
+    if (!Perks.openQuiet(state)) return null;
+    return Clauses.fill(Registry.CLAUSES[Perks.lockBonus(state) > 0 ? 'case_light_fingers2' : 'case_light_fingers'].clause, { open: openCost(state) });
+  }
   function rules(state, f) {
     const R = Registry, depth = (state.dept && state.dept.depth) || 1, place = !!(state.dept && state.dept.place);
     const fill = e => Clauses.fill(e.clause, Clauses.params(e.params, null, { depth }));
     const out = [fill(R.FIXTURES[f.k])];
+    const own = f.k === 'case' ? opening(state) : null;
+    if (own) out[0] = own + out[0].slice(out[0].indexOf('. ') + 1);
     if (f.k === 'case') {
       const g = R.order('GLASS').find(id => R.GLASS[id].n === f.glass);
       if (g) { const t = fill(R.GLASS[g]); out.push(place ? t.replace(IN_DEPT, OF_PLACE) : t); }

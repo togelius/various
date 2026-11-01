@@ -284,11 +284,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // ---- Statuses (A3, A16.3) ----
 
   test('Status.define holds M3\'s statuses\' rules; a status is defined once, after its registry entry, with only effect, blocks and skipsAction', () => {
-    eq(Status.defined(), ['fixed', 'rooted', 'coughing', 'restoring', 'slowed', 'dazed']);
+    // M3's six first, then M4's perk statuses (reg/perk-status.js), each its package's to test.
+    const m3 = Status.defined().filter(id => C.Registry.STATUSES[id].built === 'M3');
+    eq(m3, ['fixed', 'rooted', 'coughing', 'restoring', 'slowed', 'dazed']);
+    eq(Status.defined().slice(0, m3.length), m3);
     eq(Object.keys(Status.EFFECTS).sort(), ['coughing', 'restoring']);
     // Of M3's statuses only fixed makes its bearer only wait (§8.1), and only fixed and rooted
     // forbid you anything.
-    for (const id of Status.defined()) {
+    for (const id of m3) {
       const r = Setup.room(1, { acc: 'T0', map: ['#####', '#...#', '#####'], you: [1, 1], exhibits: [{ sp: 'x', at: [3, 1], stats: C.Roles.stats('fodder', 1) }] });
       Status.apply(r, r.actors[1], id, 2, { k: 'status', id }, []);
       Status.apply(r, r.actors[0], id, 2, { k: 'status', id }, []);

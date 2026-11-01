@@ -401,7 +401,7 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('the lectern\'s words are true whatever you carry: the gateway label, the rule (FIXTURES \'lectern\'), and the ring you would have viewing on its reading tile, which a view\'s pips bear out: hooded (\'lectern_ring_lamp\'), lit (\'lectern_ring_reach\'), with Soft Soles planted (\'lectern_ring_short\'), lit with Soft Soles, on shards, in a quiet garment (which a view does not count), read on the step onto the reading tile; under the sheet, the sheet\'s (FIXTURES \'sheet\')', () => {
+  test('the lectern\'s words are true whatever you carry: the gateway label, the rule (FIXTURES \'lectern\'), and the ring you would have viewing on its reading tile, which a view\'s pips bear out: hooded (\'lectern_ring_lamp\'), lit (\'lectern_ring_reach\'), with Soft Soles (\'lectern_ring_short\'), lit with Soft Soles, on shards, in a quiet garment (which a view does not count), read on the step onto the reading tile; under the sheet, the sheet\'s (FIXTURES \'sheet\')', () => {
     const R = loadCore().Registry;
     const RULE = 'While the Centrepiece sleeps and this department’s Certificate is still to be earned, view it from the reading tile beside the lectern for 4 turns in a row: the last view earns the Certificate and puts the Centrepiece under a dust sheet for the night, so no fight follows. Any other action that takes time starts the count again, and so does its waking.';
     const SHEET = 'The Centrepiece is under its dust sheet for the night: it no longer wakes, moves or fights, and you cannot view it, strike it, step onto it or aim an instrument at it.';
@@ -422,8 +422,7 @@ module.exports = ({ test, assert, loadCore }) => {
     const problems = [];
     for (const [what, map, lit, soft, quiet, line, pip] of CASES) {
       const K = core(), X = K.X;
-      // Soft Soles, planted as its package will build it: your ring 1 smaller a rank.
-      X.Perks.add('soft_soles', { ringDelta: (st, rank) => -rank });
+      // Soft Soles (PG-PERKS-A's): your ring PERK_SOFT_SOLES[rank − 1] smaller, 1 and 2.
       const s = room(K, 3, { map, items: [Object.assign({}, LAMP, lit ? { lit: true } : {})].concat(quiet ? [QUIET] : []) });
       if (lit) s.items.find(i => i.uid === 'lamp').lit = true;
       if (soft) s.run.perks.push({ id: 'soft_soles', rank: soft });
@@ -432,9 +431,7 @@ module.exports = ({ test, assert, loadCore }) => {
       H.play(X, s, [W(6)], { inv: false });
       const got = X.Viewing.words(s);
       if (json(got) !== json([GATEWAY, RULE, line])) problems.push(`${what}: ${json(got)}`);
-      // Soft Soles is not built yet (PG-PERKS-A), so the waking invariants, which know no perk,
-      // are left out where it is planted.
-      const r = H.play(X, s, [V], { inv: soft ? ['viewing', 'system', 'centrepiece', 'hall', 'progress'] : 'all' });
+      const r = H.play(X, s, [V], { inv: 'all' });
       problems.push(...bad(r, what));
       if (gained(X, s, r.events).length !== (pip ? 1 : 0)) problems.push(`${what}: the view added ${gained(X, s, r.events).length} pips`);
       if (X.Vision.ringRadius(s) !== X.Viewing.ring(s)) problems.push(`${what}: viewing, your ring is ${X.Vision.ringRadius(s)}, and the lectern says ${X.Viewing.ring(s)}`);

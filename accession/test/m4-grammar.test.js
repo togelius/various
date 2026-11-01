@@ -339,10 +339,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.equal(r.status, 0, r.out); has(r, /M3 entries at ready false \d+, 'unit' \d+, true \d+; M4 entries at ready false \d+, 'unit' \d+, true \d+/);
       r = lint(null, ['--strict=M3']);
       assert.equal(r.status, 0, r.out); has(r, /strict \(M3\)/);
+      // An M4 perk at ready false, planted (the real ones go to true as their packages build them).
+      const PLANT = "Registry.define('PERKS', 'planted_perk', { built: 'M4', name: 'Planted', family: 'guarded' });";
       for (const which of [['--strict'], ['--strict=M4']]) {
-        r = lint(null, which);
+        r = lint(PLANT, which);
         assert.equal(r.status, 1, which[0]);
-        has(r, /--strict: ARCHETYPES\.completing_guardian is at ready false/); has(r, /--strict: PERKS\.soft_soles is at ready false/);
+        has(r, /--strict: ARCHETYPES\.completing_guardian is at ready false/); has(r, /--strict: PERKS\.planted_perk is at ready false/);
         // Under --strict every M4 entry meets the word rules: the placeholders do not yet.
         has(r, /ARCHETYPES\.completing_guardian: "one limb" states a number in words/); has(r, /ARCHETYPES\.mp_tableau: "double damage" states a number in words/);
       }
@@ -350,11 +352,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.equal(r.status, 1); has(r, /--strict=M9: no such milestone/);
       // A follow-up may hold an M4 entry under --strict, not under --strict=M3.
       const ff = path.join(tmp, 'follow.json');
-      fs.writeFileSync(ff, json({ 'PERKS.soft_soles': 'planted: PG-PERKS-A builds it' }));
-      r = lint(null, ['--strict', '--follow-ups', '--follow-file', ff]);
-      assert.equal(r.status, 1); has(r, /OPEN FOLLOW-UP PERKS\.soft_soles/); hasNot(r, /--strict: PERKS\.soft_soles/);
-      r = lint(null, ['--strict=M3', '--follow-ups', '--follow-file', ff]);
-      assert.equal(r.status, 1); has(r, /follow-ups: PERKS\.soft_soles is not an M3 entry/);
+      fs.writeFileSync(ff, json({ 'PERKS.planted_perk': 'planted: its package builds it' }));
+      r = lint(PLANT, ['--strict', '--follow-ups', '--follow-file', ff]);
+      assert.equal(r.status, 1); has(r, /OPEN FOLLOW-UP PERKS\.planted_perk/); hasNot(r, /--strict: PERKS\.planted_perk/);
+      r = lint(PLANT, ['--strict=M3', '--follow-ups', '--follow-file', ff]);
+      assert.equal(r.status, 1); has(r, /follow-ups: PERKS\.planted_perk is not an M3 entry/);
     }
   });
 
