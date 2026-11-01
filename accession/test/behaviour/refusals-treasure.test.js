@@ -20,16 +20,18 @@ module.exports = ({ test, assert, loadCore }) => {
   const V = { a: 'view' }, W = d => ({ a: 'move', dir: d });
   // The hall (x 1–11, y 1–7), the Lamp's case at (1,7), the Composite on 5–6 × 3–4, the lectern
   // (10,3) and its reading tile (9,3), 3 walking tiles from it; the archway (12,2) to a gallery.
-  const MAP = ['#################', '#...........#...#', '#...........,...#', '#.........l.#...#', '#...........#...#', '#...........#...#',
-    '#...........#...#', '#v..........#...#', '#################'];
+  const MAP = ['#################', '#...........#...#', '#...........,...#', '#v........l.#...#', '#...........#...#', '#...........#...#',
+    '#...........#...#', '#v.........v#...#', '#################'];
   const ROOMS = [{ key: 'centre', role: 'centre', x0: 1, y0: 1, x1: 11, y1: 7 }, { key: 's1', role: 'section', x0: 13, y0: 1, x1: 15, y1: 7 }];
-  const CASE = [1, 7];
+  // Two more cases in its hall, after the Lamp's (so not the one it guards): one in its column,
+  // one in its row (the sheet closes only the Lamp's).
+  const CASE = [1, 7], OTHERS = [[1, 3], [11, 7]];
   const POLE = { uid: 'pole', kind: 'instrument', form: 'pole', tier: 1, where: { at: 'kit', slot: 'instrument' } };
   // You on the reading tile, the Composite asleep, the Lamp in its case (dissolved first, as
   // Solvent leaves it, when `dissolved`), a known Solvent and Fixative and the Window Pole on you.
   function hall(depth, dissolved) {
     const s = H.room(C, 1, { acc: 'S9', depth, map: MAP, you: [9, 3], rooms: ROOMS, clock: { B: 300, G: 60 }, entrance: [15, 4], items: [POLE],
-      fixtures: [C.Cases.make({ x: CASE[0], y: CASE[1], glass: 3, lock: 1 })] }, {});
+      fixtures: [C.Cases.make({ x: CASE[0], y: CASE[1], glass: 3, lock: 1 })].concat(OTHERS.map(([x, y]) => C.Cases.make({ x, y, glass: 1, lock: 1 }))) }, {});
     s.actors[0].hp = s.actors[0].maxHp = 999;
     s.dept.walked = [];
     C.Centrepiece.place(s, { cpl: [5, 3] }, C.Packs.get('S9'));
@@ -79,12 +81,14 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.deepEqual(problems, []);
   });
 
-  test('the sheet closes only its case, and only once it lies: a throw two tiles from the case (its square not holding it) is not refused; before the views none of those actions is refused sheeted; with no treasure (a fight), the refuser leaves cases alone', () => {
+  test('the sheet closes only its case, and only once it lies: a throw two tiles from the case (its square not holding it) is not refused, nor is opening or bashing another case of its hall, in the Lamp\'s case\'s column or row; before the views none of those actions is refused sheeted; with no treasure (a fight), the refuser leaves cases alone', () => {
     for (const depth of [1, 4, 7]) {
       const s = hall(depth);
       for (const c of CASES.slice(1)) assert.notEqual(C.Actions.refusal(s, c.act(s)), 'sheeted', `before the views: ${c.what}`);
       H.play(C, s, [V, V, V, V], { inv: 'all' });
       H.play(C, s, answer(s).concat(TO_CASE), { inv: 'all' });
+      assert.equal(C.Treasure.caseOf(s), C.Cases.at(s, CASE[0], CASE[1]));
+      for (const [x, y] of OTHERS) for (const a of ['open', 'bash']) assert.notEqual(C.Actions.refusal(s, { a, x, y }), 'sheeted', `d${depth}: ${a} ${x},${y}`);
       const far = { a: 'throw', uid: solution(s, 'fixative'), x: CASE[0] + 2, y: CASE[1] - 2 };
       assert.equal(C.Actions.refusal(s, far), null, `d${depth}: two tiles off`);
       const r = H.play(C, s, [far], { inv: 'all', clone: true });

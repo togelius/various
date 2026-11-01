@@ -325,6 +325,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const r = H.play(C, s, [W(2), W(6), W(2)], { inv: INV(C) });
     assert.deepEqual(bad(r, 'asleep'), []);
     assert.equal(json(r.events.filter(e => e.who === a.uid).map(e => e.k)), '[]');
+    // GUARDIAN_LEAVE_HEAL_PCT 50 (planted): it regains half its full health, not half of what it
+    // has: 24 of 60 (its phase planted with it; above 34%, so no seal), it regains 30, to 54.
+    {
+      const X = loadCore(null, { numbers: { GUARDIAN_LEAVE_HEAL_PCT: 50 } }), t = room(4, { core: X, walked: ALL, you: [11, 2], scale: 60 }), b = composite(X, t);
+      X.Wake.wake(t, b, 'hunting', { k: 'damage', by: 'you' }, []);
+      b.hp = 24; b.ax.phase = X.Centrepiece.phaseFor(b.hp, b.maxHp);
+      H.play(X, t, [WAIT], { inv: Inv.select(X, 'all') });
+      const q = H.play(X, t, [W(2)], { inv: Inv.select(X, 'all') });
+      assert.deepEqual(bad(q, 'half'), []);
+      assert.equal(json(q.events.filter(e => e.k === 'healed' && e.who === b.uid).map(e => [e.cause.k, e.amount, e.hp])), json([['left', 30, 54]]));
+    }
     // By a Ticket, while it hunts you: you leave its hall too.
     for (const depth of [1, 7]) {
       const t = room(depth, { walked: ALL, scale: 60 }), b = composite(C, t);
@@ -428,6 +439,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         const words = r.events.filter(e => e.k === 'module' && e.who === a.uid).map(e => say(C, s, e));
         if (!words.some(w => /has seen you, and shows the alarm: at its next action it raises it\./.test(w))) problems.push(`${tag}: ${json(words)}`);
       } else if (shown.length || raised.length || hop.mode !== 'dormant') problems.push(`${tag}: an alarm ${json(shown.concat(raised))}`);
+    }
+    // Hunting you in its hall in phase 2 but not seeing you (a wall between, planted in its hall):
+    // it shows no alarm until it sees you.
+    const WALLED = ['#################', '#...........#...#', '#.......#...,...#', '#.......#...#...#', '#.......#...#...#', '#.......#...#...#',
+      '#.......#...#...#', '#v......#...#...#', '#################', '#.#.#.#.#########', '#################'];
+    for (const depth of [1, 4, 7]) {
+      const { s, a } = hunting(depth, { limbs: [], phase: 2, modules: true, you: [10, 6], map: WALLED }), saw = [];
+      const r = H.play(C, s, (st, i) => { if (i > 8) return null; saw.push(C.AI.sees(st, a)); return WAIT; }, { inv: INV(C) });
+      problems.push(...bad(r, `unseen d${depth}`));
+      if (!saw.length || saw[0]) problems.push(`unseen d${depth}: it saw you from the start`);
+      r.steps.forEach((st, i) => { if (!saw[i] && st.events.some(e => e.k === 'telegraphed' && e.sp === 'alarm' && e.who === a.uid)) problems.push(`unseen d${depth}: it showed the alarm at step ${i}, not seeing you`); });
     }
     // You in the archway, outside its hall, in its sight: it holds back, and shows no alarm.
     for (const depth of [1, 7]) {
