@@ -3,7 +3,9 @@
 // rules/viewing.js:
 //   viewing.view   a view is told only for your `view`, made on the reading tile while the
 //                  Centrepiece stood, was not under its sheet, every piece of it still standing
-//                  slept and the visit had no Certificate; one a step at most; its count is one
+//                  slept and the visit had no Certificate; it names the first of its pieces
+//                  still standing (an ensemble's first may have fallen: M4 ENSEMBLE-CORE); one
+//                  a step at most; its count is one
 //                  more than the last view's when your last action that took time was that view
 //                  and no piece of it has woken since, else 1 ("four views in a row: any other
 //                  action that takes time starts the count again, and so does its waking"), and
@@ -53,7 +55,7 @@ module.exports = (C) => {
         if (!Array.isArray(t) || you.x !== t[0] || you.y !== t[1]) return `a view from ${you.x},${you.y}, not the reading tile ${json(t)}`;
         const up = piecesOf(pre).filter(a => !a.gone);
         if (!up.length || up.some(a => a.mode !== 'dormant')) return `a view while the Centrepiece is not all asleep: ${json(up.map(a => [a.uid, a.mode]))}`;
-        if (e.of !== c.uids[0]) return `the view names ${e.of}, not the Centrepiece's first piece ${c.uids[0]}`;
+        if (e.of !== up[0].uid) return `the view names ${e.of}, not the Centrepiece's first piece still standing ${up[0].uid}`;
         const woke = !!before && piecesOf(pre).some(a => a.woke && a.woke.turn >= before.turn);
         const want = before && you.lastAct === 'view' && before.n < N.VIEW_TURNS && !woke ? before.n + 1 : 1;
         if (e.n !== want) return `the view counts ${e.n}, not ${want} (the row was ${json(before)}, your last action that took time ${you.lastAct}${woke ? ', and it has woken since' : ''})`;

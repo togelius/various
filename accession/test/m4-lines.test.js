@@ -254,7 +254,9 @@ function plantLong(X, acc) {
       phases: [{ parts: [def('CLAUSES', 'planted_beam', 'aims along a row or column for a turn, shown, then fires a beam up to {range} tiles that passes through glass, for {g} before your Padding', { range: 'N:AXIS_BEAM_RANGE', g: gross.g }), 'SPECIALS.cp_burst'] },
         { parts: [def('CLAUSES', 'planted_call', 'marks the free tiles beside it for a turn, then calls a body onto them'), def('CLAUSES', 'planted_arm', 'its Repeater Arm joins it')] },
         { parts: [def('CLAUSES', 'planted_bodies', 'calls two bodies'), def('CLAUSES', 'planted_dish', 'its Board Dish sends beams back')] }] },
-    A4: { archetype: arch('planted_ordinance', 'Four pieces, each with its own share of its health; its phases count them together. When a piece falls, the next takes on its special. Each original you broke in the galleries cost it 8% of its health, up to 24%.'),
+    // (As measured, with no module's part: A.4's record is flagged with copies_weaken, M4
+    // ENSEMBLE-CORE, whose own line test/behaviour/mp_ensemble.test.js and the budget test hold.)
+    A4: { flags: [], archetype: arch('planted_ordinance', 'Four pieces, each with its own share of its health; its phases count them together. When a piece falls, the next takes on its special. Each original you broke in the galleries cost it 8% of its health, up to 24%.'),
       phases: [{ parts: [def('CLAUSES', 'planted_copies', 'its copies mark your tile and the tiles round it while they see you, then strike everything on them for {g} before Padding', gross)] },
         { parts: [def('CLAUSES', 'planted_clerk', 'the Senior Countersigning Clerk joins it, restoring 25% of a piece\'s health, shown for one action')] },
         { parts: [def('CLAUSES', 'planted_shatter', 'shatters every case in its hall')] }] },
@@ -465,11 +467,12 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 1 }), ['Phase 1 of 3.', FIGHT, p1, REST].join(' '));
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 2 }), ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST].join(' '));
     assert.equal(X.Clauses.strip(cp, { depth: 4, phase: 3 }), ['Phase 3 of 3.', FIGHT, `Its specials come every ${X.N.CP_SPECIAL_EVERY[1]} actions.`, REST].join(' '));
-    // A phase that adds nothing, or a Centrepiece whose record lists no phases (each of the
-    // three today): the phase, the form and the rest. Its phases are its health's three.
+    // A phase that adds nothing, or a Centrepiece whose record lists no phases (S.9's and
+    // M.11's today; A.4's Ordinance lists its own, test/behaviour/mp_ensemble.test.js): the
+    // phase, the form and the rest. Its phases are its health's three.
     const two = Object.assign({}, cp, { phases: [{}, { parts: ['SPECIALS.planted_summon'] }] });
     assert.equal(json([1, 2, 3].map(k => X.Clauses.strip(two, { depth: 4, phase: k }))), json([['Phase 1 of 3.', FIGHT, REST], ['Phase 2 of 3.', FIGHT, 'Calls a body out of its frame.', REST], ['Phase 3 of 3.', FIGHT, REST]].map(w => w.join(' '))));
-    for (const p of X.Packs.list()) for (const k of [1, 2, 3]) assert.equal(X.Clauses.strip(p.centrepiece, { depth: 7, phase: k }), [`Phase ${k} of 3.`, p.centrepiece.form === 'fight' ? FIGHT : TREASURE, REST].join(' '), `${p.acc} ${k}`);
+    for (const p of X.Packs.list()) if (!p.centrepiece.phases) for (const k of [1, 2, 3]) assert.equal(X.Clauses.strip(p.centrepiece, { depth: 7, phase: k }), [`Phase ${k} of 3.`, p.centrepiece.form === 'fight' ? FIGHT : TREASURE, REST].join(' '), `${p.acc} ${k}`);
     // (cp_fight: the form's rule every Centrepiece's line carries, in no phase.)
     assert.equal(json(X.Clauses.phaseParts(cp, 2, { depth: 4 }).map(p => [p.id, p.phase === undefined ? null : p.phase])), json([['mp_tableau', null], ['cp_fight', null], ['planted_burst', 1], ['planted_summon', 2], ['wake', null]]));
     assert.equal(json(X.Clauses.of(cp, { depth: 4 }).filter(p => p.phase).map(p => [p.kind, p.id, p.phase])), json([['special', 'planted_burst', 1], ['special', 'planted_summon', 2], ['clause', 'planted_quick', 3]]));
@@ -687,6 +690,8 @@ module.exports.measure = measure;
 module.exports.compare = compare;
 module.exports.plantLong = plantLong;
 module.exports.METRICS = METRICS;
+// (The model's rows, for a Centrepiece's own test of its strips: M4 ENSEMBLE-CORE.)
+module.exports.rows = rows;
 if (require.main === module) {
   (async () => {
     const path = require('node:path'), fs = require('node:fs'), root = path.join(__dirname, '..');

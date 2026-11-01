@@ -251,7 +251,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       // special inside it (MOD-COPIES: copies_weaken on A.4's Seated Clerks).
       const inSlot = id => [arch.clause, trig && trig.clause].some(cl => Clauses.slots(cl || '').some(sl => sl.id === id));
       const own = (s.flags || []).filter(id => C.Modules.defined(id) && !inSlot(id)).flatMap(id => [id, ...(R.MODULES[id].special ? [R.MODULES[id].special] : [])]);
-      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []), ...own,
+      // A Centrepiece's phase parts, phase by phase, before its wake clause (A.4's Ordinance's,
+      // M4 ENSEMBLE-CORE: CLAUSES entries, which set nothing inside them).
+      const phased = (Array.isArray(s.phases) ? s.phases : []).flatMap(ph => (ph && ph.parts) || []).map(ref => ref.slice(ref.indexOf('.') + 1));
+      const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []), ...own, ...phased,
         ...(trig && trig.replacesWake ? [] : [arch.wake || 'wake']), ...(trig ? [s.trigger, ...slotted(trig.clause)] : [])];
       same(got, want, s.id);
     }

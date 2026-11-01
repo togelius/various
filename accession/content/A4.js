@@ -127,8 +127,6 @@ Packs.add({
     { key: 'centre', name: 'The Lectern Hall', contents: [] },
     { key: 'coda', name: 'The Forms Counter', contents: [] },
   ],
-  centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1, signature: 'A4.11',
-    name: 'The Duplicate Ordinance, With Its Four Certified Copies',
-    tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, five sheets, each framed on its own lectern', dims: 'Each sheet 42 × 30 cm', credit: 'Transferred from the Ordinance Office' },
-    paragraph: 'The Ordinance required that it be issued with spares like everything else, so there are five of it. Only one was signed by the Trustees; the other four were certified as true by the Office, which is not the same thing. They have always been displayed together. The Office’s own note, pinned to the first lectern, advises dealing with the signed original first.' },
+  // The Centrepiece, the Ordinance, naming the Repealing Pen as its Signature piece, is the
+  // pack's centrepiece part, content/A4-cp.js (M4 plan A9; ENSEMBLE-CORE moved it there).
 });

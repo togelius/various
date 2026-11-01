@@ -47,15 +47,20 @@ const Packs = (() => {
   // Every record drawn with a sprite, for the art test (BUILD.md §9.1): each pack's species,
   // its Centrepiece, and the Centrepiece's pieces and attachments, then the shared species;
   // as {id, sprite, archetype, size}. A piece or attachment that names no archetype is drawn
-  // for its Centrepiece's, and one that names no size is 1 tile.
+  // for its Centrepiece's, and one that names no size is 1 tile. A Centrepiece of pieces (an
+  // ensemble, M4 ENSEMBLE-CORE) is drawn only as its pieces, which fill its footprint, so its
+  // record is not listed: each piece is, by its id (its record's, for a piece that names
+  // none) and its sprite (its record's, for a piece that names none).
   function sprites() {
     const out = [], rec = (r, arch) => ({ id: r.id, sprite: r.sprite, archetype: r.archetype || arch || null, size: r.size || 1 });
     for (const p of all) {
       for (const sp of p.species || []) out.push(rec(sp));
       const cp = p.centrepiece;
       if (!cp) continue;
-      out.push(rec(cp));
-      for (const k of ['pieces', 'attachments']) for (const q of cp[k] || []) out.push(rec(q, cp.archetype));
+      const pieces = Array.isArray(cp.pieces) ? cp.pieces : [];
+      if (!pieces.length) out.push(rec(cp));
+      for (const q of pieces) out.push(rec(Object.assign({}, q, { id: q.id || cp.id, sprite: q.sprite || cp.sprite }), cp.archetype));
+      for (const q of cp.attachments || []) out.push(rec(q, cp.archetype));
     }
     for (const sp of shareds) out.push(rec(sp));
     return out;
@@ -72,27 +77,45 @@ const Packs = (() => {
   const sharedList = () => shareds.slice();
 
   // The species record an actor was made from (a.sp): the department's own species first,
-  // then its Centrepiece, then a shared species, then any pack's species or Centrepiece with
-  // that id (a room for tests or an arena may stand one pack's species in another place;
-  // ids are unique across the packs, which lint-registry checks); null for an actor with
-  // none (you, or the test room's dummies). Labels, the view model, policies and Setup.room
-  // read species through this.
+  // then its Centrepiece (or a piece of it), then a shared species, then any pack's species or
+  // Centrepiece (or piece) with that id (a room for tests or an arena may stand one pack's
+  // species in another place; ids are unique across the packs, which lint-registry checks);
+  // null for an actor with none (you, or the test room's dummies). Labels, the view model,
+  // policies and Setup.room read species through this.
   function speciesFor(state, a) {
     if (!a || a.sp === null || a.sp === undefined) return null;
     const p = state && state.dept ? get(state.dept.acc) : null;
     if (p) {
       const own = p.species.find(s => s.id === a.sp);
       if (own) return own;
-      if (p.centrepiece && p.centrepiece.id === a.sp) return p.centrepiece;
+      const cp = pieceOf(p.centrepiece, a.sp);
+      if (cp) return cp;
     }
     const sh = shared(a.sp);
     if (sh) return sh;
     for (const q of all) {
       const own = q.species.find(s => s.id === a.sp);
       if (own) return own;
-      if (q.centrepiece && q.centrepiece.id === a.sp) return q.centrepiece;
+      const cp = pieceOf(q.centrepiece, a.sp);
+      if (cp) return cp;
     }
     return null;
+  }
+  // A Centrepiece's species for the id sp, or null: its record, or, for a Centrepiece of pieces
+  // (an ensemble, M4 ENSEMBLE-CORE), a piece's, as Centrepiece.place names it (its own id, or
+  // its record's for a piece that names none): the record with the piece's own words where
+  // the piece gives them (PIECE_WORDS: its name, sprite, tombstone and paragraph) and the
+  // piece's id, so each piece's label names it, while its rules and its Behaviour line are its
+  // Centrepiece's. A piece that gives no words of its own and names no id is the record itself.
+  const PIECE_WORDS = ['name', 'sprite', 'tomb', 'paragraph'];
+  function pieceOf(cp, sp) {
+    if (!cp) return null;
+    const q = Array.isArray(cp.pieces) ? cp.pieces.find(x => x && (x.id || cp.id) === sp) : undefined;
+    if (!q) return cp.id === sp ? cp : null;
+    if (sp === cp.id && !PIECE_WORDS.some(k => q[k] !== undefined)) return cp;
+    const out = Object.assign({}, cp, { id: sp });
+    for (const k of PIECE_WORDS) if (q[k] !== undefined) out[k] = q[k];
+    return out;
   }
 
   return { PARTS, add, part, get, list, sprites, species, addShared, shared, sharedList, speciesFor };

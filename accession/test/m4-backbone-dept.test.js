@@ -225,10 +225,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const [ns, fn] of [['Cases', 'place'], ['Populate', 'exhibits'], ['Setup', 'settleActors'], ['Centrepiece', 'place'], ['Kit', 'start'], ['Setup', 'carry'],
       ['Kit', 'standIn'], ['Consumables', 'startRun'], ['Consumables', 'standIn'], ['Panels', 'place'], ['Modules', 'init'], ['Kit', 'settle'], ['Populate', 'validate']]) spy(ns, fn);
     // The Centrepiece is placed only from a gallery list, once its core is ready (D-POP), and
-    // only a core added with the shared rules (Centrepiece.hooks, ARCH-CP-CORE).
+    // only a core added with the shared rules (Centrepiece.hooks, ARCH-CP-CORE): the Ordinance's
+    // is (rules/arch/mp_ensemble.js, ENSEMBLE-CORE), at ready false, planted ready here.
     X.Packs.get('A4').galleries = [];
     X.Registry.ARCHETYPES.mp_ensemble.ready = 'unit';
-    X.Archetypes.add('mp_ensemble', X.Centrepiece.hooks('mp_ensemble', {}));
     X.Dept.create(2, 'A4', 2);
     // (The Centrepiece's pieces then meet without and their archetype's init, as every exhibit does.)
     eq(calls, ['Cases.place', 'Populate.exhibits', 'Setup.settleActors', 'Centrepiece.place', 'Setup.settleActors', 'Kit.start', 'Setup.carry', 'Kit.standIn',
@@ -265,20 +265,26 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     eq(Packs.get('A4').species.filter(sp => sp.copyOf).map(sp => [sp.id, sp.copyOf]), [['A4.1a', 'A4.1'], ['A4.4a', 'A4.4']]);
   });
 
-  test('Packs.sprites lists every species, Centrepiece, Centrepiece piece and attachment, and shared species, each with its archetype and size', () => {
+  test('Packs.sprites lists every species, Centrepiece, Centrepiece piece and attachment, and shared species, each with its archetype and size; a Centrepiece of pieces is drawn as its pieces alone', () => {
     const own = Packs.sprites();
     for (const p of Packs.list()) {
       for (const sp of p.species) assert.ok(own.some(u => u.id === sp.id && u.sprite === sp.sprite && u.archetype === sp.archetype), sp.id);
-      if (p.centrepiece) assert.ok(own.some(u => u.id === p.centrepiece.id && u.size === p.centrepiece.size), p.centrepiece.id);
+      const cp = p.centrepiece;
+      if (cp && !cp.pieces) assert.ok(own.some(u => u.id === cp.id && u.size === cp.size), cp.id);
+      // (An ensemble, A.4's Ordinance: each piece, one tile, its own sprite; ENSEMBLE-CORE.)
+      if (cp && cp.pieces) for (const q of cp.pieces) assert.ok(own.some(u => u.id === (q.id || cp.id) && u.sprite === (q.sprite || cp.sprite) && u.size === 1 && u.archetype === cp.archetype), `${cp.id}'s piece ${q.id}`);
     }
     for (const sp of Packs.sharedList()) assert.ok(own.some(u => u.id === sp.id), sp.id);
     const X = loadCore();
     X.Packs.add({ acc: 'T9', modules: [], species: [{ id: 'T9.1', sprite: 'a', archetype: 'plodder' }] });
     X.Packs.part('T9', 'centrepiece', { id: 'T9.9', sprite: 'b', archetype: 'mp_ensemble', size: 2,
-      pieces: [{ id: 'T9.9/a', sprite: 'c' }, { id: 'T9.9/b', sprite: 'd', archetype: 'plodder', size: 1 }], attachments: [{ id: 'T9.9/arm', sprite: 'e' }] });
-    const t9 = X.Packs.sprites().filter(u => u.id.startsWith('T9'));
-    eq(t9, [{ id: 'T9.1', sprite: 'a', archetype: 'plodder', size: 1 }, { id: 'T9.9', sprite: 'b', archetype: 'mp_ensemble', size: 2 },
-      { id: 'T9.9/a', sprite: 'c', archetype: 'mp_ensemble', size: 1 }, { id: 'T9.9/b', sprite: 'd', archetype: 'plodder', size: 1 }, { id: 'T9.9/arm', sprite: 'e', archetype: 'mp_ensemble', size: 1 }]);
+      pieces: [{ id: 'T9.9/a', sprite: 'c' }, { id: 'T9.9/b', sprite: 'd', archetype: 'plodder', size: 1 }, {}], attachments: [{ id: 'T9.9/arm', sprite: 'e' }] });
+    X.Packs.add({ acc: 'T8', modules: [], species: [] });
+    X.Packs.part('T8', 'centrepiece', { id: 'T8.9', sprite: 'f', archetype: 'mp_tableau', size: 2 });
+    const t9 = X.Packs.sprites().filter(u => /^T[89]/.test(u.id));
+    eq(t9, [{ id: 'T9.1', sprite: 'a', archetype: 'plodder', size: 1 },
+      { id: 'T9.9/a', sprite: 'c', archetype: 'mp_ensemble', size: 1 }, { id: 'T9.9/b', sprite: 'd', archetype: 'plodder', size: 1 }, { id: 'T9.9', sprite: 'b', archetype: 'mp_ensemble', size: 1 },
+      { id: 'T9.9/arm', sprite: 'e', archetype: 'mp_ensemble', size: 1 }, { id: 'T8.9', sprite: 'f', archetype: 'mp_tableau', size: 2 }]);
   });
 
   // ---- Statuses (A3, A16.3) ----

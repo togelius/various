@@ -49,12 +49,18 @@ for (const [w, h] of SIZES) {
     }
     // The longest Behaviour line in the packs, with the deepest depth's numbers, in the strip
     // at the smallest and largest text: nothing overflows, and on a phone the board keeps at
-    // least 40% of the window's height (the lines' length budget, BUILD.md §5.3).
+    // least 40% of the window's height (the lines' length budget, BUILD.md §5.3). A
+    // Centrepiece's is its strip in each of its phases (Clauses.strip; §5.3, M4 FU1), since its
+    // whole line is its label's, which scrolls (A.4's Ordinance's takes 29 rows, M4 ENSEMBLE-CORE).
     if (sc === SCENES[0]) for (const size of ['1', '1.3']) {
       await page.evaluate(v => window.ACCESSION.setting('text', v), size);
       const m = await page.evaluate(() => {
         let best = null;
-        for (const p of Packs.list()) for (const sp of [...p.species, p.centrepiece]) { const l = Clauses.line(sp, { depth: 7 }); if (!best || l.length > best.line.length) best = { sp, line: l }; }
+        const phases = Array.from({ length: 1 + N.CP_PHASE_PCT.length }, (x, i) => i + 1);
+        for (const p of Packs.list()) for (const sp of [...p.species, p.centrepiece]) {
+          const shown = typeof sp.form === 'string' ? phases.map(phase => Clauses.strip(sp, { depth: 7, phase })) : [Clauses.line(sp, { depth: 7 })];
+          for (const l of shown) if (!best || l.length > best.line.length) best = { sp, line: l };
+        }
         UI.strip({ uid: best.sp.id, title: best.sp.name, stateIcons: ['asleep'], pictos: ['ring', 'axis'], behaviour: best.line }, [], false);
         const shown = [...document.querySelectorAll('#strip .behaviour')].some(e => e.textContent === best.line && e.getBoundingClientRect().height > 0);
         return { id: best.sp.id, len: best.line.length, shown, board: Math.round(document.getElementById('board').getBoundingClientRect().height) };

@@ -8,7 +8,7 @@
 // Centrepiece's strip short in every phase (the plan's amendment after ARCH-CP-CORE: its
 // whole line takes up to 23 of the strip's 14 rows). Frozen until LABELS-M4.
 // MOD-COPIES added spare:DMG (a spare's blow once weakened), and Clauses.sentence reads only the
-// parameters its sentence names.
+// parameters its sentence names. ENSEMBLE-CORE gave spare:DMG an ensemble's copies.
 'use strict';
 const Clauses = (() => {
   // The event kinds any exhibit may cause or suffer. They need no clause of their own;
@@ -37,17 +37,21 @@ const Clauses = (() => {
   //               lost heart (§5.4's weakened spares): its role's damage, each end losing
   //               COPY_WEAKEN_PCT% of itself, at least 1 and never below 1, as "min–max"; the
   //               species' own role for a spare (copyOf), its spares' for an original (the
-  //               species of the packs that copy it), the widest span if they differ
+  //               species of the packs that copy it), the widest span if they differ; for a
+  //               Centrepiece of pieces (an ensemble, its own copy group), the centrepiece role
   // Anything missing throws, naming what is missing, so a line never shows a gap.
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   const grade = n => 'Grade ' + (ROMAN[n] || String(n));
   // A number a spare that has lost heart keeps (Modules' tier effect, as copies_weaken uses it).
   const weakened = v => v > 1 ? Math.max(1, v - Math.max(1, Int.pct(v, N.COPY_WEAKEN_PCT))) : v;
   // The roles of a species' copy group's spares: its own for a spare, else those of the
-  // species that copy it.
+  // species that copy it; for a Centrepiece of several pieces (an ensemble, which is its own
+  // copy group, its first piece the original and the rest its spares: mp_ensemble's rule,
+  // CopiesWeaken.addGroup; M4 ENSEMBLE-CORE), its pieces' role, centrepiece (Centrepiece.place).
   function spareRoles(sp) {
     if (!sp || typeof sp.id !== 'string') return [];
     if (typeof sp.copyOf === 'string') return sp.role ? [sp.role] : [];
+    if (typeof sp.form === 'string' && Array.isArray(sp.pieces) && sp.pieces.length > 1) return ['centrepiece'];
     const out = [];
     for (const p of Packs.list()) for (const q of p.species) if (q.copyOf === sp.id && q.role && !out.includes(q.role)) out.push(q.role);
     return out;

@@ -117,8 +117,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       return null;
     },
   });
-  const list = () => { const l = H.species(C, 'MODULES.copies_weaken'); assert.ok(l.length >= 28, `${l.length} species and depths`); return l; };
+  // Every pack species whose line carries the part, but a Centrepiece's (A.4's Ordinance, M4
+  // ENSEMBLE-CORE): its copy group is its own pieces, made by its archetype's rule
+  // (CopiesWeaken.addGroup), not a pair of species these rooms stand apart, and
+  // test/behaviour/mp_ensemble.test.js plays its original's fall, joined up.
+  const list = () => { const l = H.species(C, 'MODULES.copies_weaken').filter(x => typeof x.sp.form !== 'string'); assert.ok(l.length >= 28, `${l.length} species and depths`); return l; };
   test('an original destroyed: each spare of its group, and no other, loses its share of health and damage (never its last point) and Acc, and is slowed until you leave; the line states its weakened blow; for every pack species with the part at depths 1–7, and failing with the module off', () => {
+    assert.deepEqual([...new Set(H.species(C, 'MODULES.copies_weaken').map(x => x.sp.id))], ['A4.1', 'A4.1a', 'A4.4', 'A4.4a', 'A4.12']);
     assert.deepEqual([...new Set(list().map(x => x.sp.id))], ['A4.1', 'A4.1a', 'A4.4', 'A4.4a']);
     ok(H.sweep(C, main, list()), main.name);
   });

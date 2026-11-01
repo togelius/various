@@ -13,7 +13,7 @@
 // read or a choice, does not), and so does its waking: a pip that wakes it (your ring's,
 // which a lit Lamp makes reach it from the reading tile, or a noise's) interrupts the count,
 // and while it is awake every view is refused. Each view is told (viewed {who, of, n}, cause
-// view), and its sentence says how many remain. The last view of the row, before the world
+// view: of, the first of its pieces still standing), and its sentence says how many remain. The last view of the row, before the world
 // acts, puts the Centrepiece under its dust sheet and then earns the Certificate
 // (Progress.award, by view).
 //
@@ -132,15 +132,16 @@ const Viewing = (() => {
   function candidates(state) { return [{ a: 'view' }]; }
   // Viewing.apply(state, action, ev) → COST_VIEW's ticks (Actors.cost), or a refusal code with
   // nothing changed (Viewing.refusal). A view writes dept.view {n, turn} and tells it (viewed
-  // {who: you, of: the Centrepiece's first piece, n}, cause view); the VIEW_TURNS-th of a row
-  // then puts the Centrepiece under its dust sheet and earns the Certificate, before the world
-  // acts.
+  // {who: you, of: the Centrepiece's first piece still standing, n}, cause view: an
+  // ensemble's first piece may have fallen, and a view is never told as of a piece no longer
+  // there; M4 ENSEMBLE-CORE); the VIEW_TURNS-th of a row then puts the Centrepiece under its
+  // dust sheet and earns the Certificate, before the world acts.
   function apply(state, action, ev) {
     const code = refusal(state);
     if (code) return code;
-    const c = Hall.cp(state), n = nextCount(state);
+    const n = nextCount(state);
     state.dept.view = { n, turn: state.turn };
-    Causes.emit(state, ev, 'viewed', { who: 'you', of: c.uids[0], n }, { k: 'view' });
+    Causes.emit(state, ev, 'viewed', { who: 'you', of: standing(state)[0].uid, n }, { k: 'view' });
     if (n >= N.VIEW_TURNS) {
       sheet(state);
       Progress.award(state, 'view', { k: 'view' }, ev);

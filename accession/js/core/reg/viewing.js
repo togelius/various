@@ -28,7 +28,8 @@
   // piece under the sheet).
   R.define('REFUSALS', 'sheeted', refusal());
 
-  // A turn of viewing (§8.7): who viewed (you), the Centrepiece viewed (of: its first piece) and
+  // A turn of viewing (§8.7): who viewed (you), the Centrepiece viewed (of: its first piece still
+  // standing, which names it; an ensemble's first may have fallen, M4 ENSEMBLE-CORE) and
   // the views in a row so far (n, of VIEW_TURNS); the last of a row also puts it under its dust
   // sheet, which its sentence tells.
   R.defineEvent('viewed', { fields: { who: 'uid', of: 'uid', n: 'int' }, built: 'M4' });

@@ -38,7 +38,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // added with the shared rules can be placed. These tests keep their Centrepiece and 2×2
   // cases by standing the pack's Centrepiece where M2 did, on its plan's plinth (the same plan
   // Dept.create made, from the same seed), asleep, with the centrepiece role's numbers at the
-  // depth; behaviour/centrepiece.test.js places one with Centrepiece.place.
+  // depth; behaviour/centrepiece.test.js places one with Centrepiece.place. A Centrepiece of
+  // pieces (A.4's Ordinance, M4 ENSEMBLE-CORE) stands as its first piece alone, one tile, on
+  // its footprint's top-left tile, so a one-tile Centrepiece's surprise blow is read too.
   function withCentrepiece(s) {
     const p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
     const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
@@ -46,7 +48,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // list stands exhibits in the hall (S.9's two Grazers), and a uid of one of theirs would
     // make every reading by uid read that exhibit, not this.
     const prefix = `${p.acc}.${s.dept.depth}.centre.`, n = s.actors.filter(a => a.uid.startsWith(prefix)).length;
-    return Actors.spawn(s, Object.assign({}, stats, { uid: prefix + (n + 1), sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+    const piece = Array.isArray(cp.pieces) && cp.pieces.length ? cp.pieces[0] : null;
+    return Actors.spawn(s, Object.assign({}, stats, { uid: prefix + (n + 1), sp: piece ? piece.id || cp.id : cp.id, arch: cp.archetype, size: piece ? 1 : cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
   }
 
   test('the odds readout and the Attack button equal an independent count, over varied states', () => {
