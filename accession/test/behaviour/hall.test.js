@@ -1,0 +1,550 @@
+// ACCESSION — the Centrepiece hall's seal (BUILD.md §8.4, §4.1, §7.1, §7.2; M4 plan A13, D3.1,
+// D3.15, D7.3; ARCH-HALL), joined up: real actions in a room with a hall (the harness's
+// rooms and cp), every invariant checked after every step (hall.inv.js among them), and the
+// main scenarios clone-checked at depths 1–7. The figures expected are worked out here from
+// BUILD's sentences, not from rules/hall.js:
+//   - the hall seals on the hunt, at the boundary its piece begins to hunt you, while you stand
+//     inside it; never from outside; an occupied opening delays it, said once; a staff door is
+//     shuttered with the rest, and the board shows no staff door under a shutter;
+//   - the count stops and you do not regenerate while it is sealed; a planted module's turn
+//     rules still run; the Night Watchman is shut out;
+//   - the shutters open after SEAL_LIFT_TURNS turns in a row in which the Centrepiece neither
+//     hurt you (at any range) nor ended a turn beside you; with a Ticket (its pieces heal
+//     SEAL_HEAL_PCT and go back); on defeat; and the hall seals again only once you have
+//     stood outside it at a turn's end;
+//   - your memory of an opening follows its shutter; a treasure's hall does not seal on the hunt;
+//   - the words: the hall's confirmation (Hall.entering, R11), the threat's for a line not yet
+//     marked (D7.3), the sealed chip and the dial.
+'use strict';
+const H = require('./_harness.js');
+const Inv = require('../../tools/invariants.js');
+
+module.exports = ({ test, assert, loadCore, root, fs, path }) => {
+  const C = loadCore();
+  const json = JSON.stringify;
+  const wait = { a: 'wait' };
+  // The hall (x 1–7, y 1–5) and a gallery east of it (x 9–11), joined by an archway (8,2) and
+  // a staff door (8,4), its openings; the entrance in the gallery.
+  const MAP = ['#############', '#.......#...#', '#.......,...#', '#.......#...#', '#.......S...#', '#.......#...#', '#############'];
+  const ROOMS = [{ key: 'centre', role: 'centre', x0: 1, y0: 1, x1: 7, y1: 5 }, { key: 's1', role: 'section', x0: 9, y0: 1, x1: 11, y1: 5 }];
+  const OPENINGS = [{ x: 8, y: 2, ch: ',' }, { x: 8, y: 4, ch: 'S' }];
+  const BODY = { hp: 60, acc: -99, eva: 0, pad: 0, dmin: 1, dmax: 1 };
+  const DEPTHS = H.DEPTHS, N_LIFT = C.N.SEAL_LIFT_TURNS;
+  // A room with the hall. o: you ([5, 2]); piece (its record: a 2×2 Centrepiece at (1,4),
+  // hunting, held still by a fixed status for 9,999 turns unless o.still is false); more (other
+  // exhibits); form; clock ({B: 300, G: 60}); items; hp (yours, of 999).
+  function hall(X, depth, o) {
+    o = o || {};
+    const piece = Object.assign({ sp: 'dummy', at: [1, 4], size: 2, role: 'centrepiece', mode: 'hunting', stats: BODY },
+      o.still === false ? {} : { statuses: [{ id: 'fixed', turns: 9999 }] }, o.piece || {});
+    const spec = { acc: 'T0', depth, map: o.map || MAP, you: o.you || [5, 2], exhibits: [piece].concat(o.more || []), rooms: ROOMS,
+      cp: Object.assign({ uids: [`T0.${depth}.room.1`], room: 'centre' }, o.form ? { form: o.form } : {}),
+      clock: o.clock || { B: 300, G: 60 }, entrance: [11, 3], fixtures: [{ k: 'staff', x: 8, y: 4, grade: 1 }], items: o.items || [] };
+    const s = H.room(X, 1, spec, o.options || {});
+    s.actors[0].maxHp = 999; s.actors[0].hp = o.hp === undefined ? 999 : o.hp;
+    return s;
+  }
+  const stages = (ev, k) => ev.filter(e => e.k === 'stage' && e.cause && e.cause.k === 'hall' && (!k || e.stage === k));
+  const tilesAt = s => OPENINGS.map(o => s.dept.tiles[o.y][o.x]).join('');
+  const bad = (r, tag) => r.violations.map(v => `${tag}: ${v.text}`);
+  const say = (X, s, e) => X.Text.event(e, X.Labels.nameOf(s));
+  const clean = t => typeof t === 'string' && t.length > 0 && !/undefined|NaN|\[object|\bnull\b/.test(t);
+  const allVisible = s => new Uint8Array(s.dept.w * s.dept.h).fill(1);
+
+  // ---- The seal ----
+
+  test('the hall seals on the hunt: at the boundary its piece, woken by your ring, begins to hunt you, with you inside; every opening, the staff door too, under a shutter, the clock paused; at depths 1–7, clone-checked', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { you: [4, 3], piece: { mode: 'dormant' }, still: false });
+      const r = H.play(C, s, (state, i) => i < 6 ? wait : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const hunt = r.events.find(e => e.k === 'hunting' && e.who === `T0.${depth}.room.1`), sealed = stages(r.events, 'sealed');
+      if (!hunt) { problems.push(`d${depth}: the piece never hunted`); continue; }
+      if (sealed.length !== 1 || sealed[0].turn !== hunt.turn) problems.push(`d${depth}: hunted at turn ${hunt.turn}, sealed ${json(sealed.map(e => e.turn))}`);
+      if (r.events.indexOf(sealed[0]) < r.events.indexOf(hunt)) problems.push(`d${depth}: the seal came before the hunt`);
+      if (json(sealed[0] && sealed[0].cause) !== json({ k: 'hall', why: 'hunt', by: `T0.${depth}.room.1` })) problems.push(`d${depth}: the seal's cause ${json(sealed[0] && sealed[0].cause)}`);
+      if (tilesAt(s) !== 'ZZ') problems.push(`d${depth}: the openings are ${tilesAt(s)}`);
+      if (json(s.dept.cp.openings) !== json(OPENINGS)) problems.push(`d${depth}: the openings keep ${json(s.dept.cp.openings)}`);
+      if (s.dept.clock.pausedSince !== hunt.turn || s.dept.clock.count !== hunt.turn - 1) problems.push(`d${depth}: the clock ${json(s.dept.clock)} after a seal at turn ${hunt.turn}`);
+      const words = say(C, s, sealed[0]);
+      if (!/^Shutters closed over the hall’s openings, since the training dummy is hunting you: .* They open once the Centrepiece has gone 50 turns without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket\.$/.test(words)) problems.push(`d${depth}: ${words}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('no seal from outside: a hunting piece and you in the gallery or in an opening seal nothing, and say nothing; one step in, and it seals at that step\'s boundary', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { you: [10, 3] });
+      let r = H.play(C, s, Array(8).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} gallery`));
+      if (stages(r.events).length || tilesAt(s) !== ',S' || s.dept.clock.pausedSince !== null) problems.push(`d${depth}: sealed from the gallery: ${json(stages(r.events).map(e => e.stage))} ${tilesAt(s)}`);
+      const u = hall(C, depth, { you: [8, 2] });
+      r = H.play(C, u, Array(5).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} archway`));
+      if (stages(r.events).length || tilesAt(u) !== ',S') problems.push(`d${depth}: sealed with you in the archway: ${json(stages(r.events).map(e => e.stage))}`);
+      r = H.play(C, u, [{ a: 'move', dir: 6 }], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} step in`));
+      const sealed = stages(r.events, 'sealed');
+      if (sealed.length !== 1 || sealed[0].turn !== u.turn || tilesAt(u) !== 'ZZ' || u.actors[0].x !== 7) problems.push(`d${depth}: one step in: ${json(sealed)} ${tilesAt(u)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('an occupied opening delays the seal: it says once, naming who stands there, that it waits, and seals at the first boundary every opening is clear', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const dummy = { sp: 'dummy', at: [8, 2], mode: 'dormant', stats: { hp: 1, acc: -99, eva: -999, pad: 0, dmin: 1, dmax: 1 } };
+      const s = hall(C, depth, { you: [7, 2], more: [dummy] }), who = `T0.${depth}.room.2`;
+      let r = H.play(C, s, Array(5).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const w = stages(r.events, 'waiting');
+      if (w.length !== 1 || w[0].turn !== 1 || w[0].cause.by !== who || stages(r.events, 'sealed').length || tilesAt(s) !== ',S') problems.push(`d${depth}: waiting ${json(w)} with ${tilesAt(s)}`);
+      if (w[0] && say(C, s, w[0]) !== 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside.') problems.push(`d${depth}: ${say(C, s, w[0])}`);
+      r = H.play(C, s, (state, i) => i < 10 && !state.actors[2].gone ? { a: 'attack', uid: who } : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} clearing`));
+      const died = r.events.find(e => e.k === 'died' && e.who === who), sealed = stages(r.events, 'sealed');
+      if (!died || sealed.length !== 1 || r.events.indexOf(sealed[0]) < r.events.indexOf(died) || sealed[0].turn !== s.turn || tilesAt(s) !== 'ZZ') problems.push(`d${depth}: cleared at ${died && died.turn}, sealed ${json(sealed.map(e => e.turn))}`);
+      if (stages(r.events, 'waiting').length) problems.push(`d${depth}: it said again that it waits`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a staff door is shuttered with the archway, the board shows no staff door under its shutter, and it is a staff door again when the shutters open', () => {
+    const s = hall(C, 3);
+    const staff = () => C.Cases.staffView(s, allVisible(s)).map(f => [f.x, f.y]);
+    assert.equal(json(staff()), json([[8, 4]]));
+    H.play(C, s, [wait], { inv: 'all' });
+    assert.equal(tilesAt(s), 'ZZ');
+    assert.equal(json(staff()), '[]');
+    assert.equal(json(C.ViewModel.derive(s, {}).staff), '[]');
+    C.Hall.onDefeat(s, []);
+    assert.equal(tilesAt(s), ',S');
+    assert.equal(json(staff()), json([[8, 4]]));
+  });
+
+  // ---- While sealed ----
+
+  test('while sealed the clock\'s count stops and you do not regenerate; once the shutters open, both go on', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { hp: 900 });
+      const r = H.play(C, s, Array(N_LIFT + 6).fill(wait), { inv: 'all' });
+      problems.push(...bad(r, `d${depth}`));
+      const lift = stages(r.events, 'unsealed')[0];
+      const regen = r.events.filter(e => e.k === 'regenerated').map(e => e.turn);
+      if (!lift || lift.turn !== 1 + N_LIFT) { problems.push(`d${depth}: lifted ${json(lift)}`); continue; }
+      if (regen.some(t => t <= lift.turn)) problems.push(`d${depth}: you regenerated while sealed, at turns ${json(regen.filter(t => t <= lift.turn))}`);
+      if (!regen.length) problems.push(`d${depth}: you never regenerated after the lift`);
+      // Sealed at boundary 1 before the clock counted it: the count is 0 until the lift's boundary counts again.
+      if (s.dept.clock.count !== s.turn - N_LIFT) problems.push(`d${depth}: the count is ${s.dept.clock.count} at turn ${s.turn}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a planted module\'s turn rules run at every boundary while the hall is sealed (step 8 is not stopped)', () => {
+    const X = loadCore(), R = X.Registry;
+    R.define('MODULES', 'planted_bell', { built: 'M4', sentence: 'A planted rule acts each turn.' });
+    R.defineCause('module', 'planted_bell', { fields: {}, built: 'M4' });
+    X.Text.defineCause('module', 'planted_bell', () => 'The planted rule acted.');
+    X.Modules.define('planted_bell', { rules: [{ rule: 'tick', on: 'turn', do: [{ k: 'flag', name: 'ticks', value: 1 }] }] });
+    const s = hall(X, 3);
+    X.Modules.init(s, { acc: 'T0', species: [], modules: [{ id: 'planted_bell', role: null, params: {} }] });
+    const r = H.play(X, s, Array(6).fill(wait), { inv: 'all', clone: true });
+    assert.deepEqual(bad(r, 'd3'), []);
+    assert.equal(stages(r.events, 'sealed')[0].turn, 1);
+    assert.equal(json(r.events.filter(e => e.k === 'module').map(e => [e.turn, e.rule])), json([1, 2, 3, 4, 5, 6].map(t => [t, 'tick'])));
+    assert.ok(X.Clock.sealed(s));
+  });
+
+  test('the Night Watchman is shut out: in the gallery when the hall seals, it never comes in, never stands on a shutter, never strikes you, and no other comes while the clock is stopped', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { clock: { B: 10, G: 10, count: 20 } });
+      const w = C.ClockRules.spawnWatchman(s, []);
+      const r = H.play(C, s, Array(30).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      if (stages(r.events, 'sealed').length !== 1 || !C.Clock.sealed(s)) problems.push(`d${depth}: not sealed`);
+      if (C.Hall.inside(s, w.x, w.y) || w.gone) problems.push(`d${depth}: the Watchman stands at ${w.x},${w.y}`);
+      if (r.events.some(e => (e.k === 'attacked' || e.k === 'damaged') && e.cause && e.cause.by === w.uid)) problems.push(`d${depth}: the Watchman struck at you`);
+      if (s.actors.filter(a => a.arch === 'night_watchman').length !== 1 || r.events.some(e => e.k === 'stage' && e.cause && e.cause.k === 'clock')) problems.push(`d${depth}: the clock went on`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  // ---- The lift ----
+
+  test('the quiet lift: after SEAL_LIFT_TURNS turns in a row in which the Centrepiece neither hurt you nor ended a turn beside you; then no seal until you have stood outside the hall at a turn\'s end; at depths 1–7, clone-checked', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth);
+      let r = H.play(C, s, Array(N_LIFT + 1).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const sealed = stages(r.events, 'sealed'), lift = stages(r.events, 'unsealed');
+      if (json(sealed.map(e => e.turn)) !== '[1]' || json(lift.map(e => [e.turn, e.cause.why])) !== json([[1 + N_LIFT, 'quiet']])) problems.push(`d${depth}: sealed ${json(sealed.map(e => e.turn))}, lifted ${json(lift.map(e => [e.turn, e.cause.why]))}`);
+      if (lift[0] && say(C, s, lift[0]) !== `The shutters opened: the Centrepiece has neither hurt you nor ended a turn beside you for ${N_LIFT} turns.`) problems.push(`d${depth}: ${say(C, s, lift[0])}`);
+      if (tilesAt(s) !== ',S' || s.dept.clock.pausedSince !== null) problems.push(`d${depth}: after the lift ${tilesAt(s)} ${s.dept.clock.pausedSince}`);
+      // Still inside, still hunted: no seal. A step out into the archway, a step back in: sealed again.
+      r = H.play(C, s, Array(5).fill(wait).concat([{ a: 'move', dir: 2 }, { a: 'move', dir: 2 }, { a: 'move', dir: 2 }, { a: 'move', dir: 6 }]), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth} again`));
+      const again = stages(r.events, 'sealed');
+      if (json(again.map(e => e.turn)) !== json([s.turn]) || tilesAt(s) !== 'ZZ' || s.actors[0].x !== 7) problems.push(`d${depth}: sealed again at ${json(again.map(e => e.turn))} (turn ${s.turn}), you at ${s.actors[0].x}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a piece beside you keeps the shutters down: no quiet lift while it stands beside you at each turn\'s end; once you step away the count runs from the last boundary it stood beside you', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const s = hall(C, depth, { you: [3, 3] });
+      let r = H.play(C, s, Array(60).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      if (!C.Clock.sealed(s) || stages(r.events, 'unsealed').length) problems.push(`d${depth}: lifted while beside you: ${json(stages(r.events).map(e => [e.turn, e.stage]))}`);
+      r = H.play(C, s, (state, i) => i === 0 ? { a: 'move', dir: 1 } : C.Clock.sealed(state) && i < 2 * N_LIFT ? wait : null, { inv: 'all' });
+      problems.push(...bad(r, `d${depth} away`));
+      const lift = stages(r.events, 'unsealed');
+      if (json(lift.map(e => [e.turn, e.cause.why])) !== json([[60 + N_LIFT, 'quiet']])) problems.push(`d${depth}: beside you until turn 60, lifted ${json(lift.map(e => [e.turn, e.cause.why]))}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a shutter keeps what its opening was when it closed: a door you opened on your way in is open again when the shutters open', () => {
+    const map = MAP.slice(); map[2] = '#.......+...#';
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const s = hall(C, depth, { map, you: [9, 2] });
+      // Open the door (a bump), step onto it, step in: the hall seals at that step's boundary.
+      const r = H.play(C, s, [{ a: 'move', dir: 6 }, { a: 'move', dir: 6 }, { a: 'move', dir: 6 }], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      if (stages(r.events, 'sealed').length !== 1 || tilesAt(s) !== 'ZZ' || s.dept.cp.openings[0].ch !== "'") problems.push(`d${depth}: ${json(s.dept.cp.openings)} ${tilesAt(s)}`);
+      C.Hall.onDefeat(s, []);
+      if (tilesAt(s) !== "'S") problems.push(`d${depth}: the shutters opened onto ${tilesAt(s)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a hurt by the Centrepiece restarts the quiet count, at the boundary after it, whenever it falls; a hurt by another exhibit does not', () => {
+    // A blow in the gap after a boundary (as an exhibit's action after it): the turn it falls
+    // in ends at the next boundary, from which the count starts again.
+    const run = (by, at) => {
+      const s = hall(C, 3, { more: [{ sp: 'dummy', at: [10, 3], mode: 'dormant', stats: BODY }] });
+      const ev = [];
+      for (let i = 1; i <= 2 * N_LIFT && !ev.some(e => e.k === 'stage' && e.stage === 'unsealed'); i++) {
+        for (const e of C.Step.step(s, wait)) ev.push(e);
+        if (s.turn === at) C.Combat.hurt(s, s.actors[0], 1, { k: 'attack', by, at: 'you', chance: 50, roll: 1, raw: 1, pad: 0, how: { kind: 'melee' }, from: [1, 4] }, ev);
+      }
+      return stages(ev, 'unsealed').map(e => e.turn);
+    };
+    assert.equal(json(run('T0.3.room.1', 30)), json([31 + N_LIFT]));
+    assert.equal(json(run('T0.3.room.2', 30)), json([1 + N_LIFT]));
+    // A hurt inside the boundary, before the hall's step (a status at step 2), counts for the
+    // turn that boundary ends.
+    const s = hall(C, 3), ev = [];
+    for (let i = 0; i < 10; i++) C.Step.step(s, wait);
+    const boundary = C.Status.tick;
+    C.Status.tick = (state, e) => { boundary(state, e); if (state.turn === 20) C.Combat.hurt(state, state.actors[0], 1, { k: 'attack', by: 'T0.3.room.1', at: 'you', chance: 50, roll: 1, raw: 1, pad: 0, how: { kind: 'melee' }, from: [1, 4] }, e); };
+    try { for (let i = 0; i < 2 * N_LIFT && !stages(ev, 'unsealed').length; i++) for (const e of C.Step.step(s, wait)) ev.push(e); } finally { C.Status.tick = boundary; }
+    assert.equal(json(stages(ev, 'unsealed').map(e => e.turn)), json([20 + N_LIFT]));
+  });
+
+  test('joined up: a Centrepiece that shoots you from across the hall (a kiter) keeps the shutters down; once it can no longer act, they open SEAL_LIFT_TURNS turns after the turn of its last hit', () => {
+    const problems = [];
+    for (const depth of [1, 4, 7]) {
+      const s = hall(C, depth, { you: [7, 1], still: false, piece: { size: 1, at: [2, 3], arch: 'kiter', stats: { hp: 60, acc: 99, eva: 0, pad: 0, dmin: 1, dmax: 1 } } });
+      const k = s.actors[1];
+      let r = H.play(C, s, Array(20).fill(wait), { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const hits = r.events.filter(e => e.k === 'damaged' && e.who === 'you' && e.cause.by === k.uid);
+      if (hits.length < 3 || stages(r.events, 'unsealed').length || !C.Clock.sealed(s)) { problems.push(`d${depth}: ${hits.length} hits, sealed ${C.Clock.sealed(s)}`); continue; }
+      if (s.actors.slice(1).some(a => !a.gone && C.Actors.dist(a, 7, 1) <= 1)) problems.push(`d${depth}: the kiter came beside you`);
+      // An exhibit's hit at tick t falls in the turn ending at boundary floor(t / TICKS) + 1.
+      const lastTurn = Math.max(...hits.map(e => Math.floor(e.tick / C.N.TICKS_PER_TURN) + 1));
+      C.Status.apply(s, k, 'fixed', 9999, { k: 'planted' }, []);
+      r = H.play(C, s, (state, i) => i < 2 * N_LIFT && C.Clock.sealed(state) ? wait : null, { inv: 'all' });
+      problems.push(...bad(r, `d${depth} still`));
+      const lift = stages(r.events, 'unsealed');
+      if (json(lift.map(e => [e.turn, e.cause.why])) !== json([[lastTurn + N_LIFT, 'quiet']])) problems.push(`d${depth}: last hit in the turn ending ${lastTurn}, lifted ${json(lift.map(e => [e.turn, e.cause.why]))}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a Re-admission Ticket unseals the hall: you at the entrance, the openings as they were, the clock running; each piece regains SEAL_HEAL_PCT of its maximum health and goes back to its place; at depths 1–7, clone-checked', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { still: false, piece: { hp: 20, maxHp: 60 } });
+      C.Consumables.startRun(s);
+      const tk = C.Consumables.make(s, 'ticket', { at: 'tote' });
+      s.run.knownSeals.push(C.Consumables.sealFor(s, 'ticket'));
+      let r = H.play(C, s, [wait], { inv: 'all', clone: true });
+      if (!C.Clock.sealed(s)) { problems.push(`d${depth}: not sealed`); continue; }
+      const p = s.actors[1], before = p.hp, heal = Math.min(p.maxHp - p.hp, Math.floor(p.maxHp * C.N.SEAL_HEAL_PCT / 100));
+      r = H.play(C, s, [{ a: 'use', uid: tk.uid }], { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const lift = stages(r.events, 'unsealed'), healed = r.events.find(e => e.k === 'healed' && e.who === p.uid), back = r.events.find(e => e.k === 'lost' && e.who === p.uid && e.cause.k === 'hall');
+      if (json(lift.map(e => e.cause.why)) !== '["ticket"]') problems.push(`d${depth}: lifted ${json(lift.map(e => e.cause))}`);
+      if (!healed || healed.amount !== heal || healed.hp !== before + heal) problems.push(`d${depth}: healed ${json(healed)}, wanted ${heal} from ${before}`);
+      if (!back || back.to !== 'returning') problems.push(`d${depth}: went back ${json(back)}`);
+      if (s.actors[0].x !== 11 || s.actors[0].y !== 3 || tilesAt(s) !== ',S' || s.dept.clock.pausedSince !== null) problems.push(`d${depth}: you at ${s.actors[0].x},${s.actors[0].y}, ${tilesAt(s)}`);
+      for (const e of [lift[0], healed, back]) if (e && !clean(say(C, s, e))) problems.push(`d${depth}: ${say(C, s, e)}`);
+      // From the entrance nothing seals again, and the clock counts.
+      const count = s.dept.clock.count;
+      r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
+      if (stages(r.events).length || s.dept.clock.count !== count + 4) problems.push(`d${depth}: after the Ticket ${json(stages(r.events).map(e => e.stage))}, count ${s.dept.clock.count}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('defeat lifts the seal: its last piece falling opens the shutters at the next boundary, or at once when the Centrepiece\'s rules call Hall.onDefeat; a treasure\'s guardian and a dust sheet say so; the hall never seals again', () => {
+    const problems = [];
+    for (const depth of DEPTHS) {
+      const s = hall(C, depth, { you: [3, 3], piece: { hp: 1, stats: { hp: 1, acc: -99, eva: -999, pad: 0, dmin: 1, dmax: 1 } } });
+      let r = H.play(C, s, [wait], { inv: 'all', clone: true });
+      const uid = s.actors[1].uid;
+      r = H.play(C, s, (state, i) => i < 10 && !state.actors[1].gone ? { a: 'attack', uid } : null, { inv: 'all', clone: true });
+      problems.push(...bad(r, `d${depth}`));
+      const died = r.events.find(e => e.k === 'died' && e.who === uid), lift = stages(r.events, 'unsealed');
+      if (!died || json(lift.map(e => [e.turn, e.cause.why])) !== json([[s.turn, 'defeat']]) || tilesAt(s) !== ',S') problems.push(`d${depth}: died ${json(died)}, lifted ${json(lift)}`);
+      r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
+      if (stages(r.events).length) problems.push(`d${depth}: after the defeat ${json(stages(r.events).map(e => e.stage))}`);
+    }
+    // Hall.onDefeat at once: a fight's defeat, a treasure guardian's (its hall sealed by a
+    // planted treasure rule), and a Centrepiece under its dust sheet.
+    for (const [form, sheet, why] of [['fight', null, 'defeat'], ['treasure', null, 'treasure'], ['fight', { x: 1, y: 4 }, 'sheet']]) {
+      const X = loadCore();
+      X.Hall.defineSeal('treasure', () => ({ why: 'touched' }));
+      const s = hall(X, 3, { form });
+      H.play(X, s, [wait], { inv: 'all' });
+      if (!X.Clock.sealed(s)) { problems.push(`${form}: not sealed`); continue; }
+      s.dept.cp.sheet = sheet;
+      const ev = [];
+      X.Hall.onDefeat(s, ev);
+      if (json(stages(ev).map(e => [e.stage, e.cause.why])) !== json([['unsealed', why]]) || tilesAt(s) !== ',S' || X.Clock.sealed(s)) problems.push(`${form} ${why}: ${json(ev)}`);
+      else if (!clean(say(X, s, ev[0]))) problems.push(say(X, s, ev[0]));
+      const again = [];
+      X.Hall.onDefeat(s, again);
+      if (again.length) problems.push(`${form}: a second defeat said ${json(again)}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
+  test('a treasure\'s hall does not seal on the hunt; its form\'s seal rule (Hall.defineSeal) does, with that rule\'s why', () => {
+    const s = hall(C, 3, { form: 'treasure' });
+    const r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
+    assert.equal(stages(r.events).length, 0);
+    assert.equal(C.Hall.calls(s), null);
+    const X = loadCore();
+    X.Hall.defineSeal('treasure', (state, c) => state.turn >= 2 ? { why: 'touched' } : null);
+    assert.throws(() => X.Hall.defineSeal('treasure', () => null), /defined twice/);
+    const t = hall(X, 3, { form: 'treasure' });
+    const q = H.play(X, t, Array(4).fill(wait), { inv: 'all' });
+    assert.deepEqual(bad(q, 'treasure'), []);
+    assert.equal(json(stages(q.events).map(e => [e.turn, e.stage, e.cause.why])), json([[2, 'sealed', 'touched']]));
+    assert.match(say(X, t, stages(q.events)[0]), /^Shutters closed over the hall’s openings: it is sealed/);
+    // A rule that answers nonsense is a bug.
+    const Y = loadCore();
+    Y.Hall.defineSeal('treasure', () => ({ why: 3 }));
+    assert.throws(() => Y.Step.step(hall(Y, 3, { form: 'treasure' }), wait), /seal rule gave/);
+  });
+
+  test('your memory of an opening follows its shutter, as the stage event tells you: a remembered opening out of sight shows its shutter, and opens again; one never seen stays unseen', () => {
+    const map = MAP.slice(); map[2] = '#...o...,...#'; map[3] = '#...o...#...#';
+    const s = hall(C, 3, { map, you: [1, 3] });
+    // You remember the whole map but the staff door (as a Floor Plan read earlier would, but that).
+    const n = s.dept.w * s.dept.h, i = 4 * s.dept.w + 8, j = 2 * s.dept.w + 8;
+    s.dept.seen = s.dept.tiles.join('').slice(0, i) + ' ' + s.dept.tiles.join('').slice(i + 1);
+    assert.equal(s.dept.seen.length, n);
+    assert.ok(!C.Vision.visible(s)[j], 'the archway is out of your sight');
+    H.play(C, s, [wait], { inv: 'all' });
+    assert.ok(C.Clock.sealed(s));
+    const vm = C.ViewModel.derive(s, {});
+    assert.equal(vm.vis[j], 1, 'remembered, not in view');
+    assert.equal(vm.tiles[2][8], 'Z', 'the remembered archway shows its shutter');
+    assert.equal(vm.tiles[4][8], ' ', 'the staff door, never seen, stays unseen');
+    C.Hall.onDefeat(s, []);
+    assert.equal(C.ViewModel.derive(s, {}).tiles[2][8], ',', 'and it opens again in your memory');
+  });
+
+  // ---- The words ----
+
+  test('Hall.entering and the hall\'s confirmation: a step from outside onto a free tile of the hall, while its Centrepiece stands; "the hall will seal behind you" exactly when its piece hunts you and every other opening is clear', () => {
+    const nameOf = () => uid => uid === 'T0.3.room.1' ? 'the Great Board' : null;
+    const at = (you, more, extra) => hall(C, 3, Object.assign({ you, more }, extra || {}));
+    let s = at([8, 2]);
+    const step = { a: 'move', dir: 6 };
+    assert.equal(json(C.Hall.entering(s, step)), json({ by: 'T0.3.room.1', form: 'fight', seals: true }));
+    const c = C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s));
+    assert.equal(json(c), json({ title: 'Step into the Centrepiece’s hall?', yes: 'Step in',
+      line: `The Great Board is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: shutters close over its openings, the clock stops, and you do not recover health; they open once the Centrepiece has gone ${N_LIFT} turns without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket.` }));
+    // Not a step in: a wait, a step along the gallery, a step from inside, a bump into an exhibit.
+    assert.equal(C.Hall.entering(s, wait), null);
+    assert.equal(C.Hall.entering(s, { a: 'move', dir: 2 }), null);
+    assert.equal(C.Hall.entering(at([6, 2]), { a: 'move', dir: 6 }), null);
+    assert.equal(C.Hall.entering(at([8, 2], [{ sp: 'dummy', at: [7, 2], mode: 'dormant', stats: BODY }]), step), null);
+    // Someone in the other opening: no seal yet, and the words say what would seal it.
+    s = at([8, 2], [{ sp: 'dummy', at: [8, 4], mode: 'dormant', stats: BODY }]);
+    const e = C.Hall.entering(s, step);
+    assert.equal(json(e), json({ by: 'T0.3.room.1', form: 'fight', seals: false }));
+    assert.match(C.Text.confirm('hall', e, nameOf(s)).line, /^If the Centrepiece hunts you while you are inside, the hall seals at the end of a turn when no one stands in its openings: /);
+    // A sleeping piece: no seal yet. A treasure's hall: its label says when.
+    assert.equal(json(C.Hall.entering(at([8, 2], [], { piece: { mode: 'dormant' } }), step)), json({ by: null, form: 'fight', seals: false }));
+    s = at([8, 2], [], { form: 'treasure' });
+    assert.match(C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s)).line, /^This hall can seal while you are inside it, as its guardian’s label says: /);
+    // Sealed, or its Centrepiece gone: nothing to ask.
+    s = at([8, 2]); s.actors[1].gone = 1;
+    assert.equal(C.Hall.entering(s, step), null);
+    // And what it says comes true: the step in seals it at its boundary.
+    s = at([8, 2]);
+    const r = H.play(C, s, [step], { inv: 'all' });
+    assert.equal(stages(r.events, 'sealed').length, 1);
+    assert.equal(C.Hall.entering(s, { a: 'move', dir: 2 }), null);
+  });
+
+  test('the threat\'s confirmation: a special already marked keeps its words; a due line not yet marked (a chime still to come) is named as its owner will mark it, never as a marked tile; the others that strike there are listed', () => {
+    const nameOf = uid => ({ 'x.1': 'the Signal Station', 'x.2': 'the Warden' })[uid] || null;
+    const marked = C.Text.confirm('threat', { by: 'x.1', shape: 'line', dmg: 6, stay: true, marked: true, due: false }, nameOf);
+    assert.equal(json(marked), json({ title: 'Stay on the marked tile?', yes: 'Stay', line: 'The Signal Station’s beam goes off on that tile before your next turn: it would deal you 6, with no roll.' }));
+    const due = C.Text.confirm('threat', { by: 'x.1', shape: 'planted_row', dmg: 7, stay: true, marked: false, due: true }, nameOf);
+    assert.equal(json(due), json({ title: 'Stay where a line will strike?', yes: 'Stay', line: 'The Signal Station will mark its line on that tile, and it goes off before your next turn: it would deal you 7, with no roll.' }));
+    const step = C.Text.confirm('threat', { by: 'x.1', shape: null, dmg: 7, stay: false, marked: false, due: true,
+      more: [{ by: 'x.2', shape: 'ring', dmg: 3, marked: true, due: false }, { by: 'x.3', shape: null, dmg: 2, marked: false, due: true }] }, nameOf);
+    assert.equal(json(step), json({ title: 'Step where a line will strike?', yes: 'Step there',
+      line: 'The Signal Station will mark its line on that tile, and it goes off before your next turn: it would deal you 7, with no roll. More go off there before your next turn: the Warden’s ring of blows, dealing 3; an exhibit’s line, dealing 2 (not yet marked).' }));
+    const one = C.Text.confirm('threat', { by: 'x.2', shape: 'ring', dmg: 3, stay: false, more: [{ by: 'x.1', shape: 'line', dmg: 6 }] }, nameOf);
+    assert.match(one.line, /with no roll\. Another goes off there before your next turn: the Signal Station’s beam, dealing 6\.$/);
+    for (const c of [marked, due, step, one]) assert.ok(clean(c.title) && clean(c.yes) && clean(c.line) && /^[A-Z].*\.$/.test(c.line), json(c));
+  });
+
+  test('joined up: js/main.js\'s threatPart tells the confirmation whether a threat\'s line is marked yet: a 300-tick equip begun before a planted chime\'s line is marked is warned of it as a line still to be marked, by its owner, with its damage; begun after, as a marked tile', () => {
+    // main.js's threatPart, run on the core's namespaces (the browser's globals).
+    const acorn = require(path.join(root, 'tools/vendor/acorn/acorn.js')), vm = require('node:vm');
+    const src = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8'), ast = acorn.parse(src, { ecmaVersion: 2022, sourceType: 'script' });
+    let fn = null;
+    (function walk(n) { if (!n || typeof n.type !== 'string' || fn) return; if (n.type === 'FunctionDeclaration' && n.id && n.id.name === 'threatPart') { fn = n; return; } for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); } })(ast);
+    assert.ok(fn, 'main.js has threatPart');
+    const X = loadCore(), S = X.Specials, TPT = X.N.TICKS_PER_TURN, R = 11;
+    S.addShape('planted_row', { tiles: (state, a) => X.Ranged.beam(state, a, 2, R), from: (state, a) => X.Ranged.beamFrom(state, a, 2, R), via: (state, a) => X.Ranged.beamVia(state, a, 2, R), glass: true });
+    X.Registry.define('SPECIALS', 'planted_due', { shape: 'planted_row', effect: 'damage', curve: 'ROLE_ARTILLERY_SPECIAL', range: null, every: null });
+    X.Registry.define('ARCHETYPES', 'planted_station', { special: null });
+    X.Archetypes.add('planted_station', { act: (state, a, ev) => X.AI.wait(state, a, ev), marksAwake: () => true });
+    X.Registry.define('MODULES', 'planted_chime', { built: 'M4', sentence: 'A planted chime.' });
+    X.Registry.defineCause('module', 'planted_chime', { fields: {}, built: 'M4' });
+    X.Text.defineCause('module', 'planted_chime', (e, w) => `${e.who ? w.Name(e.who) + ': ' : ''}the planted chime acted.`);
+    const stations = state => state.actors.filter(a => a.arch === 'planted_station' && !a.gone), tiles = (state, a) => S.tiles(state, a, 'planted_row');
+    // Marked on every turn ≡ 1 (mod 3) from the start, due two turns later.
+    X.Modules.define('planted_chime', {
+      rules: [{ rule: 'line', on: 'period', every: 3, at: 1, who: stations, when: (state, e, m, a) => S.canMark(state, a, 'planted_due', tiles(state, a)),
+        telegraph: { turns: 2, shown: 'planted_due' }, do: [{ k: 'special', sp: 'planted_due', due: state => (state.turn + 2) * TPT }] }],
+      bespoke: ['threat'],
+      threat(state, until, m) {
+        const out = [];
+        for (const st of stations(state)) {
+          const t = st.telegraph;
+          if (t && Number.isInteger(t.due) && t.due < until) out.push({ by: st.uid, sp: t.sp, tiles: t.tiles, gross: t.gross, due: t.due });
+          for (let T = state.turn + 1; (T + 2) * TPT < until; T++) if ((T - m.since) % 3 === 1) out.push({ by: st.uid, sp: 'planted_due', tiles: tiles(state, st), gross: S.info(state, 'planted_due').gross, due: (T + 2) * TPT });
+        }
+        return out;
+      },
+    });
+    const GARMENT = { uid: 'g2', kind: 'garment', form: 'standard', tier: 3, where: { at: 'tote' } };
+    const make = () => {
+      const s = X.Setup.room(1, { acc: 'T0', depth: 3, map: ['#############', '#...........#', '#############'], you: [10, 1], items: [GARMENT],
+        exhibits: [{ sp: 'dummy', at: [1, 1], arch: 'planted_station', mode: 'awake', stats: { hp: 400, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 }, next: 100000 }] });
+      s.actors[0].hp = s.actors[0].maxHp = 999;
+      X.Modules.init(s, { acc: 'T0', species: [], modules: [{ id: 'planted_chime', role: null, params: {} }] });
+      return s;
+    };
+    const part = s => vm.runInNewContext('(' + src.slice(fn.start, fn.end) + ')', { state: s, Actors: X.Actors, Registry: X.Registry, Object });
+    const ask = (s, action) => {
+      const t = S.threat(s, action), p = part(s), you = s.actors[0];
+      return t && X.Text.confirm('threat', Object.assign(p(t), { stay: t.x === you.x && t.y === you.y, more: (t.more || []).map(p) }), X.Labels.nameOf(s));
+    };
+    // Before the chime: the equip runs past the boundary the line goes off at.
+    const s = make(), equip = { a: 'equip', uid: 'g2' };
+    const dmg = S.net(S.info(s, 'planted_due').gross, s.actors[0].pad);
+    const before = ask(s, equip);
+    assert.ok(before, 'the equip is warned of');
+    assert.equal(before.title, 'Stay where a line will strike?');
+    assert.equal(before.line, `An exhibit will mark its line on that tile, and it goes off before your next turn: it would deal you ${dmg}, with no roll.`);
+    // After the chime has marked it: a marked tile.
+    const u = make();
+    X.Step.step(u, { a: 'wait' }); X.Step.step(u, { a: 'wait' });
+    assert.ok(u.actors[1].telegraph, 'the line is marked');
+    const after = ask(u, { a: 'wait' });
+    assert.equal(after.title, 'Stay on the marked tile?');
+    assert.match(after.line, /^An exhibit’s line goes off on that tile before your next turn: it would deal you \d+, with no roll\.$/);
+  });
+
+  test('the sealed chip and the dial: "Sealed: the clock is stopped", with ", the chime still sounds" while the chime\'s module is on; the dial counts what comes next from when the clock starts again', () => {
+    const v = C.Clock.view(hall(C, 3, { clock: { B: 300, G: 60, count: 40 } }));
+    assert.equal(json(C.Text.stage(v)), json({ name: 'Open:', next: 'bell in 260 turns' }));
+    assert.equal(json(C.Text.stage(Object.assign({ sealed: true, chime: false }, v))), json({ name: 'Sealed:', next: 'the clock is stopped' }));
+    assert.equal(json(C.Text.stage(Object.assign({ sealed: true, chime: true }, v))), json({ name: 'Sealed:', next: 'the clock is stopped, the chime still sounds' }));
+    assert.equal(json(C.Text.stage(Object.assign({ sealed: false, chime: true }, v))), json({ name: 'Open:', next: 'bell in 260 turns' }));
+    assert.equal(C.Text.clock(v), 'The clock: open hours, turn 40; the bell rings in 260 turns.');
+    assert.equal(C.Text.clock(Object.assign({ sealed: true }, v)), 'The clock is stopped while the hall is sealed: open hours, turn 40; the bell rings 260 turns after it starts again.');
+    const night = C.Clock.view(hall(C, 3, { clock: { B: 10, G: 10, count: 21 } }));
+    assert.equal(C.Text.clock(Object.assign({ sealed: true }, night)), 'The clock is stopped while the hall is sealed: the night watch, turn 21; the next night-watch bell rings 29 turns after it starts again.');
+    // js/main.js gives the chip and the dial the hall's seal and the chime's module.
+    const src = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
+    assert.match(src, /Object\.assign\(\{ sealed: Clock\.sealed\(state\), chime: Modules\.on\(state, 'hourly_demonstration'\) \}, vm\.clock\)/);
+    assert.match(src, /dial: Text\.clock\(clock\), stage: stageChip\(clock\)/);
+  });
+
+  test('every hall sentence is clean, whatever the stage, why, and who', () => {
+    const names = uid => uid === 'x.1' ? 'the Great Board' : null, out = [];
+    for (const stage of ['sealed', 'unsealed', 'waiting', 'other']) for (const why of ['hunt', 'quiet', 'ticket', 'defeat', 'treasure', 'sheet', 'touched']) for (const by of [undefined, 'x.1', 'you', 'x.9']) {
+      const cause = Object.assign({ k: 'hall', why }, by ? { by } : {});
+      out.push(C.Text.event({ k: 'stage', turn: 3, stage, cause }, names));
+    }
+    out.push(C.Text.event({ k: 'healed', turn: 3, who: 'x.1', amount: 15, hp: 40, cause: { k: 'hall', why: 'ticket' } }, names));
+    out.push(C.Text.event({ k: 'lost', turn: 3, who: 'x.1', from: 'searching', to: 'returning', cause: { k: 'hall', why: 'ticket' } }, names));
+    out.push(C.Text.refusal('sealed'));
+    for (const t of out) assert.ok(clean(t) && /^[A-Z].*\.$/.test(t), t);
+    assert.equal(C.Text.refusal('sealed'), 'A shutter is closed over that opening: the hall is sealed.');
+  });
+
+  // ---- The invariants catch what they say ----
+
+  test('hall.inv.js catches a shutter off an opening, a shutter with no seal, a paused clock with no seal, someone on a shutter, the count moving while sealed, a second "waiting", and a quiet lift too soon', () => {
+    const check = ids => Inv.checker(C, Inv.select(C, ids));
+    const sealedHall = () => { const s = hall(C, 3); C.Step.step(s, wait); return s; };
+    const text = (ids, pre, ev, post) => check(ids)(pre, wait, ev, post).map(v => v.text).join(' | ');
+    // A shutter at a tile that is no opening.
+    let pre = sealedHall(), post = C.State.clone(pre);
+    C.Grid.set(post.dept, 5, 1, 'Z');
+    assert.match(text(['hall.shutters'], pre, [], post), /none of the hall's openings/);
+    // An opening shut with no seal.
+    pre = hall(C, 3); post = C.State.clone(pre); C.Grid.set(post.dept, 8, 2, 'Z');
+    assert.match(text(['hall.shutters'], pre, [], post), /not sealed, but a shutter stands/);
+    // A shutter with no Centrepiece at all.
+    pre = C.Setup.room(1, { acc: 'T0', map: MAP, you: [2, 2], exhibits: [] }); post = C.State.clone(pre); C.Grid.set(post.dept, 8, 2, 'Z');
+    assert.match(text(['hall.shutters'], pre, [], post), /with no Centrepiece hall/);
+    // A paused clock with no seal, and a seal with the wrong turn.
+    pre = hall(C, 3); post = C.State.clone(pre); post.dept.clock.pausedSince = 0;
+    assert.match(text(['hall.paused'], pre, [], post), /paused since 0 but the hall is not sealed/);
+    pre = sealedHall(); post = C.State.clone(pre); post.dept.clock.pausedSince = 7;
+    assert.match(text(['hall.paused'], pre, [], post), /paused since 7, but the hall sealed at turn 1/);
+    // Someone on a shutter.
+    pre = sealedHall(); post = C.State.clone(pre); post.actors[1].x = 8; post.actors[1].y = 1;
+    assert.match(text(['hall.clear'], pre, [], post), /stands on a shutter at 8,2/);
+    // The count moving, a clock stage, a regeneration while sealed.
+    pre = sealedHall(); post = C.State.clone(pre); post.dept.clock.count++;
+    assert.match(text(['hall.frozen'], pre, [], post), /count moved/);
+    post = C.State.clone(pre);
+    assert.match(text(['hall.frozen'], pre, [{ k: 'regenerated', turn: 2, who: 'you', hp: 5 }], post), /regenerated/);
+    // A seal said outside, or for a piece not hunting.
+    pre = hall(C, 3, { you: [10, 3] }); post = C.State.clone(pre); post.dept.cp.sealed = { turn: 0, by: 'T0.3.room.1', why: 'hunt', at: 0, last: 0 };
+    assert.match(text(['hall.seal'], pre, [{ k: 'stage', turn: 0, tick: 0, stage: 'sealed', cause: { k: 'hall', by: 'T0.3.room.1', why: 'hunt' } }], post), /outside it/);
+    pre = hall(C, 3, { piece: { mode: 'dormant' } }); post = C.State.clone(pre); post.dept.cp.sealed = { turn: 0, by: 'T0.3.room.1', why: 'hunt', at: 0, last: 0 };
+    assert.match(text(['hall.seal'], pre, [{ k: 'stage', turn: 0, tick: 0, stage: 'sealed', cause: { k: 'hall', by: 'T0.3.room.1', why: 'hunt' } }], post), /which was dormant, not hunting you/);
+    // "Waiting" said twice in one wait.
+    pre = hall(C, 3, { you: [7, 2], more: [{ sp: 'dummy', at: [8, 2], mode: 'dormant', stats: BODY }] });
+    C.Step.step(pre, wait);
+    post = C.State.clone(pre);
+    assert.match(text(['hall.waiting'], pre, [{ k: 'stage', turn: 2, tick: 200, stage: 'waiting', cause: { k: 'hall', by: 'T0.3.room.2', why: 'hunt' } }], post), /said again that it waits/);
+    // A quiet lift too soon.
+    pre = sealedHall(); post = C.State.clone(pre);
+    assert.match(text(['hall.quiet'], pre, [{ k: 'stage', turn: 20, tick: 2000, stage: 'unsealed', cause: { k: 'hall', why: 'quiet' } }], post), /19 turns after the seal/);
+  });
+};

@@ -1,5 +1,6 @@
-// ACCESSION — sentences: the confirmations (BUILD.md §7.1), owned by the interface (js/main.js
-// decides when one is asked; the words are here, as every sentence about the rules is, §3.4).
+// ACCESSION — sentences: the confirmations (BUILD.md §7.1), owned by the interface, and in M4 by
+// ARCH-HALL (the hall's, and the threat's for a line not yet marked): js/main.js decides when
+// one is asked; the words are here, as every sentence about the rules is, §3.4.
 //
 // Text.confirm(k, data, nameOf) → {title, yes, line} | null: the sheet's question, its button
 // and the sentence that says what the action would do, for
@@ -10,16 +11,37 @@
 //             dept.place where it is no department (the Orientation's practice room, whose
 //             door starts a visit rather than ending one);
 //   'threat'  an action that would leave you on a tile marked for damage by a special that
-//             goes off before your next decision: data {by, shape, dmg, stay}, Specials.threat's
-//             owner and number, the special's shape, and whether you stay where you are;
+//             goes off before your next decision (Specials.threat): data {by, shape, dmg,
+//             stay, marked?, due?, more?}: its owner, its special's shape and the number it
+//             deals you; whether you stay where you are; marked (false only for a due line
+//             not yet marked, such as one a chime still to come will mark: D7.3), due (it
+//             goes off at a turn boundary); and more, the others that strike that tile before
+//             your next decision, each {by, shape, dmg, marked?, due?}, in the order they go
+//             off;
+//   'hall'    a step into a Centrepiece's hall (Hall.entering): data {by, form, seals}: seals
+//             when it would seal behind you at the next boundary (R11), by the piece hunting
+//             you, form its Centrepiece's (fight or treasure);
 //   'practice' going to the practice room (the Orientation) from "How the museum works"
 //             while a visit is under way, which ends it (js/main.js).
 'use strict';
 (() => {
   const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
-  // A special's name by its shape, as its label's line says it ("Its beam", "Its ring of blows").
+  // A special's name by its shape, as its label's line says it ("Its beam", "Its ring of blows");
+  // a due line of another shape (a chime's) is a line.
   const SPECIAL = { line: 'beam', ring: 'ring of blows' };
+  const what = h => own(SPECIAL, h.shape) ? SPECIAL[h.shape] : h.due ? 'line' : 'special';
+  const an = w => (/^[aeiou]/.test(w) ? 'an ' : 'a ') + w;
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const whose = (h, nameOf) => (typeof nameOf === 'function' && nameOf(h.by)) || 'an exhibit';
+  // The others that strike the tile before your next decision, after the first.
+  function others(list, nameOf) {
+    if (!Array.isArray(list) || !list.length) return '';
+    const one = h => `${whose(h, nameOf)}’s ${what(h)}, dealing ${h.dmg}${h.marked === false ? ' (not yet marked)' : ''}`;
+    return ` ${list.length === 1 ? 'Another goes' : 'More go'} off there before your next turn: ${list.map(one).join('; ')}.`;
+  }
+  // How a sealed hall's shutters open (rules/hall.js; text/hall.js says the same).
+  const opens = () => `they open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls, or when you read a Re-admission Ticket`;
+  const shut = 'shutters close over its openings, the clock stops, and you do not recover health';
   const more = n => n === 1 ? '1 more breaks it' : `${n} more break it`;
   const SAY = {
     shards: () => ({ title: 'Step onto the shards?', yes: 'Step onto the shards',
@@ -29,10 +51,26 @@
     leave: d => (d.place ? { title: `Leave the ${d.place}?`, yes: 'Leave', line: 'A visit starts when you go through this door.' }
       : { title: 'Leave the department?', yes: 'Leave', line: 'Your visit ends when you go through this door.' }),
     practice: () => ({ title: 'Go to the practice room?', yes: 'Practice room', line: 'This visit ends here; a new one starts after the practice room.' }),
+    // A special already marked is on the board; a due line not yet marked (a chime still to
+    // come) is named as its owner will mark it, so the sheet never calls an unmarked tile marked.
     threat: (d, nameOf) => {
-      const who = (typeof nameOf === 'function' && nameOf(d.by)) || 'an exhibit', what = own(SPECIAL, d.shape) ? SPECIAL[d.shape] : 'special';
+      const who = whose(d, nameOf), sp = what(d), more = others(d.more, nameOf);
+      if (d.marked === false) {
+        return { title: d.stay ? `Stay where ${an(sp)} will strike?` : `Step where ${an(sp)} will strike?`, yes: d.stay ? 'Stay' : 'Step there',
+          line: `${cap(who)} will mark its ${sp} on that tile, and it goes off before your next turn: it would deal you ${d.dmg}, with no roll.${more}` };
+      }
       return { title: d.stay ? 'Stay on the marked tile?' : 'Step onto the marked tile?', yes: d.stay ? 'Stay' : 'Step onto it',
-        line: `${cap(who)}’s ${what} goes off on that tile before your next turn: it would deal you ${d.dmg}, with no roll.` };
+        line: `${cap(who)}’s ${sp} goes off on that tile before your next turn: it would deal you ${d.dmg}, with no roll.${more}` };
+    },
+    // The hall seals at a turn boundary while you stand inside it, no one stands in an
+    // opening, and its Centrepiece calls for it (a fight's: it hunts you; a treasure's: as its
+    // guardian's label says).
+    hall: (d, nameOf) => {
+      const who = (typeof nameOf === 'function' && d.by && nameOf(d.by)) || 'the Centrepiece';
+      const line = d.seals ? `${cap(who)} is hunting you, so the hall will seal behind you as this turn ends, unless someone then stands in one of its openings: ${shut}; ${opens()}.`
+        : d.form === 'treasure' ? `This hall can seal while you are inside it, as its guardian’s label says: ${shut}; ${opens()}.`
+        : `If the Centrepiece hunts you while you are inside, the hall seals at the end of a turn when no one stands in its openings: ${shut}; ${opens()}.`;
+      return { title: 'Step into the Centrepiece’s hall?', yes: 'Step in', line };
     },
   };
   Text.provide('confirm', (k, data, nameOf) => own(SAY, k) ? SAY[k](data || {}, nameOf) : null);

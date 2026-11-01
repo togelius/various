@@ -1,6 +1,9 @@
-// ACCESSION — sentences: the clock and leaving (BUILD.md §8.4, §8.9), owned by W1-CLOCK. Also
-// the dial's sentence, Text.clock(view), and the stage chip's words, Text.stage(view), from
-// Clock.view(state).
+// ACCESSION — sentences: the clock and leaving (BUILD.md §8.4, §8.9), owned by W1-CLOCK; M4's
+// sealed hall (the stopped clock's dial and chip) by ARCH-HALL. Also the dial's sentence,
+// Text.clock(view), and the stage chip's words, Text.stage(view), from Clock.view(state), with
+// two more fields the interface adds (js/main.js): sealed (Clock.sealed: a Centrepiece hall is
+// sealed, so the count is stopped, §8.4) and chime (Modules.on(state, 'hourly_demonstration'):
+// the chime counts on through a seal, §5.4).
 'use strict';
 (() => {
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
@@ -52,21 +55,26 @@
   Text.defineRefusal('not_on_exit', () => 'Stand on the exit door to leave by it.');
 
   // The dial's sentence (§7.2), from Clock.view(state): the stage, the clock's turn, and
-  // what comes next and when.
+  // what comes next and when. While a hall is sealed (view.sealed) the count is stopped, so
+  // what comes next comes that many turns after it starts again.
   function dial(v) {
     if (!v) return 'The clock: this room has no closing time.';
-    const at = `turn ${v.count}`;
-    if (v.stage === 0) return `The clock: open hours, ${at}; the bell rings in ${turns(v.toBell)}.`;
-    if (v.stage === 1) return `The clock: after the bell, ${at}; the night watch begins in ${turns(v.toWatch)}.`;
-    const back = v.watchBack !== null && v.watchBack !== undefined ? ` Another Night Watchman comes in ${turns(v.watchBack)}.` : '';
-    return `The clock: the night watch, ${at}; the next night-watch bell rings in ${turns(v.toNightBell)}.${back}`;
+    const at = `turn ${v.count}`, head = v.sealed ? 'The clock is stopped while the hall is sealed:' : 'The clock:';
+    const when = n => v.sealed ? `${turns(n)} after it starts again` : `in ${turns(n)}`;
+    if (v.stage === 0) return `${head} open hours, ${at}; the bell rings ${when(v.toBell)}.`;
+    if (v.stage === 1) return `${head} after the bell, ${at}; the night watch begins ${when(v.toWatch)}.`;
+    const back = v.watchBack !== null && v.watchBack !== undefined ? ` Another Night Watchman comes ${when(v.watchBack)}.` : '';
+    return `${head} the night watch, ${at}; the next night-watch bell rings ${when(v.toNightBell)}.${back}`;
   }
   Text.provide('clock', dial);
 
   // The stage chip's words (§7.2), from Clock.view(state): the stage's name and what comes
-  // next and when ("Open:" "bell in 238 turns"), or null with no clock.
+  // next and when ("Open:" "bell in 238 turns"), or null with no clock. While a hall is sealed
+  // (view.sealed): "Sealed:" "the clock is stopped", and, while the chime's module is on
+  // (view.chime), ", the chime still sounds", since its count runs on (§5.4, §8.4).
   function chip(v) {
     if (!v) return null;
+    if (v.sealed) return { name: 'Sealed:', next: 'the clock is stopped' + (v.chime ? ', the chime still sounds' : '') };
     if (v.stage === 0) return { name: 'Open:', next: `bell in ${turns(v.toBell)}` };
     if (v.stage === 1) return { name: 'After the bell:', next: `night watch in ${turns(v.toWatch)}` };
     return { name: 'Night watch:', next: `next bell in ${turns(v.toNightBell)}` };
