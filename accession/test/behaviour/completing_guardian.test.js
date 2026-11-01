@@ -438,6 +438,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       X.Cases.dissolve(s, mine, { k: 'item', by: 'you' }, ev2);
       if (mine.st !== 'dissolved' || ev2.some(e => e.who === a.uid) || a.mode !== 'dormant') problems.push(`seed ${seed}: dissolving its case: ${json(ev2)}`);
     }
+    // In its own hall, a case in the Lamp's case's column (1,1) and one in its row (11,7), each
+    // opened and bashed beside it: no touch reaches it (its case is the Lamp's, on both of its
+    // tiles' numbers), and it sleeps on.
+    const MAP3 = MAP.map((row, y) => y === 1 ? row.slice(0, 1) + 'v' + row.slice(2) : y === 7 ? row.slice(0, 11) + 'v' + row.slice(12) : row);
+    for (const [cx, cy, you] of [[1, 1, [2, 1]], [11, 7, [10, 7]]]) for (const how of ['open', 'bash']) {
+      const s = room(4, { map: MAP3, you, fixtures: [C.Cases.make({ x: CASE[0], y: CASE[1], glass: 3, lock: 1 }), C.Cases.make({ x: cx, y: cy, glass: 1, lock: 1 })] }), a = composite(C, s);
+      const r = H.play(C, s, [{ a: how, x: cx, y: cy }], { inv: INV(C) });
+      problems.push(...bad(r, `${cx},${cy} ${how}`));
+      if (!r.events.some(e => ['case_opened', 'glass_broke', 'glass_cracked'].includes(e.k)) || r.events.some(e => e.who === a.uid && e.cause && e.cause.k === 'touch_case') || a.mode !== 'dormant') problems.push(`${cx},${cy} ${how}: ${json(r.events.filter(e => e.who === a.uid))}`);
+    }
     assert.deepEqual(problems, []);
   });
 
