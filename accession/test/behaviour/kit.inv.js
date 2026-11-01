@@ -97,8 +97,9 @@ module.exports = (C) => {
     } },
 
     // What an item action costs you (§8.1): take or drop COST_TAKE; equip or unequip a garment
-    // COST_EQUIP_GARMENT, anything else COST_EQUIP; use an instrument or a Restoration kit
-    // COST_USE; doubled while you are slowed. A refused one costs nothing.
+    // COST_EQUIP_GARMENT, anything else COST_EQUIP; use an instrument or a Restoration kit, or
+    // light or hood the Lamp (an `observing` curio, M4, §5.5), COST_USE; doubled while you are
+    // slowed. A refused one costs nothing.
     { id: 'kit.costs', check(pre, events, post, ctx) {
       const a = ctx.action;
       if (!a || !['take', 'drop', 'equip', 'unequip', 'use'].includes(a.a) || refused(events)) return null;
@@ -106,7 +107,7 @@ module.exports = (C) => {
       if (a.a === 'take' || a.a === 'drop') base = N.COST_TAKE;
       else if (a.a === 'equip') { const it = byUid(pre, a.uid); base = it && it.kind === 'garment' ? N.COST_EQUIP_GARMENT : N.COST_EQUIP; }
       else if (a.a === 'unequip') { const it = byUid(pre, slotUid(pre, a.slot)); base = it && it.kind === 'garment' ? N.COST_EQUIP_GARMENT : N.COST_EQUIP; }
-      else { const it = byUid(pre, a.uid); if (!it || (it.kind !== 'instrument' && it.kind !== 'kit')) return null; base = N.COST_USE; }
+      else { const it = byUid(pre, a.uid); if (!it || (it.kind !== 'instrument' && it.kind !== 'kit' && !(it.kind === 'curio' && (it.prims || []).some(p => p.id === 'observing')))) return null; base = N.COST_USE; }
       const slowed = pre.actors[0].statuses.some(s => s.id === 'slowed'), want = slowed ? base * N.SPEED_SLOW_PCT / 100 : base;
       const paid = post.actors[0].next - pre.actors[0].next;
       return paid === want ? null : `${json(a)} cost ${paid} ticks, not ${want}`;

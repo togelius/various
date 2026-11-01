@@ -39,7 +39,9 @@
 // step. Anywhere else (to look, to wander, home) it walks round the other actors where they
 // stand now: the first step of a shortest walking path that crosses no tile another actor
 // stands on (AI.around). A place another actor stands on is, like one no exhibit can stand
-// on, reached beside it; home must be stood on.
+// on, reached beside it; home must be stood on. An exhibit standing on a plinth (M4: a stamp
+// may put it there) steps off it as from any tile, and back onto it as its home (no walk
+// enters any other plinth).
 'use strict';
 const AI = (() => {
   const SEES = ['awake', 'hunting', 'searching', 'returning', 'reinstalling'];
@@ -188,8 +190,37 @@ const AI = (() => {
   //             walking round other actors, also beside a tile another actor stands on;
   //   'anchor'  standing with its anchor on the tile (a 2×2 body going home); for a one-tile
   //             body the same as 'onto', except that walking round other actors, a tile
-  //             another actor stands on cannot be reached.
+  //             another actor stands on cannot be reached, and that its home on a plinth is
+  //             stood on (below).
   const isTile = g => Array.isArray(g);
+
+  // An exhibit on a plinth (§8.2; M4, S.9's Intro stamp stands its Grazer on one). A plinth is
+  // a tile an exhibit can stand on but no walk enters (Grid.hold, not walkable; a vitrine is
+  // the other such tile, and nothing steps out of an intact case). A one-tile exhibit standing
+  // on one steps off it as from any tile: its walking distance there is one more than that of
+  // the nearest tile it could step off onto (onPlinth). It steps back onto a plinth only as its
+  // home, going home ('anchor'), by the same diagonal rule (mounts); it never steps onto any
+  // other plinth, nor walks across one.
+  const plinth = (m, x, y) => Grid.hold(m, x, y) && !Grid.walkable(m, x, y) && Grid.ch(m, x, y) !== 'v';
+  const homePlinth = (m, a, x, y) => (a.size || 1) === 1 && !!a.home && a.home[0] === x && a.home[1] === y && plinth(m, x, y);
+  // May a step in direction d onto its home plinth? As Grid.canStep's diagonal rule allows.
+  function mounts(m, a, d) {
+    const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d];
+    if (!homePlinth(m, a, nx, ny) || Grid.ch(m, a.x, a.y) === 'v') return false;
+    return Grid.DX[d] === 0 || Grid.DY[d] === 0 || (Grid.walkable(m, nx, a.y, 'exhibit') && Grid.walkable(m, a.x, ny, 'exhibit'));
+  }
+  // dist, with a's own tile given its distance when a (one tile) stands on a plinth.
+  function onPlinth(m, a, dist) {
+    const i = a.y * m.w + a.x;
+    if ((a.size || 1) !== 1 || dist[i] >= 0 || !plinth(m, a.x, a.y)) return dist;
+    for (let d = 0; d < 8; d++) {
+      if (!Grid.canStep(m, a.x, a.y, d, 'exhibit')) continue;
+      const v = dist[(a.y + Grid.DY[d]) * m.w + a.x + Grid.DX[d]];
+      if (v >= 0 && (dist[i] < 0 || v + 1 < dist[i])) dist[i] = v + 1;
+    }
+    return dist;
+  }
+
   // The walking distances to the goal and the distance at which a has arrived:
   // {dist: Int32Array (-1 where unreached), stop}. occ: null (actors never count), or the
   // tiles other actors stand on (occupied), which a walking round them never crosses. Not
@@ -201,16 +232,20 @@ const AI = (() => {
     // Walking round other actors, a step onto a tile one stands on costs more than any walk.
     const extra = occ ? (x, y) => occ[y * m.w + x] === 1 ? far + 1 : 0 : null;
     const free = (x, y) => !occ || occ[y * m.w + x] !== 1;
+    // Its home on a plinth: stood on, its last step onto it from beside it (mounts), so the
+    // walk is measured out from it (the diagonal rule is the same both ways).
+    if (isTile(goal) && how === 'anchor' && homePlinth(m, a, goal[0], goal[1]))
+      return { dist: free(goal[0], goal[1]) ? onPlinth(m, a, Grid.distances(m, [goal], far, extra, 'exhibit')) : new Int32Array(m.w * m.h).fill(-1), stop: 0 };
     if (isTile(goal) && (!Grid.walkable(m, goal[0], goal[1], 'exhibit') || (how === 'onto' && !free(goal[0], goal[1])))) {
       // A tile it cannot stand on: as near as it can get, beside it.
       const starts = [];
       for (let d = 0; d < 8; d++) { const x = goal[0] + Grid.DX[d], y = goal[1] + Grid.DY[d]; if (Grid.walkable(m, x, y, 'exhibit') && free(x, y)) starts.push([x, y]); }
-      return { dist: Grid.distances(m, starts, far, extra, 'exhibit'), stop: 0 };
+      return { dist: onPlinth(m, a, Grid.distances(m, starts, far, extra, 'exhibit')), stop: 0 };
     }
     // Home, with another actor standing on it: there is no way onto it now.
     if (isTile(goal) && !free(goal[0], goal[1])) return { dist: new Int32Array(m.w * m.h).fill(-1), stop: 0 };
     const starts = isTile(goal) ? [goal] : Actors.footprint(goal);
-    return { dist: Grid.distances(m, starts, far, extra, 'exhibit'), stop: how === 'beside' ? 1 : 0 };
+    return { dist: onPlinth(m, a, Grid.distances(m, starts, far, extra, 'exhibit')), stop: how === 'beside' ? 1 : 0 };
   }
   // AI.field(state, a, goal, how) → Int32Array: a's walking distance to the goal from every
   // anchor tile, by the exhibits' step rule (staff doors are walls; nothing steps out of a
@@ -221,22 +256,32 @@ const AI = (() => {
 
   // One step of a's whole footprint in a direction from `options`, the ties broken on its
   // own ai stream (§8.2), through Step.moveInto (a closed door on the way is opened, and a
-  // opens it from where it stands); a step that changed its tile is followed by
-  // AI.afterStep. Returns the cost, or null.
+  // opens it from where it stands), or, onto its home plinth, which Step.moveInto refuses as
+  // a tile no walk enters, as that step is made (mount); a step that changed its tile is
+  // followed by AI.afterStep. Returns the cost, or null.
   function stepAmong(state, a, options, ev) {
     if (!options.length) return null;
     const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
-    const x = a.x, y = a.y, r = Step.moveInto(state, a, d, ev);
+    const x = a.x, y = a.y, r = mounts(state.dept, a, d) ? mount(state, a, d, ev) : Step.moveInto(state, a, d, ev);
     if (typeof r !== 'number') return null;
     if (a.x !== x || a.y !== y) AI.afterStep(state, a, ev);
     return r;
   }
+  // Its step onto its home plinth: what Step.moveInto's step does (the moved event, its tile,
+  // COST_STEP as its speed makes it), there being no door to open and no one on the plinth.
+  function mount(state, a, d, ev) {
+    const to = [a.x + Grid.DX[d], a.y + Grid.DY[d]];
+    Causes.emit(state, ev, 'moved', { who: a.uid, from: [a.x, a.y], to });
+    a.x = to[0]; a.y = to[1];
+    return Actors.cost(state, a, N.COST_STEP, 'move');
+  }
   // The directions a may step in toward tile values `ok(v)` of dist: every tile of its
-  // footprint may step there, no other actor stands there, and its archetype allows it.
+  // footprint may step there (or it may step onto its home plinth), no other actor stands
+  // there, and its archetype allows it.
   function options(state, a, dist, ok) {
     const m = state.dept, out = [];
     for (let d = 0; d < 8; d++) {
-      if (!fits(m, a, d)) continue;
+      if (!fits(m, a, d) && !mounts(m, a, d)) continue;
       const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
       if (!ok(v) || blocker(state, a, nx, ny) || !Archetypes.mayStep(state, a, nx, ny)) continue;
       out.push(d);

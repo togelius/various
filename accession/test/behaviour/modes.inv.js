@@ -19,7 +19,10 @@
 //                               Vanishing Act, M4), and then after no fewer than it says
 //                               (Perks.loseTrack, the perks' dispatcher, not the AI's);
 //   modes_exhibit_steps         every step an exhibit takes is one step of the exhibits'
-//                               walking rule (Grid.canStep(…, 'exhibit') for its footprint);
+//                               walking rule (Grid.canStep(…, 'exhibit') for its footprint),
+//                               or a one-tile exhibit's step onto its own home that is a
+//                               plinth (M4: §8.2, a tile it can stand on but no walk enters,
+//                               never a vitrine), by the same diagonal rule;
 //   modes_returning_walks       a plodder going home never stands still: each of its actions
 //                               while returning is a step (or a door it opens), unless it
 //                               arrives, gives up (blocked) or only waits (fixed, or in an
@@ -113,6 +116,13 @@ module.exports = (C) => {
           if (!isStep(e) || e.who !== a.uid) continue;
           const dx = e.to[0] - e.from[0], dy = e.to[1] - e.from[1], d = dirOf(dx, dy);
           if (d < 0) return `it moved from ${e.from} to ${e.to}, which is not one step`;
+          // Onto its home, a plinth: from a tile that is not an intact case's, the diagonal
+          // rule kept (both tiles beside the corner walkable for an exhibit).
+          const m = post.dept, [x0, y0] = e.from, [x1, y1] = e.to;
+          if (s === 1 && a.home && a.home[0] === x1 && a.home[1] === y1 && Grid.hold(m, x1, y1) && !Grid.walkable(m, x1, y1) && Grid.ch(m, x1, y1) !== 'v') {
+            if (Grid.ch(m, x0, y0) === 'v' || (dx !== 0 && dy !== 0 && !(Grid.walkable(m, x1, y0, 'exhibit') && Grid.walkable(m, x0, y1, 'exhibit')))) return `its step from ${e.from} onto its home plinth at ${e.to} breaks the exhibits' walking rule`;
+            continue;
+          }
           for (let ty = 0; ty < s; ty++) for (let tx = 0; tx < s; tx++)
             if (!Grid.canStep(post.dept, e.from[0] + tx, e.from[1] + ty, d, 'exhibit')) return `its step from ${e.from} to ${e.to} breaks the exhibits' walking rule`;
         }
