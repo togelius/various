@@ -602,8 +602,9 @@ const Populate = (() => {
     for (const r of rounds) if (r.posts.length < 2) miss(r.rm, { reason: `room ${r.rm.key} has no round for ${r.a.uid}`, tiles: [[r.a.x, r.a.y]] }, 'it keeps none');
     return first;
   }
-  // The turns over which each Wader's round is walked to see whether it stalls: more than any
-  // room's round takes (a Cabinet room's four posts are at most about 60 steps apart in all).
+  // The turns over which the Waders' rounds are walked to see whether one stalls: three times
+  // any round of a strip of a Cabinet room (its four posts at most about 40 steps apart in
+  // all), since two Waders on rounds of their own may first meet on a later lap.
   const ROUND_TURNS = 120;
   // The j-th of k strips of a box [x0, y0, x1, y1], cut across its longer side (west to east
   // when it is at least as wide as it is tall, else north to south), as even as whole tiles

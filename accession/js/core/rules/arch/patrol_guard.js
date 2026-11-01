@@ -302,7 +302,9 @@ const Patrol = (() => {
   // actions in a row with its way blocked only by exhibits that stand still (asleep or in a
   // case), never by another patrol, is stuck: nothing will move out of its way, so it would
   // wait there for good; its record then carries stuck: {post}, the post it was walking to.
-  // (One waiting behind another patrol is not stuck: it moves once the other does.) null
+  // One waiting behind another patrol is not stuck, since it moves once the other does, unless
+  // the two wait on each other (head on), STUCK_ACTIONS actions each: then the later of them in
+  // spawn order is. null
   // where that cannot be told: another exhibit awake on no round (where it goes is its own),
   // or a door a patrol opens within the earshot of another exhibit (its noise would send it to
   // look or stir it). It draws on no stream and changes
@@ -311,7 +313,7 @@ const Patrol = (() => {
   // More waits in a row than any patrol that blocks another could cause by its own steps and
   // doors (each patrol's wait for the one ahead lasts an action or two).
   const STUCK_ACTIONS = 8;
-  const lines = new WeakMap();
+  const lines = new WeakMap(), fieldsFor = { tiles: null, of: null };
   function fingerprint(state) {
     let f = `${state.tick}|${state.dept.tiles.join('')}`;
     for (const o of state.actors) f += `|${o.uid},${o.x},${o.y},${o.mode},${o.gone ? 1 : 0},${o.next},${o.arch === 'patrol_guard' && o.route ? JSON.stringify(o.route) : '-'}`;
@@ -339,8 +341,11 @@ const Patrol = (() => {
     const open = [];
     let m = m0;
     // A post's walking field (AI.field, actors never counting), worked out once: one for every
-    // one-tile patrol not on a plinth, whose field it is the same for.
-    const shared = new Map();
+    // one-tile patrol not on a plinth, whose field it is the same for, and kept for the next
+    // timeline asked of the same map (population's, then the runner's).
+    const tiles = m0.tiles.join('\n');
+    if (fieldsFor.tiles !== tiles) { fieldsFor.tiles = tiles; fieldsFor.of = new Map(); }
+    const shared = fieldsFor.of;
     const field = (p, k) => {
       if (p.fields.has(k)) return p.fields.get(k);
       const key = `${p.P[k][0]},${p.P[k][1]}`, alike = (p.a.size || 1) === 1 && Grid.ch(m0, p.a.x, p.a.y) === '.';
@@ -356,10 +361,12 @@ const Patrol = (() => {
       if (!p) break;
       p.at.push({ x: p.x, y: p.y, t: p.t });
       const P = p.P, was = [p.x, p.y, p.i];
-      p.walled = false;
+      p.walled = false; p.by = null;
       act1(p);
-      p.still = p.walled && p.x === was[0] && p.y === was[1] && p.i === was[2] ? p.still + 1 : 0;
-      if (p.still === STUCK_ACTIONS && P.length > 1 && !p.stuck) p.stuck = { post: p.i, t: p.t };
+      p.still = (p.walled || p.by) && p.x === was[0] && p.y === was[1] && p.i === was[2] ? p.still + 1 : 0;
+      // Stuck: walled in, or, of two patrols each waiting on the other, the later in spawn order.
+      const locked = p.by && p.by.by === p && p.by.still >= STUCK_ACTIONS && sims.indexOf(p) > sims.indexOf(p.by);
+      if (p.still >= STUCK_ACTIONS && (p.walled || locked) && P.length > 1 && !p.stuck) p.stuck = { post: p.i, t: p.t };
       if (p.heard) return null;
     }
     return sims.map(p => ({ uid: p.uid, at: p.at, stuck: p.stuck }));
@@ -377,10 +384,11 @@ const Patrol = (() => {
         const nx = p.x + Grid.DX[d], ny = p.y + Grid.DY[d], v = f[ny * w + nx];
         if (v < 0 || v >= here || !Archetypes.mayStep(state, p.a, nx, ny)) continue;
         if (!taken(p, nx, ny)) d0 = d;
-        else if (fixed[ny * w + nx] !== 1) patrol = true;
+        else if (fixed[ny * w + nx] !== 1) { patrol = true; if (!p.by) p.by = sims.find(q => q !== p && q.x === nx && q.y === ny) || null; }
       }
       if (d0 < 0) {
         p.walled = !patrol;
+        if (!patrol) p.by = null;
         if (P.length > 1 && Grid.chebyshev(p.x, p.y, post[0], post[1]) === 1 && taken(p, post[0], post[1])) p.i = (p.i + 1) % P.length;
         p.t += p.c.wait;
         return;
