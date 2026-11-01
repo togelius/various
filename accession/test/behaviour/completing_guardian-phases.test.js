@@ -199,6 +199,36 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  test('a treasure seal waiting on an occupied opening says what it still needs then, and that comes true: its guardian hunting you (why touched), with its health still at 34% or less (why hurt); healed above that by a thrown Consolidant while it waits, the opening clears and the hall does not seal; at depths 1, 4 and 7', () => {
+    const problems = [];
+    const sleeper = depth => ({ sp: 'S9.6', at: ARCH, mode: 'dormant', stats: C.Roles.stats('skirmisher', depth), statuses: [{ id: 'fixed', turns: 9999 }] });
+    const HUNTS = 'its shutters close once every opening is clear while you and the Centrepiece are inside and it hunts you';
+    for (const depth of [1, 4, 7]) for (const why of ['touched', 'hurt']) {
+      const tag = `d${depth} ${why}`, s = room(depth, { walked: ALL, scale: 100, more: [sleeper(depth)] }), a = composite(C, s);
+      C.Wake.wake(s, a, 'hunting', { k: 'damage', by: 'you' }, []);
+      if (why === 'touched') s.dept.cp.touched = { turn: s.turn - N.TREASURE_SEAL_TURNS };
+      else { a.hp = C.Int.pct(a.maxHp, N.TREASURE_SEAL_HP_PCT); for (const b of C.Centrepiece.pieces(s)) b.ax.phase = 3; }
+      const tk = C.Consumables.make(s, 'consolidant', { at: 'tote' });
+      s.run.knownSeals.push(C.Consumables.sealFor(s, 'consolidant'));
+      let r = H.play(C, s, [WAIT], { inv: INV(C), clone: true });
+      problems.push(...bad(r, tag));
+      const w = stages(r.events, 'waiting');
+      const want = `The hall would seal, but the Long-Footed Hopper stands in an opening: ${HUNTS}${why === 'hurt' ? ` with ${N.TREASURE_SEAL_HP_PCT}% of its full health or less` : ''}.`;
+      if (w.length !== 1 || say(C, s, w[0]) !== want) { problems.push(`${tag}: ${json(w.map(e => say(C, s, e)))}`); continue; }
+      if (why === 'touched') continue;
+      // A Consolidant thrown onto it: it regains half its full health, above 34%; the opening
+      // clears (planted: the sleeper taken away), and nothing calls for the seal.
+      r = H.play(C, s, [{ a: 'throw', uid: tk.uid, x: AT[0], y: AT[1] }], { inv: INV(C), clone: true });
+      problems.push(...bad(r, tag));
+      if (a.hp <= C.Int.pct(a.maxHp, N.TREASURE_SEAL_HP_PCT) || a.mode !== 'hunting') { problems.push(`${tag}: ${a.hp} of ${a.maxHp}, ${a.mode}`); continue; }
+      s.actors.find(b => b.sp === 'S9.6').gone = 1;
+      r = H.play(C, s, [WAIT, WAIT], { inv: INV(C) });
+      problems.push(...bad(r, tag));
+      if (stages(r.events).length || C.Clock.sealed(s)) problems.push(`${tag}: healed, ${json(stages(r.events))}`);
+    }
+    assert.deepEqual(problems, []);
+  });
+
   // ---- The carry-out ----
 
   test('the carry-out by the threshold: holding the Lamp (from its case, in your tote) you walk out by the archway; the turn boundary that finds you in the opening earns the Certificate by treasure, once, with its sentence; inside the hall, or holding a Lamp you came with (you.c1), nothing; walking back in and out again, nothing more; at depths 1–7, clone-checked', () => {

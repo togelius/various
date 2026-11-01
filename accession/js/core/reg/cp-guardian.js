@@ -34,23 +34,27 @@
   // hunted; a Ticket's leaving too) heals it GUARDIAN_LEAVE_HEAL_PCT% of its full health and
   // drops its last limb (COMPOSITE-PHASES). Its hall's seal is its treasure's
   // (rules/treasure.js): while it hunts you in its hall, from TREASURE_SEAL_TURNS turns after its
-  // case is first opened or bashed, or while its health is TREASURE_SEAL_HP_PCT% of its full
-  // health or less, once no one stands in an opening; the rule names it as no stage's `by`, so
+  // case is first opened or bashed, or at TREASURE_SEAL_HP_PCT% of its full health or less,
+  // once no one stands in an opening; the rule names it as no stage's `by`, so
   // this clause need not cover `stage`. Its limbs are its specials, in the order it grows them,
   // marked in turn (Centrepiece.act, CP_SPECIAL_EVERY), each only while you stand on one of the
   // tiles it would mark: its neck, legs and tail each a Centrepiece's gross, its crest a call, as
-  // a herald's (HERALD_RANGE: it wakes every sleeper on its tiles that can hear, never a
-  // Centrepiece, sent to look where you stood); how it grows them is its phases' parts
+  // a herald's (HERALD_RANGE: it wakes every sleeper on its tiles that can hear, sent to look
+  // where you stood; never a Centrepiece's piece, which in S.9 is only itself, awake as its crest
+  // goes off, so its line need not say so); how it grows them is its phases' parts
   // (CLAUSES.guardian_limbs from the start, the strip's in phase 1; guardian_grow_alarm in
-  // phase 2, with its alarm; guardian_grow in phase 3). Its form's rule (CLAUSES.cp_treasure)
-  // follows this clause. ready stays false, so no department places it, until what the
-  // Ordinance's and the Board's wait for (§5.5): the perk choice a Certificate brings has an
-  // interface (UI-PROGRESS), and a Centrepiece's strip is the phone's and its lectern's and
-  // sheet's labels exist (LABELS-M4); until then only tests place it (Centrepiece.place). lint-registry's word rules read this clause under --strict=M4
-  // (which it passes but for its readiness); completing_guardian.test.js and
+  // phase 2, with its alarm; guardian_grow in phase 3), so this clause leaves their order to
+  // them. Its form's rule (CLAUSES.cp_treasure) follows this clause. (Its label is long, 57 rows
+  // at depth 7, most of them the shared clauses' and the alarm's part; M4 COMPOSITE-PHASES'
+  // review trimmed what this clause said twice, from 59.) ready stays false, so no department
+  // places it, until what the Ordinance's and the Board's wait for (§5.5): the perk choice a
+  // Certificate brings has an interface (UI-PROGRESS), and a Centrepiece's strip is the phone's
+  // and its lectern's and sheet's labels exist (LABELS-M4); until then only tests place it
+  // (Centrepiece.place). lint-registry's word rules read this clause under --strict=M4 (which it
+  // passes but for its readiness); completing_guardian.test.js and
   // completing_guardian-phases.test.js hold its digits and the line it makes.
   R.define('ARCHETYPES', 'completing_guardian', { built: 'M4', ready: false, tests: TESTS, inv: 'centrepiece', icon: null,
-    clause: 'Its case is the Lamp’s, which it guards, and a view that puts it under its dust sheet closes that case too. It never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place. Leave its hall while it hunts you, and it regains {heal}% of its full health and drops its last limb. Hunting you in its hall, it seals you in with it once no one stands in an opening, from {turns} turns after its case is opened or bashed, or while its health is {low}% of its full health or less. It strikes from beside you for {dmg}. Its limbs, in the order it grows them, are specials that come in turn, each marked only while you stand on one of its tiles: its neck marks the tiles round it on your side, its legs a lane as wide as it toward you, up to {range} tiles and never through a case, and its tail all the tiles round it, each then striking everything on them for {g} before Padding, and its legs then charge down the lane, stopping short of anyone in it; its crest marks every tile within {call} tiles of it, then wakes every sleeping exhibit on them that can hear (never a Centrepiece), which come to look where you stood.',
+    clause: 'Its case is the Lamp’s, which it guards, and a view that puts it under its dust sheet closes that case too. It never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place. Leave its hall while it hunts you, and it regains {heal}% of its full health and drops its last limb. Hunting you in its hall, it seals you in with it once no one stands in an opening, from {turns} turns after its case is opened or bashed, or at {low}% of its full health or less. It strikes from beside you for {dmg}. Its limbs’ specials come in turn, each marked only while you stand on one of its tiles: its neck marks the tiles round it on your side, its legs a lane as wide as it toward you, up to {range} tiles and never through a case, and its tail all the tiles round it, each then striking everything on them for {g} before Padding, and its legs then charge down the lane, stopping short of anyone in it; its crest marks every tile within {call} tiles of it, then wakes every sleeping exhibit on them that can hear, sent to look where you stood.',
     params: { heal: 'N:GUARDIAN_LEAVE_HEAL_PCT', turns: 'N:TREASURE_SEAL_TURNS', low: 'N:TREASURE_SEAL_HP_PCT', dmg: 'role:DMG', g: GROSS, range: 'N:CHARGE_RANGE', call: 'N:HERALD_RANGE' },
     covers: ['attacked', 'missed', 'telegraphed', 'special', 'damaged', 'healed'] });
 
@@ -80,7 +84,7 @@
     'its tail marks all the tiles round it while you stand on one, then strikes everything on them for {gross} before Padding');
   R.define('SPECIALS', 'cp_call', proved({ icon: 'special', shape: 'crest', effect: 'hook', curve: null, range: 'HERALD_RANGE', every: null, noun: 'crest',
     marks: 'the tiles its call reaches', params: { HERALD_RANGE: 'N:HERALD_RANGE' }, covers: ['telegraphed', 'special', 'woke'],
-    clause: 'its crest marks every tile within {HERALD_RANGE} tiles of it while you stand on one, then wakes every sleeping exhibit on them that can hear (never a Centrepiece), which come to look where you stood' }));
+    clause: 'its crest marks every tile within {HERALD_RANGE} tiles of it while you stand on one, then wakes every sleeping exhibit on them that can hear, sent to look where you stood' }));
 
   // Its phase parts (§5.3's "From phase k: …"; Q10, its strip). Phase 1, from the start: how it
   // grows its limbs, so the phone's strip says it while it waits for you (FU1): one for every

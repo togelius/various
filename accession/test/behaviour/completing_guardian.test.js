@@ -497,9 +497,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     return ['Its case is the Lamp’s, which it guards, and a view that puts it under its dust sheet closes that case too.',
       'It never leaves its hall, and while you are outside the hall it starts no fight with you: hunting or searching for you, it goes back to its place.',
       `Leave its hall while it hunts you, and it regains ${N.GUARDIAN_LEAVE_HEAL_PCT}% of its full health and drops its last limb.`,
-      `Hunting you in its hall, it seals you in with it once no one stands in an opening, from ${N.TREASURE_SEAL_TURNS} turns after its case is opened or bashed, or while its health is ${N.TREASURE_SEAL_HP_PCT}% of its full health or less.`,
+      `Hunting you in its hall, it seals you in with it once no one stands in an opening, from ${N.TREASURE_SEAL_TURNS} turns after its case is opened or bashed, or at ${N.TREASURE_SEAL_HP_PCT}% of its full health or less.`,
       `It strikes from beside you for ${span(r.dmin, r.dmax)}.`,
-      `Its limbs, in the order it grows them, are specials that come in turn, each marked only while you stand on one of its tiles: its neck marks the tiles round it on your side, its legs a lane as wide as it toward you, up to ${N.CHARGE_RANGE} tiles and never through a case, and its tail all the tiles round it, each then striking everything on them for ${g} before Padding, and its legs then charge down the lane, stopping short of anyone in it; its crest marks every tile within ${N.HERALD_RANGE} tiles of it, then wakes every sleeping exhibit on them that can hear (never a Centrepiece), which come to look where you stood.`,
+      `Its limbs’ specials come in turn, each marked only while you stand on one of its tiles: its neck marks the tiles round it on your side, its legs a lane as wide as it toward you, up to ${N.CHARGE_RANGE} tiles and never through a case, and its tail all the tiles round it, each then striking everything on them for ${g} before Padding, and its legs then charge down the lane, stopping short of anyone in it; its crest marks every tile within ${N.HERALD_RANGE} tiles of it, then wakes every sleeping exhibit on them that can hear, sent to look where you stood.`,
       `Its second phase starts at ${N.CP_PHASE_PCT[0]}% of its full health or less, its third at ${N.CP_PHASE_PCT[1]}%, for good.`,
       'Killing it opens its hall but earns nothing: carry the treasure it guards out of the hall.',
       `It grows a limb, each a special, for every ${N.GUARDIAN_PER_STAGE} galleries you have walked, the one you start in and its own hall among them: first its neck, then its legs, and walking grows no other.`,
@@ -528,8 +528,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // Phase 2's strip with the alarm takes the budget's rows; without it, few.
     assert.equal(json([1, 2, 3].map(k => LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: k })))), json([7, 14, 5]));
     assert.equal(LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: 2, rulesOff: ['alarm_network'] })), 4);
-    // The whole line is long (the label scrolls, FU1).
-    assert.ok(LINES.rows(C.Clauses.line(rec, { depth: 7 })) > LINES.METRICS.budgetRows);
+    // The whole line is long (the label scrolls, FU1): 57 rows at depth 7, most of them the
+    // shared clauses' and the alarm's part (COMPOSITE-PHASES' review trimmed it from 59).
+    const label = LINES.rows(C.Clauses.line(rec, { depth: 7 }));
+    assert.ok(label > LINES.METRICS.budgetRows && label <= 57, `${label} rows`);
     const R = C.Registry;
     for (const [t, id] of [['ARCHETYPES', 'completing_guardian'], ['CLAUSES', 'guardian_limbs'], ['CLAUSES', 'guardian_quick'], ['CLAUSES', 'guardian_grow_alarm'], ['CLAUSES', 'guardian_grow'], ['SPECIALS', 'cp_sweep'], ['SPECIALS', 'cp_charge'], ['SPECIALS', 'cp_ring'], ['SPECIALS', 'cp_call']]) {
       const cl = R[t][id].clause;
