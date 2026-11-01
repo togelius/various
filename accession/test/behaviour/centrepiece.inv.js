@@ -6,8 +6,9 @@
 //   centrepiece.phase   its pieces share one phase, which never goes back; each phase entered
 //                       in a step has its phase event, in order, and no other phase event comes
 //                       but one that changes what it has within the phase it is in (the
-//                       Composite's limbs: walked, left; an Ordinance piece taking on a special:
-//                       inherited), which names the phase it is in then (M4 COMPOSITE-CORE);
+//                       Composite's limbs: walked, left, and limb, a phase's own, told after the
+//                       phase's event; an Ordinance piece taking on a special: inherited), which
+//                       names the phase it is in then (M4 COMPOSITE-CORE, COMPOSITE-PHASES);
 //                       while a piece stands, its phase is at least the one its health gives
 //                       (one more for each of CP_PHASE_PCT, % of its pieces' maximums together,
 //                       that their health has fallen to);
@@ -35,7 +36,7 @@ module.exports = (C) => {
   const isPiece = (s, uid) => { const c = cpOf(s); return !!c && Array.isArray(c.uids) && c.uids.includes(uid); };
   const standing = s => piecesOf(s).filter(a => !a.gone);
   // The phase events' causes that enter no phase (reg/cp-guardian.js, reg/cp-ensemble.js).
-  const WITHIN = ['walked', 'left', 'inherited'];
+  const WITHIN = ['walked', 'left', 'limb', 'inherited'];
   // The phase its health gives, from §8.10's words: CP_PHASE_PCT, % of its total health.
   function healthPhase(s) {
     let hp = 0, max = 0;

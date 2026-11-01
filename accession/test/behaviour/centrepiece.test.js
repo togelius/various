@@ -41,9 +41,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // The test-only core, in a fresh core X: its archetype (whose init marks ax.inited, and whose
   // onPhase is recorded in `phases`), its pack T9 with the record (o.rec overrides its fields:
-  // undefined drops one) and, for a treasure, a planted seal rule standing in for its owner's
-  // (COMPOSITE-PHASES'): its hall seals while one of its pieces hunts you, why 'touched',
-  // naming no one (a rule that names its guardian as by needs a line of its that covers stage).
+  // undefined drops one). A treasure's hall seals by the treasure's own rule (rules/treasure.js,
+  // M4 COMPOSITE-PHASES): while one of its pieces hunts you, once its health is
+  // TREASURE_SEAL_HP_PCT% or less (its case, which this core does not guard, is never touched),
+  // naming no one, so no line of its need cover stage.
   // o.still: its archetype never steps (mayStep false), as the Great Board's.
   function core(o) {
     o = o || {};
@@ -56,7 +57,6 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       tomb: { maker: 'Made for the tests', date: 'Now', medium: 'Plaster', dims: 'H. 2 m', credit: 'The tests' }, paragraph: 'It stands for every Centrepiece.' }, o.rec || {});
     for (const k of Object.keys(rec)) if (rec[k] === undefined) delete rec[k];
     X.Packs.add({ acc: 'T9', species: [], modules: [], items: [SIG], centrepiece: rec });
-    if (rec.form === 'treasure') X.Hall.defineSeal('treasure', (s, c) => { for (const u of c.uids) { const a = X.Actors.byUid(s, u); if (a && !a.gone && a.mode === 'hunting') return { why: 'touched' }; } return null; });
     return { X, rec, phases, pack: X.Packs.get('T9') };
   }
   // A room with the hall, the test core placed on its footprint (Centrepiece.place). o: you

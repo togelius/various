@@ -30,5 +30,6 @@
   Text.defineRefusal('already_earned', () => 'You have this department’s Certificate already, and a visit gives only one: viewing cannot earn another.');
   Text.defineRefusal('not_at_lectern', () => 'You can view the Centrepiece only from the reading tile beside its lectern.');
   Text.defineRefusal('not_asleep', () => 'You can view the Centrepiece only while it sleeps, every piece of it, and it is not asleep now.');
-  Text.defineRefusal('sheeted', () => 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it.');
+  // (M4 COMPOSITE-PHASES: the sheet closes a treasure's case too, rules/treasure.js's refuser.)
+  Text.defineRefusal('sheeted', () => 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it, nor open, bash, take from or aim at the case of a treasure it guards, or throw a Solution onto or beside that case.');
 })();

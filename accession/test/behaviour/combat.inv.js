@@ -234,14 +234,19 @@ module.exports = C => {
         if (you.seated && Grid.ch(post.dept, you.x, you.y) !== 'b') return `you are seated at ${you.x},${you.y}, which is not a bench`;
         const seatedOnBench = !!you.seated && Grid.ch(post.dept, you.x, you.y) === 'b';
         let last = null;
-        for (const e of events) {
+        // Your maximum as each regeneration was made: a Certificate's grade later in the same
+        // step raises it after it (M4: a treasure carried out at a turn boundary, after that
+        // boundary's regeneration, §5.5).
+        const maxAt = i => you.maxHp - N.HP_PER_GRADE * events.slice(i + 1).filter(f => f.k === 'grade' && f.cause && f.cause.k === 'certificate').length;
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i];
           if (e.k !== 'regenerated') continue;
           if (e.cause.bench !== seatedOnBench) return `you regenerated with bench ${e.cause.bench}, ${seatedOnBench ? 'seated on' : 'not seated on'} a bench`;
           if (last === e.turn) return `you regenerated twice on turn ${e.turn}`;
           last = e.turn;
-          const c = e.cause;
-          if (c.need !== N.REGEN_BELL_MULT * Health.interval(you.maxHp) || c.units < c.need) return `you regenerated with ${c.units} of ${c.need} units at maximum health ${you.maxHp}`;
-          if (e.hp > you.maxHp) return `you regenerated to ${e.hp}, past your maximum ${you.maxHp}`;
+          const c = e.cause, max = maxAt(i);
+          if (c.need !== N.REGEN_BELL_MULT * Health.interval(max) || c.units < c.need) return `you regenerated with ${c.units} of ${c.need} units at maximum health ${max}`;
+          if (e.hp > max) return `you regenerated to ${e.hp}, past your maximum ${max}`;
         }
         return null;
       },

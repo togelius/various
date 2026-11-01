@@ -797,11 +797,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([f.instrument.id, f.instrument.charges, f.instrument.range, f.parts.map(p => p.id)]), json(['fork', N.TUNING_FORK[0] - 1, 8, ['fork']]));
     assert.ok(f.line.startsWith('From your instrument slot, it is struck at a tile') && f.line.includes('within 8 tiles') && f.line.includes('every 40 turns'), f.line);
     assert.equal(Kit.describe(s, 'nobody'), null);
-    // Every clause of reg/items.js fills from its numbers of record, cleanly.
+    // Every clause of reg/items.js fills from its numbers of record, cleanly (a module's slot,
+    // which a Centrepiece's phase part may hold since M4 COMPOSITE-PHASES, read at its fallback).
     for (const t of ['ITEM_PRIMS', 'INSTRUMENTS', 'KITS', 'CLAUSES', 'REFUSALS']) for (const id of Registry.order(t)) {
       const e = Registry[t][id];
       if (typeof e.clause !== 'string') continue;
-      const text = C.Clauses.fill(e.clause, C.Clauses.params(e.params, null, { depth: 1 }));
+      const text = C.Clauses.fill(C.Clauses.unslot(e.clause, () => false), C.Clauses.params(e.params, null, { depth: 1 }));
       assert.ok(clean(text) && !/[{}]/.test(text) && !/\+ -/.test(text), `${t}.${id}: ${text}`);
     }
   });

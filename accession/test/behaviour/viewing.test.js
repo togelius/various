@@ -277,7 +277,7 @@ module.exports = ({ test, assert, loadCore }) => {
       const shot = r.steps[2].events, under = s.dept.cp.uids;
       if (!shot.some(e => e.k === 'used') || !shot.some(e => (e.k === 'damaged' || e.k === 'missed') && (e.who === dummy || e.target === dummy))) problems.push(`${tag}: the bolt ${json(shot)}`);
       if (shot.some(e => under.includes(e.who) || under.includes(e.target) || (e.cause && under.includes(e.cause.at)))) problems.push(`${tag}: the bolt named a piece under the sheet: ${json(shot)}`);
-      if (X.Text.refusal('sheeted') !== 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it.') problems.push(`${tag}: ${X.Text.refusal('sheeted')}`);
+      if (X.Text.refusal('sheeted') !== 'The Centrepiece is under its dust sheet for the night: you cannot view it, strike it, step onto it or aim an instrument at it, nor open, bash, take from or aim at the case of a treasure it guards, or throw a Solution onto or beside that case.') problems.push(`${tag}: ${X.Text.refusal('sheeted')}`);
     }
     assert.deepEqual(problems, []);
   });

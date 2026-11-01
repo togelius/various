@@ -21,7 +21,15 @@
   const lift = e => own(LIFT, e.cause.why) ? `: ${LIFT[e.cause.why](e)}` : '';
   // While a hall is sealed, the clock's count and regeneration stop (§8.4).
   const opens = `They open once the Centrepiece has gone ${Text.count(N.SEAL_LIFT_TURNS, 'turn')} without hurting you or ending a turn beside you, once it falls or goes under its dust sheet or none of it is left in the hall, or when you read a Re-admission Ticket.`;
-  const since = (e, w) => e.cause.why === 'hunt' && e.cause.by !== undefined && e.cause.by !== 'you' ? `, since ${w.name(e.cause.by)} is hunting you` : '';
+  // A treasure's seal (rules/treasure.js, M4 COMPOSITE-PHASES) names no piece: its why says
+  // what called for it, while the Centrepiece hunts you in its hall: its case first opened or
+  // bashed TREASURE_SEAL_TURNS turns or more ago, or its health at TREASURE_SEAL_HP_PCT% or less.
+  const TREASURE = {
+    touched: () => `, since the Centrepiece is hunting you and its treasure’s case was first opened or bashed ${Text.count(N.TREASURE_SEAL_TURNS, 'turn')} or more ago`,
+    hurt: () => `, since the Centrepiece is hunting you with ${N.TREASURE_SEAL_HP_PCT}% of its full health or less`,
+  };
+  const since = (e, w) => e.cause.why === 'hunt' && e.cause.by !== undefined && e.cause.by !== 'you' ? `, since ${w.name(e.cause.by)} is hunting you`
+    : own(TREASURE, e.cause.why) ? TREASURE[e.cause.why]() : '';
   const STAGES = {
     sealed: (e, w) => `Shutters closed over the hall’s openings${since(e, w)}: it is sealed, and while it is, the clock is stopped and you do not recover health. ${opens}`,
     unsealed: e => `The shutters opened${lift(e)}.${AGAIN.includes(e.cause.why) ? ' They do not close again until you have stepped out of the hall.' : ''}`,

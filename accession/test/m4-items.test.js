@@ -377,14 +377,14 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   // S.9 with its own gallery list, every M4 archetype ready, and its Centrepiece's archetype the
   // test-only core (as ARCH-CP-CORE's tests make one: test_cp, added with the core's hooks),
-  // a treasure guarding the Lamp, with a planted seal rule standing in for COMPOSITE-PHASES'.
+  // a treasure guarding the Lamp, its hall sealed by the treasure's own rule (rules/treasure.js,
+  // M4 COMPOSITE-PHASES).
   function cpCore() {
     const X = readyCore(), R = X.Registry;
     R.define('ARCHETYPES', 'test_cp', { built: 'M4', ready: 'unit', clause: 'Walks a tile at a time and strikes from beside you for {dmg}.', params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'] });
     X.Archetypes.add('test_cp', X.Centrepiece.hooks('test_cp', {}));
     const pack = X.Packs.get('S9');
     pack.centrepiece = Object.assign({}, pack.centrepiece, { archetype: 'test_cp', role: 'centrepiece', specials: ['cp_burst'] });
-    X.Hall.defineSeal('treasure', (s, c) => { for (const u of c.uids) { const a = X.Actors.byUid(s, u); if (a && !a.gone && a.mode === 'hunting') return { why: 'touched' }; } return null; });
     return X;
   }
 

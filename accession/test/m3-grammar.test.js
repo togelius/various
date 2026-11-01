@@ -247,13 +247,17 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const slotted = cl => Clauses.slots(cl || '').filter(sl => (s.flags || []).includes(sl.id) && C.Modules.defined(sl.id)).flatMap(sl => [sl.id, ...(R.MODULES[sl.id].special ? [R.MODULES[sl.id].special] : [])]);
       const trig = s.trigger ? R.TRIGGERS[s.trigger] : null;
       const form = typeof s.form === 'string' && R.CLAUSES['cp_' + s.form] ? ['cp_' + s.form] : [];
+      // A Centrepiece's phase parts, phase by phase, before its wake clause (A.4's Ordinance's,
+      // M4 ENSEMBLE-CORE: CLAUSES entries, which set nothing inside them), each with any module
+      // its clause holds a slot for right after it (S.9's Composite's phase 2, M4
+      // COMPOSITE-PHASES: alarm_network, its special inside it).
+      const refs = (Array.isArray(s.phases) ? s.phases : []).flatMap(ph => (ph && ph.parts) || []);
+      const entryOf = ref => R[ref.slice(0, ref.indexOf('.'))][ref.slice(ref.indexOf('.') + 1)];
+      const phased = refs.flatMap(ref => [ref.slice(ref.indexOf('.') + 1), ...slotted(entryOf(ref).clause)]);
       // A module no slot of its clauses holds is a sentence of its own after the modifiers, its
       // special inside it (MOD-COPIES: copies_weaken on A.4's Seated Clerks).
-      const inSlot = id => [arch.clause, trig && trig.clause].some(cl => Clauses.slots(cl || '').some(sl => sl.id === id));
+      const inSlot = id => [arch.clause, trig && trig.clause, ...refs.map(ref => entryOf(ref).clause)].some(cl => Clauses.slots(cl || '').some(sl => sl.id === id));
       const own = (s.flags || []).filter(id => C.Modules.defined(id) && !inSlot(id)).flatMap(id => [id, ...(R.MODULES[id].special ? [R.MODULES[id].special] : [])]);
-      // A Centrepiece's phase parts, phase by phase, before its wake clause (A.4's Ordinance's,
-      // M4 ENSEMBLE-CORE: CLAUSES entries, which set nothing inside them).
-      const phased = (Array.isArray(s.phases) ? s.phases : []).flatMap(ph => (ph && ph.parts) || []).map(ref => ref.slice(ref.indexOf('.') + 1));
       const want = [s.archetype, ...(arch.special ? [arch.special] : []), ...(arch.inflicts || []), ...slotted(arch.clause), ...role, ...form, ...(s.modifiers || []), ...own, ...phased,
         ...(trig && trig.replacesWake ? [] : [arch.wake || 'wake']), ...(trig ? [s.trigger, ...slotted(trig.clause)] : [])];
       same(got, want, s.id);

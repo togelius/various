@@ -17,7 +17,10 @@ module.exports = ({ test, assert, loadCore }) => {
   const json = x => JSON.stringify(x);
   const waits = n => Array.from({ length: n }, () => ({ a: 'wait' }));
   const ok = (results, name) => { const f = H.failures(results); assert.equal(f.length, 0, `${name}:\n${f.slice(0, 5).join('\n')}`); };
-  const list = () => { const l = H.species(C, 'MODULES.alarm_network'); assert.ok(l.length >= 7, `${l.length} species and depths`); return l; };
+  // (The Wader's scenarios, for the species it acts on as a Wader: S.9's Composite, a
+  // Centrepiece flagged with it from its second phase, M4 COMPOSITE-PHASES, has its own in
+  // behaviour/completing_guardian-phases.test.js.)
+  const list = () => { const l = H.species(C, 'MODULES.alarm_network').filter(x => typeof x.sp.form !== 'string'); assert.ok(l.length >= 7, `${l.length} species and depths`); return l; };
   const tough = (more) => Object.assign({ hp: 999, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 }, more || {});
   const waders = s => s.actors.filter(a => a.arch === 'patrol_guard');
   const ID = 'alarm_network';

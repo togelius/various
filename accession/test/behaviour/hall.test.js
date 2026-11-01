@@ -472,12 +472,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
       if (stages(r.events).length) problems.push(`d${depth}: after the defeat ${json(stages(r.events).map(e => e.stage))}`);
     }
-    // Hall.onDefeat at once: a fight's defeat, a treasure guardian's (its hall sealed by a
-    // planted treasure rule), and a Centrepiece under its dust sheet.
+    // Hall.onDefeat at once: a fight's defeat, a treasure guardian's (its hall sealed by the
+    // treasure's own rule, rules/treasure.js: its case touched TREASURE_SEAL_TURNS turns ago,
+    // planted, while it hunts you), and a Centrepiece under its dust sheet.
     for (const [form, sheet, why] of [['fight', null, 'defeat'], ['treasure', null, 'treasure'], ['fight', { x: 1, y: 4 }, 'sheet']]) {
       const X = loadCore();
-      X.Hall.defineSeal('treasure', () => ({ why: 'touched' }));
       const s = hall(X, 3, { form });
+      if (form === 'treasure') s.dept.cp.touched = { turn: s.turn - C.N.TREASURE_SEAL_TURNS };
       H.play(X, s, [wait], { inv: 'all' });
       if (!X.Clock.sealed(s)) { problems.push(`${form}: not sealed`); continue; }
       s.dept.cp.sheet = sheet;
@@ -497,18 +498,22 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const r = H.play(C, s, Array(4).fill(wait), { inv: 'all' });
     assert.equal(stages(r.events).length, 0);
     assert.equal(C.Hall.calls(s), null);
+    // The treasure's rule is defined once, by its owner (rules/treasure.js, M4 COMPOSITE-PHASES):
+    // its case touched TREASURE_SEAL_TURNS turns before turn 2 (planted), it seals then.
     const X = loadCore();
-    X.Hall.defineSeal('treasure', (state, c) => state.turn >= 2 ? { why: 'touched' } : null);
     assert.throws(() => X.Hall.defineSeal('treasure', () => null), /defined twice/);
     const t = hall(X, 3, { form: 'treasure' });
+    t.dept.cp.touched = { turn: 2 - C.N.TREASURE_SEAL_TURNS };
     const q = H.play(X, t, Array(4).fill(wait), { inv: 'all' });
     assert.deepEqual(bad(q, 'treasure'), []);
     assert.equal(json(stages(q.events).map(e => [e.turn, e.stage, e.cause.why])), json([[2, 'sealed', 'touched']]));
-    assert.match(say(X, t, stages(q.events)[0]), /^Shutters closed over the hall’s openings: it is sealed/);
-    // A rule that answers nonsense is a bug.
+    assert.match(say(X, t, stages(q.events)[0]), /^Shutters closed over the hall’s openings, since the Centrepiece is hunting you and its treasure’s case was first opened or bashed 12 turns or more ago: it is sealed/);
+    // A rule that answers nonsense is a bug (a form of its own, planted).
     const Y = loadCore();
-    Y.Hall.defineSeal('treasure', () => ({ why: 3 }));
-    assert.throws(() => Y.Step.step(hall(Y, 3, { form: 'treasure' }), wait), /seal rule gave/);
+    Y.Hall.defineSeal('planted', () => ({ why: 3 }));
+    const u = hall(Y, 3, { form: 'treasure' });
+    u.dept.cp.form = 'planted';
+    assert.throws(() => Y.Step.step(u, wait), /seal rule gave/);
   });
 
   test('your memory of an opening follows its shutter, as the stage event tells you: a remembered opening out of sight shows its shutter, and opens again; one never seen stays unseen', () => {
@@ -569,13 +574,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(C.Hall.entering(at([8, 2], [], { piece: { mode: 'dormant' } }), step)), json({ by: null, form: 'fight', seals: false }));
     s = at([8, 2], [], { form: 'treasure' });
     assert.match(C.Text.confirm('hall', C.Hall.entering(s, step), nameOf(s)).line, /^This hall can seal while you are inside it, as its guardian’s label says: /);
-    // A treasure's hall whose own rule calls for the seal (a planted one, as COMPOSITE-PHASES's
-    // will): it seals behind you, and the words never say its guardian hunts you, though it does;
-    // and once it waits on an opening, the waiting words do not either. Both come true.
+    // A treasure's hall whose own rule calls for the seal (COMPOSITE-PHASES', rules/treasure.js:
+    // its case touched TREASURE_SEAL_TURNS turns ago, planted, while its guardian hunts you): it
+    // seals behind you, and the words never say its guardian hunts you, though it does; and once
+    // it waits on an opening, the waiting words do not either. Both come true.
     {
       const X = loadCore();
-      X.Hall.defineSeal('treasure', () => ({ why: 'touched' }));
-      const t = hall(X, 3, { you: [8, 2], form: 'treasure' }), te = X.Hall.entering(t, step);
+      const t = hall(X, 3, { you: [8, 2], form: 'treasure' });
+      t.dept.cp.touched = { turn: t.turn - C.N.TREASURE_SEAL_TURNS };
+      const te = X.Hall.entering(t, step);
       assert.equal(json(te), json({ by: null, form: 'treasure', seals: true }));
       const line = X.Text.confirm('hall', te, nameOf(t)).line;
       assert.match(line, /^The hall will seal behind you as this turn ends, as its guardian’s label says, unless someone then stands in one of its openings: /);
@@ -583,6 +590,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       const q = H.play(X, t, [step], { inv: 'all' });
       assert.equal(json(stages(q.events).map(e => [e.stage, e.cause.why])), json([['sealed', 'touched']]));
       const u = hall(X, 3, { you: [7, 2], form: 'treasure', more: [{ sp: 'dummy', at: [8, 4], mode: 'dormant', stats: BODY }] });
+      u.dept.cp.touched = { turn: u.turn - C.N.TREASURE_SEAL_TURNS };
       const w = stages(H.play(X, u, [wait], { inv: 'all' }).events, 'waiting');
       assert.equal(say(X, u, w[0]), 'The hall would seal, but the training dummy stands in an opening: its shutters close once every opening is clear while you are inside.');
     }
