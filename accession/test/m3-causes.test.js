@@ -151,8 +151,10 @@ module.exports = ({ test, assert, root, path }) => {
   test('wander, the battery\'s department policy, explores and fights, and decides the same alone in a fresh context as after other runs', () => {
     const Sim = require(path.join(root, 'tools/sim.js'));
     for (const d of ['S9', 'M11']) Sim.runArena({ dept: d }, 'wander', 1, { C, depth: 2 });
-    const after = Sim.runArena({ dept: 'A4' }, 'wander', 2, { C, depth: 3, check: true });
-    const alone = Sim.runArena({ dept: 'A4' }, 'wander', 2, { C: Battery.load(), depth: 3 });
+    // Seed 3 (MOD-COPIES' landing: on seed 2 a full-health Trustee's spare, no longer a plaster
+    // cast, ends the walk after 4 steps of exploring, short of the 5 this asks).
+    const after = Sim.runArena({ dept: 'A4' }, 'wander', 3, { C, depth: 3, check: true });
+    const alone = Sim.runArena({ dept: 'A4' }, 'wander', 3, { C: Battery.load(), depth: 3 });
     assert.equal(json(after.replay.actions), json(alone.replay.actions));
     assert.equal(json(after.reasons), json(alone.reasons));
     assert.equal(after.violations.length, 0, json(after.violations.slice(0, 3)));
