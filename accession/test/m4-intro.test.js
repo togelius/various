@@ -4,16 +4,19 @@
 //   - the plan's Intro is the stamp's, row by row; every onward opening is at walk INTRO_DEPTH or
 //     more, and none is reached without crossing the cut or passing within k of each near;
 //   - every exhibit the stamp places stands at walk 9–14, and its waking ring (RING_MOVING
-//     walking tiles in sight) reaches no tile of the safe zone; a station's line stays in the
-//     Intro, beyond the safe zone, and crosses every way onward;
+//     walking tiles in sight) reaches no tile of the safe zone, the partition's door shut or
+//     open (you open it, and stand in it); a station's line stays in the Intro, beyond the
+//     safe zone, and crosses every way onward, and the station is in sight from the cut;
 //   - each stamp teaches as it says: S.9's Grazer is hidden by the columns from some of the way
 //     east and from where the Hoppers wait; A.4's original stands on the visitors' side of the
 //     counter and its spares beyond it;
 //   - each stamp is in keeping with its programme (identity, below), and so is the department
 //     counted whole with its Intro;
+//   - each stamp's exhibits are flagged with its signature module alone, and their lines name no
+//     other module's rule (§5.1: the Intro teaches only its signature);
 // and, populated (the M4 archetypes planted ready, and an empty gallery list, so that the
 // stamp's marks are placed), each exhibit stands on its mark as one instance with its line, and
-// Archetypes.wakeRegion keeps out of the safe zone; Populate.check holds a stamp's marks to
+// Archetypes.wakeRegion keeps out of the safe zone, the Intro's doors shut or open; Populate.check holds a stamp's marks to
 // COPY_GROUP and refuses an exhibit on a stretch row. The walks, rings and shares here are
 // worked out from the plan's rows by oracles written apart from the generator and population.
 'use strict';
@@ -35,7 +38,7 @@ module.exports = ({ test, assert, loadCore }) => {
   // Tiles you can step onto (a closed door opens as you step; a staff door, for a visitor of
   // its grade); the public walk the identity shares count from (staff doors shut); and
   // design/layout.md §13.2's blockers, the glass (see-through) among them.
-  const STEP = '.,+EXbwS', PUBLIC = '.,+EXbw', BLOCK = 'vfp~loH|cC', GLASS = 'vfp~l';
+  const STEP = '.,+\'EXbwS', PUBLIC = '.,+\'EXbw', BLOCK = 'vfp~loH|cC', GLASS = 'vfp~l';
   const at = (plan, x, y) => (x >= 0 && y >= 0 && x < plan.w && y < plan.h ? plan.tiles[y][x] : '#');
   // Walking distances over `tiles` from starts: 8 ways, a diagonal only past two tiles that can
   // be stepped onto; the tiles in `walls` never stepped on (a diagonal may pass between two of
@@ -81,9 +84,13 @@ module.exports = ({ test, assert, loadCore }) => {
   // The stamp's exhibits in a plan: {ch, sp, x, y, e} for each mark whose legend entry names one.
   const exhibitsOf = (plan, stamp) => plan.intro.marks.filter(m => own(stamp.legend, m.ch) && stamp.legend[m.ch].sp !== undefined)
     .map(m => ({ ch: m.ch, sp: stamp.legend[m.ch].sp, x: m.x, y: m.y, e: stamp.legend[m.ch] }));
+  // The plan with every closed door open, as you leave the Intro's after opening it and standing
+  // in it: its tiles '+' made "'" (an open door, which sight passes and you can stand in).
+  const opened = plan => Object.assign({}, plan, { tiles: plan.tiles.map(row => row.replace(/\+/g, "'")) });
   // The tiles from which you would give an exhibit at (x, y) a ring pip with a moving ring: tiles
   // you can stand on (not a closed door) within RING_MOVING walking tiles of it (from a
   // neighbour, one further, for a tile no one steps onto) and in its line of sight (§8.2).
+  // Asked of a plan with its doors open (opened), it counts the doorway you stand in.
   function ring(plan, x, y) {
     const starts = STEP.includes(at(plan, x, y)) ? [[x, y]] : [];
     if (!starts.length) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && STEP.includes(at(plan, x + dx, y + dy))) starts.push([x + dx, y + dy]);
@@ -202,6 +209,32 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
+  // §5.1: the Intro teaches only its signature module. Each exhibit a stamp places carries no
+  // other module's flag (lint-registry fails one too), so no other module's part joins its line;
+  // and no part of its line that is built (past ready false) names another of its pack's modules
+  // by one of their keywords, with every module of the pack on, at any depth. (The clockwork
+  // modifier's M2 placeholder, "rain stops it", waits for its owner, whose clause must leave the
+  // rain to weather_cases' part, which an exhibit carries only when flagged with it.)
+  test('each stamp\'s exhibits are flagged with its signature module alone, and their lines name no other module\'s rule', () => {
+    const R = C.Registry;
+    for (const acc of ACCS) {
+      const pack = Packs.get(acc), st = pack.intro, mods = pack.modules.map(m => m.id);
+      const sig = (pack.modules.find(m => m.role === 'signature') || pack.modules[0]).id;
+      const others = mods.filter(id => id !== sig), words = others.flatMap(id => R.MODULES[id].keywords || []);
+      for (const ch of Object.keys(st.legend).sort()) {
+        const e = st.legend[ch];
+        if (e.sp === undefined) continue;
+        const sp = Packs.species(acc, e.sp), flags = sp.flags || [];
+        assert.equal(json(flags.filter(f => f !== sig)), '[]', `${acc}'s stamp '${ch}': ${sp.id} is flagged with another module`);
+        for (let depth = 1; depth <= 7; depth++) for (const part of C.Clauses.of(sp, { depth, modules: mods })) {
+          assert.ok(part.kind !== 'module' || part.id === sig, `${acc} ${sp.id}: its line holds ${part.id}'s part`);
+          if (part.ready === false) continue;
+          for (const w of words) assert.ok(!new RegExp(`\\b${w}\\b`, 'i').test(part.text), `${acc} ${sp.id}: its ${part.kind} ${part.id} says "${w}" (${others.join(', ')}): "${part.text}"`);
+        }
+      }
+    }
+  });
+
   // ---- 1,000 seeds of each department ----
 
   test('on 1,000 seeds of each department the Intro is its stamp; every way onward crosses the cut and passes each near, at walk 12 or more; every exhibit stands at walk 9–14 with its ring and line out of the safe zone; each teaches as it says; each is in keeping with its programme', () => {
@@ -240,18 +273,24 @@ module.exports = ({ test, assert, loadCore }) => {
         }
         // The exhibits: at walk 9–14; their rings miss the safe zone; a station's line stays in
         // the Intro, beyond the safe zone, and crosses every way onward.
-        const xs = exhibitsOf(plan, st);
+        const xs = exhibitsOf(plan, st), open = opened(plan);
         for (const a of xs) {
           const d = reach(plan, D, a.x, a.y);
           lo = Math.min(lo, d); hi = Math.max(hi, d);
           assert.ok(d >= NEAREST && d <= FARTHEST, `${where}: ${a.sp} ('${a.ch}') at ${a.x},${a.y} is at walk ${d}`);
-          for (const [tx, ty] of ring(plan, a.x, a.y)) if (D[ty * W + tx] >= 0 && D[ty * W + tx] <= N.SAFE_ZONE) assert.fail(`${where}: ${a.sp}'s ring reaches ${tx},${ty}, at walk ${D[ty * W + tx]}`);
+          // Its ring, the doors shut and open (the walks are the same either way).
+          for (const p of [plan, open]) for (const [tx, ty] of ring(p, a.x, a.y)) if (D[ty * W + tx] >= 0 && D[ty * W + tx] <= N.SAFE_ZONE) assert.fail(`${where}: ${a.sp}'s ring reaches ${tx},${ty}, at walk ${D[ty * W + tx]}${p === open ? ', its door open' : ''}`);
           if (!a.e.dir) continue;
           const ln = line(plan, a.x, a.y, a.e.dir), end = [ln[ln.length - 1][0] + DIRS[a.e.dir][0], ln[ln.length - 1][1] + DIRS[a.e.dir][1]];
           assert.ok(ln.length >= 3, `${where}: the line is ${ln.length} tiles`);
           assert.ok(!inside(rm, end[0], end[1]) || !Grid.seeThrough(plan, end[0], end[1]), `${where}: the line stops at the Intro's edge or at what sight cannot pass`);
-          for (const [tx, ty] of ln) assert.ok(D[ty * W + tx] > N.SAFE_ZONE, `${where}: the line's tile ${tx},${ty} is at walk ${D[ty * W + tx]}`);
+          // Every tile of it you can stand on is beyond the safe zone (it may pass over low
+          // furniture, where no one stands).
+          for (const [tx, ty] of ln) if (STEP.includes(at(plan, tx, ty))) assert.ok(D[ty * W + tx] > N.SAFE_ZONE, `${where}: the line's tile ${tx},${ty} is at walk ${D[ty * W + tx]}`);
           assert.equal(json(reached(plan, walk(plan, [[ex, ey]], ln.concat([[a.x, a.y]])))), '[]', `${where}: a way onward misses the line`);
+          // The station is in sight from the cut, the door open: you can watch it from the safe
+          // doorway before you step onto its line.
+          for (const [cx, cy] of plan.intro.cut) assert.ok(Grid.los(open, cx, cy, a.x, a.y), `${where}: the station at ${a.x},${a.y} is out of sight from the cut ${cx},${cy}`);
         }
         assert.equal(xs.length, st.map.reduce((k, row) => k + [...row.slice(1)].filter(ch => own(st.legend, ch) && st.legend[ch].sp !== undefined).length, 0), `${where}: each exhibit of the stamp is marked once`);
         // Each teaches as its file says.
@@ -343,9 +382,14 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.equal(a.mode, 'dormant', `${where}: ${a.uid} sleeps`);
       }
       if (acc === 'A4') assert.equal(json(inIntro.map(a => a.sp).sort()), json(['A4.1', 'A4.1a', 'A4.1a']), `${where}: one original and its two spares`);
-      // Archetypes.wakeRegion over the visit's first SAFE_ZONE_TURNS turns (LV6's question).
+      // Archetypes.wakeRegion over the visit's first SAFE_ZONE_TURNS turns (LV6's question), with
+      // the Intro's doors shut as made, and again with them open, as you leave them once you
+      // have stood in one (the safe zone's walks are the same).
       const safe = Grid.distances(m, [m.entrance], N.SAFE_ZONE);
-      for (const a of inIntro) for (const [x, y] of X.Archetypes.wakeRegion(s, a, N.SAFE_ZONE_TURNS)) assert.ok(safe[y * m.w + x] < 0, `${where}: ${a.uid}'s wake region reaches ${x},${y} in the safe zone`);
+      for (const pass of ['shut', 'open']) {
+        if (pass === 'open') for (let y = intro.y0; y <= intro.y1; y++) m.tiles[y] = m.tiles[y].slice(0, intro.x0) + m.tiles[y].slice(intro.x0, intro.x1 + 1).replace(/\+/g, "'") + m.tiles[y].slice(intro.x1 + 1);
+        for (const a of inIntro) for (const [x, y] of X.Archetypes.wakeRegion(s, a, N.SAFE_ZONE_TURNS)) assert.ok(safe[y * m.w + x] < 0, `${where}: ${a.uid}'s wake region reaches ${x},${y} in the safe zone, the doors ${pass}`);
+      }
       placed += inIntro.length;
     }
     assert.equal(placed, 100 * (3 + 3 + 2));
@@ -353,7 +397,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('readiness: until its archetype is ready an exhibit of the stamp is not placed, and the log says so; the ready ones are', () => {
     const { X } = core(false);
-    const want = { S9: ['S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: ['M11.5'] }, held = { S9: ['S9.1 (stamp g)'], A4: [], M11: ['M11.2 (stamp s)'] };
+    const want = { S9: ['S9.6', 'S9.6'], A4: ['A4.1', 'A4.1a', 'A4.1a'], M11: ['M11.5'] }, held = { S9: ['S9.1 (stamp g)'], A4: [], M11: ['M11.12 (stamp s)'] };
     for (const acc of ACCS) for (let seed = 1; seed <= 10; seed++) {
       const out = X.Dept.generate(seed, acc, depthOf(seed)), m = out.state.dept, intro = m.rooms.find(r => r.role === 'intro');
       assert.equal(json(out.state.actors.filter(a => a.uid !== 'you' && m.roomOf[a.y][a.x] === intro.id).map(a => a.sp).sort()), json(want[acc]), `${acc} seed ${seed}`);
