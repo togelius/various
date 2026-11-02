@@ -89,6 +89,13 @@ subdirectory with its own README:
   Open `square-off/index.html`, or build the single-file copy with
   `npm run build:standalone` in `square-off/`.
 
+- **[drip-trip/](drip-trip/)** — Drip Trip, a one-button adventure about a
+  drop hopping eighteen magnetic-tile towers to a thirsty plant. Charged
+  jumps, diamond streaks, dampness, checkpoint gifts and clacking tiles mix
+  ideas from Bollard Hop, Weft, Absorb This, GASP! and Clack Stack. One HTML
+  file, made for a keyboard, mouse or touch screen. Open
+  `drip-trip/index.html`.
+
 ## Repository policy
 
 **All work in this repository happens directly on `main`.** No feature

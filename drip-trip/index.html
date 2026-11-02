@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f0e5">
+<meta name="description" content="A small drop. A big way home. A cozy, one-button hopping game made from five little games.">
+<title>Drip Trip — a little way home</title>
+<style>
+  :root{color-scheme:light;--ink:#243c43;--blue:#08678b;--paper:#f5f0e5;--muted:#6d7771;--line:#d9d9ca;--orange:#d76239}
+  *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  button{font:inherit;cursor:pointer;color:inherit}button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--orange);outline-offset:5px}button:disabled{cursor:default}
+  .page{max-width:1320px;margin:auto;padding:30px 44px 20px}.masthead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.identity{display:flex;gap:14px;align-items:center}.logo{width:42px;height:52px}.eyebrow{font-size:10px;letter-spacing:.19em;font-weight:750;color:var(--muted)}h1{margin:0;font:bold 39px/.98 Georgia,serif;letter-spacing:-2px}.tagline{font:italic 16px Georgia,serif;color:var(--muted);margin:7px 0 0}.controls{display:flex;gap:9px}.utility{border:1px solid #cecec0;border-radius:50%;background:transparent;min-width:46px;min-height:46px;font-size:18px;display:grid;place-items:center}.utility:hover{background:#e7e8dc}.utility[aria-pressed=true]{background:#dbe7df}
+  .dashboard{display:flex;align-items:center;gap:30px;padding:16px 2px 15px;border-top:1px solid var(--line)}.meter{width:210px}.stat-label{display:flex;justify-content:space-between;font-size:10px;font-weight:750;letter-spacing:.13em;margin-bottom:7px}.water-track{height:7px;background:#dcded0;border-radius:20px;overflow:hidden}.water-fill{height:100%;width:100%;background:var(--blue);transition:width .16s;border-radius:20px}.journey{flex:1}.journey-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.journey-title{font-size:11px;font-weight:700;letter-spacing:.08em}.journey-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}.stops{display:flex;gap:4px;margin-top:9px}.stop{flex:1;height:4px;border-radius:3px;background:#deded1}.stop:nth-child(6),.stop:nth-child(12){margin-right:7px}.stop.done{background:#728966}.streak{min-width:106px;border-left:1px solid var(--line);padding-left:24px}.streak strong{display:block;font:italic 25px Georgia,serif}.streak small{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.12em}
+  .playfield{position:relative;overflow:hidden;border-radius:14px;background:#e8e6d4;border:1px solid #dad7c5;box-shadow:0 8px 28px #474c3510;isolation:isolate}canvas{display:block;width:100%;height:min(58vw,570px);touch-action:none;cursor:pointer;-webkit-user-select:none;user-select:none}.scene-label{position:absolute;left:25px;top:20px;font-size:10px;letter-spacing:.15em;font-weight:800;pointer-events:none;color:#5c6c62}.scene-label span{display:block;font:italic 19px Georgia,serif;letter-spacing:0;margin-top:3px;color:#394f48}.corner-note{position:absolute;right:24px;top:20px;font:italic 14px Georgia,serif;color:#6b7565;pointer-events:none}.hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#f8f5e8ed;padding:8px 18px;border-radius:30px;font-size:12px;border:1px solid #c9cbbb;color:#36524e;pointer-events:none}.hint b{font-weight:750}.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;background:#e9e7d423;backdrop-filter:blur(2px)}.overlay[hidden]{display:none}.card{max-height:100%;overflow-y:auto;width:min(440px,100%);background:#faf7ecf5;box-shadow:0 15px 70px #35483c22;border:1px solid #fff9;padding:30px 34px;border-radius:15px}.card h2{font:italic 42px/1.04 Georgia,serif;letter-spacing:-1.7px;margin:10px 0 14px}.card p{font-size:14px;line-height:1.65;color:#52645e;margin:10px 0}.card .kicker{font-size:10px;font-weight:800;letter-spacing:.15em;color:#b75e40}.primary{border:0;background:var(--blue);color:#fff;border-radius:28px;padding:13px 25px;font-weight:700;margin-top:14px;min-height:48px}.primary:hover{background:#054d69}.lesson{display:flex;gap:12px;align-items:center;margin:17px 0;border-top:1px solid #daddcc;border-bottom:1px solid #daddcc;padding:13px 0}.key{display:grid;place-items:center;min-width:66px;min-height:35px;border:1px solid #c9ccbf;border-bottom:3px solid #bcc5b8;border-radius:7px;font-size:10px;font-weight:800;letter-spacing:.08em}.lesson div{font-size:12px;line-height:1.5}.lesson strong{color:var(--ink)}.tiny{font-size:11px!important;color:#7c8172!important}.choices{display:grid;gap:10px;margin-top:18px}.choice{text-align:left;background:#f1f1e4;border:1px solid #cfd8c9;padding:13px 16px;border-radius:9px;min-height:72px}.choice:hover{background:#e1ebdb;border-color:#6c957a}.choice strong{display:block;font-size:14px}.choice span{display:block;font-size:12px;color:#647367;margin-top:3px}.result{display:flex;gap:22px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:18px 0}.result strong{display:block;font:italic 25px Georgia,serif}.result small{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--muted)}
+  .below{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:15px;color:#69756a;font-size:11px}.below kbd{font:10px ui-monospace,monospace;border:1px solid #d6d8ca;border-radius:4px;padding:2px 5px}.edition{font:italic 14px Georgia,serif}details{margin-top:23px;border-top:1px solid var(--line);padding-top:15px;font-size:12px;color:#607166}summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;font-size:11px}summary::-webkit-details-marker{display:none}summary:after{content:'+';font-size:17px}details[open] summary:after{content:'−'}.influences{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;padding:18px 0 4px}.influences b{display:block;color:#304e4d;font-size:12px;margin-bottom:4px}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0)}
+  @media(min-width:1000px){.overlay.intro{justify-content:flex-start;padding-left:7%}.overlay.intro .card{width:415px}}
+  @media(max-width:650px){.page{padding:18px 15px 18px}.masthead{margin-bottom:16px}.logo{width:31px;height:42px}.identity{gap:10px}h1{font-size:32px}.eyebrow{font-size:8px}.tagline{font-size:13px}.utility{min-width:42px;min-height:44px}.controls{gap:6px}.dashboard{gap:16px;padding:12px 0}.meter{width:106px}.stat-label{font-size:8px}.streak{min-width:68px;padding-left:12px}.streak strong{font-size:22px}.streak small{font-size:8px}.journey-title{font-size:9px}.journey-count{font-size:10px}.journey-head{gap:3px}.stop:nth-child(6),.stop:nth-child(12){margin-right:3px}.stops{gap:2px}canvas{height:clamp(430px,112vw,570px)}.overlay{padding:15px}.card{padding:20px}.card h2{font-size:34px;margin:8px 0 12px}.lesson{margin:13px 0;padding:10px 0}.card p{font-size:13px}.scene-label{left:17px;top:16px}.corner-note{right:16px;top:17px;font-size:12px}.hint{font-size:10px;padding:8px 12px}.below{align-items:flex-start;font-size:10px}.keyboard-help{display:none}.influences{grid-template-columns:1fr 1fr;gap:15px}.edition{font-size:12px}.result{gap:17px}}
+  @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="masthead">
+    <div class="identity"><svg class="logo" viewBox="0 0 45 55" aria-hidden="true"><path d="M23 2C20 15 4 24 4 36a19 19 0 0 0 38 0C42 23 28 15 23 2Z" fill="#167a9c"/><ellipse cx="15" cy="31" rx="3" ry="5" fill="#f5f0e5"/><circle cx="16" cy="32" r="1.5" fill="#244650"/><ellipse cx="28" cy="31" rx="3" ry="5" fill="#f5f0e5"/><circle cx="29" cy="32" r="1.5" fill="#244650"/><path d="M18 40q5 5 10-1" fill="none" stroke="#f5f0e5" stroke-width="2" stroke-linecap="round"/></svg><div><div class="eyebrow">A LITTLE ONE-BUTTON ADVENTURE</div><h1>Drip Trip<span style="color:#c96a46">.</span></h1><p class="tagline">Every little drop belongs somewhere.</p></div></div>
+    <div class="controls"><button class="utility" id="sound" aria-label="Mute sound" aria-pressed="false" title="Sound (M)">♪</button><button class="utility" id="pause" aria-label="Pause game" aria-pressed="false" title="Pause (P)"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path d="M3 2v12M11 2v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+  </header>
+  <section class="dashboard" aria-label="Game status">
+    <div class="meter"><div class="stat-label"><span>DAMPNESS</span><span id="water-number">100%</span></div><div class="water-track" role="meter" aria-label="Dampness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="water-meter"><div class="water-fill" id="water-fill"></div></div></div>
+    <div class="journey"><div class="journey-head"><span class="journey-title" id="journey-title">A PLANT IS WAITING</span><span class="journey-count" id="count">0 / 18</span></div><div class="stops" id="stops" aria-hidden="true"></div></div>
+    <div class="streak"><strong id="combo">×0</strong><small>PERFECT STREAK</small></div>
+  </section>
+  <section class="playfield" aria-label="Drip Trip game">
+    <canvas id="game" tabindex="0" aria-label="Hold Space, the mouse button, or a finger to aim a hop. Release to jump. Land on the next tile tower. Collect diamonds to stay damp.">This game needs a browser with HTML Canvas support.</canvas>
+    <div class="scene-label" id="scene-label">01 / THE RUG<span>Small beginnings.</span></div><div class="corner-note" id="corner-note">home is eighteen hops away ↗</div>
+    <div class="hint" id="hint"><b>HOLD</b> to aim · <b>RELEASE</b> to hop</div>
+    <div class="overlay intro" id="overlay"><div class="card" id="card"></div></div>
+  </section>
+  <div class="below"><span><b>Hold</b> to aim. <b>Release</b> to hop. That’s the whole idea.</span><span class="keyboard-help"><kbd>SPACE</kbd> hop &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound</span><span class="edition">Five games. One little adventure.</span></div>
+  <details><summary>A few familiar things, woven together</summary><div class="influences"><div><b>Bollard Hop</b>Hold-and-release jumps and an honest landing arc.</div><div><b>Weft</b>A stitched trail, diamonds, and growing streak rewards.</div><div><b>Absorb This</b>A little drop called DRIP, with dampness to look after.</div><div><b>GASP!</b>A fresh route each run, with a useful gift at each checkpoint.</div><div><b>Clack Stack</b>Perfect landings clack a magnetic tile onto your tower.</div></div></details>
+  <div class="sr-only" id="announce" role="status" aria-live="polite"></div>
+</main>
+<script>
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const canvas = $('game'), ctx = canvas.getContext('2d');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TOTAL = 18, G = 920, R = 15, CHARGE_TIME = 1.18;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const palette = ['#83baba', '#dfa06c', '#b0abc7', '#a8bc83', '#e0a69c'];
+  let W = 1000, H = 600, dpr = 1, mode = 'title', resumeMode = 'ready';
+  let platforms = [], player, current = 0, camera = 0, charge = 0, held = null;
+  let water = 100, streak = 0, bestStreak = 0, perfects = 0, falls = 0, seed = 0;
+  let wide = 0, wax = 0, visited = new Set(), checkpoints = new Set(), time = 0, elapsed = 0;
+  let particles = [], trail = [], floats = [], flight = null, recoverTimer = 0, squish = 0;
+  let soundOn = true, audio, last = performance.now(), lastHud = 0, best = 0;
+  let banner = '', bannerUntil = 0, landingStamp = 0;
+  try { best = Number(localStorage.getItem('drip-trip-best') || 0); } catch (_) {}
+  const sectionNames = ['THE RUG', 'THE LITTLE CLIMB', 'THE WINDOWSILL'];
+  const sectionLines = ['Small beginnings.', 'A little higher. A little braver.', 'Someone is waiting for you.'];
+  for (let i = 0; i < TOTAL; i++) { const dot = document.createElement('span'); dot.className = 'stop'; $('stops').append(dot); }
+  function rng(initial) { let s = initial >>> 0; return () => { s += 0x6D2B79F5; let n = s; n = Math.imul(n ^ n >>> 15, n | 1); n ^= n + Math.imul(n ^ n >>> 7, n | 61); return ((n ^ n >>> 14) >>> 0) / 4294967296; }; }
+  function makeRoute(s) {
+    const random = rng(s), out = [{ x: 100, y: 452, width: 128, color: 0, stack: 0, diamond: false }];
+    for (let i = 1; i <= TOTAL; i++) {
+      const chapter = Math.floor((i - 1) / 6), previous = out[i - 1];
+      out.push({ x: previous.x + 152 + random() * 53, y: 452 - chapter * 37 + (random() - .5) * 28,
+        width: i === TOTAL ? 145 : 112 - chapter * 4 + random() * 15, color: i % palette.length, stack: 0, diamond: true });
+    }
+    return out;
+  }
+  function top(p) { return p.y - p.stack * 17; }
+  function width(p) { return p.width + wide * 26; }
+  function origin() { const p = platforms[current]; return {x: p.x, y: top(p) - R}; }
+  function velocity(power) { return { vx: 115 + power * 190, vy: -(220 + power * 205) }; }
+  // Both the ghost and live hop use this trajectory and descending-top intersection.
+  function point(f, t) { return {x: f.x + f.vx * t, y: f.y + f.vy * t + G * t * t / 2}; }
+  function crossing(f, p) {
+    const c = f.y + R - top(p), discriminant = f.vy * f.vy - 2 * G * c;
+    if (discriminant < 0) return null;
+    const t = (-f.vy + Math.sqrt(discriminant)) / G;
+    if (t <= .001) return null;
+    const x = f.x + f.vx * t;
+    return { t, x, hit: Math.abs(x - p.x) <= width(p) / 2 - 5, perfect: Math.abs(x - p.x) <= 16 };
+  }
+  function predict(power) { const o = origin(), v = velocity(power); return crossing({...o, ...v}, platforms[current + 1]); }
+  function newGame() {
+    seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+    platforms = makeRoute(seed); current = 0; camera = 0; water = 100; charge = 0;
+    streak = 0; bestStreak = 0; perfects = 0; falls = 0; wide = 0; wax = 0; elapsed = 0;
+    visited = new Set([0]); checkpoints = new Set(); trail = []; particles = []; floats = [];
+    held = null; flight = null; player = origin(); mode = 'ready'; banner = ''; hideCard();
+    updateHud(); say('Hold to aim, release to hop. Reach the plant in eighteen hops.');
+  }
+  function tone(freq, duration = .1, type = 'sine', volume = .05, end = freq) {
+    if (!soundOn) return;
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+      const o = audio.createOscillator(), gain = audio.createGain(), now = audio.currentTime;
+      o.type = type; o.frequency.setValueAtTime(freq, now); o.frequency.exponentialRampToValueAtTime(Math.max(20, end), now + duration);
+      gain.gain.setValueAtTime(volume, now); gain.gain.exponentialRampToValueAtTime(.001, now + duration);
+      o.connect(gain); gain.connect(audio.destination); o.start(); o.stop(now + duration);
+    } catch (_) {}
+  }
+  function chord() { tone(523,.24); setTimeout(() => tone(659,.24),65); setTimeout(() => tone(784,.32),130); }
+  function say(text) { $('announce').textContent = text; }
+  function showCard(html, kind = '') { $('overlay').className = 'overlay ' + kind; $('overlay').hidden = false; $('card').innerHTML = html; }
+  function hideCard() { $('overlay').hidden = true; canvas.focus({preventScroll:true}); }
+  function title() {
+    showCard('<div class="kicker">EIGHTEEN HOPS TO HOME</div><h2>A small drop.<br>A big way home.</h2><p>The plant on the windowsill is thirsty.<br>You’re just the drop for the job.</p><div class="lesson"><span class="key">HOLD</span><div><strong>Hold to aim. Release to hop.</strong><br>Match the dotted arc to the next tower.</div></div><p>Catch diamonds to stay damp. Land in the middle to stack a tile and grow your streak.</p><button class="primary" id="start">Let’s hop &nbsp; →</button><p class="tiny">Mouse, touch, or Space. About two minutes.</p>', 'intro');
+    $('start').onclick = () => { tone(440,.12); newGame(); };
+  }
+  function begin(source) {
+    if (mode !== 'ready' || held !== null) return;
+    held = source; charge = 0; mode = 'charging'; tone(180,.07,'sine',.025);
+  }
+  function release(source) {
+    if (source !== held || mode !== 'charging') return;
+    held = null; const o = origin(), v = velocity(charge);
+    const landing = crossing({...o,...v}, platforms[current + 1]);
+    flight = {...o, ...v, t:0, landing, checked:false}; mode = 'flying';
+    trail.push({x:o.x,y:o.y+5,move:true}); tone(240,.15,'sine',.045,620);
+  }
+  function cancelCharge() { held = null; charge = 0; if (mode === 'charging') mode = 'ready'; }
+  function pop(text, x, y, color = '#08678b') { floats.push({text,x,y,life:1.6,color}); }
+  function sparkle(x,y,color,count=15) { for(let i=0;i<count;i++) particles.push({x,y,vx:(Math.random()-.5)*150,vy:-30-Math.random()*120,life:.5+Math.random()*.55,color}); }
+  function land(hit) {
+    const destination = current + 1, p = platforms[destination]; current = destination; visited.add(current);
+    const collected = p.diamond; p.diamond = false;
+    if(hit.perfect) {
+      streak++; bestStreak=Math.max(bestStreak,streak); perfects++; p.stack++; squish = .25;
+      const gain = [5,8,11,13][Math.min(streak-1,3)]; water = Math.min(100,water + (collected ? gain : 0));
+      pop('PERFECT · +' + gain + ' dampness',p.x,top(p)-75); sparkle(p.x,top(p), '#e7b957');
+      tone(760,.055,'triangle',.07,300); setTimeout(()=>tone(1050,.14,'sine',.04),55);
+    } else {
+      streak=0; water=Math.min(100,water+(collected?5:0)); squish=.16;
+      pop('SAFE · +5 dampness',p.x,top(p)-60,'#657b58'); tone(320,.11,'triangle',.04);
+    }
+    player=origin(); trail.push({x:player.x,y:player.y+5,move:false}); flight=null; mode='ready'; charge=0; landingStamp=time;
+    if(current===TOTAL) { win(); return; }
+    if(current%6===0 && !checkpoints.has(current)) { checkpoints.add(current); water=Math.max(water,65); relic(); }
+    updateHud(); say((hit.perfect?'Perfect! ':'Safe landing. ') + current + ' of eighteen hops. Dampness ' + Math.ceil(water) + ' percent.');
+  }
+  function miss() {
+    water=Math.max(0,water-24); falls++; streak=0; held=null; flight=null; charge=0; mode='recover'; recoverTimer=.65;
+    sparkle(player.x,Math.min(player.y,560),'#67aabe',23); tone(160,.23,'sine',.06,70);
+    banner='The rug caught you. −24 dampness'; bannerUntil=time+2.4;
+    if(water<=0) lose(); else say('The rug caught you. Try again from the same tower.');
+    updateHud();
+  }
+  function relic() {
+    mode='relic'; held=null; chord();
+    showCard('<div class="kicker">A LITTLE REST · CHECKPOINT '+(current/6)+' OF 2</div><h2>A gift for the road.</h2><p>Take a breath. Your dampness is topped up to at least 65%. Pick one little helping hand.</p><div class="choices"><button class="choice" id="wide"><strong>◇ Room to land</strong><span>Every tower gets a little wider. More room for a safe landing.</span></button><button class="choice" id="wax"><strong>◒ A waxed coat</strong><span>Dry out 30% slower. More time to line up your next hop.</span></button></div><p class="tiny">No rush. The game waits while you choose.</p>');
+    $('wide').onclick=()=>choose('wide'); $('wax').onclick=()=>choose('wax'); $('wide').focus({preventScroll:true}); say('Checkpoint. Choose wider towers or a slower drying coat.');
+  }
+  function choose(kind) { if(mode!=='relic')return; if(kind==='wide')wide++;else wax++; mode='ready'; hideCard(); banner=kind==='wide'?'A little more room to land.':'A coat that keeps you damp.'; bannerUntil=time+2.5; tone(660,.17); updateHud(); }
+  function win() {
+    mode='won'; held=null; best=Math.max(best,perfects); try { localStorage.setItem('drip-trip-best',best); } catch (_) {}
+    sparkle(player.x,player.y,'#e4b551',40); chord();
+    showCard('<div class="kicker">HOME, AT LAST</div><h2>You made a little<br>thing grow.</h2><p>Eighteen hops, one very happy plant.<br>Turns out a little drop can do quite a lot.</p><div class="result"><div><strong>'+perfects+'</strong><small>PERFECT HOPS</small></div><div><strong>×'+bestStreak+'</strong><small>BEST STREAK</small></div><div><strong>'+Math.ceil(water)+'%</strong><small>STILL DAMP</small></div></div><button class="primary" id="again">A new little trip &nbsp; →</button><p class="tiny">'+falls+' rug rescue'+(falls===1?'':'s')+' · Personal best: '+best+' perfect hops</p>');
+    $('again').onclick=newGame; $('again').focus({preventScroll:true}); updateHud();say('You reached the plant! '+perfects+' perfect hops.');
+  }
+  function lose() {
+    mode='lost'; held=null; flight=null;
+    showCard('<div class="kicker">A LITTLE TOO DRY</div><h2>Even drops need<br>a second chance.</h2><p>You made it '+current+' of eighteen hops. Catch diamonds to stay damp, and wait for the arc to say SAFE or PERFECT before you let go.</p><button class="primary" id="again">Another little trip &nbsp; →</button><p class="tiny">A fresh route. A fresh drop. No harm done.</p>');
+    $('again').onclick=newGame; $('again').focus({preventScroll:true});say('The drop dried out. Try another trip.'); updateHud();
+  }
+  function pause() {
+    if(mode==='paused') { mode=resumeMode; hideCard(); $('pause').setAttribute('aria-pressed','false');$('pause').setAttribute('aria-label','Pause game'); return; }
+    if(!['ready','charging','flying','recover'].includes(mode))return;
+    cancelCharge();resumeMode=mode;mode='paused';$('pause').setAttribute('aria-pressed','true');$('pause').setAttribute('aria-label','Resume game');
+    showCard('<div class="kicker">TAKE YOUR TIME</div><h2>A little breather.</h2><p>Your drop is safe. The world can wait.</p><button class="primary" id="resume">Keep hopping &nbsp; →</button>');$('resume').onclick=pause;$('resume').focus({preventScroll:true});
+  }
+  function toggleSound() { soundOn=!soundOn; $('sound').setAttribute('aria-pressed',String(!soundOn));$('sound').setAttribute('aria-label',soundOn?'Mute sound':'Unmute sound');$('sound').textContent=soundOn?'♪':'♩';if(soundOn)tone(520,.12); }
+  $('sound').onclick=toggleSound; $('pause').onclick=pause;
+  canvas.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();canvas.focus({preventScroll:true});if(mode==='title'){newGame();return;}begin('pointer:'+e.pointerId);if(mode==='charging')canvas.setPointerCapture(e.pointerId);});
+  canvas.addEventListener('pointerup',e=>{e.preventDefault();release('pointer:'+e.pointerId);});
+  canvas.addEventListener('pointercancel',cancelCharge);canvas.addEventListener('lostpointercapture',()=>{if(mode==='charging')cancelCharge();});
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  window.addEventListener('keydown',e=>{
+    if(e.code==='KeyM'&&!e.repeat){toggleSound();return;}if((e.code==='KeyP'||e.code==='Escape')&&!e.repeat){pause();return;}
+    if(e.code!=='Space'||e.repeat)return;
+    if(document.activeElement?.tagName==='BUTTON'||document.activeElement?.tagName==='SUMMARY')return;
+    e.preventDefault();if(mode==='title'){newGame();return;}begin('keyboard');
+  });
+  window.addEventListener('keyup',e=>{if(e.code==='Space'){if(held==='keyboard')e.preventDefault();release('keyboard');}});
+  window.addEventListener('blur',()=>{if(['ready','charging','flying','recover'].includes(mode))pause();});
+  document.addEventListener('visibilitychange',()=>{last=performance.now();if(document.hidden&&['ready','charging','flying','recover'].includes(mode))pause();});
+  function updateHud() {
+    const section=Math.min(2,Math.floor(current/6));
+    $('water-number').textContent=Math.ceil(water)+'%';$('water-fill').style.width=water+'%';$('water-fill').style.background=water<25?'#bb633f':'#08678b';$('water-meter').setAttribute('aria-valuenow',String(Math.ceil(water)));
+    $('count').textContent=current+' / '+TOTAL;$('combo').textContent='×'+streak;$('journey-title').textContent=mode==='won'?'HOME, AT LAST':section===2?'ALMOST HOME':'A PLANT IS WAITING';
+    [...$('stops').children].forEach((e,i)=>e.classList.toggle('done',i<current));
+    $('scene-label').innerHTML='0'+(section+1)+' / '+sectionNames[section]+'<span>'+sectionLines[section]+'</span>';
+    $('corner-note').textContent=mode==='won'?'one happy plant.':'home is '+(TOTAL-current)+' hop'+(TOTAL-current===1?'':'s')+' away ↗';
+    $('hint').hidden=!['ready','charging','flying','recover'].includes(mode);
+  }
+  function step(dt) {
+    time+=dt; if(squish>0)squish=Math.max(0,squish-dt);
+    if(['ready','charging','flying','recover'].includes(mode)) {
+      elapsed+=dt;water=Math.max(0,water-dt*1.45*Math.pow(.7,wax));
+      if(water<=0){lose();return;}
+      if(mode==='charging')charge=Math.min(1,charge+dt/CHARGE_TIME);
+      if(mode==='flying'){
+        const old=flight.t;flight.t+=dt;
+        if(flight.landing&&!flight.checked&&flight.t>=flight.landing.t){
+          flight.checked=true;
+          if(flight.landing.hit){player=point(flight,flight.landing.t);land(flight.landing);}else player=point(flight,flight.t);
+        }else player=point(flight,flight.t);
+        if(mode==='flying') { if(trail.length<1||Math.hypot(player.x-trail[trail.length-1].x,player.y-trail[trail.length-1].y)>9)trail.push({x:player.x,y:player.y+5}); if(player.y>H+50||flight.t>2)miss(); }
+      } else if(mode==='recover'){recoverTimer-=dt;if(recoverTimer<=0){player=origin();mode='ready';}}
+    }
+    const target=(player?player.x:100)-Math.min(W*.28,230);
+    camera=lerp(camera,Math.max(0,target),reduced?1:1-Math.exp(-dt*5));
+    for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;p.life-=dt;}particles=particles.filter(p=>p.life>0);
+    for(const f of floats){f.y-=dt*21;f.life-=dt;}floats=floats.filter(f=>f.life>0);
+    if(time-lastHud>.1){updateHud();lastHud=time;}
+  }
+  function round(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}}
+  function ellipse(x,y,rx,ry,fill){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();}
+  function text(s,x,y,size=14,color='#39524e',font='sans-serif',align='center'){ctx.font=size+'px '+font;ctx.fillStyle=color;ctx.textAlign=align;ctx.fillText(s,x,y);}
+  let rugPattern;
+  function makeRug(){const c=document.createElement('canvas');c.width=100;c.height=72;const g=c.getContext('2d');g.fillStyle='#a76353';g.fillRect(0,0,100,72);g.fillStyle='#d6a785';g.beginPath();g.moveTo(50,9);g.lineTo(77,36);g.lineTo(50,63);g.lineTo(23,36);g.closePath();g.fill();g.fillStyle='#b57963';g.beginPath();g.moveTo(50,19);g.lineTo(67,36);g.lineTo(50,53);g.lineTo(33,36);g.closePath();g.fill();g.strokeStyle='#e7c39a44';for(let y=2;y<72;y+=4){g.beginPath();g.moveTo(0,y);g.lineTo(100,y);g.stroke();}return ctx.createPattern(c,'repeat');}
+  function background(){
+    const sky=ctx.createLinearGradient(0,0,0,600);sky.addColorStop(0,'#e7e9da');sky.addColorStop(.7,'#f2e8ce');sky.addColorStop(1,'#d9cca9');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+    // Soft, paper-cut shapes: sunlight, a window, books and the edge of a sofa.
+    ctx.save();ctx.translate(-camera*.12,0);
+    const wx=480;ctx.globalAlpha=.55;round(wx,48,260,244,8,'#c4d2c3');round(wx+10,58,240,222,3,'#f8f3d5');ctx.fillStyle='#d0d6bc';ctx.fillRect(wx+124,58,8,222);ctx.fillRect(wx+10,169,240,7);ctx.globalAlpha=1;
+    ctx.fillStyle='#f9f4d93f';ctx.beginPath();ctx.moveTo(wx+8,280);ctx.lineTo(wx+249,280);ctx.lineTo(wx+400,542);ctx.lineTo(wx-120,542);ctx.fill();
+    round(40,246,270,100,24,'#c3c7af');round(20,290,316,88,22,'#b4bca1');round(43,273,122,61,12,'#cdd1b9');round(175,273,126,61,12,'#c5ccb2');round(43,369,12,40,3,'#8e9d83');round(294,369,12,40,3,'#8e9d83');
+    for(let i=0;i<4;i++){ctx.save();ctx.translate(830+i*19,340);ctx.rotate((i-1.5)*.04);round(0,-70-i*7,15,70+i*7,2,['#cfa87d','#8daaaa','#b7b293','#d19b81'][i]);ctx.restore();}round(790,342,155,10,2,'#a49475');ctx.restore();
+    ctx.fillStyle='#cdbf9d';ctx.fillRect(0,448,W,152);ctx.strokeStyle='#b7a98755';ctx.lineWidth=1;for(let i=0;i<7;i++){ctx.beginPath();ctx.moveTo(0,455+i*25);ctx.lineTo(W,455+i*25);ctx.stroke();}
+    ctx.save();ctx.translate(-(camera*.55)%100,0);if(!rugPattern)rugPattern=makeRug();round(-120,496,W+300,130,3,rugPattern);ctx.strokeStyle='#e4b78d';ctx.lineWidth=3;ctx.strokeRect(-120,502,W+300,11);ctx.strokeRect(-120,584,W+300,11);
+    for(let x=-100;x<W+200;x+=13){ctx.strokeStyle='#f1d5a5';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,512);ctx.lineTo(x+5,517);ctx.lineTo(x,522);ctx.stroke();}ctx.restore();
+    ctx.fillStyle='#f4f0d70b';for(let i=0;i<40;i++){const x=(i*127+Math.sin(i*5)*30-camera*.1)%(W+60),y=50+(i*73)%380;ellipse(x,y,1.6,1.6,'#ffffe64a');}
+  }
+  function tile(x,y,w,h,color){ctx.save();ctx.globalAlpha=.78;round(x-w/2,y,w,h,3,color);ctx.globalAlpha=1;ctx.strokeStyle='#fdf8e5bb';ctx.lineWidth=2;ctx.strokeRect(x-w/2+5,y+5,w-10,Math.max(2,h-10));ctx.fillStyle='#ffffea77';ctx.fillRect(x-w/2+7,y+3,w-14,3);ctx.restore();}
+  function diamond(x,y,taken=false){ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillStyle=taken?'#d6c9a1':'#e2b34e';ctx.fillRect(-8,-8,16,16);ctx.strokeStyle='#fff5c4';ctx.lineWidth=2;ctx.strokeRect(-4.5,-4.5,9,9);ctx.restore();}
+  function plant(x,y,bloom){
+    ctx.save();ctx.translate(x,y);ellipse(0,7,57,9,'#4e624027');
+    ctx.strokeStyle='#5a8262';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(0,-7);ctx.quadraticCurveTo(-8,-70,9,-108);ctx.stroke();
+    for(let i=0;i<6;i++){const sy=-36-i*13,s=i%2?-1:1;ctx.save();ctx.translate(i>3?3:0,sy);ctx.rotate(s*.45);ctx.fillStyle=i%2?'#78976a':'#527d61';ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(s*40,-26,s*60,-1,s*4,12);ctx.fill();ctx.restore();}
+    if(bloom){for(let i=0;i<7;i++){const a=i/7*Math.PI*2;ellipse(9+Math.cos(a)*14,-117+Math.sin(a)*14,10,10,'#e6ad73');}ellipse(9,-117,9,9,'#e6c851');}
+    ctx.fillStyle='#c87b59';ctx.beginPath();ctx.moveTo(-38,-29);ctx.lineTo(38,-29);ctx.lineTo(29,15);ctx.lineTo(-28,15);ctx.closePath();ctx.fill();round(-43,-36,86,12,4,'#d99770');ctx.strokeStyle='#e8b492';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-25,-17);ctx.lineTo(-20,5);ctx.stroke();ctx.restore();
+  }
+  function towers(){
+    for(let i=0;i<platforms.length;i++){
+      const p=platforms[i],x=p.x-camera,y=top(p),w=width(p);if(x<-150||x>W+200)continue;
+      ellipse(x,503,w*.58,8,'#61533e20');
+      // A short pile of see-through magnetic squares, with a bright landing edge.
+      const baseHeight=500-p.y,rows=Math.max(1,Math.ceil(baseHeight/34));
+      for(let k=0;k<rows;k++)tile(x,p.y+k*34,w,Math.min(32,500-(p.y+k*34)),palette[(p.color+k)%5]);
+      for(let k=0;k<p.stack;k++)tile(x,p.y-(k+1)*17,w,15,'#76b4bc');
+      ctx.lineWidth=4;ctx.strokeStyle=i===current+1?'#faf3d5':'#faf3d5a0';ctx.beginPath();ctx.moveTo(x-w/2+3,y);ctx.lineTo(x+w/2-3,y);ctx.stroke();
+      ctx.lineWidth=4;ctx.strokeStyle='#f2db79';ctx.beginPath();ctx.moveTo(x-16,y-1);ctx.lineTo(x+16,y-1);ctx.stroke();
+      if(p.diamond&&i!==TOTAL)diamond(x,y-37+(reduced?0:Math.sin(time*3+i)*3));
+      if(i>0&&i%6===0&&i<TOTAL){ctx.strokeStyle='#788e66';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+w/2-10,y);ctx.lineTo(x+w/2-10,y-62);ctx.stroke();ctx.fillStyle='#eee5b5';ctx.beginPath();ctx.moveTo(x+w/2-10,y-62);ctx.lineTo(x+w/2+16,y-53);ctx.lineTo(x+w/2-10,y-44);ctx.fill();}
+      if(i===TOTAL)plant(x+21,y-12,mode==='won');
+      if(i===current&&p.stack){text('CLACK!',x,y+30,10,'#355d5e','sans-serif');}
+    }
+  }
+  function drawThread(){
+    ctx.strokeStyle='#eff2cf';ctx.lineWidth=2.5;ctx.setLineDash([5,5]);ctx.beginPath();let prev=null;
+    for(const t of trail){const x=t.x-camera;if(!prev||t.move)ctx.moveTo(x,t.y);else ctx.lineTo(x,t.y);prev=t;}ctx.stroke();ctx.setLineDash([]);
+  }
+  function drawArc(){
+    if(!['ready','charging'].includes(mode))return;
+    const q=mode==='charging'?charge:.4,o=origin(),v=velocity(q),hit=predict(q);if(!hit)return;
+    const target=platforms[current+1],good=hit.hit,perfect=hit.perfect&&good;
+    const color=perfect?'#356e54':good?'#677d68':'#a56b51';const f={...o,...v};
+    ctx.fillStyle=color;const duration=hit.t;
+    for(let t=.06;t<=duration;t+=.055){const p=point(f,t);ellipse(p.x-camera,p.y,mode==='charging'?2.6:1.8,mode==='charging'?2.6:1.8,color+(mode==='charging'?'c9':'60'));}
+    const end=point(f,duration),ex=end.x-camera;ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(ex,end.y+R,11,4,0,0,Math.PI*2);ctx.stroke();
+    if(!good){ctx.beginPath();ctx.moveTo(ex-4,end.y+R-6);ctx.lineTo(ex+4,end.y+R+2);ctx.moveTo(ex+4,end.y+R-6);ctx.lineTo(ex-4,end.y+R+2);ctx.stroke();}
+    if(mode==='charging'){
+      const label=perfect?'PERFECT':good?'SAFE':'MISS',lx=clamp(ex,49,W-49),ly=Math.max(100,end.y-32);
+      round(lx-44,ly-20,88,25,13,'#f9f7e9');text(label,lx,ly-3,10,color,'sans-serif');
+      const x=player.x-camera;round(x-29,player.y+36,58,6,4,'#324a4530');round(x-29,player.y+36,Math.max(2,charge*58),6,4,color);
+    }
+    $('hint').innerHTML=mode==='charging'?(perfect?'<b>PERFECT</b> · release now!':good?'<b>SAFE</b> · release to land':'<b>HOLD</b> · line up the arc'):'<b>HOLD</b> to aim · <b>RELEASE</b> to hop';
+  }
+  function drop(){
+    if(!player||mode==='recover')return;
+    const x=player.x-camera,y=player.y;const bob=(mode==='ready'&&!reduced)?Math.sin(time*3)*1.4:0;
+    ellipse(x,top(platforms[current])+3,18,4,'#24464f25');
+    ctx.save();ctx.translate(x,y+bob);const squeeze=mode==='charging'?charge*.2:squish*.9;ctx.scale(1+squeeze,1-squeeze);
+    ctx.fillStyle=water<25?'#75a1aa':'#268cad';ctx.beginPath();ctx.moveTo(0,-24);ctx.bezierCurveTo(-3,-13,-18,-6,-18,4);ctx.bezierCurveTo(-18,26,18,26,18,4);ctx.bezierCurveTo(18,-7,5,-14,0,-24);ctx.fill();
+    ctx.fillStyle='#9dd9df';ctx.beginPath();ctx.ellipse(-8,-2,3,7,.5,0,Math.PI*2);ctx.fill();
+    const eyeY=mode==='charging'?3:2;ellipse(-6,eyeY,3.1,4.2,'#fff9e9');ellipse(7,eyeY,3.1,4.2,'#fff9e9');ellipse(-5,eyeY+.8,1.6,2.3,'#244653');ellipse(8,eyeY+.8,1.6,2.3,'#244653');ctx.strokeStyle='#fff7d9';ctx.lineWidth=1.6;ctx.beginPath();if(water<25){ctx.arc(1,14,3,Math.PI,Math.PI*2);}else{ctx.arc(1,10,3,0,Math.PI);}ctx.stroke();
+    if(wax){ctx.strokeStyle='#e3c678';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,6,19,.05,Math.PI-.05);ctx.stroke();}ctx.restore();
+  }
+  function draw(){
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);background();drawThread();towers();drawArc();drop();
+    for(const p of particles){ctx.globalAlpha=clamp(p.life*2,0,1);ellipse(p.x-camera,p.y,3,3,p.color);}ctx.globalAlpha=1;
+    for(const f of floats){ctx.globalAlpha=Math.min(1,f.life);text(f.text,f.x-camera,f.y,13,f.color,'sans-serif');}ctx.globalAlpha=1;
+    if(time<bannerUntil){const bw=Math.min(W-30,310);round((W-bw)/2,95,bw,36,18,'#faf6e8f5');text(banner,W/2,118,12);}
+    if(mode==='title'){const x=Math.min(W-85,730);plant(x,433,false);text('a little thirsty.',x,469,15,'#6c7e62','Georgia');}
+  }
+  function resize(){const r=canvas.getBoundingClientRect();W=600*r.width/r.height;H=600;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);}
+  new ResizeObserver(resize).observe(canvas);resize();
+  platforms=makeRoute(42);player=origin();title();updateHud();
+  function frame(now){const dt=Math.min((now-last)/1000,.04);last=now;if(!document.hidden&&mode!=='paused'&&mode!=='relic')step(dt);draw();requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  // A test-only, opt-in harness: real trajectory, input, and state, no production controls.
+  if(new URLSearchParams(location.search).has('test'))window.dripTest={
+    state:()=>({mode,current,water,streak,perfects,falls,wide,wax,charge,seed,player:{...player},platforms:platforms.map(p=>({...p})),camera}),
+    makeRoute,velocity,crossing,point,predict,step,begin,release,pause,choose,newGame,
+    setWater:v=>{water=v;updateHud();},
+    reset:s=>{newGame();seed=s;platforms=makeRoute(s);player=origin();},
+    bestPower:()=>{let bestPower=0,bestDistance=Infinity;for(let i=0;i<=1000;i++){const q=i/1000,h=predict(q);if(h&&Math.abs(h.x-platforms[current+1].x)<bestDistance){bestDistance=Math.abs(h.x-platforms[current+1].x);bestPower=q;}}return bestPower;}
+  };
+})();
+</script>
+</body>
+</html>
