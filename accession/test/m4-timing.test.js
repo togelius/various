@@ -24,7 +24,8 @@
 //   - two misses before the discount is spent leave one discount and one surprise, each said
 //     once ("however many miss you before it");
 //   - your death: a special that kills you leaves nothing waiting;
-//   - Light Fingers' opening, discounted, takes its own ticks less PERK_DUCK_AND_COVER.
+//   - Light Fingers' opening, discounted, takes its own ticks less PERK_DUCK_AND_COVER, and so
+//     does an item action (a garment put on, a drop), kit.costs holding.
 // The expected figures are worked out here from BUILD.md and the plan, never from the code.
 'use strict';
 module.exports = ({ test, assert, loadCore, root, path }) => {
@@ -305,6 +306,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     s.actors[0].hp = 1;
     const r = play(X, s, [WAIT, WAIT]);
     assert.equal(json([!!s.over, perkEv(r.events, 'duck').length, perkEv(r.events, 'sure').length, json(X.Perks.charges(s).map(p => p.charge))]), json([true, 0, 0, json([null, null])]));
+  });
+
+  // The discount is on any action that takes time (§8.7): an item action too, a garment put on
+  // (COST_EQUIP_GARMENT) and a drop (COST_TAKE), every invariant holding (kit.costs among them).
+  test('an item action with the discount waiting takes its own ticks less PERK_DUCK_AND_COVER: a garment put on, an item dropped', () => {
+    const X = loadCore();
+    const s = X.Setup.room(1, { acc: 'T0', depth: 3, map: OPEN, you: [2, 4], exhibits: [], items: [{ uid: 'g2', kind: 'garment', form: 'standard', tier: 3, where: { at: 'tote' } }] }, {});
+    s.run.perks = [{ id: 'duck_and_cover', rank: 1 }];
+    s.dept.perk = { duck: true };
+    play(X, s, [{ a: 'equip', uid: 'g2' }]);
+    assert.equal(json([s.actors[0].next, waiting(s)]), json([N.COST_EQUIP_GARMENT - CUT, false]));
+    s.dept.perk = { duck: true };
+    // The garment it took the place of is in your tote now: drop it.
+    const at = s.actors[0].next;
+    assert.equal(json([s.you.kit.garment, s.you.tote.length]), json(['g2', 1]));
+    play(X, s, [{ a: 'drop', uid: s.you.tote[0] }]);
+    assert.equal(s.actors[0].next - at, N.COST_TAKE - CUT);
   });
 
   test('Light Fingers\' opening, with the discount waiting, takes its own ticks less PERK_DUCK_AND_COVER', () => {
