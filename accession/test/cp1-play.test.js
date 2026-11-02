@@ -188,9 +188,11 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('a station\'s line runs where no other exhibit stands when its room has such a run, so no sleeper is struck awake at the chime', () => {
+  test('a station\'s line runs where no other exhibit stands (a layout with no such run fails its attempt, M4 FU3), so no sleeper is struck awake at the chime', () => {
     let lines = 0, met = 0, hunted = 0;
-    for (let seed = 1; seed <= 42; seed++) {
+    // Seeds 1–42, and 58 and 89, whose stations' every run met a sleeper before M4 FU3 (a Signal
+    // Lamp so woken shot you at the entrance about turn 35).
+    for (const seed of Array.from({ length: 42 }, (_, i) => i + 1).concat([58, 89])) {
       const depth = ((seed - 1) % 7) + 1, s = C.Dept.create(seed, 'M11', depth, { invulnerable: true });
       const st = s.actors.filter(a => a.arch === 'demonstrator' && !a.uid.includes('.intro.'));
       const STEP = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] }, room = (x, y) => s.dept.roomOf[y] && s.dept.roomOf[y][x];
@@ -203,7 +205,7 @@ module.exports = ({ test, assert, loadCore }) => {
       const ids = new Set(s.actors.filter(a => a.arch === 'demonstrator').map(a => a.uid));
       for (let i = 0; i < 30 && clearRoom; i++) for (const e of Step.step(s, { a: 'wait' })) if (e.k === 'hunting' && e.cause.k === 'damage' && ids.has(e.cause.by)) hunted++;
     }
-    assert.ok(lines >= 40 && met <= 2, `${lines} lines, ${met} meeting an exhibit`);
+    assert.ok(lines >= 40 && met === 0, `${lines} lines, ${met} meeting an exhibit`);
     assert.equal(hunted, 0, 'a station\'s line woke an exhibit hunting you while you waited at the entrance');
   });
 

@@ -301,12 +301,14 @@ const Populate = (() => {
 
   // A station's line (plan D1.10) runs from its tile along one of N, E, S and W, through
   // tiles of its own room that sight passes: the longest of the four that no other exhibit
-  // stands on, the first in that order on a tie; only if every one of them meets an exhibit,
-  // the longest of the four. No draw. (A sleeper the line struck would wake at the chime and
-  // hunt you from a room you may never have seen, §8.2's damage waking it; a reflector on it
-  // would send the line back into its station at every chime. M4's first integration review.)
+  // stands on, the first in that order on a tie; null if every one of them meets an exhibit,
+  // which fails the attempt (below). No draw. (A sleeper the line struck would wake at the
+  // chime and hunt you from a room you may never have seen, §8.2's damage waking it: M4 FU3
+  // found a Signal Lamp so woken shooting you at the entrance in 2 of M.11's seeds 1–140,
+  // when the longest run, met, was taken instead; a reflector on it would send the line back
+  // into its station at every chime. M4's first integration review.)
   function lineDir(state, m, a) {
-    let best = null, most = -1, clear = null, longest = -1;
+    let clear = null, longest = -1;
     for (const dir of LINE_DIRS) {
       const k = COMPASS.indexOf(dir), id = m.roomOf[a.y][a.x];
       let n = 0, x = a.x + Grid.DX[k], y = a.y + Grid.DY[k], met = false;
@@ -315,10 +317,9 @@ const Populate = (() => {
         if (b && b !== a) met = true;
         n++; x += Grid.DX[k]; y += Grid.DY[k];
       }
-      if (n > most) { most = n; best = dir; }
       if (!met && n > longest) { longest = n; clear = dir; }
     }
-    return clear !== null && longest > 0 ? clear : best;
+    return clear !== null && longest > 0 ? clear : null;
   }
 
   // Place the exhibits of a pack's gallery list (§5.5), and return null when every one stood
@@ -660,7 +661,12 @@ const Populate = (() => {
     }
     for (const r of rounds) if (r.posts.length < 2) miss(r.rm, { reason: `room ${r.rm.key} has no round for ${r.a.uid}`, tiles: [[r.a.x, r.a.y]] }, 'it keeps none');
     // The stations' lines last, once every Wader stands where it starts.
-    for (const { a, opts } of placed) if (a.arch === 'demonstrator') a.route = { dir: opts.dir || lineDir(state, m, a) };
+    for (const { a, rm, opts } of placed) {
+      if (a.arch !== 'demonstrator') continue;
+      const dir = opts.dir || lineDir(state, m, a);
+      if (dir) a.route = { dir };
+      else miss(rm, { reason: `${a.uid}'s line would meet an exhibit whichever way it ran`, tiles: [[a.x, a.y]] }, 'no line');
+    }
     return first;
   }
   // The turns over which the Waders' rounds are walked to see whether one stalls: three times

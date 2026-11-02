@@ -261,15 +261,16 @@ module.exports = ({ test, assert, loadCore }) => {
         } else if (a.arch === 'demonstrator') {
           lines++;
           // The longest run of its room that sight passes and no other exhibit stands on (N, E,
-          // S, W on a tie), else the longest (M4's first integration review); the Intro's
-          // station takes its stamp's, which is its longest.
+          // S, W on a tie; M4's first integration review); with none, the attempt fails (M4
+          // FU3), so a department has none; the Intro's station takes its stamp's, which is its
+          // longest.
           const DIRS = ['N', 'E', 'S', 'W'];
           const tiles = dir => { const out = []; let x = a.x + LINE[dir][0], y = a.y + LINE[dir][1]; while (m.roomOf[y] && m.roomOf[y][x] === rm.id && Grid.TILES[m.tiles[y][x]].see) { out.push([x, y]); x += LINE[dir][0]; y += LINE[dir][1]; } return out; };
           const run = dir => tiles(dir).length, met = dir => tiles(dir).some(([x, y]) => s.actors.some(b => b !== a && !b.gone && b.x === x && b.y === y));
           const pick = ks => { const most = Math.max(...ks.map(run)); return ks.find(k => run(k) === most); };
           const clear = a.uid.includes('.intro.') ? [] : DIRS.filter(k => !met(k) && run(k) > 0);
           assert.equal(json(a.route), json({ dir: clear.length ? pick(clear) : pick(DIRS) }), `${where}: ${a.uid}'s line`);
-          if (!a.uid.includes('.intro.') && clear.length) assert.ok(!met(a.route.dir), `${where}: ${a.uid}'s line meets an exhibit though a clear one exists`);
+          if (!a.uid.includes('.intro.')) assert.ok(clear.length && !met(a.route.dir), `${where}: ${a.uid}'s line meets an exhibit`);
         } else assert.equal(a.route, null, `${where}: ${a.uid} has no route`);
         if (a.arch === 'tethered_warden') {
           wardens++;
