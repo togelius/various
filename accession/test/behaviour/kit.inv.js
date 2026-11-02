@@ -12,6 +12,14 @@ module.exports = (C) => {
   const byUid = (s, uid) => s.items.find(i => i.uid === uid) || null;
   const isInt = Number.isInteger;
   const refused = events => events.length === 1 && events[0].k === 'refused';
+  // What Duck and Cover takes off your next action that takes time while its discount waits
+  // (M4 plan A6, §8.7; PG-PERKS-TIMING): PERK_DUCK_AND_COVER, with the perk held at rank 1 or
+  // more and not switched off; else 0.
+  const duckCut = s => {
+    if (!(s.dept && s.dept.perk && s.dept.perk.duck === true)) return 0;
+    if (s.options && Array.isArray(s.options.rulesOff) && s.options.rulesOff.includes('duck_and_cover')) return 0;
+    return ((s.run && s.run.perks) || []).some(p => p.id === 'duck_and_cover' && p.rank >= 1) ? N.PERK_DUCK_AND_COVER : 0;
+  };
   const STATS = ['acc', 'eva', 'pad', 'dmin', 'dmax', 'weaponForm', 'reach', 'quiet', 'breaker'];
 
   return [
@@ -99,7 +107,8 @@ module.exports = (C) => {
     // What an item action costs you (§8.1): take or drop COST_TAKE; equip or unequip a garment
     // COST_EQUIP_GARMENT, anything else COST_EQUIP; use an instrument or a Restoration kit, or
     // light or hood the Lamp (an `observing` curio, M4, §5.5), COST_USE; doubled while you are
-    // slowed. A refused one costs nothing.
+    // slowed; less PERK_DUCK_AND_COVER while Duck and Cover's discount waits (M4 plan A6, §8.7:
+    // dept.perk.duck, the perk held and not switched off). A refused one costs nothing.
     { id: 'kit.costs', check(pre, events, post, ctx) {
       const a = ctx.action;
       if (!a || !['take', 'drop', 'equip', 'unequip', 'use'].includes(a.a) || refused(events)) return null;
@@ -108,7 +117,7 @@ module.exports = (C) => {
       else if (a.a === 'equip') { const it = byUid(pre, a.uid); base = it && it.kind === 'garment' ? N.COST_EQUIP_GARMENT : N.COST_EQUIP; }
       else if (a.a === 'unequip') { const it = byUid(pre, slotUid(pre, a.slot)); base = it && it.kind === 'garment' ? N.COST_EQUIP_GARMENT : N.COST_EQUIP; }
       else { const it = byUid(pre, a.uid); if (!it || (it.kind !== 'instrument' && it.kind !== 'kit' && !(it.kind === 'curio' && (it.prims || []).some(p => p.id === 'observing')))) return null; base = N.COST_USE; }
-      const slowed = pre.actors[0].statuses.some(s => s.id === 'slowed'), want = slowed ? base * N.SPEED_SLOW_PCT / 100 : base;
+      const slowed = pre.actors[0].statuses.some(s => s.id === 'slowed'), want = (slowed ? base * N.SPEED_SLOW_PCT / 100 : base) - duckCut(pre);
       const paid = post.actors[0].next - pre.actors[0].next;
       return paid === want ? null : `${json(a)} cost ${paid} ticks, not ${want}`;
     } },
