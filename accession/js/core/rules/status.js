@@ -9,13 +9,18 @@
 // tick 100k) and the next turn for a sleeping one. Its per-turn effect runs at the boundaries
 // of turns from … until − 1, and it ends at the boundary of turn until. Applied again while
 // held, it lasts to the later of the two ends, from the same start.
-// M4 (plan A6): a cheaper action (Duck and Cover's) can leave your next decision mid-turn
-// after that turn's boundary has run. Coughing and restoring, whose only rule is their
-// per-turn effect, put on you then (a Fumigant or a Consolidant drunk), count their N turns
-// from the next turn, start + 1, so each of them still has its boundary and nothing is lost:
-// the same ticks as the action at its full cost gives. Every other status keeps its start
-// (Fixative's forced waits are counted from your next decision), and a status that comes
-// with its own rule for this keeps it (M4's second_wind, reg/perk-status.js).
+// M4 (plan A6): a status can be settled when its bearer's next decision falls in a turn whose
+// boundary has already run, so the first of its N turns has no boundary left for its effect.
+// Two rules keep what such a status gives, each stated with its status (BUILD §8.1):
+//   - coughing and restoring (LATE_NEXT; put on only by your own drink, so this happens only
+//     when Duck and Cover made the drink cheaper) count their N turns from the next turn,
+//     start + 1: the drink's coughs and shares then come at the very ticks the drink at its
+//     full cost gives, since the discount moves only your decisions;
+//   - second_wind (reg/perk-status.js, PG-PERKS-B), brought by the world's turn (after a Heavy
+//     blow, or by a line due at a boundary), keeps its start and pays that turn's share at the
+//     next boundary, by its own effect.
+// Every other status keeps its start (Fixative's forced waits are counted from your next
+// decision, mid-turn or not).
 //
 // At a boundary the timers run at step 2 (Status.tick: expiry), and the per-turn effects
 // after the wake checks of step 4 (Status.effects), so that a cough's noise comes after your
