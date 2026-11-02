@@ -11,8 +11,9 @@
 //   - an oracle written here, apart from js/core/layout/runner.js, recomputes what the reported
 //     cheapest route (charge (b)) wakes, and when, and its charge, from the game's own rules
 //     (Archetypes.wakeRegion, Wake.onAxis, Wake.inTether, Patrol.timeline and AI.sees,
-//     HourlyDemonstration's lines, the alarm, a herald's call, ally_hit; Combat, Specials and
-//     the readout's hits for the charge), and agrees with LRunner to the hundredth of a hit point;
+//     HourlyDemonstration's lines, the alarm, a herald's call, ally_hit; a tethered warden
+//     fighting only once you stand within its tether, §8.2; Combat, Specials and the readout's
+//     hits for the charge), and agrees with LRunner to the hundredth of a hit point;
 // and over the sweep, each department's gate (A1.4): at least 90 of its 100 seeds pass at the
 // first attempt LV11 judged (its moves included: a move is the attempt's own repair, layout.md
 // §10.1), at most 1 falls back, none has an exhibit removed.
@@ -95,19 +96,37 @@ module.exports = C => {
         for (let i = 0; i < R.length && e.T < 0; i++) if (region.size === 0 || region.has(R[i])) e.T = i;
       }
     }
-    // What each waking wakes in turn, earliest first; once you fight, a timed patrol finds you
-    // wherever it could see you.
+    // A tethered warden starts no fight while you stand outside the disc of TETHER_RANGE round
+    // what it guards (its act hook, §8.2: Wake.inTether's disc), so it fights from the first
+    // turn, once awake, that you stand within it, and never if you do not; any other exhibit
+    // not in a case fights from its waking.
     const sleeps = b => b.mode === 'dormant' && !Archetypes.pipless(s, b);
+    const joinAt = e => {
+      if (Cases.encased(s, e.a)) return -1;
+      if (e.a.arch !== 'tethered_warden') return e.T;
+      for (let i = e.T; i < R.length; i++) if (Wake.inTether(at(R[i]), e.a)) return i;
+      return -1;
+    };
+    for (const e of ex) e.F = -1;
+    // What each waking wakes in turn, earliest first: the alarm and a herald's call from its
+    // waking, ally_hit from the fight that strikes it (a waking before a fight on the same
+    // turn, then spawn order); once you fight, a timed patrol finds you wherever it could
+    // see you.
     let fighting = false;
     for (;;) {
-      let e = null;
-      for (const f of ex) if (!f.done && f.T >= 0 && (!e || f.T < e.T)) e = f;
-      if (!e) break;
-      e.done = true;
-      const a = e.a, fights = !Cases.encased(s, a);
-      if (!fighting && fights) {
+      const due = [];
+      for (const f of ex) {
+        if (!f.done && f.T >= 0) due.push({ f, t: f.T, fight: 0 });
+        if (f.done && !f.fought && f.F >= 0) due.push({ f, t: f.F, fight: 1 });
+      }
+      if (!due.length) break;
+      due.sort((p, q) => (p.t - q.t) || (p.fight - q.fight) || (p.f.i - q.f.i));
+      const { f: e, fight } = due[0], a = e.a;
+      if (!fight) e.done = true; else e.fought = true;
+      if (!fight) e.F = joinAt(e);
+      if (fight && !fighting) {
         fighting = true;
-        for (const f of ex) if (!f.done && f.anywhere) for (let i = e.T; i < R.length && (f.T < 0 || i < f.T); i++) if (f.anywhere(R[i])) { f.T = i; break; }
+        for (const f of ex) if (!f.done && f.anywhere) for (let i = e.F; i < R.length && (f.T < 0 || i < f.T); i++) if (f.anywhere(R[i])) { f.T = i; break; }
       }
       const A = Registry.ARCHETYPES[a.arch], call = A && A.special === 'call' ? Specials.tiles(s, a, 'call') : null, alarm = Modules.flagged(s, a, 'alarm_network');
       for (const f of ex) {
@@ -115,20 +134,20 @@ module.exports = C => {
         if (f.done || b === a || !sleeps(b)) continue;
         let t = -1;
         const near = Actors.footprint(b).some(([x, y]) => Actors.footprint(a).some(([u, v]) => Grid.disc(x - u, y - v, N.ALLY_HIT_RANGE)));
-        if (fights && a.group && b.group === a.group && b.trigger === 'ally_hit' && near) t = e.T + 1;
-        if (!Actors.centrepiece(b) && (alarm || (call && Actors.footprint(b).some(([x, y]) => call.some(c => c[0] === x && c[1] === y))))) t = t < 0 ? e.T + 2 : Math.min(t, e.T + 2);
+        if (fight && a.group && b.group === a.group && b.trigger === 'ally_hit' && near) t = e.F + 1;
+        if (!fight && !Actors.centrepiece(b) && (alarm || (call && Actors.footprint(b).some(([x, y]) => call.some(c => c[0] === x && c[1] === y))))) t = e.T + 2;
         if (t >= 0 && (f.T < 0 || t < f.T)) f.T = t;
       }
     }
-    // The fights: those woken that can fight (not in a case), in the order they wake, each
-    // joining the one before when it wakes within RUNNER_TOGETHER_TURNS of its last.
+    // The fights: those that fight, in the order they join, each joining the one before when
+    // it joins within RUNNER_TOGETHER_TURNS of its last.
     const run = runnerOf(s), woke = ex.filter(e => e.T >= 0).sort((p, q) => (p.T - q.T) || (p.i - q.i));
+    const join = ex.filter(e => e.F >= 0).sort((p, q) => (p.F - q.F) || (p.i - q.i));
     let b = 0, fight = [], end = -99;
-    for (const e of woke) {
-      if (Cases.encased(s, e.a)) continue;
-      if (fight.length && e.T - end > N.RUNNER_TOGETHER_TURNS) { b += fightCost(fight); fight = []; }
+    for (const e of join) {
+      if (fight.length && e.F - end > N.RUNNER_TOGETHER_TURNS) { b += fightCost(fight); fight = []; }
       fight.push(Object.assign(fighter(s, e.a, run), { i: e.i }));
-      end = e.T;
+      end = e.F;
     }
     if (fight.length) b += fightCost(fight);
     // A station's line: once, at its net damage, when the route stands on a tile it could
@@ -146,7 +165,7 @@ module.exports = C => {
   }
 
   // ---- The moves' sentences ----
-  const MOVE = /^moved (the .+?),? from (\d+),(\d+) to (\d+),(\d+)(, in .+)?: the worst-case runner's way (passed within \d+ walking tiles of it, in its sight, for \d+ turns, which wakes it|crossed its row or column within \d+ tiles, in its sight, which wakes it|came within \d+ tiles of what it guards, which wakes it at once); from (\d+),(\d+) it passes clear of it$/;
+  const MOVE = /^moved (the .+?),? from (\d+),(\d+) to (\d+),(\d+)(, in .+)?: the worst-case runner's way (passed within \d+ walking tiles of it, in its sight, for \d+ turns?, which wakes it|crossed its row or column within \d+ tiles, in its sight, which wakes it|came within \d+ tiles of what it guards, which wakes it at once)(, and came within \d+ tiles of what it guards, where it strikes)?; from (\d+),(\d+) it passes clear of it$/;
 
   function each(d) {
     const { state: s, acc, seed, depth, made } = d;
@@ -167,7 +186,7 @@ module.exports = C => {
       const q = MOVE.exec(l.op || '');
       if (!q) { out.push(`the move "${l.op}" is not a sentence of LV11's`); continue; }
       const there = s.actors.find(a => a.x === +q[4] && a.y === +q[5] && !a.gone);
-      if (!there || name(there.uid) !== q[1] || q[8] !== q[4] || q[9] !== q[5]) out.push(`the move "${l.op}" names what does not stand at ${q[4]},${q[5]}`);
+      if (!there || name(there.uid) !== q[1] || q[9] !== q[4] || q[10] !== q[5]) out.push(`the move "${l.op}" names what does not stand at ${q[4]},${q[5]}`);
     }
     const rep = LRunner.measure(s);
     if (!LRunner.passes(rep, 'b', N.RUNNER_PASS_PCT)) {

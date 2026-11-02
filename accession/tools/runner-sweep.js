@@ -81,6 +81,8 @@ function waiting(C, acc) {
 // horizon}: rejects counts LV11's rejections (a reseed each, and the fallback's own), removed the
 // exhibits gone as the visit starts.
 function sweep(C, acc, opt) {
+  // The gate judges at LV11's own share (RUNNER_PASS_PCT), whatever --pct asks to print.
+  opt.passPct = C.N.RUNNER_PASS_PCT;
   const rows = [], ropt = { runner: opt.runner || undefined, doors: opt.doors || undefined, chain: opt.chain || undefined, timing: opt.timing || undefined };
   const gopt = opt.off.length ? { rulesOff: opt.off } : undefined;
   for (let s = 1; s <= 3; s++) C.LRunner.measure(C.Dept.create(9000 + s, acc, 3), ropt);
@@ -140,10 +142,12 @@ function report(acc, rows, opt, wait) {
   return lines;
 }
 
-// The gate (A1.4, R2) on one department's rows: its lines, and whether it holds. oracle(state,
-// route, horizon) → {b, woken} is the test's (test/sweep/runner.check.js), run on seeds 1–100.
+// The gate (A1.4, R2) on one department's rows (sweep's, which sets opt.passPct, LV11's share):
+// its lines, and whether it holds. oracle(state, route, horizon) → {b, woken} is the test's
+// (test/sweep/runner.check.js), run on seeds 1–100.
 function gate(acc, rows, opt, oracle) {
-  const n = rows.length, lines = [], pct = opt.pcts[0], bad = [];
+  const n = rows.length, lines = [], pct = opt.passPct, bad = [];
+  if (!pct) throw new Error('runner-sweep: the gate reads the rows sweep made');
   const pass = r => !r.none && r.cost.b <= pct * r.hp;
   const first = rows.filter(r => !r.rejects).length, clean = rows.filter(r => !r.rejects && !r.moves.length).length;
   const fall = rows.filter(r => r.fallback).length, removed = rows.reduce((k, r) => k + r.removed, 0), moved = rows.filter(r => r.moves.length);

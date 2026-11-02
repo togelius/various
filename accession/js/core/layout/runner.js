@@ -33,7 +33,10 @@
 //     A mimic in its disguise (pipless) is woken by none of these, and a Centrepiece's piece
 //     only by pips.
 // Left out, and so not counted: noise (a blow's, a door's), regeneration, the bell, and an
-// exhibit's walk after it wakes; an exhibit in an intact case wakes but cannot strike you.
+// exhibit's walk after it wakes; an exhibit in an intact case wakes but cannot strike you, and
+// a tethered warden (§8.2) strikes only while you stand within TETHER_RANGE of what it guards
+// (its leash), so it joins a fight from the first turn, once awake, that the route stands
+// there, and never when the route keeps outside it, however it woke.
 //
 // The charge of every woken exhibit not in a case, from the numbers its odds readout uses
 // (Labels.odds: Combat.hitChance, Combat.netRolls after Padding, Archetypes.readout's hits,
@@ -217,6 +220,12 @@ const LRunner = (() => {
     sightOf.lists = lists;
     return sightOf;
   }
+  // A tethered warden's leash (§8.2; rules/arch/tethered_warden.js): it never steps off the disc
+  // of TETHER_RANGE round what it guards, and while you stand outside that disc at its action
+  // it starts no fight with you, no blow and no new ring (a ring it showed while you stood
+  // inside still goes off at its next action, which a route has entered the disc to meet). So
+  // it strikes the runner only once the route stands within that disc while it is awake.
+  const leashed = a => a.arch === 'tethered_warden' && Array.isArray(a.guards);
   const near = (a, b, r) => Actors.footprint(a).some(([x, y]) => Actors.footprint(b).some(([u, v]) => Grid.disc(x - u, y - v, r)));
   const sleeps = (state, b) => b.mode === 'dormant' && !Archetypes.pipless(state, b);
 
@@ -226,8 +235,9 @@ const LRunner = (() => {
   // regions with the doors as they stand; {chain: 'off'}, no waking wakes another (D2.3's list:
   // the ring and the wake regions only). Fields: run (the runner), blocked (the tiles no route
   // steps on), short (the shortest route's turns), horizon, and ex, one record per exhibit
-  // that counts: {a, i, t (its terms), fights (not in a case), need, ring, axis, tether, sight
-  // (masks of tile indices), wakes: [[j, delay, why]] (the sleepers its waking wakes)}.
+  // that counts: {a, i, t (its terms), fights (not in a case), need, ring, axis, tether, leash
+  // (a tethered warden's disc, where alone it strikes), sight (masks of tile indices), wakes:
+  // [[j, delay, why]] (the sleepers its waking wakes)}.
   function model(state, opts) {
     const m = state.dept;
     if (!m || !Array.isArray(m.entrance) || !Array.isArray(m.exits) || !m.exits.length || !Array.isArray(m.rooms) || !m.rooms.length) return { none: 'not a department' };
@@ -255,7 +265,7 @@ const LRunner = (() => {
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
       if (a.gone || Archetypes.pipless(state, a) || roomOf(m, a.x, a.y) === intro) continue;
-      const e = { a, i, t: null, fights: !Cases.encased(state, a), need: 0, ring: null, axis: null, tether: null, sight: null, wakes: [] };
+      const e = { a, i, t: null, fights: !Cases.encased(state, a), need: 0, ring: null, axis: null, tether: null, leash: leashed(a) ? tetherMask(vm, a) : null, sight: null, wakes: [] };
       if (a.mode === 'dormant') {
         e.need = Math.max(1, N.PIPS_TO_WAKE - (a.pips || 0));
         e.ring = maskOf(vm, Archetypes.wakeRegion(view, a, N.PIPS_TO_WAKE));
@@ -390,12 +400,15 @@ const LRunner = (() => {
     return null;
   }
 
-  // What a route wakes, and when: wake[j] the turn exhibit ex[j] wakes (-1: never), how[j] why
-  // (ring, axis, tether, sight, alarm, herald, ally_hit).
+  // What a route wakes, and when: T[j] the turn exhibit ex[j] wakes (-1: never), how[j] why
+  // (ring, axis, tether, sight, alarm, herald, ally_hit), and F[j] the turn it joins a fight
+  // (-1: never): its waking's, for one that can fight (not in a case); for a tethered warden
+  // (e.leash), the first turn, from its waking on, that the route stands within its tether,
+  // since outside that it starts no fight (§8.2), and never when the route does not.
   // Does a timed patrol see the route's tile k at turn i (past its timeline, anything it could)?
   const seesAt = (e, i, k) => i < e.turns.length ? e.turns[i].some(mask => mask[k] === 1) : e.sight[k] === 1;
   function wakes(M, route) {
-    const n = M.ex.length, T = new Array(n).fill(-1), how = new Array(n).fill(null);
+    const n = M.ex.length, T = new Array(n).fill(-1), how = new Array(n).fill(null), F = new Array(n).fill(-1);
     M.ex.forEach((e, j) => {
       if (e.turns) { for (let i = 0; i < route.length; i++) if (seesAt(e, i, route[i])) { T[j] = i; how[j] = 'sight'; return; } return; }
       if (e.sight) { for (let i = 0; i < route.length; i++) if (e.sight[route[i]]) { T[j] = i; how[j] = 'sight'; return; } return; }
@@ -408,30 +421,50 @@ const LRunner = (() => {
         if (pips >= e.need) { T[j] = i; how[j] = ring ? 'ring' : 'axis'; return; }
       }
     });
-    // Each waking's own wakings, earliest first. Once the runner has a fight, it keeps to no
+    const joins = (e, t) => {
+      if (!e.fights) return -1;
+      if (!e.leash) return t;
+      for (let i = t; i < route.length; i++) if (e.leash[route[i]]) return i;
+      return -1;
+    };
+    // Each waking's own wakings, earliest first: the alarm and a herald's call from its waking,
+    // ally_hit from the fight that strikes it. Once the runner has a fight, it keeps to no
     // timetable: from then on a timed patrol finds it wherever it could see it on its round.
-    const done = new Uint8Array(n);
+    // (woke[j]: its waking seen to; hit[j]: its fight seen to; a waking first on a tie.)
+    const woke = new Uint8Array(n), hit = new Uint8Array(n);
     let fought = false;
     for (;;) {
-      let b = -1;
-      for (let j = 0; j < n; j++) if (!done[j] && T[j] >= 0 && (b < 0 || T[j] < T[b])) b = j;
+      let b = -1, fight = false, at = -1;
+      for (let j = 0; j < n; j++) {
+        if (!woke[j] && T[j] >= 0 && (b < 0 || T[j] < at || (T[j] === at && fight))) { b = j; fight = false; at = T[j]; }
+        if (woke[j] && !hit[j] && F[j] >= 0 && (b < 0 || F[j] < at)) { b = j; fight = true; at = F[j]; }
+      }
       if (b < 0) break;
-      done[b] = 1;
-      if (!fought && M.ex[b].fights) {
+      const e = M.ex[b];
+      if (!fight) {
+        woke[b] = 1;
+        F[b] = joins(e, T[b]);
+        for (const [j, delay, why] of e.wakes) if (why !== 'ally_hit' && !woke[j] && (T[j] < 0 || T[b] + delay < T[j])) { T[j] = T[b] + delay; how[j] = why; }
+        continue;
+      }
+      hit[b] = 1;
+      if (!fought) {
         fought = true;
-        M.ex.forEach((e, j) => {
-          if (done[j] || !e.turns) return;
-          for (let i = T[b]; i < route.length && (T[j] < 0 || i < T[j]); i++) if (e.sight[route[i]]) { T[j] = i; how[j] = 'sight'; return; }
+        M.ex.forEach((p, j) => {
+          if (woke[j] || !p.turns) return;
+          for (let i = F[b]; i < route.length && (T[j] < 0 || i < T[j]); i++) if (p.sight[route[i]]) { T[j] = i; how[j] = 'sight'; return; }
         });
       }
-      for (const [j, delay, why] of M.ex[b].wakes) if (!done[j] && (T[j] < 0 || T[b] + delay < T[j])) { T[j] = T[b] + delay; how[j] = why; }
+      for (const [j, delay, why] of e.wakes) if (why === 'ally_hit' && !woke[j] && (T[j] < 0 || F[b] + delay < T[j])) { T[j] = F[b] + delay; how[j] = why; }
     }
-    return { T, how };
+    return { T, how, F };
   }
 
-  // LRunner.cost(M, route) → {route, length, woken: [{uid, sp, turn, how, fights}], fights: [{turn,
-  // uids, sps, a, b, c}], a, b, c}: what the route wakes, its fights (exhibits not in a case, woken
-  // within RUNNER_TOGETHER_TURNS of the one before, in the order they wake), and each charge.
+  // LRunner.cost(M, route) → {route, length, woken: [{uid, sp, turn, how, fights, at}], fights:
+  // [{turn, uids, sps, a, b, c}], a, b, c}: what the route wakes, its fights (exhibits that fight
+  // it: not in a case and, a tethered warden, reached within its tether (at, the turn each
+  // joins; null for one that never does), each joining within RUNNER_TOGETHER_TURNS of the one
+  // before, in the order they join), and each charge.
   function cost(M, route) {
     if (M.costs && M.costs.has(route)) return M.costs.get(route);
     const out = costOf(M, route);
@@ -439,17 +472,17 @@ const LRunner = (() => {
     return out;
   }
   function costOf(M, route) {
-    const { T, how } = wakes(M, route), woken = [];
-    M.ex.forEach((e, j) => { if (T[j] >= 0) woken.push({ j, uid: e.a.uid, sp: e.a.sp, turn: T[j], how: how[j], fights: e.fights }); });
+    const { T, how, F } = wakes(M, route), woken = [];
+    M.ex.forEach((e, j) => { if (T[j] >= 0) woken.push({ j, uid: e.a.uid, sp: e.a.sp, turn: T[j], how: how[j], fights: F[j] >= 0, at: F[j] }); });
     woken.sort((p, q) => (p.turn - q.turn) || (M.ex[p.j].i - M.ex[q.j].i));
-    const fights = [];
-    for (const w of woken) {
-      if (!w.fights) continue;
+    // The fights, in the order their exhibits join them (at), ties in spawn order.
+    const fights = [], joining = woken.filter(w => w.fights).sort((p, q) => (p.at - q.at) || (M.ex[p.j].i - M.ex[q.j].i));
+    for (const w of joining) {
       const last = fights[fights.length - 1];
-      if (last && w.turn - last.end <= N.RUNNER_TOGETHER_TURNS) { last.list.push(termsOf(M, M.ex[w.j])); last.end = w.turn; }
-      else fights.push({ turn: w.turn, end: w.turn, list: [termsOf(M, M.ex[w.j])] });
+      if (last && w.at - last.end <= N.RUNNER_TOGETHER_TURNS) { last.list.push(termsOf(M, M.ex[w.j])); last.end = w.at; }
+      else fights.push({ turn: w.at, end: w.at, list: [termsOf(M, M.ex[w.j])] });
     }
-    const out = { route, length: route.length - 1, woken: woken.map(w => ({ uid: w.uid, sp: w.sp, turn: w.turn, how: w.how, fights: w.fights })), fights: [], lines: [] };
+    const out = { route, length: route.length - 1, woken: woken.map(w => ({ uid: w.uid, sp: w.sp, turn: w.turn, how: w.how, fights: w.fights, at: w.fights ? w.at : null })), fights: [], lines: [] };
     for (const how of CHARGES) out[how] = 0;
     // A station's line that goes off while the route stands on it, once a station (D2.3: each
     // special once, at its printed damage), in every charge.
@@ -480,11 +513,17 @@ const LRunner = (() => {
     if (K.done) return K.out;
     M.ex.forEach(e => {
       if (e.lines) for (const [, mask] of e.lines) for (let q = 0; q < pen.length; q++) if (mask[q]) pen[q] = Math.max(pen[q], 100 * M.lineNet);
-      let k = e.fights ? alone(termsOf(M, e), 'b') : 0;
-      for (const [j] of e.wakes) if (M.ex[j].fights) k += alone(termsOf(M, M.ex[j]), 'b');
-      if (!k) return;
+      // Waking it costs its fight and what its waking wakes; a tethered warden's fight, and the
+      // ally_hit its being struck brings, only on its leash's tiles, where it strikes (held).
+      const own = e.fights ? alone(termsOf(M, e), 'b') : 0;
+      let ally = 0, call = 0;
+      for (const [j, , why] of e.wakes) if (M.ex[j].fights) { const c = alone(termsOf(M, M.ex[j]), 'b'); if (why === 'ally_hit') ally += c; else call += c; }
+      const k = e.leash ? call : own + ally + call, held = e.leash ? own + ally : 0;
+      if (!k && !held) return;
       const per = Int.ceilDiv(k, Math.max(1, e.need));
       for (let q = 0; q < pen.length; q++) {
+        if (held && e.leash[q]) pen[q] += held;
+        if (!k) continue;
         if ((e.sight && e.sight[q]) || (e.tether && e.tether[q])) pen[q] += k;
         else if ((e.ring && e.ring[q]) || (e.axis && e.axis[q])) pen[q] += per;
       }
@@ -653,13 +692,13 @@ const LRunner = (() => {
   //     ({check: 'LV11', room, op}) and the department is accepted. If it still fails after
   //     the last move, every move is undone and the attempt is rejected, which reseeds.
   // The department is judged as it is made with every module on and nothing left out
-  // (asMade): a switch (rulesOff) or an exhibit left out (without) must not change which
-  // attempt is taken, or where anything stands (M4 plan A10: population is the same under any
-  // switch, so paired runs share rooms); the moves made there are made here too. A state that
+  // (Populate.asMade): a switch (rulesOff) or an exhibit left out (without) must not change
+  // which attempt is taken, or where anything stands (M4 plan A10: population is the same
+  // under any switch, so paired runs share rooms); the moves made there are made here too. A state that
   // is no department (a room for tests) has nothing to check. The moves draw on no stream
   // (D2.3: "the runner's moves draw nothing").
   function check(state, plan, log) {
-    const v = asMade(state), r = verdict(v, plan);
+    const v = Populate.asMade(state), r = verdict(v, plan);
     if (r === null) return null;
     if (r.reason) return { reason: r.reason, tiles: r.tiles };
     if (v !== state) for (const mv of r.moves) put(Object.assign({}, mv, { a: Actors.byUid(state, mv.a.uid) }), mv.to);
@@ -687,19 +726,6 @@ const LRunner = (() => {
     return { reason: `the worst-case runner's cheapest route costs ${hp(b.b)} of its ${first.hp} HP (at most ${Int.idiv(N.RUNNER_PASS_PCT * first.hp, 100)}, ${N.RUNNER_PASS_PCT}%): ${why(v, b)}${tried}`,
       tiles: b.route.map(k => [k % m.w, Int.idiv(k, m.w)]) };
   }
-  // The department as made with every module on and nothing left out: the state itself when
-  // no switch is off and nothing is left out; else a copy with every module on (its entry's
-  // on, and rulesOff empty) and each exhibit left out back, as its archetype's init makes it
-  // (Setup.settleActors).
-  function asMade(state) {
-    const o = state.options || {}, off = o.rulesOff || [], out = o.without || [];
-    if (!off.length && !out.length) return state;
-    const v = State.clone(state);
-    v.options = Object.assign({}, v.options, { rulesOff: [], without: [] });
-    for (const m of (v.dept && v.dept.modules) || []) if (off.includes(m.id)) m.on = true;
-    for (const a of v.actors) if (out.includes(a.uid) && a.gone) { a.gone = 0; Archetypes.init(v, a); }
-    return v;
-  }
   const hp = x => Int.ceilDiv(x, 100);
 
   // LRunner.movable(state, a) → may a move take exhibit a (above)?
@@ -711,12 +737,14 @@ const LRunner = (() => {
     if (Array.isArray(a.guards) && (a.guards[0] !== a.x || a.guards[1] !== a.y)) return false;
     return Grid.ch(m, a.x, a.y) === '.';
   }
-  // LRunner.blame(M, j) → what waking M.ex[j] costs, in hundredths of a hit point: its charge
-  // (b) fought alone, if it can fight, and that of each sleeper its waking wakes in turn.
-  function blame(M, j) {
-    const e = M.ex[j];
-    let k = e.fights ? alone(termsOf(M, e), 'b') : 0;
-    for (const [i] of e.wakes) if (M.ex[i].fights) k += alone(termsOf(M, M.ex[i]), 'b');
+  // LRunner.blame(M, j, fights?) → what waking M.ex[j] costs, in hundredths of a hit point: its
+  // charge (b) fought alone, if it fights (fights, given: whether it fights on the route at
+  // hand, which a tethered warden the route never reaches within its tether does not), and that
+  // of each sleeper its waking wakes in turn (by ally_hit only if it is fought).
+  function blame(M, j, fights) {
+    const e = M.ex[j], f = fights === undefined ? e.fights : fights;
+    let k = f ? alone(termsOf(M, e), 'b') : 0;
+    for (const [i, , why] of e.wakes) if (M.ex[i].fights && (f || why !== 'ally_hit')) k += alone(termsOf(M, M.ex[i]), 'b');
     return k;
   }
   const DIRECT = ['ring', 'axis', 'tether'];
@@ -732,7 +760,8 @@ const LRunner = (() => {
       if (!DIRECT.includes(w.how)) continue;
       const j = M.ex.findIndex(e => e.a.uid === w.uid), a = M.ex[j].a;
       if (done.some(v => v.a === a) || !movable(state, a)) continue;
-      list.push({ j, a, w, k: blame(M, j) });
+      const k = blame(M, j, w.fights);
+      if (k > 0) list.push({ j, a, w, k });
     }
     list.sort((p, q) => (q.k - p.k) || (p.w.turn - q.w.turn) || (M.ex[p.j].i - M.ex[q.j].i));
     for (const c of list) {
@@ -742,7 +771,9 @@ const LRunner = (() => {
         put(mv, to);
         if (!clear(state, c.a, b.route) || (typeof LV6 !== 'undefined' && LV6.check(state, plan))) { undo(mv); continue; }
         const who = name(state, c.a), as = who.includes(',') ? `${who},` : who, where = galleryName(state, mv.room);
-        mv.op = `moved ${as} from ${from[0]},${from[1]} to ${to[0]},${to[1]}${where ? `, in ${where}` : ''}: the worst-case runner's way ${WAKE[c.w.how]}; from ${to[0]},${to[1]} it passes clear of it`;
+        // A tethered warden woken otherwise costs only once the way comes within its tether.
+        const said = WAKE[c.w.how](M.ex[c.j].need) + (c.w.fights && M.ex[c.j].leash && c.w.how !== 'tether' ? `, and came within ${N.TETHER_RANGE} tiles of what it guards, where it strikes` : '');
+        mv.op = `moved ${as} from ${from[0]},${from[1]} to ${to[0]},${to[1]}${where ? `, in ${where}` : ''}: the worst-case runner's way ${said}; from ${to[0]},${to[1]} it passes clear of it`;
         mv.tried = `with ${as} moved from ${from[0]},${from[1]} to ${to[0]},${to[1]}`;
         return mv;
       }
@@ -765,9 +796,9 @@ const LRunner = (() => {
   }
   // How the route would wake it, in words a player would take.
   const WAKE = {
-    ring: `passed within ${N.RING_MOVING} walking tiles of it, in its sight, for ${N.PIPS_TO_WAKE} turns, which wakes it`,
-    axis: `crossed its row or column within ${N.AXIS_RANGE} tiles, in its sight, which wakes it`,
-    tether: `came within ${N.TETHER_RANGE} tiles of what it guards, which wakes it at once`,
+    ring: need => `passed within ${N.RING_MOVING} walking tiles of it, in its sight, for ${need} turn${need === 1 ? '' : 's'}, which wakes it`,
+    axis: () => `crossed its row or column within ${N.AXIS_RANGE} tiles, in its sight, which wakes it`,
+    tether: () => `came within ${N.TETHER_RANGE} tiles of what it guards, which wakes it at once`,
   };
   const name = (state, a) => (a && Labels.nameOf(state)(a.uid)) || 'an exhibit';
   // A room's gallery by name, as a sentence says it ("the Brooders’ Bay").
@@ -806,12 +837,13 @@ const LRunner = (() => {
     return list.map(([, k]) => [k % w, Int.idiv(k, w)]);
   }
   // Is exhibit a, where it stands, clear of the route: none of its ring, its axis or its tether
-  // (with every ordinary door open, as the model reads them) holds a tile of it?
+  // (a tethered warden's leash, whatever its trigger) holds a tile of it, with every ordinary
+  // door open, as the model reads them?
   function clear(state, a, route) {
     const vm = opened(state), on = new Set(route);
     for (const [u, v] of Archetypes.wakeRegion(vm, a, N.PIPS_TO_WAKE)) if (on.has(v * vm.dept.w + u)) return false;
     if (a.trigger === 'axis') { const ax = axisMask(vm.dept, a); for (const q of route) if (ax[q]) return false; }
-    if (a.trigger === 'tether' && a.guards) { const t = tetherMask(vm.dept, a); for (const q of route) if (t[q]) return false; }
+    if ((a.trigger === 'tether' && a.guards) || leashed(a)) { const t = tetherMask(vm.dept, a); for (const q of route) if (t[q]) return false; }
     return true;
   }
 
@@ -825,7 +857,9 @@ const LRunner = (() => {
     for (const f of b.fights) if (!worst || f.b > worst.b) worst = f;
     if (!worst) return b.lines.length ? `the line of ${who(b.lines[0].uid)} strikes it at turn ${b.lines[0].turn}` : 'nothing it fights';
     const first = b.woken.find(w => w.uid === worst.uids[0]) || b.woken[0], more = worst.uids.length - 1;
-    return `${who(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}` + (more ? `, and ${more} more join the fight` : '');
+    // A tethered warden woken before the route comes within its tether fights only from then.
+    const later = first.at !== null && first.at !== undefined && first.at > first.turn ? `, and strikes once the runner comes within ${N.TETHER_RANGE} tiles of what it guards, at turn ${first.at}` : '';
+    return `${who(first.uid)} ${HOW[first.how] || 'wakes'} at turn ${first.turn}${later}` + (more ? `, and ${more} more join the fight` : '');
   }
 
   // Registered through the namespace, so that a test may stand in for it (LRunner.check); after

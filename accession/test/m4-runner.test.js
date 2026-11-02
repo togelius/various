@@ -26,8 +26,10 @@
 //     planted department with its sentence, and with RUNNER_MOVES 0 the same is rejected; the
 //     moves never leave LV6 rejecting; the verdict LV11 reaches early is the full report's; an
 //     accept that skips LV11 is caught by the sweep's check and the tool's gate; LV11 is the
-//     same under any switch and with an exhibit left out; a Brooder with no case to guard stands
-//     where a keeper can walk round it.
+//     same under any switch and with an exhibit left out, and so is LV6; a Brooder with no case
+//     to guard stands where a keeper can walk round it; (review) a tethered warden is charged
+//     only once the route stands within its tether, played and checked by the oracle; the gate
+//     judges at RUNNER_PASS_PCT whatever --pct prints.
 'use strict';
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
@@ -165,7 +167,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const st = open([{ sp: 'S9.6', at: [12, 3], stats: S('skirmisher', 3) }, { sp: 'S9.6', at: [20, 3], stats: S('skirmisher', 3), pips: 1 }]);
     const M = LRunner.model(st), rep = LRunner.cost(M, along(st.dept, ROUTE));
     // RING_MOVING 3 from (12, 3) reaches row 1 at x 9–15: the third pip is at x 11.
-    same(wokeOf(rep, 'S9.3.room.1'), { uid: 'S9.3.room.1', sp: 'S9.6', turn: 11, how: 'ring', fights: true });
+    same(wokeOf(rep, 'S9.3.room.1'), { uid: 'S9.3.room.1', sp: 'S9.6', turn: 11, how: 'ring', fights: true, at: 11 });
     // One pip held already: the second, at x 18.
     assert.equal(wokeOf(rep, 'S9.3.room.2').turn, 18);
     // The region read is Archetypes.wakeRegion's.
@@ -687,12 +689,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   test('a move repairs a planted department: the costliest exhibit the route wakes goes to the nearest tile clear of it, said in a sentence; with RUNNER_MOVES 0 it is rejected', () => {
-    // A Brooder at (14, 2) holds the corridor's way along row 1 within its tether.
-    const st = corridor([[14, 2]]), b = st.actors[1], log = [];
+    // A Brooder at (14, 3) holds every way along the corridor within its tether.
+    const st = corridor([[14, 3]]), b = st.actors[1], log = [];
     assert.ok(!LRunner.passes(LRunner.measure(st), 'b', N.RUNNER_PASS_PCT));
     assert.equal(LRunner.check(st, null, log), null);
     same([b.x, b.y, b.home, b.guards], [13, 5, [13, 5], [13, 5]]);
-    same(log, [{ check: 'LV11', room: 1, op: 'moved the Ground-Nesting Brooder, With Its Nest, from 14,2 to 13,5: the worst-case runner\'s way came within 2 tiles of what it guards, which wakes it at once; from 13,5 it passes clear of it' }]);
+    same(log, [{ check: 'LV11', room: 1, op: 'moved the Ground-Nesting Brooder, With Its Nest, from 14,3 to 13,5: the worst-case runner\'s way came within 2 tiles of what it guards, which wakes it at once; from 13,5 it passes clear of it' }]);
     const rep = LRunner.measure(st);
     same([rep.best.b.b, rep.best.b.woken.length], [0, 0]);
     // Played in the game, the way the runner now takes wakes nothing.
@@ -700,9 +702,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(play(g, rep.best.b.route), null);
     same(g.actors.map(a => a.mode), st.actors.map(a => a.mode));
     // With no move allowed, the same department is rejected, as it stands.
-    const Y0 = loadCore(null, { numbers: { RUNNER_MOVES: 0 } }), st0 = corridor([[14, 2]], Y0);
+    const Y0 = loadCore(null, { numbers: { RUNNER_MOVES: 0 } }), st0 = corridor([[14, 3]], Y0);
     assert.match(Y0.LRunner.check(st0, null, []).reason, /: the Ground-Nesting Brooder, With Its Nest wakes as it nears what it guards at turn \d+$/);
-    same([st0.actors[1].x, st0.actors[1].y], [14, 2]);
+    same([st0.actors[1].x, st0.actors[1].y], [14, 3]);
     // On real departments a move is made only where LV6 still passes, and never onto a tile a
     // patrol walks or a station's line takes (A.4 seed 10, M.11 seeds 13 and 37 move).
     for (const [acc, seed] of [['A4', 10], ['M11', 13], ['M11', 37]]) {
@@ -716,6 +718,69 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         for (const st2 of s2.actors.filter(x => C.HourlyDemonstration.isStation(s2, x))) assert.ok(!C.HourlyDemonstration.reach(s2, st2).some(t => t[0] === a.x && t[1] === a.y), l.op);
       }
     }
+  });
+
+  test('a tethered warden strikes only within its tether: woken outside it, it is charged nothing and, played, never strikes; reached later, it fights from then, and the oracle agrees', () => {
+    const check = require(path.join(root, 'test/sweep/runner.check.js'))(C);
+    // A corridor `rows` tall, with one Brooder (a tethered warden guarding its own tile).
+    const hall = (at, rows, more) => {
+      const wall = '#'.repeat(35), floor = '#' + '.'.repeat(33) + '#', map = [wall, 'E' + '.'.repeat(33) + 'X'].concat(Array(rows - 1).fill(floor), [wall]);
+      return dept({ map, you: [0, 1], exhibits: [Object.assign({ sp: 'S9.4', at, stats: S('warden', 3), guards: at.slice() }, more || {})] },
+        [{ id: 1, role: 'section', cells: cellsOf(map, 1, 1, 33, rows) }], [0, 1], [[34, 1]]);
+    };
+    const agrees = (st, rep) => { const o = check.oracle(st, rep.best.b.route, rep.horizon); same([o.b, o.woken], [rep.best.b.b, rep.best.b.woken.map(w => [w.uid, w.turn])]); };
+    // At (14, 2) in five rows, its tether (rows 0 to 4 at its column) leaves row 5 free: the way
+    // along it passes within its ring and wakes it, but never stands where it strikes (§8.2).
+    const st = hall([14, 2], 5), rep = LRunner.measure(st), b = rep.best.b;
+    same([b.b, b.woken.map(w => [w.how, w.fights, w.at]), b.fights.length], [0, [['ring', false, null]], 0]);
+    agrees(st, rep);
+    const log = [];
+    assert.equal(LRunner.check(State.clone(st), null, log), null);
+    same(log, []);
+    // Played in the game, the way wakes it hunting as it passes below (turn 13), it walks back
+    // to what it guards, and it never strikes you: you leave with full health.
+    const g = State.clone(st), you = g.actors[0], w = g.dept.w, seen = [];
+    for (let i = 1; i < b.route.length; i++) {
+      const k = b.route[i - 1], q = b.route[i], dir = [0, 1, 2, 3, 4, 5, 6, 7].find(d => k % w + Grid.DX[d] === q % w && Math.floor(k / w) + Grid.DY[d] === Math.floor(q / w));
+      for (const e of Step.step(g, { a: 'move', dir })) seen.push(e);
+    }
+    same([you.x, you.y], [34, 1]);
+    assert.ok(seen.some(e => e.k === 'woke' && e.who === g.actors[1].uid && e.mode === 'hunting'), 'the way woke it');
+    const uid = g.actors[1].uid;
+    assert.ok(!seen.some(e => e.k === 'refused' || ((e.k === 'attacked' || e.k === 'missed') && e.by === uid) || ((e.k === 'telegraphed' || e.k === 'special') && e.who === uid)), 'it never struck at you');
+    assert.equal(you.hp, you.maxHp);
+    // Charged as before LV11 knew its leash (every waking a fight), the same way would cost its
+    // whole fight: the leash is what spares it.
+    assert.ok(LRunner.alone(LRunner.terms(st, st.actors[1], LRunner.runner(st)), 'b') > N.RUNNER_PASS_PCT * rep.hp);
+    // In four rows every way crosses its tether. With no tether trigger and two pips already,
+    // its ring wakes it a turn before the way reaches the tether, and it fights from then.
+    const st2 = hall([14, 2], 4, { trigger: null, pips: 2 }), rep2 = LRunner.measure(st2), w2 = rep2.best.b.woken[0];
+    same([w2.how, w2.turn, w2.at, rep2.best.b.fights.map(f => f.turn)], ['ring', 11, 12, [12]]);
+    agrees(st2, rep2);
+    assert.equal(LRunner.check(State.clone(st2), null, []).reason, 'the worst-case runner\'s cheapest route costs 74 of its 25 HP (at most 20, 80%): the Ground-Nesting Brooder, With Its Nest wakes as it passes at turn 11, and strikes once the runner comes within 2 tiles of what it guards, at turn 12');
+    // And a move says so: in five rows, at (14, 3), it is moved clear of both.
+    const st3 = hall([14, 3], 5, { trigger: null, pips: 2 }), log3 = [];
+    assert.equal(LRunner.check(st3, null, log3), null);
+    same(log3.map(l => l.op), ['moved the Ground-Nesting Brooder, With Its Nest, from 14,3 to 13,5: the worst-case runner\'s way passed within 3 walking tiles of it, in its sight, for 1 turn, which wakes it, and came within 2 tiles of what it guards, where it strikes; from 13,5 it passes clear of it']);
+  });
+
+  test('a tethered warden reached after it wakes: ally_hit and the patrols\' fallback come from the fight it joins, not its waking', () => {
+    // The four-row corridor of the test above (woken at turn 11, fighting from 12), with a
+    // Hopper far off; its record is made a sleeper only ally_hit can wake, then a patrol whose
+    // timeline sees nothing and whose round sees the route's tile at turn 11 only.
+    const wall = '#'.repeat(35), floor = '#' + '.'.repeat(33) + '#', map = [wall, 'E' + '.'.repeat(33) + 'X', floor, floor, floor, wall];
+    const st = dept({ map, you: [0, 1], exhibits: [{ sp: 'S9.4', at: [14, 2], stats: S('warden', 3), guards: [14, 2], trigger: null, pips: 2 }, { sp: 'S9.6', at: [31, 4], stats: S('skirmisher', 3) }] },
+      [{ id: 1, role: 'section', cells: cellsOf(map, 1, 1, 33, 4) }], [0, 1], [[34, 1]]);
+    const route = LRunner.measure(st).best.b.route, M = LRunner.model(st), [w, h] = M.ex;
+    same(LRunner.wakes(M, route).F.slice(0, 1), [12]);
+    h.ring = new Uint8Array(h.ring.length); h.axis = null; w.wakes.push([1, 1, 'ally_hit']);
+    const ally = LRunner.wakes(M, route);
+    same([ally.T[1], ally.how[1]], [13, 'ally_hit']);
+    w.wakes.pop();
+    h.turns = route.map(() => []); h.sight = new Uint8Array(h.ring.length); h.sight[route[11]] = 1;
+    same(LRunner.wakes(M, route).T[1], -1, 'the round sees the runner only before its first fight');
+    h.sight[route[12]] = 1;
+    same(LRunner.wakes(M, route).T[1], 12, 'and from the fight on');
   });
 
   test('LV11\'s early verdict is the full report\'s, and LV11 is the same under any switch and with an exhibit left out', () => {
@@ -744,6 +809,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         assert.equal(rest(s), rest(base), `${acc} seed ${seed} without ${out.uid}`);
       }
     }
+    // LV6 judges as made too (Populate.asMade): M.11 seed 118's first attempt is rejected for
+    // a Heliograph whose axis holds the Intro's open doorway; with that Heliograph left out the
+    // same attempt is still rejected, so every other exhibit stands where it stood (§3.6).
+    const made = Dept.generate(118, 'M11', 6), lv6 = made.tries.flat().filter(f => f.id === 'lv6');
+    assert.equal(lv6.length, 1);
+    const helio = made.state.actors.find(a => a.arch === 'axis_sniper' && lv6[0].why.includes(C.Labels.nameOf(made.state)(a.uid)));
+    const left = Dept.generate(118, 'M11', 6, { without: [helio.uid] }), rest = q2 => JSON.stringify(q2.actors.filter(x => x.uid !== helio.uid).map(x => [x.uid, x.x, x.y]));
+    same([left.attempt, left.tries.flat().map(f => f.id)], [made.attempt, ['lv6']]);
+    assert.equal(rest(left.state), rest(made.state));
   });
 
   test('an accept that skips LV11 is caught: the sweep\'s check and the tool\'s gate find the departments it fails', () => {
@@ -766,6 +840,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // With LV11, the same seed holds, and the oracle agrees.
     const g2 = T.gate('M11', T.sweep(C, 'M11', opt), opt, check.oracle);
     assert.ok(g2.ok, g2.lines.join('\n'));
+    // Asked to print 50% first, the gate still judges at LV11's own 80%.
+    const opt50 = T.parse(['--dept', 'M11', '--seeds', '13-13', '--pct', '50', '--check']), g50 = T.gate('M11', T.sweep(C, 'M11', opt50), opt50, check.oracle);
+    assert.match(g50.lines[0], /^M11 gate: every final department passes LV11 at 80%: 1 of 1$/);
     assert.match(g2.lines[3], /^ {2}the oracle agrees on 1 of 1 \(seeds 1–100\)$/);
     // A runner whose charge is halved is caught by the oracle: A.4 seed 1 passes, its cheapest
     // route waking a fight of three that the oracle charges as LRunner does, until halved.
@@ -778,7 +855,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('a Brooder with no case to guard stands where a keeper can walk round it: its tether off the safe zone, every way into its room joined outside its tether and ring', () => {
     let own = 0;
-    for (let seed = 1; seed <= 14; seed++) {
+    for (let seed = 1; seed <= 40; seed++) {
       const g = Dept.generate(seed, 'S9', 1 + ((seed - 1) % 7)), s = g.state, m = s.dept, b = s.actors.find(a => a.sp === 'S9.4');
       if (b.guards[0] !== b.x || b.guards[1] !== b.y) continue;
       own++;
@@ -802,6 +879,6 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       for (const k of ways) assert.ok(seen.has(k), `S9 seed ${seed}: the way in at ${k % m.w},${(k - k % m.w) / m.w} is cut off by it`);
       assert.ok(g.log.some(l => /S9\.4 found no case in \S+ it could guard and guards its own tile$/.test(l.op)), `S9 seed ${seed}`);
     }
-    assert.ok(own >= 4, `${own} of 14 with no case`);
+    assert.ok(own >= 12, `${own} of 40 with no case`);
   });
 };
