@@ -11,7 +11,9 @@
 //                               step (or a door opened) strictly closer to you by an exhibit's
 //                               walking distance, or, when no walk reaches you, strictly closer
 //                               to the tile it can reach that is nearest you; it waits only when
-//                               no such step is free; it never acts in the instant it comes in.
+//                               no such step is free, or while a status makes it only wait
+//                               (fixed, or M4's staggered: Single File staggers it as any
+//                               exhibit, Status.skips); it never acts in the instant it comes in.
 //                               A move another rule makes it take (a Window Pole's push, whose
 //                               moved event has a cause) is not its own step;
 //   night_watchman.return       a new one comes in exactly WATCHMAN_RETURN clock counts after
@@ -120,11 +122,12 @@ module.exports = (C) => {
         }
       }
       // A wait: only when no step strictly closer was free. Checked where it is sure: the
-      // Watchman acted in this step without moving, was not fixed, and a closer tile was free
-      // of every actor before and after the step with nothing stepping onto it during it.
+      // Watchman acted in this step without moving, held no status that makes it only wait
+      // (Status.skips: fixed, or M4's staggered, which loses it its next action, §8.1), and a
+      // closer tile was free of every actor before and after the step with nothing stepping
+      // onto it during it.
       if (!b || w.gone || pre.over || mine.length || w.acts <= b.acts) return null;
-      const fixed = a => (a.statuses || []).some(s => s.id === 'fixed');
-      if (fixed(b) || fixed(w) || events.some(e => e.k === 'status' && e.who === w.uid)) return null;
+      if (C.Status.skips(pre, b) || C.Status.skips(post, w) || events.some(e => e.k === 'status' && e.who === w.uid)) return null;
       const here = dist(w.x, w.y), reach = here >= 0;
       if (reach && here === 1) return `${w.uid} waited beside you at ${w.x},${w.y} instead of striking`;
       if (reach && here < 1) return null;

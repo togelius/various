@@ -23,6 +23,8 @@
 //     leaves the discount; a due line (the chime's) missed at its boundary does too; a call never;
 //   - two misses before the discount is spent leave one discount and one surprise, each said
 //     once ("however many miss you before it");
+//   - with Single File: the Night Watchman staggered, its lost action falling at a mid-turn
+//     decision of yours, only waits, every invariant holding;
 //   - your death: a special that kills you leaves nothing waiting;
 //   - Light Fingers' opening, discounted, takes its own ticks less PERK_DUCK_AND_COVER, and so
 //     does an item action (a garment put on, a drop), kit.costs holding.
@@ -298,6 +300,30 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(s.actors[0].next, 2 * T - CUT, 'one discount');
     play(X, s, [WAIT]);
     assert.equal(json([s.actors[0].next, X.Perks.charges(s)[0].charge]), json([3 * T - CUT, { ticks: 0, surprise: true }]), 'spent; the surprise waits');
+  });
+
+  // With PG-PERKS-B's Single File: the Night Watchman (the night watch at once: clock B 1, G 1,
+  // its entrance at (0, 2)) walks to you through the doorway beside you and is staggered there,
+  // at tick 700, so it loses its action at 800. With the discount waiting at your decision at
+  // 800, your wait ends at 850: its lost action (a wait beside you) falls in that step, and the
+  // stagger ends at turn 9's boundary, in the next, where it strikes. Every invariant holds
+  // (night_watchman.acts among them: a staggered Watchman only waits, §8.1).
+  test('a mid-turn decision with Single File\'s staggered Night Watchman: its lost action is a wait, then it strikes', () => {
+    const X = loadCore();
+    const ENTRY = ['###########', '#....#....#', "E....'....#", '#....#....#', '###########'];
+    const s = X.Setup.room(1, { acc: 'T0', depth: 3, map: ENTRY, you: [6, 2], exhibits: [], clock: { B: 1, G: 1 }, entrance: [0, 2] }, { invulnerable: true });
+    s.actors[0].hp = s.actors[0].maxHp = 999;
+    s.run.perks = [{ id: 'duck_and_cover', rank: 1 }, { id: 'single_file', rank: 1 }];
+    const watchman = () => s.actors.find(a => a.arch === 'night_watchman');
+    for (let i = 0; i < 12 && !(watchman() && (watchman().statuses || []).some(t => t.id === 'staggered')); i++) play(X, s, [WAIT]);
+    const w = watchman();
+    assert.equal(json([s.tick, w.x, w.y, w.next]), json([8 * T, 5, 2, 8 * T]), 'staggered in the doorway beside you, to act at 800');
+    s.dept.perk = { duck: true };
+    const acts = w.acts;
+    let r = play(X, s, [WAIT]);
+    assert.equal(json([s.tick, w.acts - acts, w.x, w.y, r.events.filter(e => e.by === w.uid || e.who === w.uid).length]), json([8 * T + CUT, 1, 5, 2, 0]), 'its lost action: it only waited');
+    r = play(X, s, [WAIT]);
+    assert.ok(r.events.some(e => e.k === 'attacked' && e.by === w.uid && e.at === 'you'), 'it strikes once the stagger has ended');
   });
 
   test('your death: a special that kills you leaves nothing waiting', () => {
