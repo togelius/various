@@ -15,16 +15,63 @@
 // The identity shares (design/layout.md §13.2) leave the stamped Intro out at version 3 (§5.5),
 // so they are printed both ways, p50: the glass and narrow shares as the checks count them, and
 // with the Intro counted, beside the Intro's share of the public floor; not gated.
+// With --validators it sweeps the three departments as Dept.generate makes them instead (M4
+// plan D-VALIDATORS; BUILD.md §5.5): for each, over seeds 1–N at each depth (1–7, or --depths
+// a,b…), the share taken at the first layout attempt, the fallbacks, and every failed attempt
+// by its validator; LV7's dead-end branches (the deepest, with and without a reward: LV7 is
+// vacuous while no branch with no reward reaches DEAD_END_REWARD); LV13's stations judged, the
+// lines that cut the entrance from every exit and the narrowest window; and the Centrepiece
+// halls placed, with the halls that hold no real case. --cores plants every pack's
+// Centrepiece core ready (as the tests do), so the hall's case is judged. It fails (exit 1) when
+// a department falls back with a rejection, or more than 1% fall back.
 // Usage: node tools/layout-sweep.js [seeds=1000] [--locality] [--maps] [--json out.json]
+//        node tools/layout-sweep.js [seeds] --validators [--depths 1,4,7] [--cores]
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const root = path.join(__dirname, '..');
-const { Layout, LBuild, N } = require('./core-context.js').loadCore();
+const C = require('./core-context.js').loadCore(), { Layout, LBuild, N } = C;
 const seeds = +(process.argv[2] || 1000);
 const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
 const q = (a, p) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(p * (b.length - 1)))]; };
 const out = {};
 let bad = 0;
+
+if (process.argv.includes('--validators')) {
+  const arg = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
+  const depths = arg('--depths') ? arg('--depths').split(',').map(Number) : [1, 2, 3, 4, 5, 6, 7];
+  if (process.argv.includes('--cores')) for (const acc of ['S9', 'A4', 'M11']) { const cp = C.Packs.get(acc).centrepiece; C.Registry.ARCHETYPES[cp.archetype].ready = 'sweep'; }
+  console.log(`department | made | first attempt | fallbacks | failed attempts by validator`);
+  for (const acc of ['S9', 'A4', 'M11']) {
+    let made = 0, first = 0, fallback = 0, halls = 0, bare = 0, judged = 0, cut = 0, narrow = null, narrowAt = '';
+    const fails = {}, deep = { item: [0, ''], centrepiece: [0, ''], none: [0, ''] };
+    for (const depth of depths) for (let s = 1; s <= seeds; s++) {
+      const g = C.Dept.generate(s, acc, depth), st = g.state, where = `seed ${s} depth ${depth}`;
+      made++;
+      if (g.attempt === 0) first++;
+      if (g.fallback) { fallback++; if (g.rejected) { bad++; console.log(`${acc} ${where}: the fallback is taken despite ${g.rejected.id}: ${g.rejected.reason}`); } }
+      for (const t of g.tries) for (const f of t) fails[f.id] = (fails[f.id] || 0) + 1;
+      for (const b of C.LVM4.deadEnds(st, true)) { const d = deep[b.reward || 'none']; if (b.depth > d[0]) { d[0] = b.depth; d[1] = where; } }
+      for (const f of C.LVM4.windows(st, true)) {
+        judged++;
+        if (f.run) cut++;
+        if (f.window !== null && (narrow === null || f.window < narrow)) { narrow = f.window; narrowAt = `${where}, ${f.uid}, a run of ${f.run} in a period of ${f.period}`; }
+      }
+      const cp = C.Hall.cp(st);
+      if (cp) { halls++; const id = st.dept.rooms.find(r => r.key === cp.room).id; if (!st.dept.fixtures.some(f => f.k === 'case' && !f.mimic && st.dept.roomOf[f.y][f.x] === id)) bare++; }
+    }
+    const pc = n => (100 * n / made).toFixed(1) + '%';
+    const ids = Object.keys(fails).sort((a, b) => fails[b] - fails[a] || (a < b ? -1 : 1));
+    console.log(`${acc} | ${made} | ${pc(first)} | ${fallback} (${pc(fallback)}) | ${ids.map(k => `${k} ${fails[k]}`).join(', ') || 'none'}`);
+    console.log(`    LV7: deepest dead end with no reward ${deep.none[0] ? `${deep.none[0]} walking tiles (${deep.none[1]})` : 'none'}; with an item ${deep.item[0] || '-'}; holding the Centrepiece hall ${deep.centrepiece[0] || '-'}` +
+      ` (LV7 rejects one with no reward at ${N.DEAD_END_REWARD})${deep.none[0] < N.DEAD_END_REWARD ? ': vacuous here' : ''}`);
+    console.log(`    LV13: ${judged} station lines judged (longer than their period less ${N.DEMO_WINDOW}), ${cut} cutting the entrance from every exit; narrowest window ${narrow === null ? '-' : `${narrow} turns (${narrowAt})`}`);
+    console.log(`    the hall's case: ${halls} Centrepiece halls placed${halls ? `, ${bare} with no real case` : ''}`);
+    out[acc] = { made, first, fallback, fails, deep, judged, cut, narrow, halls, bare };
+    if (fallback > made / 100) bad++;
+  }
+  if (process.argv.includes('--json')) fs.writeFileSync(arg('--json'), JSON.stringify(out, null, 1));
+  process.exit(bad ? 1 : 0);
+}
 
 // The Intro's measures for one plan: {open, deep, cut, beyond, glass, blockers, narrow, floor}
 // (above): the last four are the Intro's own counts of what LAnalyse counts for the identity
