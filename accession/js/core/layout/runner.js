@@ -513,18 +513,15 @@ const LRunner = (() => {
     if (K.done) return K.out;
     M.ex.forEach(e => {
       if (e.lines) for (const [, mask] of e.lines) for (let q = 0; q < pen.length; q++) if (mask[q]) pen[q] = Math.max(pen[q], 100 * M.lineNet);
-      // Waking it costs its fight and what its waking wakes; a tethered warden's fight, and the
-      // ally_hit its being struck brings, only on its leash's tiles, where it strikes (held).
-      const own = e.fights ? alone(termsOf(M, e), 'b') : 0;
-      let ally = 0, call = 0;
-      for (const [j, , why] of e.wakes) if (M.ex[j].fights) { const c = alone(termsOf(M, M.ex[j]), 'b'); if (why === 'ally_hit') ally += c; else call += c; }
-      const k = e.leash ? call : own + ally + call, held = e.leash ? own + ally : 0;
-      if (!k && !held) return;
+      // (A tethered warden's leash is priced as its tether is, whatever its trigger: there it
+      // strikes. Its ring stays priced too, though a waking there costs only once the route
+      // reaches the leash: the prices only steer the search, and the charge is cost's.)
+      let k = e.fights ? alone(termsOf(M, e), 'b') : 0;
+      for (const [j] of e.wakes) if (M.ex[j].fights) k += alone(termsOf(M, M.ex[j]), 'b');
+      if (!k) return;
       const per = Int.ceilDiv(k, Math.max(1, e.need));
       for (let q = 0; q < pen.length; q++) {
-        if (held && e.leash[q]) pen[q] += held;
-        if (!k) continue;
-        if ((e.sight && e.sight[q]) || (e.tether && e.tether[q])) pen[q] += k;
+        if ((e.sight && e.sight[q]) || (e.tether && e.tether[q]) || (e.leash && e.leash[q])) pen[q] += k;
         else if ((e.ring && e.ring[q]) || (e.axis && e.axis[q])) pen[q] += per;
       }
     });
