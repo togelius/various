@@ -305,13 +305,16 @@ const LV6 = (() => {
   // LV6.check(state, plan) → null, or {reason, tiles}: the first finding (LV6.findings), in
   // words (LV6.words), with its tiles to mark: where the exhibit stands, then the zone's tiles
   // it reaches. plan is not read (the state holds the department as made); a map with no
-  // entrance has nothing to check.
+  // entrance has nothing to check. It judges the department as made, every module on and
+  // nothing left out (Populate.asMade, M4 D-RUNNER's review), so that a switch or an exhibit
+  // left out never changes which attempt is taken (population is the same under any switch,
+  // M4 plan A10, and `without` changes no other exhibit's tile, BUILD §3.6).
   function check(state, plan) {
-    const all = findings(state);
+    const v = Populate.asMade(state), all = findings(v);
     if (!all.length) return null;
-    const f = all[0], a = state.actors.find(b => b.uid === f.uid), tiles = [];
+    const f = all[0], a = v.actors.find(b => b.uid === f.uid), tiles = [];
     for (const t of Actors.footprint(a).concat(f.tiles)) if (!tiles.some(u => u[0] === t[0] && u[1] === t[1])) tiles.push([t[0], t[1]]);
-    return { reason: words(state, f), tiles };
+    return { reason: words(v, f), tiles };
   }
 
   // Registered through the namespace, so that a test may stand in for it (LV6.check).

@@ -732,6 +732,23 @@ const Populate = (() => {
     return null;
   }
 
+  // Populate.asMade(state) → the department as it is made with every module on and nothing
+  // left out, for a validator that judges what stands where (LV6, LV11): the state itself when
+  // no switch is off and nothing is left out; else a copy with every module on (its entry's
+  // on, and rulesOff empty) and each exhibit left out back, as Setup.settleActors would have
+  // made it (its archetype's init). Population is the same under any switch (M4 plan A10, DE13),
+  // so a switch (rulesOff) or an exhibit left out (without, §3.6) must not change which attempt
+  // a validator accepts either: paired runs share rooms.
+  function asMade(state) {
+    const o = state.options || {}, off = o.rulesOff || [], out = o.without || [];
+    if (!off.length && !out.length) return state;
+    const v = State.clone(state);
+    v.options = Object.assign({}, v.options, { rulesOff: [], without: [] });
+    for (const m of (v.dept && v.dept.modules) || []) if (off.includes(m.id)) m.on = true;
+    for (const a of v.actors) if (out.includes(a.uid) && a.gone) { a.gone = 0; Archetypes.init(v, a); }
+    return v;
+  }
+
   // The galleries a gallery list placed in room roomId (its pack's records, in the pack's
   // order: the first names the room, and any after it joined it), or [] (§5.5). A room keeps
   // them as dept.rooms[].galleries, indices into its pack's list, only when a list filled it
@@ -744,5 +761,5 @@ const Populate = (() => {
   // The gallery placed in room roomId, the one that names it, or null.
   function galleryOf(state, roomId) { return galleriesOf(state, roomId)[0] || null; }
 
-  return { exhibits, ready, check, mapping, takeOk, addValidator, validatorIds, validate, galleryOf, galleriesOf };
+  return { exhibits, ready, check, mapping, takeOk, addValidator, validatorIds, validate, asMade, galleryOf, galleriesOf };
 })();
