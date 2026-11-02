@@ -27,7 +27,7 @@
   R.defineEvent('damaged', { fields: { who: 'uid', amount: 'int', hp: 'int' }, record: true });
   R.defineEvent('died', { fields: { who: 'uid' }, record: true });
   R.defineEvent('telegraphed', { fields: { who: 'uid', sp: 'str', tiles: 'tiles' } });
-  R.defineEvent('special', { fields: { who: 'uid', sp: 'str', hits: 'uids?', cancelled: 'bool?' }, record: true });
+  R.defineEvent('special', { fields: { who: 'uid', sp: 'str', hits: 'uids?', cancelled: 'bool?', called: 'int?' }, record: true });
   R.defineEvent('waited', { fields: { who: 'uid', how: 'str' } });
   R.defineEvent('regenerated', { fields: { who: 'uid', hp: 'int' } });
   R.defineEvent('healed', { fields: { who: 'uid', amount: 'int', hp: 'int' } });

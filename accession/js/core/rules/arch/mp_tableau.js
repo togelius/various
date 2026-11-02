@@ -128,9 +128,13 @@ const Tableau = (() => {
     const sp = calls(state, a);
     if (!sp) throw new Error(`Tableau: ${a.uid}'s summons calls no species (its record names none in summons)`);
     const stats = Roles.stats(sp.role, state.dept.depth);
+    // The bodies it calls (one made and at once gone counted too): none only when every marked
+    // tile was taken; the special event says so (Specials' fire reads it from the mark).
+    tel.called = 0;
     for (const [x, y] of tel.tiles) {
       if (!free(state, a, x, y)) continue;
       a.kids += 1;
+      tel.called += 1;
       const b = Actors.spawn(state, Object.assign({}, stats, {
         uid: `${a.uid}/${a.kids}`, sp: sp.id, size: 1, x, y, maxHp: stats.hp, mode: 'hunting',
         arch: sp.archetype || 'plodder', role: sp.role, mods: (sp.modifiers || []).slice(), modParams: sp.modParams || {}, trigger: sp.trigger || null, group: sp.group || null,

@@ -321,7 +321,7 @@ const Specials = (() => {
   // before any noise: the noise of an exhibit destroyed is held until the last hit
   // (Noise.hold), then comes the soft noise at a's tile that any attack makes, then what an
   // added shape's after has its owner do (M4: the Composite's charge). A call (a
-  // hook) goes to its archetype's onResolve. Then special {who, sp, hits}; then the perks
+  // hook) goes to its archetype's onResolve. Then special {who, sp, hits, called?}; then the perks
   // you hold hear of it (Perks.onResolve, with the mark and atYou, and whether it struck you).
   // The mark is no longer pending once it goes off.
   function fire(state, a, ev) {
@@ -348,7 +348,12 @@ const Specials = (() => {
       if (S && own(ADDED, S.shape) && ADDED[S.shape].after && !a.gone && !state.over) ADDED[S.shape].after(state, a, tel, ev);
       fields.hits = hits;
       struckYou = hits.includes(state.actors[0].uid);
-    } else Archetypes.onResolve(state, a, tel, ev);
+    } else {
+      Archetypes.onResolve(state, a, tel, ev);
+      // A call that makes bodies (the Great Board's summons) says how many it called (M4 FU3),
+      // so a summons that called none can say why.
+      if (Number.isInteger(tel.called)) fields.called = tel.called;
+    }
     Causes.emit(state, ev, 'special', fields, { k: 'special', by: a.uid, sp: tel.sp });
     Perks.onResolve(state, a, Object.assign({}, tel, { atYou: atYou(tel) }), struckYou, ev);
   }

@@ -371,6 +371,35 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  // Its summons told whole (M4 FU3): its mark says what marking costs it, and one that calls no
+  // body, every tile it marked taken by then, says why, not only "… used its summons.".
+  test('its summons\' mark says it takes CP_SUMMON_DMG_PCT% of the damage until it goes off; one that calls no body, every marked tile taken, says so', () => {
+    const s = room(3, { you: [7, 3] }), b = board(C, s), Name = C.Labels.nameOf(s)(b.uid).replace(/^the/, 'The');
+    toPhase2(C, s, b);
+    b.lastKnown = [7, 3];
+    const tiles = C.Specials.tiles(s, b, 'summon'), ev = [];
+    assert.equal(json(tiles), json([[6, 2], [6, 3]]));
+    C.Specials.mark(s, b, 'summon', tiles, ev);
+    const mark = ev.find(e => e.k === 'telegraphed');
+    assert.equal(say(C, s, mark), `${Name} marks 2 tiles for its summons, at its next action: until then it takes ${N.CP_SUMMON_DMG_PCT}% of the damage dealt to it.`);
+    // Both its tiles taken before it goes off: no body comes, and the log says why.
+    for (const [x, y] of tiles) C.Actors.spawn(s, Object.assign({}, Roles.stats('fodder', 3), { uid: `dummy.${x}.${y}`, sp: 'M11.5', x, y, mode: 'dormant' }));
+    const kids = b.kids, out = [];
+    C.Specials.resolve(s, b, out);
+    const went = out.find(e => e.k === 'special' && e.who === b.uid);
+    assert.ok(went && went.called === 0 && b.kids === kids && !out.some(e => e.k === 'woke'), json(out));
+    assert.equal(json(log(C, s, out).filter(l => /summons/.test(l))), json([`${Name} used its summons, but every tile it marked was taken, so no body came.`]));
+    // One with a body says nothing of the kind: told by the body it called.
+    const t = room(3, { you: [7, 3] }), tb = board(C, t), tev = [];
+    toPhase2(C, t, tb);
+    tb.lastKnown = [7, 3];
+    C.Specials.mark(t, tb, 'summon', C.Specials.tiles(t, tb, 'summon'), tev);
+    const tout = [];
+    C.Specials.resolve(t, tb, tout);
+    assert.equal(tout.find(e => e.k === 'special').called, 2);
+    assert.ok(!log(C, t, tout).some(l => /no body came|used its summons/.test(l)), json(log(C, t, tout)));
+  });
+
   // ---- Its double damage in the odds and the Attack button ----
 
   // Your rolls against it after its Padding (§8.1), and the hits you need, from BUILD's words.

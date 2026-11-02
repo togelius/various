@@ -86,9 +86,13 @@
   // the turn boundary it goes off at, §8.1), in the turns until that boundary.
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
   const when = e => isInt(e.cause.due) ? `in ${turns(Int.idiv(e.cause.due, N.TICKS_PER_TURN) - Int.idiv(e.tick, N.TICKS_PER_TURN))}` : 'at its next action';
+  // A summons (effect summon: the Great Board's) also says what its marking costs its owner
+  // (M4 FU3): while the mark is pending it takes CP_SUMMON_DMG_PCT% of the damage dealt to it.
+  const summons = sp => typeof sp === 'string' && Object.prototype.hasOwnProperty.call(Registry.SPECIALS, sp) && Registry.SPECIALS[sp].effect === 'summon';
+  const cost = e => summons(e.sp) ? `: until then it takes ${N.CP_SUMMON_DMG_PCT}% of the damage dealt to it` : '';
   Text.defineCause('telegraphed', 'special', (e, w) => isInt(e.cause.gross) && e.cause.gross > 0
-    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, ${when(e)}.`
-    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, ${when(e)}.`);
+    ? `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}: ${e.cause.gross} before your Padding, ${when(e)}${cost(e)}.`
+    : `${w.Name(e.who)} marks ${covers(e)} for its ${spName(e.sp)}, ${when(e)}${cost(e)}.`);
   // Whom a damage special struck: you, and how many exhibits (never their names, since some
   // may be out of your sight).
   const struck = hits => {
@@ -96,7 +100,9 @@
     const me = hits.includes('you'), n = hits.length - (me ? 1 : 0), them = n === 1 ? '1 exhibit' : `${n} exhibits`;
     return me ? (n ? `: it struck you and ${them}` : ': it struck you') : n ? `: it struck ${them}` : ': it struck nothing';
   };
-  const used = (e, w) => e.cancelled ? `${whose(w, e.who)} ${spName(e.sp)} was called off.` : `${w.Name(e.who)} used its ${spName(e.sp)}${struck(e.hits)}.`;
+  // A call that called no body (the Great Board's summons, every tile it marked taken by then).
+  const none = e => e.called === 0 ? ', but every tile it marked was taken, so no body came' : '';
+  const used = (e, w) => e.cancelled ? `${whose(w, e.who)} ${spName(e.sp)} was called off.` : `${w.Name(e.who)} used its ${spName(e.sp)}${struck(e.hits)}${none(e)}.`;
   Text.define('special', used);
   Text.defineCause('special', 'special', used);
   // Why a mark was called off (§8.1): its owner was fixed or destroyed, went to sleep (asleep:
