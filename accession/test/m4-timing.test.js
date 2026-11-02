@@ -5,7 +5,8 @@
 //   - the floor: the real discount takes exactly PERK_DUCK_AND_COVER ticks off and step()
 //     accepts it; one planted a tick deeper (49 ticks) throws;
 //   - statuses count turns: Fixative with a discounted wait gives one more forced wait, and ends
-//     at the same boundary; a Consolidant or a Fumigant drunk with the discount, your next
+//     at the same boundary; Fixative drunk with the discount keeps its start, your next decision
+//     (mid-turn), and gives FIXATIVE_TURNS forced waits; a Consolidant or a Fumigant drunk with the discount, your next
 //     decision then mid-turn after its turn's boundary, still heals every share and coughs every
 //     turn (rules/status.js counts them from the next turn), at the ticks a full drink gives;
 //   - the threat counts the discounted cost: a mark (or a due line) that would go off between
@@ -20,6 +21,8 @@
 //   - a Centrepiece's burst marked on your tile (cp_burst, the Ordinance's and the Board's), which
 //     no single step leaves: Close the Distance's free steps take you out of it, and its miss
 //     leaves the discount; a due line (the chime's) missed at its boundary does too; a call never;
+//   - two misses before the discount is spent leave one discount and one surprise, each said
+//     once ("however many miss you before it");
 //   - your death: a special that kills you leaves nothing waiting;
 //   - Light Fingers' opening, discounted, takes its own ticks less PERK_DUCK_AND_COVER.
 // The expected figures are worked out here from BUILD.md and the plan, never from the code.
@@ -96,6 +99,35 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(cut.n, N.FIXATIVE_TURNS + 1, json(cut.ticks));
     assert.equal(json(cut.ticks.slice(0, 2)), json([T, T + T - CUT]));
     assert.equal(json([cut.until, cut.ended, full.ended]), json([full.until, full.until * T, full.until * T]), 'the same turns: it ends at the same boundary');
+  });
+
+  // Every other status keeps its start (BUILD §8.1): Fixative drunk with the discount (at 100, so
+  // your next decision is at 150, after turn 1's boundary) holds you from that decision, for its
+  // FIXATIVE_TURNS turns: forced waits at 150, 250, 350 and 450, and it ends at turn 5's boundary,
+  // one turn before the full drink's (which holds you at 200 … 500 and ends at turn 6's).
+  test('A6 statuses keep their start: Fixative drunk with the discount holds you from your next decision, mid-turn, for FIXATIVE_TURNS forced waits', () => {
+    const drunk = discounted => {
+      const X = loadCore(), s = room(X, [['duck_and_cover', 1]], { exhibits: [] });
+      X.Consumables.startRun(s);
+      const it = X.Consumables.make(s, 'fixative', { at: 'floor', x: 2, y: 4 });
+      it.where = { at: 'tote' }; s.you.tote.push(it.uid);
+      s.run.knownSeals.push(X.Consumables.sealFor(s, 'fixative'));
+      play(X, s, [WAIT]);
+      if (discounted) s.dept.perk = { duck: true };
+      play(X, s, [{ a: 'use', uid: it.uid }]);
+      const ticks = [];
+      let ended = null;
+      while (!X.Step.legal(s).some(a => a.a === 'move')) {
+        ticks.push(s.tick);
+        const e = play(X, s, [WAIT]).events.find(x => x.k === 'status' && x.who === 'you' && x.id === 'fixed' && !x.on);
+        if (e) ended = e.tick;
+        assert.ok(ticks.length < 10);
+      }
+      return { ticks, ended };
+    };
+    const want = first => Array.from({ length: N.FIXATIVE_TURNS }, (x, i) => first + i * T);
+    assert.equal(json(drunk(false)), json({ ticks: want(2 * T), ended: (2 + N.FIXATIVE_TURNS) * T }));
+    assert.equal(json(drunk(true)), json({ ticks: want(2 * T - CUT), ended: (1 + N.FIXATIVE_TURNS) * T }));
   });
 
   test('A6 statuses with a per-turn effect: a Consolidant or a Fumigant drunk with the discount, your next decision then mid-turn after its turn\'s boundary, heals every share and coughs every turn, at the ticks a full drink gives', () => {
@@ -240,6 +272,31 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     r = play(X, c, [{ a: 'move', dir: 2 }, { a: 'move', dir: 6 }, WAIT, WAIT]);
     assert.ok(r.events.some(e => e.k === 'special' && e.who === c.actors[1].uid));
     assert.equal(json([perkEv(r.events, 'duck').length, perkEv(r.events, 'close').length]), json([0, 0]));
+  });
+
+  // "However many miss you before it" (the clause): two marks that covered your tiles when they
+  // were made (planted: one on your tile, one on the tile east of it, as if you stood there when
+  // it was marked; their owners act at 50, inside your step) both go off as you step south off
+  // them, both missing you: one discount and, at the second rank, one surprise attack, each said
+  // once, after the first miss; your next wait takes PERK_DUCK_AND_COVER ticks less, the one
+  // after it a turn.
+  test('two misses before the discount is spent leave one discount, and one surprise attack, each said once', () => {
+    const X = loadCore(), DUMMY = { sp: 'dummy', mode: 'hunting', sawYou: true, stats: TOUGH };
+    const s = X.Setup.room(1, { acc: 'T0', depth: 3, map: OPEN, you: [2, 4], exhibits: [Object.assign({ at: [9, 2] }, DUMMY), Object.assign({ at: [9, 6] }, DUMMY)] }, { invulnerable: true });
+    s.run.perks = [{ id: 'duck_and_cover', rank: 2 }];
+    const [, a, b] = s.actors;
+    for (const [e, tile] of [[a, [2, 4]], [b, [3, 4]]]) {
+      e.telegraph = { sp: 'line', tiles: [tile], from: [[e.x, e.y]], via: [null], gross: 1, effect: 'damage', turn: 0, tick: 0 };
+      e.next = CUT; e.notBefore = null;
+    }
+    const r = play(X, s, [{ a: 'move', dir: 4 }]);
+    const went = r.events.filter(e => e.k === 'special').map(e => [e.who, e.hits]);
+    assert.equal(json(went), json([[a.uid, []], [b.uid, []]]), 'both went off, missing you');
+    assert.equal(json(['duck', 'sure'].map(k => perkEv(r.events, k).map(e => e.cause.who))), json([[a.uid], [a.uid]]));
+    play(X, s, [WAIT]);
+    assert.equal(s.actors[0].next, 2 * T - CUT, 'one discount');
+    play(X, s, [WAIT]);
+    assert.equal(json([s.actors[0].next, X.Perks.charges(s)[0].charge]), json([3 * T - CUT, { ticks: 0, surprise: true }]), 'spent; the surprise waits');
   });
 
   test('your death: a special that kills you leaves nothing waiting', () => {

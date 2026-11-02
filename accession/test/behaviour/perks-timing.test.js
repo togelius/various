@@ -197,6 +197,32 @@ module.exports = ({ test, assert, loadCore }) => {
     actions: (first ? [WAIT] : []).concat(actions),
     expect: r => perkEv(r.events, 'close').length ? `a free step: ${json(perkEv(r.events, 'close'))}` : r.state.actors[0].next === want ? null : `your next decision is at ${r.state.actors[0].next}, not ${want}`,
   });
+  // "Nearer, in walking tiles" (§8.2's measure, as the ring's), never as the crow flies: a wall
+  // (x = 7, rows 2–6) stands between you and an exhibit at (8, 4) whose mark (planted, its owner
+  // acting at 500) covers (5, 4), (6, 4) and (6, 3). From (6, 4) the way round the wall is as long
+  // over the top as under it; a step north to (6, 3) shortens the way over the top by one, though
+  // it is no nearer as the crow flies (2 tiles either way): free. From (5, 4), a step east to
+  // (6, 4) is a tile nearer as the crow flies (3 to 2), but the way round the wall from either
+  // starts by the same tile, (6, 3) or (6, 5), one step off: no nearer in walking tiles, so it
+  // takes its time.
+  const WALLED = ['################', '#..............#', ...Array.from({ length: 5 }, () => '#......#.......#'), '#..............#', '################'];
+  const walled = (you, perks) => {
+    const s = hold(C.Setup.room(1, { acc: 'T0', depth: 3, map: WALLED, you, exhibits: [{ sp: 'dummy', at: [8, 4], mode: 'hunting', sawYou: true, stats: TOUGH }] }, { invulnerable: true }), perks);
+    const a = s.actors[1], tiles = [[6, 3], [5, 4], [6, 4]];
+    a.telegraph = { sp: 'line', tiles, from: tiles.map(() => [8, 4]), via: tiles.map(() => null), gross: 1, effect: 'damage', turn: 0, tick: 0 };
+    a.next = 5 * N.TICKS_PER_TURN; a.notBefore = null;
+    return s;
+  };
+  test('Close the Distance counts walking tiles, as the ring does, never tiles as the crow flies: round a wall, a step nearer only in walking tiles is free, one nearer only as the crow flies takes its time', () => {
+    for (const rank of [1, 2]) {
+      const p = [['close_the_distance', rank]];
+      let s = walled([6, 4], p), r = H.play(C, s, [{ a: 'move', dir: 0 }]);
+      assert.equal(json([r.violations.length, perkEv(r.events, 'close').length, s.actors[0].next]), json([0, 1, 0]), `rank ${rank}: north from (6, 4)`);
+      s = walled([5, 4], p); r = H.play(C, s, [{ a: 'move', dir: 2 }]);
+      assert.equal(json([r.violations.length, perkEv(r.events, 'close').length, s.actors[0].next]), json([0, 0, N.TICKS_PER_TURN]), `rank ${rank}: east from (5, 4)`);
+    }
+  });
+
   test('Close the Distance: a step away, a step that keeps the walking distance, and a step with no mark on your tile take their time', () => {
     const list = [{ sp: null, depth: 2 }, { sp: null, depth: 6 }];
     ok(H.sweep(C, notToward('a step away from it', true, [{ a: 'move', dir: 6 }], 2 * N.TICKS_PER_TURN), list), 'away');
