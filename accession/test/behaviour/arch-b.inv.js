@@ -187,14 +187,17 @@ module.exports = (C) => {
     },
     {
       // §8.3, the one shard rule: shards land only on floor or an archway, so never over a
-      // door, an exit, the entrance, a bench or a case.
+      // door, an exit, the entrance, a bench or a case. A hall's shutter (Z) that opens onto the
+      // shards it closed over (they fell on its opening before it sealed) lays none (M4 FU3;
+      // hall.shutters holds it to what it kept).
       id: 'arch_b_shards_on_floor',
       check(pre, events, post) {
         if (!pre) return null;
         const a = pre.dept.tiles, b = post.dept.tiles;
+        const unsealed = events.some(e => e.k === 'stage' && e.stage === 'unsealed' && e.cause && e.cause.k === 'hall');
         for (let y = 0; y < b.length; y++) {
           if (a[y] === b[y]) continue;
-          for (let x = 0; x < b[y].length; x++) if (b[y][x] === 'x' && a[y][x] !== 'x' && a[y][x] !== '.' && a[y][x] !== ',') return `shards at ${x},${y} over '${a[y][x]}'`;
+          for (let x = 0; x < b[y].length; x++) if (b[y][x] === 'x' && a[y][x] !== 'x' && a[y][x] !== '.' && a[y][x] !== ',' && !(a[y][x] === 'Z' && unsealed)) return `shards at ${x},${y} over '${a[y][x]}'`;
         }
         return null;
       },

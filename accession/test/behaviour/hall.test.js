@@ -815,4 +815,27 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     pre = sealedHall(); post = C.State.clone(pre);
     assert.match(text(['hall.quiet'], pre, [{ k: 'stage', turn: 20, tick: 2000, stage: 'unsealed', cause: { k: 'hall', why: 'quiet' } }], post), /19 turns after the seal/);
   });
+
+  // Shards on an opening as the hall seals (M4 FU3; M.11 seed 8 at depth 6 with the Board's core
+  // planted ready: a glass body fell on its opening as the step began): the shutter keeps them,
+  // hall.shutters reads what the opening was as it sealed, and once it opens onto them,
+  // arch_b_shards_on_floor sees no shards laid over the shutter. A shutter that kept anything
+  // else still breaks the one, and shards over a shutter with no unsealing the other.
+  test('shards fallen on an opening in the step it seals are kept under its shutter and back as it opens: neither hall.shutters nor arch_b_shards_on_floor objects', () => {
+    const check = ids => Inv.checker(C, Inv.select(C, ids));
+    const text = (ids, pre, ev, post) => check(ids)(pre, wait, ev, post).map(v => v.text).join(' | ');
+    const pre = hall(C, 3), s = C.State.clone(pre);
+    C.Grid.set(s.dept, 8, 2, 'x');
+    const ev = C.Step.step(s, wait);
+    assert.ok(s.dept.cp.sealed && s.dept.tiles[2][8] === 'Z' && s.dept.cp.openings[0].ch === 'x', json(s.dept.cp));
+    assert.equal(text(['hall.shutters', 'arch_b_shards_on_floor'], pre, ev, s), '');
+    const odd = C.State.clone(s);
+    odd.dept.cp.openings[0].ch = 'v';
+    assert.match(text(['hall.shutters'], pre, ev, odd), /was ",", but its shutter keeps "v"/);
+    // It opens onto the shards it closed over.
+    const open = C.State.clone(s), unsealed = { k: 'stage', turn: s.turn, tick: s.tick, stage: 'unsealed', cause: { k: 'hall', why: 'alone' } };
+    C.Grid.set(open.dept, 8, 2, 'x');
+    assert.equal(text(['arch_b_shards_on_floor'], s, [unsealed], open), '');
+    assert.match(text(['arch_b_shards_on_floor'], s, [], open), /shards at 8,2 over 'Z'/);
+  });
 };

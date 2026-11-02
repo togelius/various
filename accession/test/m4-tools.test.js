@@ -276,6 +276,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Battery.causer({ k: 'alarm', by: u, until: 9, turn: 1, cause: { k: 'alarm_network' } }), u);
     assert.equal(Battery.causer({ k: 'viewed', who: 'you', of: u, n: 1, turn: 1, cause: { k: 'view' } }), 'you');
     assert.equal(Battery.causer({ k: 'phase', who: u, phase: 2, turn: 1, cause: { k: 'damaged' } }), u);
+    // Brought by another exhibit's blow (an M.11 Heliograph's beam on the Board, core planted
+    // ready), its phase and its drop are still its own rule's (M4 FU3).
+    assert.equal(Battery.causer({ k: 'phase', who: u, phase: 2, turn: 1, cause: { k: 'damaged', by: 'M11.6.s2.3' } }), u);
+    assert.equal(Battery.causer({ k: 'dropped', who: u, item: 'M11.6.centre.i1', x: 3, y: 3, turn: 1, cause: { k: 'defeated', by: 'M11.6.s2.3' } }), u);
     assert.equal(Battery.causer({ k: 'module', id: 'copies_weaken', rule: 'weaken', who: u, turn: 1, cause: { k: 'copies_weaken' } }), u);
     assert.equal(Battery.causer({ k: 'module', id: 'weather_cases', rule: 'release', turn: 1, cause: { k: 'weather_cases', by: 'you' } }), 'you');
     for (const k of ['certificate', 'grade', 'perk']) assert.equal(Battery.causer({ k, turn: 1, cause: { k: 'view' } }), null, k);

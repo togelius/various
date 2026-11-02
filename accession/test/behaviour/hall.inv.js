@@ -95,13 +95,17 @@ module.exports = (C) => {
           if (!c.sealed && ch === 'Z') return `the hall is not sealed, but a shutter stands over its opening at ${key(o.x, o.y)}`;
         }
         // A tile becomes a shutter as the hall seals, keeping what it was; it is that again as it opens.
+        // What it was is the tile as the hall sealed, at the step's boundary: shards that fell on
+        // an opening (floor or archway, §8.3) earlier in that step, a glass body falling there or
+        // a case breaking beside it, are kept under the shutter (M4 FU3: M.11 seed 8 at depth 6,
+        // the Board's core planted ready).
         const sealedNow = of(events, 'sealed').length > 0, opened = of(events, 'unsealed').length > 0;
         const list = c.openings || [];
         for (let i = 0; i < list.length; i++) {
           const o = list[i], p = pre.dept.tiles[o.y][o.x], q = post.dept.tiles[o.y][o.x], at = key(o.x, o.y);
           const kept = was && Array.isArray(was.openings) && was.openings[i] ? was.openings[i].ch : null;
           if (p !== 'Z' && q === 'Z' && !sealedNow) return `the opening at ${at} became a shutter with no seal`;
-          if (p !== 'Z' && q === 'Z' && o.ch !== p) return `the opening at ${at} was ${JSON.stringify(p)}, but its shutter keeps ${JSON.stringify(o.ch)}`;
+          if (p !== 'Z' && q === 'Z' && o.ch !== p && !(o.ch === 'x' && (p === '.' || p === ','))) return `the opening at ${at} was ${JSON.stringify(p)}, but its shutter keeps ${JSON.stringify(o.ch)}`;
           if (p === 'Z' && q !== 'Z' && !opened) return `the shutter at ${at} opened with no unsealing`;
           if (p === 'Z' && q !== 'Z' && q !== kept) return `the shutter at ${at} opened onto ${JSON.stringify(q)}, not the ${JSON.stringify(kept)} it closed over`;
         }

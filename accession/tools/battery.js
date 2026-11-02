@@ -173,7 +173,12 @@ const DOER = { moved: 'who', opened: 'who', closed: 'who', attacked: 'by', misse
   entered: 'who', left: 'who', returned: 'who', alarm: 'by', viewed: 'who', phase: 'who', module: 'who' };
 // A patrol (§3.4, §8.2): a patrol_guard walking a round, its route {posts, i} with posts to walk.
 const isPatrol = a => a.arch === 'patrol_guard' && !!a.route && Array.isArray(a.route.posts) && a.route.posts.length > 0;
+// A Centrepiece's phase and the piece it drops on falling are its own rule's (its line's cp_fight
+// covers both), whoever's blow brought them, an exhibit's (a Heliograph's beam on the Board) as
+// much as yours: their doer is `who`, never the cause's `by` (M4 FU3).
+const OWN_RULE = ['phase', 'dropped'];
 function causer(e) {
+  if (OWN_RULE.includes(e.k) && typeof e.who === 'string') return e.who;
   if (e.cause && typeof e.cause.by === 'string') return e.cause.by;
   const f = Object.prototype.hasOwnProperty.call(DOER, e.k) ? DOER[e.k] : null;
   return f && typeof e[f] === 'string' ? e[f] : null;
