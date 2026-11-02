@@ -4,18 +4,24 @@
 //     marked !): a dead-end corridor of DEAD_END_REWARD walking tiles beyond its junction with
 //     nothing in it fails, one a tile shorter passes; an item or a Highlight in it, an exit at
 //     its end, the Centrepiece hall's role, or a staff door before it (no public way in)
-//     passes; on a real department (A.4) the hall is the only dead end, and with its role
+//     passes; a long empty dead end off a branch that holds the hall fails all the same (the
+//     hall rewards its own walk, not this one); on a real department (A.4) the hall is the
+//     only dead end, and with its role
 //     planted plain it fails, in words; vacuous at Cabinet size (the shared sweep holds it);
 //   - LV13 for the chime: a station's line along a corridor that every way must walk: in a
 //     section (period 12) a run of 9 passes and 10 fails; in the Intro (period 8) 5 passes and
-//     6 fails; a way around it, or a corridor two tiles wide, passes; the shortcut (a way can
-//     step off its line wherever it has a step off) agrees with the full search; the same
+//     6 fails; a way around it, or a corridor two tiles wide, passes, but not round past an
+//     exhibit asleep; a way that steps off the line into a niche and back starts its count
+//     again; two stations of one room are judged together, their lines striking on the same
+//     turn; the shortcut (a way can step off its line wherever it has a step off) agrees
+//     with the full search; the same
 //     with the chime switched off (judged as made); on M.11 with DEMO_WINDOW planted at 8 the
 //     First Landing's line (window 7) fails every attempt and the department falls back,
 //     rejected, in words;
 //   - the hall's case, with the Great Board's core planted ready: a hall with its case passes;
 //     its case taken away, or a mimic's, fails; the Repeater Arm moved out of its rain fails;
-//     the core at ready false is never judged; M.11 seed 111 at depth 1, whose first attempt
+//     the core at ready false is never judged, nor a hall in a department with no weather in
+//     its cases (S.9, its core planted ready); M.11 seed 111 at depth 1, whose first attempt
 //     has no hall case, reseeds to one with the Arm in its rain;
 //   - none draws or changes the department.
 // test/sweep/lv-m4.check.js holds every department of the shared sweep to them.
@@ -95,6 +101,26 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(r.tiles[0]), json(b[0].far));
   });
 
+  test('LV7 (planted): a long empty dead end off a branch that holds the Centrepiece hall fails, named from its own junction; the hall rewards the walk to it, not this one', () => {
+    // Room a (entrance) to room b (exit) by an archway; a door (4,5) south of room a into room
+    // j, whose west door (2,6) opens on the hall (x 1) and whose south door (4,8) on an empty
+    // corridor (x 4) of len tiles.
+    const ends = len => {
+      const rows = ['####################', '#........#.........#', '#........#.........#', 'E........,.........X', '#........#.........#', '####+###############', '#.+...##############', '#.#...##############', '#.##+###############'];
+      for (let i = 0; i < len; i++) rows.push('#.##.###############');
+      rows.push('####################');
+      return H.room(C, 1, { acc: 'S9', depth: 3, map: rows, you: [1, 3], entrance: [0, 3], exits: [[19, 3]], items: [],
+        rooms: [{ key: 'a', role: 'intro', x0: 1, y0: 1, x1: 8, y1: 4 }, { key: 'b', role: 'section', x0: 10, y0: 1, x1: 18, y1: 4 }, { key: 'j', role: 'study', x0: 3, y0: 6, x1: 5, y1: 7 },
+          { key: 'h', role: 'centre', x0: 1, y0: 6, x1: 1, y1: 8 + len }, { key: 'd', role: 'study', x0: 4, y0: 9, x1: 4, y1: 8 + len }] });
+    };
+    const R = N.DEAD_END_REWARD, s = ends(R - 1), b = LVM4.deadEnds(s, true), j = s.dept.roomOf[6][3], d = s.dept.roomOf[9][4];
+    // The door (4,8) is walk 1 beyond room j, so a corridor of R − 1 tiles reaches R.
+    assert.equal(json(b.map(x => [x.junction, x.rooms.includes(d), x.reward ? null : x.depth, x.reward])), json([[1, true, null, 'centrepiece'], [j, true, R, null]]));
+    const r = LVM4.lv7(s, null);
+    assert.ok(r && r.reason.startsWith('the dead end beyond a room (a room) reaches ' + R + ' walking tiles past it, at 4,' + (8 + R - 1)), r && r.reason);
+    assert.equal(LVM4.lv7(ends(R - 2), null), null);
+  });
+
   // ---- LV13 for the chime ----
 
   // Room a (the entrance's, x 1–4) opens by an archway (5,2) on a corridor (room c, role role):
@@ -102,16 +128,24 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // M11.12) at its east end (6 + run, 2) with its line west along it; the way leaves it south
   // at its last tile, by (5 + run, 3) and an archway (5 + run, 4), into room b, whose east wall
   // holds the exit. o: role, around (an archway from room a to room b at 2,4: a way around the
-  // line), wide (the corridor two rows wide), options (Options), without.
+  // line), sleeper (an exhibit asleep on that archway), wide (the corridor two rows wide),
+  // niche (a tile of row 3 at that x opened beside the line), mate (a second station of the
+  // corridor's room, in a niche of row 1 at 5 + run, its line south over the corridor's last
+  // tile and the tile the way leaves by), options (Options).
   function corridor(run, o) {
     o = o || {};
-    const W = run + 8, wall = '#'.repeat(W), r3 = '#....#' + (o.wide ? '.'.repeat(run) : '#'.repeat(run - 1) + '.') + '##';
-    const rows = [wall, '#....#' + '#'.repeat(run + 1) + '#', 'E....,' + '.'.repeat(run + 1) + '#', r3.slice(0, W),
+    const W = run + 8, wall = '#'.repeat(W);
+    let r3 = '#....#' + (o.wide ? '.'.repeat(run) : '#'.repeat(run - 1) + '.') + '##';
+    if (o.niche !== undefined) r3 = r3.slice(0, o.niche) + '.' + r3.slice(o.niche + 1);
+    const rows = [wall, '#....#' + '#'.repeat(run - 1) + (o.mate ? '.' : '#') + '##', 'E....,' + '.'.repeat(run + 1) + '#', r3.slice(0, W),
       '#' + (o.around ? '#,##' : '####') + '#' + '#'.repeat(run - 1) + ',' + '##', '#' + '.'.repeat(W - 2) + '#', '#' + '.'.repeat(W - 2) + 'X', '#' + '.'.repeat(W - 2) + '#', wall];
     const rooms = [{ key: 'a', role: 'section', x0: 1, y0: 1, x1: 4, y1: 3 }, { key: 'c', role: o.role || 'section', x0: 6, y0: 1, x1: 6 + run, y1: 3 }, { key: 'b', role: 'coda', x0: 1, y0: 5, x1: W - 2, y1: 7 }];
-    const s = H.room(C, 1, { acc: 'M11', depth: 3, map: rows, you: [1, 2], entrance: [0, 2], exits: [[W - 1, 6]], rooms,
-      exhibits: [{ sp: 'M11.12', at: [6 + run, 2], stats: Roles.stats(Packs.speciesFor({ dept: { acc: 'M11' } }, { sp: 'M11.12' }).role, 3) }] }, o.options || {});
+    const stats = sp => Roles.stats(Packs.speciesFor({ dept: { acc: 'M11' } }, { sp }).role, 3), exhibits = [{ sp: 'M11.12', at: [6 + run, 2], stats: stats('M11.12') }];
+    if (o.mate) exhibits.push({ sp: 'M11.2', at: [5 + run, 1], stats: stats('M11.2') });
+    if (o.sleeper) exhibits.push({ sp: 'M11.1', at: [2, 4], stats: stats('M11.1') });
+    const s = H.room(C, 1, { acc: 'M11', depth: 3, map: rows, you: [1, 2], entrance: [0, 2], exits: [[W - 1, 6]], rooms, exhibits }, o.options || {});
     s.actors[1].route = { dir: 'W' };
+    if (o.mate) s.actors[2].route = { dir: 'S' };
     Modules.init(s, Packs.get('M11'));
     return s;
   }
@@ -126,7 +160,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (short ? f.length : !f.length || f[0].run !== run || f[0].period !== P || f[0].fails !== fails) problems.push(`${tag}: windows ${json(f.map(x => [x.run, x.period, x.window, x.fails]))}`);
       if (!!r !== fails) { problems.push(`${tag}: ${r ? r.reason : 'passes'}\n${text(s, r && r.tiles)}`); continue; }
       if (!r) continue;
-      const st = s.actors[1], want = `every way from the entrance to an exit crosses the line of ${C.Labels.nameOf(s)(st.uid)} (at ${st.x},${st.y}, in ${role === 'intro' ? 'the Intro' : 'a room'}), and the best of them stands on it ${run} turns running: its line goes off every ${P} turns, which leaves ${P - run > 0 ? `${P - run} turn${P - run === 1 ? '' : 's'}` : 'no turn'} to start across (at least ${N.DEMO_WINDOW})`;
+      const st = s.actors[1], want = `every way from the entrance to an exit, but through the Centrepiece hall, a staff door or an exhibit that stands still, crosses the line of ${C.Labels.nameOf(s)(st.uid)} (at ${st.x},${st.y}, in ${role === 'intro' ? 'the Intro' : 'a room'}), and the best of them stands on it ${run} turns running: its line goes off every ${P} turns, which leaves ${P - run > 0 ? `${P - run} turn${P - run === 1 ? '' : 's'}` : 'no turn'} to start across (at least ${N.DEMO_WINDOW})`;
       if (r.reason !== want) problems.push(`${tag}: ${r.reason}`);
       const line = []; for (let x = 6; x < 6 + run; x++) line.push([x, 2]);
       if (json(r.tiles) !== json([[st.x, st.y]].concat(line))) problems.push(`${tag}: tiles\n${text(s, r.tiles)}`);
@@ -136,6 +170,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (r) problems.push(`${what}: ${r.reason}\n${text(s, r.tiles)}`);
       if (!f.length || f[0].run > 2) problems.push(`${what}: ${json(f.map(x => [x.run, x.window]))}`);
     }
+    // The way round, past an exhibit asleep on its archway, is no way: the line fails.
+    const asleep = corridor(14, { around: true, sleeper: true }), q = LVM4.lv13(asleep, null);
+    if (!q || LVM4.windows(asleep, true)[0].run !== 14) problems.push(`round past a sleeper: ${q ? q.reason : 'passes'}`);
+    // A niche beside the line (row 3) lets a way step off and back onto the tile it left,
+    // which starts its count again: of a run of 14 (x 6–19), a niche at x 11 leaves 6 then 9
+    // (passes, window 3); one at x 10, 5 then 10 (fails, window 2), which the full search,
+    // past the shortcut, finds.
+    for (const [niche, run, fails] of [[11, 9, false], [10, 10, true]]) {
+      const s = corridor(14, { niche }), f = LVM4.windows(s, true), r = LVM4.lv13(s, null);
+      if (!f.length || f[0].run !== run || f[0].fails !== fails || !!r !== fails) problems.push(`a niche at ${niche}: ${json(f.map(x => [x.run, x.window, x.fails]))} ${r ? r.reason : 'passes'}`);
+    }
+    // Two stations of one room strike on the same turn: a run of 9 on the First Landing's line
+    // passes alone (window 3); with a second station whose line takes the tile the way leaves
+    // by, the way stands on one and then the other 10 turns running, and fails, in words.
+    const two = corridor(9, { mate: true }), f2 = LVM4.windows(two, true), r2 = LVM4.lv13(two, null), nm = C.Labels.nameOf(two);
+    if (LVM4.windows(corridor(9), true).length || LVM4.lv13(corridor(9), null)) problems.push('a run of 9 alone fails');
+    if (f2.length !== 2 || f2[0].run !== 10 || json(f2[0].mates) !== json([two.actors[2].uid])) problems.push(`two stations: ${json(f2.map(x => [x.uid, x.mates, x.run, x.window]))}`);
+    const both = `every way from the entrance to an exit, but through the Centrepiece hall, a staff door or an exhibit that stands still, crosses the line of ${nm(two.actors[1].uid)} (at 15,2, in a room), whose line strikes on the same turn as that of ${nm(two.actors[2].uid)} (at 14,1) in the same room, and the best of them stands on those lines 10 turns running: its line goes off every 12 turns, which leaves 2 turns to start across (at least ${N.DEMO_WINDOW})`;
+    if (!r2 || r2.reason !== both || json(r2.tiles.slice(-2)) !== json([[14, 1], [14, 3]])) problems.push(`two stations: ${r2 ? r2.reason + json(r2.tiles) : 'passes'}`);
     assert.deepEqual(problems, []);
   });
 
@@ -158,7 +211,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const X = loadCore(null, { numbers: { DEMO_WINDOW: 8 } });
     const g = X.Dept.generate(1, 'M11', 1);
     assert.ok(g.fallback && g.rejected && g.rejected.id === 'lv13', json(g.rejected));
-    assert.ok(/^every way from the entrance to an exit crosses the line of the Semaphore Station, First Landing \(at \d+,\d+, in the First Landing\), and the best of them stands on it 1 turn running: its line goes off every 8 turns, which leaves 7 turns to start across \(at least 8\)$/.test(g.rejected.why), g.rejected.why);
+    assert.ok(/^every way from the entrance to an exit, but through the Centrepiece hall, a staff door or an exhibit that stands still, crosses the line of the Semaphore Station, First Landing \(at \d+,\d+, in the First Landing\), and the best of them stands on it 1 turn running: its line goes off every 8 turns, which leaves 7 turns to start across \(at least 8\)$/.test(g.rejected.why), g.rejected.why);
     assert.ok(g.tries.length >= 1 && g.tries.every(t => t.some(f => f.id === 'lv13')));
   });
 
@@ -195,6 +248,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(C.Hall.cp(plain), null);
     plain.dept.fixtures = [];
     assert.equal(LVM4.hallCase(plain, null), null);
+    // S.9 keeps no weather in its cases: its hall is never judged, case or none.
+    const Y = loadCore(), core = Y.Packs.get('S9').centrepiece.archetype;
+    Y.Registry.ARCHETYPES[core].ready = 'unit';
+    const s9 = Y.Dept.create(1, 'S9', 3);
+    assert.ok(Y.Hall.cp(s9), 'S.9 places its Centrepiece with the core planted ready');
+    s9.dept.fixtures = [];
+    assert.equal(Y.LVM4.hallCase(s9, null), null);
   });
 
   test('the hall\'s case on a real department (the core planted ready): M.11 seed 111 at depth 1 has no case in its hall at its first attempt, so it reseeds, to a hall whose case\'s rain falls on the Repeater Arm; the same with the weather and the chime switched off', () => {

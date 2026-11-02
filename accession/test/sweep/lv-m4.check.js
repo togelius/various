@@ -5,9 +5,10 @@
 //     (Dept.generate says so), which is counted: at most 1% of a department's;
 //   - so LV7 is vacuous at Cabinet size: no dead end with no reward reaches DEAD_END_REWARD;
 //   - on M.11, seeds 1–LINE_SEEDS of each depth, an oracle written apart from lv-m4.js: for
-//     each station whose line (at its reach, HourlyDemonstration.reach) is longer than its
-//     period less DEMO_WINDOW, the fewest turns running a way from where you stand to an exit
-//     must stand on it, found by a search over (tile, turns running so far) states, each its
+//     each station whose line (at its reach, HourlyDemonstration.reach), with the lines of the
+//     other stations of its room (they strike on the same turn), is longer than its period
+//     less DEMO_WINDOW, the fewest turns running a way from where you stand to an exit must
+//     stand on them, found by a search over (tile, turns running so far) states, each its
 //     own (no state stands for another), for each bound from 0 up; it equals LVM4.windows'
 //     run, and leaves at least DEMO_WINDOW; the First Landing's line, which every way
 //     crosses, is among them in every department;
@@ -80,8 +81,10 @@ module.exports = C => {
     const out = [], w = LVM4.windows(s, true);
     if (!HourlyDemonstration.of(s)) return out;
     let open = null;
-    for (const a of HourlyDemonstration.stations(s)) {
-      const P = HourlyDemonstration.period(s, a), L = HourlyDemonstration.reach(s, a);
+    const all = HourlyDemonstration.stations(s), room = a => s.dept.roomOf[a.y][a.x];
+    for (const a of all) {
+      const P = HourlyDemonstration.period(s, a), L = [], at = new Set();
+      for (const b of all) if (b === a || room(b) === room(a)) for (const p of HourlyDemonstration.reach(s, b)) if (!at.has(`${p}`)) { at.add(`${p}`); L.push(p); }
       if (L.length <= P - N.DEMO_WINDOW) continue;
       tally.lines++;
       if (!open) open = ways(s);

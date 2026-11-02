@@ -48,7 +48,7 @@ if (process.argv.includes('--validators')) {
       const g = C.Dept.generate(s, acc, depth), st = g.state, where = `seed ${s} depth ${depth}`;
       made++;
       if (g.attempt === 0) first++;
-      if (g.fallback) { fallback++; if (g.rejected) { bad++; console.log(`${acc} ${where}: the fallback is taken despite ${g.rejected.id}: ${g.rejected.reason}`); } }
+      if (g.fallback) { fallback++; if (g.rejected) { bad++; console.log(`${acc} ${where}: the fallback is taken despite ${g.rejected.id}: ${g.rejected.why}`); } }
       for (const t of g.tries) for (const f of t) fails[f.id] = (fails[f.id] || 0) + 1;
       for (const b of C.LVM4.deadEnds(st, true)) { const d = deep[b.reward || 'none']; if (b.depth > d[0]) { d[0] = b.depth; d[1] = where; } }
       for (const f of C.LVM4.windows(st, true)) {

@@ -15,12 +15,14 @@
 // layout sweep's --validators measures them), so it is held by planted faults.
 //
 // LV13 for the chime ('lv13'): a station's line, at its reach (HourlyDemonstration.reach, the
-// widest the line can take at any chime), that cuts the entrance from every exit must leave a
-// window: its period less the most turns running that the best way through stands on it must
-// be at least DEMO_WINDOW. A way, as LV11's route goes: over tiles you could step onto, never a
-// staff door, a tile of the Centrepiece hall or a tile an exhibit that does not move stands on
-// (asleep, or in a case); a turn for each tile. With no way at all it has nothing to judge
-// (LV11 says so).
+// widest the line can take at any chime), with the lines of its room's other stations (which
+// strike on the same turn), that cuts the entrance from every exit must leave a window: its
+// period less the most turns running that the best way through stands on them must be at
+// least DEMO_WINDOW. The widest reach makes it pessimistic (it may reject a line that would
+// leave room), and judging a room's lines together keeps it so.
+// A way, as LV11's route goes: over tiles you could step onto, never a staff door, a tile of
+// the Centrepiece hall or a tile an exhibit that does not move stands on (asleep, or in a
+// case); a turn for each tile. With no way at all it has nothing to judge (LV11 says so).
 //
 // The hall's case ('hall_case', M4 plan D3.9: M.11's hall has one rain case): once a
 // Centrepiece is placed in a department whose weather lives in cases (weather_cases gives the
@@ -49,9 +51,10 @@ const LVM4 = (() => {
   // ---- LV7 ----
 
   // LVM4.deadEnds(state, all) → [{junction, at, rooms, tiles, depth, far, reward}]: the dead-end
-  // branches of the department as it stands (above), the outermost only, in the order a search
-  // from the entrance meets them. junction is a room id, or null for an opening's tile (at, else
-  // null); rooms, the room ids in the branch; tiles, its tiles you could stand on (indices
+  // branches of the department as it stands (above), in the order a search from the entrance
+  // meets them: the outermost, and inside one that holds a reward the outermost that hold none.
+  // junction is a room id, or null for an opening's tile (at, else null); rooms, the room ids
+  // in the branch; tiles, its tiles you could stand on (indices
   // y·w + x); reward, what it holds: 'centrepiece' (it holds the Centrepiece hall, the set
   // piece's room), 'item' (an item on its floor or in a case of it), or null; depth, the most
   // walking tiles from its junction to a tile of it (far, that tile), worked out for a branch
@@ -111,18 +114,32 @@ const LVM4 = (() => {
       if (low[v] >= disc[p] && !ex[v]) cuts.push([p, v]);
     }
     const inside = (v, c) => disc[v] >= disc[c] && disc[v] < disc[c] + size[c];
+    // What each node holds (the Centrepiece hall; an item on its floor or in a case of it),
+    // summed in the search's pre-order, so a branch's (a run of that order) is a difference.
+    const items = state.items || [], order = new Int32Array(t), hallAt = new Uint8Array(count), itemAt = new Uint8Array(count);
+    for (let i = 0; i < count; i++) if (disc[i] >= 0) order[disc[i]] = i;
+    for (const r of m.rooms || []) if (r.role === 'centre' && idOf.has(r.id)) hallAt[idOf.get(r.id)] = 1;
+    for (const i of items) {
+      const p = i.where;
+      if (!p || (p.at !== 'floor' && p.at !== 'case') || !Grid.inside(m, p.x, p.y)) continue;
+      const r = roomAt(m, p.x, p.y), v = r ? idOf.get(r) : node[p.y * w + p.x];
+      if (v !== undefined && v >= 0) itemAt[v] = 1;
+    }
+    const sumH = new Int32Array(t + 1), sumI = new Int32Array(t + 1);
+    for (let d = 0; d < t; d++) { sumH[d + 1] = sumH[d] + hallAt[order[d]]; sumI[d + 1] = sumI[d] + itemAt[order[d]]; }
+    const rewardOf = c => { const a = disc[c], b = a + size[c]; return sumH[b] > sumH[a] ? 'centrepiece' : sumI[b] > sumI[a] ? 'item' : null; };
+    // The outermost branches; and, inside one that holds a reward, the outermost of those that
+    // hold none, since a reward down one branch does not reward the walk down another.
     cuts.sort((p, q) => disc[p[1]] - disc[q[1]]);
     const kept = [];
-    for (const [j, c] of cuts) if (!kept.some(([, c0]) => inside(j, c0) || inside(c, c0))) kept.push([j, c]);
-    const items = state.items || [], halls = (m.rooms || []).filter(r => r.role === 'centre').map(r => r.id);
-    return kept.map(([j, c]) => {
+    for (const [j, c] of cuts) {
+      const reward = rewardOf(c);
+      if (!kept.some(([, c0, r0]) => inside(c, c0) && (r0 === null || reward !== null))) kept.push([j, c, reward]);
+    }
+    return kept.map(([j, c, reward]) => {
       const tiles = [], rooms = [];
       for (let k = 0; k < n; k++) if (node[k] >= 0 && inside(node[k], c)) tiles.push(k);
       for (let i = 0; i < count; i++) if (ids[i] > 0 && disc[i] >= 0 && inside(i, c)) rooms.push(ids[i]);
-      const inBranch = (x, y) => { const r = roomAt(m, x, y), k = y * w + x; return r ? rooms.includes(r) : node[k] >= 0 && inside(node[k], c); };
-      let reward = null;
-      if (rooms.some(r => halls.includes(r))) reward = 'centrepiece';
-      else if (items.some(i => i.where && (i.where.at === 'floor' || i.where.at === 'case') && Grid.inside(m, i.where.x, i.where.y) && inBranch(i.where.x, i.where.y))) reward = 'item';
       const at = tileOf[j] >= 0 ? [tileOf[j] % w, Int.idiv(tileOf[j], w)] : null;
       if (reward && !all) return { junction: ids[j] > 0 ? ids[j] : null, at, rooms, tiles, depth: null, far: null, reward };
       // Walking tiles beyond the junction: 1 for a tile of the branch a step from it.
@@ -216,41 +233,55 @@ const LVM4 = (() => {
     }
     return false;
   }
-  // LVM4.windows(state, exact) → [{uid, period, reach, run, window, fails}]: each station whose
-  // line, at its reach, is longer than its period less DEMO_WINDOW (no shorter one can fail).
-  // A way that stands on the line can step off it and back at any tile of it with a step off,
-  // so it need stand on it no more than two turns more than its longest bare run (bare); only
-  // where that is more than the period allows is the way searched (through).
-  // run is the fewest turns running the best way through stands on it (0 when it cuts nothing
-  // off), window its period less run, and fails whether that window is under DEMO_WINDOW. A
-  // line that passes has its run worked out only when exact is true (else run and window are
-  // null); one with no way to an exit at all has run and window null, and does not fail. []
-  // with the chime off or absent.
+  // LVM4.windows(state, exact) → [{uid, period, reach, mates, run, window, fails}]: each station
+  // whose line, at its reach, with the lines of the other stations of its room (mates, their
+  // uids: one room, one period, so their lines strike on the same turn, and a way that steps
+  // from one onto another stands on both in one run), is longer than its period less
+  // DEMO_WINDOW (no shorter one can fail). A way that stands on a line alone in its room can
+  // step off it and back at any tile of it with a step off, so it need stand on it no more
+  // than two turns more than its longest bare run (bare); only where that is more than the
+  // period allows, or where the room holds another station's line, is the way searched
+  // (through). run is the fewest turns running the best way through stands on those lines (0
+  // when they cut nothing off), window its period less run, and fails whether that window is
+  // under DEMO_WINDOW. A line that passes has its run worked out only when exact is true (else
+  // run and window are null); one with no way to an exit at all has run and window null, and
+  // does not fail. [] with the chime off or absent.
   function windows(state, exact) {
     if (!HourlyDemonstration.of(state)) return [];
-    const m = state.dept, n = m.w * m.h, out = [];
+    const m = state.dept, n = m.w * m.h, out = [], all = HourlyDemonstration.stations(state);
+    const reaches = all.map(a => HourlyDemonstration.reach(state, a)), rooms = all.map(a => roomAt(m, a.x, a.y));
     let open = null;
-    for (const a of HourlyDemonstration.stations(state)) {
-      const P = HourlyDemonstration.period(state, a), most = P - N.DEMO_WINDOW, reach = HourlyDemonstration.reach(state, a);
-      if (reach.length <= most) continue;
-      if (!open) open = ways(state);
+    for (let i = 0; i < all.length; i++) {
+      const a = all[i], P = HourlyDemonstration.period(state, a), most = P - N.DEMO_WINDOW, reach = reaches[i];
+      const mates = [];
+      for (let j = 0; j < all.length; j++) if (j !== i && rooms[j] === rooms[i] && reaches[j].length) mates.push(j);
       const line = new Uint8Array(n);
-      for (const [x, y] of reach) line[y * m.w + x] = 1;
-      const ok = bare(state, open, reach, line) + 2 <= most || through(state, open, line, most);
+      let size = 0;
+      for (const k of [i].concat(mates)) for (const [x, y] of reaches[k]) if (!line[y * m.w + x]) { line[y * m.w + x] = 1; size++; }
+      if (size <= most) continue;
+      if (!open) open = ways(state);
+      const ok = (!mates.length && bare(state, open, reach, line) + 2 <= most) || through(state, open, line, most);
       let run = null;
-      for (let r = ok ? 0 : most + 1; r <= (ok ? (exact ? most : -1) : reach.length); r++) if (through(state, open, line, r)) { run = r; break; }
-      out.push({ uid: a.uid, period: P, reach, run, window: run === null ? null : P - run, fails: !ok && run !== null });
+      for (let r = ok ? 0 : most + 1; r <= (ok ? (exact ? most : -1) : size); r++) if (through(state, open, line, r)) { run = r; break; }
+      out.push({ uid: a.uid, period: P, reach, mates: mates.map(j => all[j].uid), run, window: run === null ? null : P - run, fails: !ok && run !== null });
     }
     return out;
   }
-  // LV13: null, or {reason, tiles}: the station, then its line's other tiles.
+  // LV13: null, or {reason, tiles}: the station, then its line's other tiles, then each mate's
+  // tile and line. "Every way" is LV11's: a way through the Centrepiece hall, a staff door or an
+  // exhibit standing still is no way here, and the sentence says so.
   function lv13(state, plan) {
     const v = Populate.asMade(state);
     for (const f of windows(v, false)) {
       if (!f.fails) continue;
-      const a = v.actors.find(b => b.uid === f.uid), room = roomName(v, roomAt(v.dept, a.x, a.y));
-      return { reason: `every way from the entrance to an exit crosses the line of ${name(v, a)} (at ${a.x},${a.y}, in ${room}), and the best of them stands on it ${f.run} turn${f.run === 1 ? '' : 's'} running: ` +
-        `its line goes off every ${f.period} turns, which leaves ${f.window > 0 ? `${f.window} turn${f.window === 1 ? '' : 's'}` : 'no turn'} to start across (at least ${N.DEMO_WINDOW})`, tiles: [[a.x, a.y]].concat(f.reach.filter(p => p[0] !== a.x || p[1] !== a.y)) };
+      const a = v.actors.find(b => b.uid === f.uid), room = roomName(v, roomAt(v.dept, a.x, a.y)), mates = f.mates.map(u => v.actors.find(b => b.uid === u));
+      const tiles = [[a.x, a.y]];
+      for (const p of f.reach) if (p[0] !== a.x || p[1] !== a.y) tiles.push(p);
+      for (const b of mates) for (const p of [[b.x, b.y]].concat(HourlyDemonstration.reach(v, b))) if (!tiles.some(q => q[0] === p[0] && q[1] === p[1])) tiles.push(p);
+      const also = mates.length ? `, whose line strikes on the same turn as that of ${mates.map(b => `${name(v, b)} (at ${b.x},${b.y})`).join(' and ')} in the same room` : '';
+      return { reason: `every way from the entrance to an exit, but through the Centrepiece hall, a staff door or an exhibit that stands still, crosses the line of ${name(v, a)} (at ${a.x},${a.y}, in ${room})${also}, ` +
+        `and the best of them stands on ${mates.length ? 'those lines' : 'it'} ${f.run} turn${f.run === 1 ? '' : 's'} running: ` +
+        `its line goes off every ${f.period} turns, which leaves ${f.window > 0 ? `${f.window} turn${f.window === 1 ? '' : 's'}` : 'no turn'} to start across (at least ${N.DEMO_WINDOW})`, tiles };
     }
     return null;
   }
