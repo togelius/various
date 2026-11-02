@@ -8,12 +8,14 @@
 // nothing to fear" (the rule, and a light the slice lacks); the waders' call and what comes to
 // it, and their stopping "at the same lecterns" (the rule, and a place); the plinths' shadows;
 // "the overshoes are in the case by the north lectern"; the bay that "now holds one" nest, "this
-// part of the court" and "the case on the east wall". Owned by W-PANELS.
+// part of the court" and "the case on the east wall"; and "every label in this department
+// therefore says reported, not observed" (an identifying label's, an item's and the Night
+// Watchman's do not: each animal's begins "Reported", test/m4-panels.test.js). Owned by W-PANELS.
 'use strict';
 Packs.part('S9', 'panels', {
   intro: {
     name: 'Animals Not Yet Seen by the Day Staff',
-    text: 'Every animal in this department was described by the night staff, on their rounds, in pencil. The descriptions are in the round books, and the Museum has accessioned them in good faith. The day staff have never seen any of these animals do anything. They have found them in different places in the morning, which is not the same thing, and every label in this department therefore says reported, not observed. Please keep the exhibits in view. The preparators mounted each animal from its description, and where a description was unclear, they chose the reading that would stand up. We have tried to describe the animals as the night staff did, and not as we would have preferred them to be.',
+    text: 'Every animal in this department was described by the night staff, on their rounds, in pencil. The descriptions are in the round books, and the Museum has accessioned them in good faith. The day staff have never seen any of these animals do anything. They have found them in different places in the morning, which is not the same thing, and the label of every animal in this department therefore begins with the word reported. Please keep the exhibits in view. The preparators mounted each animal from its description, and where a description was unclear, they chose the reading that would stand up. We have tried to describe the animals as the night staff did, and not as we would have preferred them to be.',
   },
   sections: [
     { gallery: 's1', name: 'The Waders’ Round', module: 'alarm_network',

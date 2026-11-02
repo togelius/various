@@ -24,7 +24,7 @@
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const { spawnSync } = require('node:child_process');
   const C = loadCore();
-  const { Packs, Registry, Clauses, Dept, Step, Fixtures, Panels, N, State } = C;
+  const { Packs, Registry, Clauses, Dept, Step, Fixtures, Panels, N, State, Labels, ViewModel } = C;
   const json = x => JSON.stringify(x);
   const ACCS = ['S9', 'A4', 'M11'];
   const words = s => s.trim().split(/\s+/).filter(Boolean).length;
@@ -61,6 +61,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const PLACE = [/\bthis (court|gallery|room|section|bay|row|corridor)\b/i, /\bthese (cases|shelves|lecterns|rooms)\b/i, /\b(in|inside|on|by|beside|near) (a|the|its|this|each) (case|vitrine|cabinet|lectern|shelf|shelves|wall|corner|plinth|floor)\b/i, /\bat the ends? of (this|the|each) row\b/i,
     /\b(north|south|east|west)\b/i, /\bnext to\b/i, /\b(behind|under) glass\b/i, /\bfirst thing you\b/i, /\byou can see\b/i, /\b(on|travel|travels) (its|their) (short )?rails?\b/i, /\bbefore crossing\b/i];
   const placed = t => PLACE.map(re => re.exec(t)).filter(Boolean).map(m => m[0]);
+  // A claim the slice does not keep (review): every label of S.9 saying "reported" (an
+  // identifying label's, an item's and the Night Watchman's do not), and something going on now
+  // that no rule does (A.4's duplicator's ink "still spreading").
+  const UNKEPT = [/\bevery label\b/i, /\b(is|are) still (spreading|growing|moving|running)\b/i];
   const wordRe = w => new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?($|[^a-z])`, 'i');
 
   test('the paragraph lint over panels: no rule in the prose, no module\'s sentence or another module\'s word, no claim of where anything stands', () => {
@@ -75,6 +79,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
           if (!own.includes(id)) for (const k of M.keywords) assert.ok(!wordRe(k).test(r.text) && !wordRe(k).test(r.name), `${where} says "${k}", a word of ${id}'s rule`);
         }
         assert.equal(json(placed(r.text)), '[]', `${where}: ${r.text}`);
+        assert.ok(!UNKEPT.some(re => re.test(r.text)), `${where} claims what the slice does not keep: ${r.text}`);
         assert.ok(words(firstSentence(r.text)) >= 6, `${where}: its first sentence`);
       }
     }
@@ -87,6 +92,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(placed(t).some(c => c.toLowerCase() === want), `${t}: ${json(placed(t))}`);
     }
     assert.ok(wordRe('alarm').test('A wader that finds something calls, and the alarm is raised.'));
+    // What S.9's intro panel does say, "the label of every animal in this department therefore
+    // begins with the word reported", is kept: each of its species' and its Centrepiece's.
+    const s9 = Packs.get('S9');
+    assert.match(s9.panels.intro.text, /label of every animal in this department therefore begins with the word reported/);
+    for (const sp of [...s9.species, s9.centrepiece]) assert.match(sp.paragraph, /^Reported\b/, `S9 ${sp.id}`);
+    for (const t of ['Every label in this department therefore says reported, not observed.', 'The conservators report that its ink is still spreading.']) assert.ok(UNKEPT.some(re => re.test(t)), t);
     // The number lint (test/m3-content.test.js reads every string of every pack, its panels
     // among them): a rule planted on a panel is caught there, by where it stands.
     const harness = [];
@@ -149,6 +160,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(Array.isArray(ev) && ev.length === 0, `${acc} d${depth}: ${json(ev)}`);
       assert.equal(json([s.turn, s.actors[0].next]), json([turn, next]), 'reading costs nothing');
       assert.equal(Fixtures.read(s, f).text, Panels.text(s, 'intro'));
+      // Core-only for now (decided without play; revisit once M4 is playable): its label
+      // (LABELS-M4), view-model entry (VM-2D), banner and reading scenes (UI-MODULES) are not
+      // built, so nothing the browser draws shows a panel, half or whole, or names one.
+      const vm = ViewModel.derive(s, {});
+      assert.equal(Labels.ofPanel(s, f), null);
+      assert.equal(ViewModel.shows(vm, `panel:${f.x},${f.y}`), false);
+      assert.ok(!/panel/i.test(json(vm)) && !/panel/i.test(json(Labels.strip(s))), `${acc} d${depth}: the browser shows a panel`);
       // Out of reach (planted: you stand farther along the entrance row).
       const far = State.clone(s);
       far.actors[0].x = f.x + N.READ_RANGE + 2; far.actors[0].y = s.dept.entrance[1];

@@ -9,7 +9,7 @@
 // its original's with a letter, A.4.1a); the cases "at the ends of each row", "breaking a case
 // is loud", the figure "near the north case"; the bundles "on these shelves", the naked flame,
 // and the duplicator "in the corner" with its stain (the slice has neither fire nor the
-// duplicator). Owned by W-PANELS.
+// duplicator), and its ink "still spreading" (no ink spreads in the slice). Owned by W-PANELS.
 'use strict';
 Packs.part('A4', 'panels', {
   intro: {
@@ -20,6 +20,6 @@ Packs.part('A4', 'panels', {
     { gallery: 's1', name: 'Originals Under Glass',
       text: 'Under the Ordinance the original was put away and the spare was put out for use, so that the original would never be handled. The Office’s rules described the spares as interchangeable, which the spares appear to have taken personally. Every repair had to be countersigned, and the clerk who countersigned them was never countersigned itself.' },
     { gallery: 's2', name: 'The Copying Room',
-      text: 'Every form issued under the Ordinance was typed with a carbon underneath, and the carbons were kept. There are many thousands of them, very thin and very dry, and nobody has sorted them since the Repeal. The Office’s duplicator turned one master sheet into as many copies as the Office required, and on busy days nobody switched it off. The conservators report that its ink is still spreading.' },
+      text: 'Every form issued under the Ordinance was typed with a carbon underneath, and the carbons were kept. There are many thousands of them, very thin and very dry, and nobody has sorted them since the Repeal. The Office’s duplicator turned one master sheet into as many copies as the Office required, and on busy days nobody switched it off.' },
   ],
 });
