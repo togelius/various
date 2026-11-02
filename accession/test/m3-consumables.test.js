@@ -589,7 +589,9 @@ module.exports = ({ test, assert, loadCore }) => {
         assert.ok(by(p).length, `${json(p)} beside a gallery tile you can walk to`);
         assert.equal(m.fixtures.filter(f => f.x === p.x && f.y === p.y).length, 1);
       }
-      assert.equal(json(m.fixtures.slice(m.fixtures.length - plaques.length)), json(plaques), `${acc} d${depth}: the labels come after the cases and staff doors`);
+      // (M4's wall panels follow the labels, placed after the consumables: plan A10.)
+      const m3 = m.fixtures.filter(f => f.k !== 'panel');
+      assert.equal(json(m3.slice(m3.length - plaques.length)), json(plaques), `${acc} d${depth}: the labels come after the cases and staff doors`);
       const made = m.fixtures.filter(f => f.k === 'staff' || (f.k === 'case' && !f.mimic));
       for (let i = 1; i < made.length; i++) assert.ok(beforeRM(made[i - 1], made[i]), `${acc} d${depth}: the cases and staff doors in row-major order`);
       assert.ok(by(plaques[0]).some(r => r.role === 'intro' || r.key === 's1'), `${acc} d${depth}: ${json(plaques[0])}, the first label, by the Intro or s1`);

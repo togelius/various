@@ -178,7 +178,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
           assert.equal(ViewModel.shows(vm, a.uid), want, `${acc} ${a.uid}`);
           want ? yes++ : no++;
         }
-        for (const f of s.dept.fixtures) {
+        // M3's fixtures (a wall panel's selection is M4's VM-2D's and LABELS-M4's).
+        for (const f of s.dept.fixtures.filter(q => q.k !== 'panel')) {
           const want = inView(f.x, f.y);
           assert.equal(ViewModel.shows(vm, `${f.k}:${f.x},${f.y}`), want, `${acc} ${f.k} at ${f.x},${f.y}`);
           want ? yes++ : no++;

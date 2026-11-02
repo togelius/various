@@ -83,12 +83,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // warden where a keeper can walk round it (populate.js, roundable), so the band room's draws
   // move.
   const M3_START = { 'S9/2': 3318663684, 'S9/5': 3642343743, 'A4/2': 2340201308, 'A4/5': 358842438, 'M11/2': 1469555670, 'M11/5': 2538675204 };
-  test('with carry \'start\' a department is M3\'s start but for dept.walked and its modules\' state; the median visitor changes only what the visitor decides', () => {
+  test('with carry \'start\' a department is M3\'s start but for dept.walked, its modules\' state and its panels; the median visitor changes only what the visitor decides', () => {
     for (const key of Object.keys(M3_START)) {
       const [acc, d] = key.split('/'), s = Dept.create(1, acc, Number(d), { carry: 'start' }), m3 = without(s, 'walked');
       eq(m3.dept.modules.map(m => [m.id, m.on]), C.Packs.get(acc).modules.filter(m => C.Modules.defined(m.id)).map(m => [m.id, true]), `${key}: its modules`);
       m3.dept.modules = [];
       for (const f of m3.dept.fixtures) delete f.weather;
+      // The wall panels (M4 W-PANELS: the intro panel and each section panel) are M4's
+      // fixtures, left out likewise and checked apart: one by the Intro, one a section panel.
+      eq(m3.dept.fixtures.filter(f => f.k === 'panel').map(f => f.key).sort(), ['intro', ...C.Packs.get(acc).panels.sections.map(p => p.gallery)].sort(), `${key}: its panels`);
+      m3.dept.fixtures = m3.dept.fixtures.filter(f => f.k !== 'panel');
       assert.equal(State.hash(m3), M3_START[key], `${key}: carry 'start' is M3's start`);
       eq([s.run.grade, s.actors[0].maxHp, s.items[0].tier, s.items[1].tier], [1, 20, 1, 1], key);
       // The plan, the cases and the exhibits do not depend on the visitor; the items may, since

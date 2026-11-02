@@ -130,7 +130,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
           if (!h) continue;
           for (const c of h.candidates(s)) {
             const t = State.clone(s), before = t.actors[0].next, ev = Step.step(t, c);
-            if (ev[0].k === 'refused') { assert.equal(t.actors[0].next, before); continue; }
+            // A free read that changes nothing (a wall panel's, M4) tells nothing: no event.
+            if (ev.length && ev[0].k === 'refused') { assert.equal(t.actors[0].next, before); continue; }
             const cost = t.actors[0].next - before;
             assert.ok(cost === 0 || cost >= N.TICKS_PER_TURN, `${key(c)} cost ${cost}`);
             if (cost > 0) costly++;

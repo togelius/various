@@ -135,7 +135,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(!st || !BAD.test(json(st)), `${where}: strip ${json(st)}`);
       // Beside each fixture (up to six of each kind), and on each item lying on the floor.
       const done = {};
-      for (const f of s.dept.fixtures) {
+      // A wall panel's label is M4's LABELS-M4's (Labels.ofPanel); M3's fixtures here.
+      for (const f of s.dept.fixtures.filter(q => q.k !== 'panel')) {
         done[f.k] = (done[f.k] || 0) + 1;
         if (done[f.k] > 6) continue;
         const t = State.clone(s), spot = besideTile(t, f.x, f.y);
