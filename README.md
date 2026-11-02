@@ -91,9 +91,9 @@ subdirectory with its own README:
 
 - **[drip-trip/](drip-trip/)** — Drip Trip, a one-button adventure about a
   drop hopping eighteen magnetic-tile towers to a thirsty plant. Charged
-  jumps, diamond streaks, dampness, checkpoint gifts and clacking tiles mix
-  ideas from Bollard Hop, Weft, Absorb This, GASP! and Clack Stack. One HTML
-  file, made for a keyboard, mouse or touch screen. Open
+  jumps, diamond streaks, dampness, checkpoint gifts and a once-per-hop air
+  dash mix ideas from Bollard Hop, Weft, Absorb This, GASP! and Vanguard Zero.
+  One HTML file, made for a keyboard, mouse or touch screen. Open
   `drip-trip/index.html`.
 
 ## Repository policy

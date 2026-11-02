@@ -16,6 +16,7 @@
   .below{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:15px;color:#69756a;font-size:11px}.below kbd{font:10px ui-monospace,monospace;border:1px solid #d6d8ca;border-radius:4px;padding:2px 5px}.edition{font:italic 14px Georgia,serif}details{margin-top:23px;border-top:1px solid var(--line);padding-top:15px;font-size:12px;color:#607166}summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;font-size:11px}summary::-webkit-details-marker{display:none}summary:after{content:'+';font-size:17px}details[open] summary:after{content:'−'}.influences{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;padding:18px 0 4px}.influences b{display:block;color:#304e4d;font-size:12px;margin-bottom:4px}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0)}
   @media(min-width:1000px){.overlay.intro{justify-content:flex-start;padding-left:7%}.overlay.intro .card{width:415px}}
   @media(max-width:650px){.page{padding:18px 15px 18px}.masthead{margin-bottom:16px}.logo{width:31px;height:42px}.identity{gap:10px}h1{font-size:32px}.eyebrow{font-size:8px}.tagline{font-size:13px}.utility{min-width:42px;min-height:44px}.controls{gap:6px}.dashboard{gap:16px;padding:12px 0}.meter{width:106px}.stat-label{font-size:8px}.streak{min-width:68px;padding-left:12px}.streak strong{font-size:22px}.streak small{font-size:8px}.journey-title{font-size:9px}.journey-count{font-size:10px}.journey-head{gap:3px}.stop:nth-child(6),.stop:nth-child(12){margin-right:3px}.stops{gap:2px}canvas{height:clamp(430px,112vw,570px)}.overlay{padding:15px}.card{padding:20px}.card h2{font-size:34px;margin:8px 0 12px}.lesson{margin:13px 0;padding:10px 0}.card p{font-size:13px}.scene-label{left:17px;top:16px}.corner-note{right:16px;top:17px;font-size:12px}.hint{font-size:10px;padding:8px 12px}.below{align-items:flex-start;font-size:10px}.keyboard-help{display:none}.influences{grid-template-columns:1fr 1fr;gap:15px}.edition{font-size:12px}.result{gap:17px}}
+  @media(max-width:650px){.intro .card h2{font-size:31px}.intro .card p{line-height:1.5;margin:8px 0}.intro .lesson{margin:10px 0;padding:8px 0}}
   @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 </style>
 </head>
@@ -31,13 +32,13 @@
     <div class="streak"><strong id="combo">×0</strong><small>PERFECT STREAK</small></div>
   </section>
   <section class="playfield" aria-label="Drip Trip game">
-    <canvas id="game" tabindex="0" aria-label="Hold Space, the mouse button, or a finger to aim a hop. Release to jump. Land on the next tile tower. Collect diamonds to stay damp.">This game needs a browser with HTML Canvas support.</canvas>
+    <canvas id="game" tabindex="0" aria-label="Hold Space, the mouse button, or a finger to aim a hop. Release to jump. Press again in the air to dash forward once for 5 dampness. Collect diamonds to stay damp.">This game needs a browser with HTML Canvas support.</canvas>
     <div class="scene-label" id="scene-label">01 / THE RUG<span>Small beginnings.</span></div><div class="corner-note" id="corner-note">home is eighteen hops away ↗</div>
     <div class="hint" id="hint"><b>HOLD</b> to aim · <b>RELEASE</b> to hop</div>
     <div class="overlay intro" id="overlay"><div class="card" id="card"></div></div>
   </section>
-  <div class="below"><span><b>Hold</b> to aim. <b>Release</b> to hop. That’s the whole idea.</span><span class="keyboard-help"><kbd>SPACE</kbd> hop &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound</span><span class="edition">Five games. One little adventure.</span></div>
-  <details><summary>A few familiar things, woven together</summary><div class="influences"><div><b>Bollard Hop</b>Hold-and-release jumps and an honest landing arc.</div><div><b>Weft</b>A stitched trail, diamonds, and growing streak rewards.</div><div><b>Absorb This</b>A little drop called DRIP, with dampness to look after.</div><div><b>GASP!</b>A fresh route each run, with a useful gift at each checkpoint.</div><div><b>Clack Stack</b>Perfect landings clack a magnetic tile onto your tower.</div></div></details>
+  <div class="below"><span><b>Hold</b> to aim. <b>Release</b> to hop. <b>Tap in the air</b> to dash.</span><span class="keyboard-help"><kbd>SPACE</kbd> hop / dash &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> sound</span><span class="edition">Five games. One little adventure.</span></div>
+  <details><summary>A few familiar things, woven together</summary><div class="influences"><div><b>Bollard Hop</b>Hold-and-release jumps and an honest landing arc.</div><div><b>Weft</b>A stitched trail, diamonds, and growing streak rewards.</div><div><b>Absorb This</b>A little drop called DRIP, with dampness to look after.</div><div><b>GASP!</b>A fresh route each run, with a useful gift at each checkpoint.</div><div><b>Vanguard Zero</b>One air dash per hop. Rescue a short jump for 5 dampness, or save the water.</div></div></details>
   <div class="sr-only" id="announce" role="status" aria-live="polite"></div>
 </main>
 <script>
@@ -46,13 +47,13 @@
   const $ = id => document.getElementById(id);
   const canvas = $('game'), ctx = canvas.getContext('2d');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const TOTAL = 18, G = 920, R = 15, CHARGE_TIME = 1.18;
+  const TOTAL = 18, G = 920, R = 15, CHARGE_TIME = 1.18, DASH_COST = 5, DASH_SPEED = 420, DASH_TIME = .14;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
   const palette = ['#83baba', '#dfa06c', '#b0abc7', '#a8bc83', '#e0a69c'];
   let W = 1000, H = 600, dpr = 1, mode = 'title', resumeMode = 'ready';
   let platforms = [], player, current = 0, camera = 0, charge = 0, held = null;
-  let water = 100, streak = 0, bestStreak = 0, perfects = 0, falls = 0, seed = 0;
+  let water = 100, streak = 0, bestStreak = 0, perfects = 0, falls = 0, dashes = 0, seed = 0;
   let wide = 0, wax = 0, visited = new Set(), checkpoints = new Set(), time = 0, elapsed = 0;
   let particles = [], trail = [], floats = [], flight = null, recoverTimer = 0, squish = 0;
   let soundOn = true, audio, last = performance.now(), lastHud = 0, best = 0;
@@ -63,33 +64,36 @@
   for (let i = 0; i < TOTAL; i++) { const dot = document.createElement('span'); dot.className = 'stop'; $('stops').append(dot); }
   function rng(initial) { let s = initial >>> 0; return () => { s += 0x6D2B79F5; let n = s; n = Math.imul(n ^ n >>> 15, n | 1); n ^= n + Math.imul(n ^ n >>> 7, n | 61); return ((n ^ n >>> 14) >>> 0) / 4294967296; }; }
   function makeRoute(s) {
-    const random = rng(s), out = [{ x: 100, y: 452, width: 128, color: 0, stack: 0, diamond: false }];
+    const random = rng(s), out = [{ x: 100, y: 452, width: 128, color: 0, diamond: false }];
     for (let i = 1; i <= TOTAL; i++) {
       const chapter = Math.floor((i - 1) / 6), previous = out[i - 1];
       out.push({ x: previous.x + 152 + random() * 53, y: 452 - chapter * 37 + (random() - .5) * 28,
-        width: i === TOTAL ? 145 : 112 - chapter * 4 + random() * 15, color: i % palette.length, stack: 0, diamond: true });
+        width: i === TOTAL ? 145 : 112 - chapter * 4 + random() * 15, color: i % palette.length, diamond: true });
     }
     return out;
   }
-  function top(p) { return p.y - p.stack * 17; }
+  function top(p) { return p.y; }
   function width(p) { return p.width + wide * 26; }
   function origin() { const p = platforms[current]; return {x: p.x, y: top(p) - R}; }
   function velocity(power) { return { vx: 115 + power * 190, vy: -(220 + power * 205) }; }
   // Both the ghost and live hop use this trajectory and descending-top intersection.
-  function point(f, t) { return {x: f.x + f.vx * t, y: f.y + f.vy * t + G * t * t / 2}; }
+  function point(f, t) {
+    const burst = f.dashAt == null ? 0 : DASH_SPEED * clamp(t - f.dashAt, 0, DASH_TIME);
+    return {x: f.x + f.vx * t + burst, y: f.y + f.vy * t + G * t * t / 2};
+  }
   function crossing(f, p) {
     const c = f.y + R - top(p), discriminant = f.vy * f.vy - 2 * G * c;
     if (discriminant < 0) return null;
     const t = (-f.vy + Math.sqrt(discriminant)) / G;
     if (t <= .001) return null;
-    const x = f.x + f.vx * t;
+    const x = point(f, t).x;
     return { t, x, hit: Math.abs(x - p.x) <= width(p) / 2 - 5, perfect: Math.abs(x - p.x) <= 16 };
   }
   function predict(power) { const o = origin(), v = velocity(power); return crossing({...o, ...v}, platforms[current + 1]); }
   function newGame() {
     seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
     platforms = makeRoute(seed); current = 0; camera = 0; water = 100; charge = 0;
-    streak = 0; bestStreak = 0; perfects = 0; falls = 0; wide = 0; wax = 0; elapsed = 0;
+    streak = 0; bestStreak = 0; perfects = 0; falls = 0; dashes = 0; wide = 0; wax = 0; elapsed = 0;
     visited = new Set([0]); checkpoints = new Set(); trail = []; particles = []; floats = [];
     held = null; flight = null; player = origin(); mode = 'ready'; banner = ''; hideCard();
     updateHud(); say('Hold to aim, release to hop. Reach the plant in eighteen hops.');
@@ -110,10 +114,11 @@
   function showCard(html, kind = '') { $('overlay').className = 'overlay ' + kind; $('overlay').hidden = false; $('card').innerHTML = html; }
   function hideCard() { $('overlay').hidden = true; canvas.focus({preventScroll:true}); }
   function title() {
-    showCard('<div class="kicker">EIGHTEEN HOPS TO HOME</div><h2>A small drop.<br>A big way home.</h2><p>The plant on the windowsill is thirsty.<br>You’re just the drop for the job.</p><div class="lesson"><span class="key">HOLD</span><div><strong>Hold to aim. Release to hop.</strong><br>Match the dotted arc to the next tower.</div></div><p>Catch diamonds to stay damp. Land in the middle to stack a tile and grow your streak.</p><button class="primary" id="start">Let’s hop &nbsp; →</button><p class="tiny">Mouse, touch, or Space. About two minutes.</p>', 'intro');
+    showCard('<div class="kicker">EIGHTEEN HOPS TO HOME</div><h2>A small drop.<br>A big way home.</h2><p>A thirsty plant is waiting on the windowsill.</p><div class="lesson"><span class="key">HOLD</span><div><strong>Hold to aim. Release to hop.</strong><br>The arc shows your normal jump.</div></div><p><strong>Tap again in the air to dash forward.</strong><br>Once per hop. Costs 5 dampness.</p><button class="primary" id="start">Let’s hop &nbsp; →</button><p class="tiny">Diamonds keep you damp. Center landings grow your streak.<br>Mouse, touch, or Space.</p>', 'intro');
     $('start').onclick = () => { tone(440,.12); newGame(); };
   }
   function begin(source) {
+    if (mode === 'flying') { airDash(); return; }
     if (mode !== 'ready' || held !== null) return;
     held = source; charge = 0; mode = 'charging'; tone(180,.07,'sine',.025);
   }
@@ -121,8 +126,19 @@
     if (source !== held || mode !== 'charging') return;
     held = null; const o = origin(), v = velocity(charge);
     const landing = crossing({...o,...v}, platforms[current + 1]);
-    flight = {...o, ...v, t:0, landing, checked:false}; mode = 'flying';
+    flight = {...o, ...v, t:0, landing, checked:false, dashAt:null}; mode = 'flying';
     trail.push({x:o.x,y:o.y+5,move:true}); tone(240,.15,'sine',.045,620);
+    updateHud();
+  }
+  function canDash() { return mode === 'flying' && flight.dashAt === null && flight.landing !== null && !flight.checked && water > DASH_COST; }
+  function airDash() {
+    if (!canDash()) return;
+    // The burst starts at the existing position; it never teleports the drop.
+    flight.dashAt = flight.t; flight.landing = crossing(flight, platforms[current + 1]);
+    water -= DASH_COST; dashes++;
+    pop('DASH · −5 dampness', player.x, player.y - 38); sparkle(player.x-12,player.y,'#9bd8dd',8);
+    tone(410,.13,'triangle',.045,840); updateHud();
+    say('Air dash. Five dampness spent. '+Math.ceil(water)+' percent left.');
   }
   function cancelCharge() { held = null; charge = 0; if (mode === 'charging') mode = 'ready'; }
   function pop(text, x, y, color = '#08678b') { floats.push({text,x,y,life:1.6,color}); }
@@ -131,7 +147,7 @@
     const destination = current + 1, p = platforms[destination]; current = destination; visited.add(current);
     const collected = p.diamond; p.diamond = false;
     if(hit.perfect) {
-      streak++; bestStreak=Math.max(bestStreak,streak); perfects++; p.stack++; squish = .25;
+      streak++; bestStreak=Math.max(bestStreak,streak); perfects++; squish = .25;
       const gain = [5,8,11,13][Math.min(streak-1,3)]; water = Math.min(100,water + (collected ? gain : 0));
       pop('PERFECT · +' + gain + ' dampness',p.x,top(p)-75); sparkle(p.x,top(p), '#e7b957');
       tone(760,.055,'triangle',.07,300); setTimeout(()=>tone(1050,.14,'sine',.04),55);
@@ -160,7 +176,7 @@
   function win() {
     mode='won'; held=null; best=Math.max(best,perfects); try { localStorage.setItem('drip-trip-best',best); } catch (_) {}
     sparkle(player.x,player.y,'#e4b551',40); chord();
-    showCard('<div class="kicker">HOME, AT LAST</div><h2>You made a little<br>thing grow.</h2><p>Eighteen hops, one very happy plant.<br>Turns out a little drop can do quite a lot.</p><div class="result"><div><strong>'+perfects+'</strong><small>PERFECT HOPS</small></div><div><strong>×'+bestStreak+'</strong><small>BEST STREAK</small></div><div><strong>'+Math.ceil(water)+'%</strong><small>STILL DAMP</small></div></div><button class="primary" id="again">A new little trip &nbsp; →</button><p class="tiny">'+falls+' rug rescue'+(falls===1?'':'s')+' · Personal best: '+best+' perfect hops</p>');
+    showCard('<div class="kicker">HOME, AT LAST</div><h2>You made a little<br>thing grow.</h2><p>Eighteen hops, one very happy plant.<br>Turns out a little drop can do quite a lot.</p><div class="result"><div><strong>'+perfects+'</strong><small>PERFECT HOPS</small></div><div><strong>×'+bestStreak+'</strong><small>BEST STREAK</small></div><div><strong>'+Math.ceil(water)+'%</strong><small>STILL DAMP</small></div></div><button class="primary" id="again">A new little trip &nbsp; →</button><p class="tiny">'+falls+' rug rescue'+(falls===1?'':'s')+' · '+dashes+' air dash'+(dashes===1?'':'es')+' · Best: '+best+' perfect hops</p>');
     $('again').onclick=newGame; $('again').focus({preventScroll:true}); updateHud();say('You reached the plant! '+perfects+' perfect hops.');
   }
   function lose() {
@@ -197,6 +213,8 @@
     $('scene-label').innerHTML='0'+(section+1)+' / '+sectionNames[section]+'<span>'+sectionLines[section]+'</span>';
     $('corner-note').textContent=mode==='won'?'one happy plant.':'home is '+(TOTAL-current)+' hop'+(TOTAL-current===1?'':'s')+' away ↗';
     $('hint').hidden=!['ready','charging','flying','recover'].includes(mode);
+    if (mode === 'flying') $('hint').innerHTML = flight.dashAt !== null ? '<b>DASH USED</b> · one per hop' : canDash() ? '<b>TAP</b> to air dash · costs 5 dampness' : (flight.checked || !flight.landing) ? '<b>TOO LOW TO DASH</b> · the rug will catch you' : '<b>DASH NEEDS MORE THAN 5 DAMPNESS</b>';
+    if (mode === 'recover') $('hint').textContent = 'A soft landing. Back to your last tower…';
   }
   function step(dt) {
     time+=dt; if(squish>0)squish=Math.max(0,squish-dt);
@@ -253,13 +271,11 @@
       // A short pile of see-through magnetic squares, with a bright landing edge.
       const baseHeight=500-p.y,rows=Math.max(1,Math.ceil(baseHeight/34));
       for(let k=0;k<rows;k++)tile(x,p.y+k*34,w,Math.min(32,500-(p.y+k*34)),palette[(p.color+k)%5]);
-      for(let k=0;k<p.stack;k++)tile(x,p.y-(k+1)*17,w,15,'#76b4bc');
       ctx.lineWidth=4;ctx.strokeStyle=i===current+1?'#faf3d5':'#faf3d5a0';ctx.beginPath();ctx.moveTo(x-w/2+3,y);ctx.lineTo(x+w/2-3,y);ctx.stroke();
       ctx.lineWidth=4;ctx.strokeStyle='#f2db79';ctx.beginPath();ctx.moveTo(x-16,y-1);ctx.lineTo(x+16,y-1);ctx.stroke();
       if(p.diamond&&i!==TOTAL)diamond(x,y-37+(reduced?0:Math.sin(time*3+i)*3));
       if(i>0&&i%6===0&&i<TOTAL){ctx.strokeStyle='#788e66';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+w/2-10,y);ctx.lineTo(x+w/2-10,y-62);ctx.stroke();ctx.fillStyle='#eee5b5';ctx.beginPath();ctx.moveTo(x+w/2-10,y-62);ctx.lineTo(x+w/2+16,y-53);ctx.lineTo(x+w/2-10,y-44);ctx.fill();}
       if(i===TOTAL)plant(x+21,y-12,mode==='won');
-      if(i===current&&p.stack){text('CLACK!',x,y+30,10,'#355d5e','sans-serif');}
     }
   }
   function drawThread(){
@@ -267,24 +283,31 @@
     for(const t of trail){const x=t.x-camera;if(!prev||t.move)ctx.moveTo(x,t.y);else ctx.lineTo(x,t.y);prev=t;}ctx.stroke();ctx.setLineDash([]);
   }
   function drawArc(){
-    if(!['ready','charging'].includes(mode))return;
-    const q=mode==='charging'?charge:.4,o=origin(),v=velocity(q),hit=predict(q);if(!hit)return;
+    const airborne=mode==='flying';
+    if(!airborne&&!['ready','charging'].includes(mode))return;
+    if(airborne&&flight.checked)return;
+    const q=mode==='charging'?charge:.4,f=airborne?flight:{...origin(),...velocity(q)},hit=airborne?flight.landing:predict(q);if(!hit)return;
     const target=platforms[current+1],good=hit.hit,perfect=hit.perfect&&good;
-    const color=perfect?'#356e54':good?'#677d68':'#a56b51';const f={...o,...v};
+    const color=perfect?'#356e54':good?'#677d68':'#a56b51';
     ctx.fillStyle=color;const duration=hit.t;
-    for(let t=.06;t<=duration;t+=.055){const p=point(f,t);ellipse(p.x-camera,p.y,mode==='charging'?2.6:1.8,mode==='charging'?2.6:1.8,color+(mode==='charging'?'c9':'60'));}
+    for(let t=(airborne?flight.t:0)+.06;t<=duration;t+=.055){const p=point(f,t);ellipse(p.x-camera,p.y,mode==='charging'?2.6:1.8,mode==='charging'?2.6:1.8,color+(mode==='charging'?'c9':'80'));}
     const end=point(f,duration),ex=end.x-camera;ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(ex,end.y+R,11,4,0,0,Math.PI*2);ctx.stroke();
     if(!good){ctx.beginPath();ctx.moveTo(ex-4,end.y+R-6);ctx.lineTo(ex+4,end.y+R+2);ctx.moveTo(ex+4,end.y+R-6);ctx.lineTo(ex-4,end.y+R+2);ctx.stroke();}
-    if(mode==='charging'){
-      const label=perfect?'PERFECT':good?'SAFE':'MISS',lx=clamp(ex,49,W-49),ly=Math.max(100,end.y-32);
+    if(mode==='charging'||airborne){
+      const label=perfect?'PERFECT':good?'SAFE':airborne?(hit.x<target.x?'SHORT':'LONG'):'MISS',lx=clamp(ex,49,W-49),ly=Math.max(100,end.y-32);
       round(lx-44,ly-20,88,25,13,'#f9f7e9');text(label,lx,ly-3,10,color,'sans-serif');
-      const x=player.x-camera;round(x-29,player.y+36,58,6,4,'#324a4530');round(x-29,player.y+36,Math.max(2,charge*58),6,4,color);
+      if(!airborne){const x=player.x-camera;round(x-29,player.y+36,58,6,4,'#324a4530');round(x-29,player.y+36,Math.max(2,charge*58),6,4,color);}
     }
+    if(airborne)return;
     $('hint').innerHTML=mode==='charging'?(perfect?'<b>PERFECT</b> · release now!':good?'<b>SAFE</b> · release to land':'<b>HOLD</b> · line up the arc'):'<b>HOLD</b> to aim · <b>RELEASE</b> to hop';
   }
   function drop(){
     if(!player||mode==='recover')return;
     const x=player.x-camera,y=player.y;const bob=(mode==='ready'&&!reduced)?Math.sin(time*3)*1.4:0;
+    if (mode==='flying' && flight.dashAt !== null && flight.t-flight.dashAt < DASH_TIME && !reduced) {
+      ctx.strokeStyle='#c6f0eb';ctx.lineWidth=3;ctx.lineCap='round';
+      for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(x-24-i*8,y-7+i*7);ctx.lineTo(x-48-i*8,y-7+i*7);ctx.stroke();}
+    }
     ellipse(x,top(platforms[current])+3,18,4,'#24464f25');
     ctx.save();ctx.translate(x,y+bob);const squeeze=mode==='charging'?charge*.2:squish*.9;ctx.scale(1+squeeze,1-squeeze);
     ctx.fillStyle=water<25?'#75a1aa':'#268cad';ctx.beginPath();ctx.moveTo(0,-24);ctx.bezierCurveTo(-3,-13,-18,-6,-18,4);ctx.bezierCurveTo(-18,26,18,26,18,4);ctx.bezierCurveTo(18,-7,5,-14,0,-24);ctx.fill();
@@ -305,7 +328,7 @@
   function frame(now){const dt=Math.min((now-last)/1000,.04);last=now;if(!document.hidden&&mode!=='paused'&&mode!=='relic')step(dt);draw();requestAnimationFrame(frame);}requestAnimationFrame(frame);
   // A test-only, opt-in harness: real trajectory, input, and state, no production controls.
   if(new URLSearchParams(location.search).has('test'))window.dripTest={
-    state:()=>({mode,current,water,streak,perfects,falls,wide,wax,charge,seed,player:{...player},platforms:platforms.map(p=>({...p})),camera}),
+    state:()=>({mode,current,water,streak,perfects,falls,dashes,dashUsed:flight?.dashAt!=null,dashReady:canDash(),flightT:flight?.t,landing:flight?.landing,wide,wax,charge,seed,player:{...player},platforms:platforms.map(p=>({...p})),camera}),
     makeRoute,velocity,crossing,point,predict,step,begin,release,pause,choose,newGame,
     setWater:v=>{water=v;updateHud();},
     reset:s=>{newGame();seed=s;platforms=makeRoute(s);player=origin();},
