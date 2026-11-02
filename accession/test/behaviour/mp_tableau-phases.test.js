@@ -291,6 +291,27 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.deepEqual(problems, []);
   });
 
+  // §3.6: a switch moves no other exhibit. Made without the Repeater Arm, the Board Dish once
+  // took a tile on the Arm's line, which only the Arm's being made kept it off (M.11 seed 3 at
+  // depth 5, core planted ready: (33,9) became (33,5); 7 of 140 such departments). M4 FU3.
+  test('departments with the Board\'s core planted ready: made without one attachment, every other keeps its tile', () => {
+    const X = loadCore();
+    X.Registry.ARCHETYPES.mp_tableau.ready = 'unit';
+    let checked = 0;
+    for (const [seed, depth] of [[3, 5], [25, 4], [1, 1], [8, 7]]) {
+      const all = X.Tableau.attachments(X.Dept.create(seed, 'M11', depth));
+      for (const gone of all) {
+        const left = X.Tableau.attachments(X.Dept.create(seed, 'M11', depth, { without: [gone.uid] }));
+        for (const a of all) if (a.uid !== gone.uid) {
+          const b = left.find(q => q.uid === a.uid);
+          assert.equal(json(b && [b.x, b.y]), json([a.x, a.y]), `seed ${seed} at depth ${depth}, without ${gone.uid}: ${a.uid}'s tile`);
+          checked++;
+        }
+      }
+    }
+    assert.ok(checked >= 8, `${checked} checked`);
+  });
+
   test('departments, with the Board\'s core planted ready (M.11, seeds 1–8, depths 1, 4 and 7): every hall with a case has the Repeater Arm within that case\'s rain (the hall\'s case holds rain), and the Board Dish keeps population\'s rule for the reading tile; both stand where BUILD\'s rule puts them, the same with weather_cases and the chime switched off', () => {
     const X = loadCore();
     X.Registry.ARCHETYPES.mp_tableau.ready = 'unit';

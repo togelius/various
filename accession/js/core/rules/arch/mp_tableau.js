@@ -299,12 +299,16 @@ const Tableau = (() => {
       const stats = Roles.stats(q.role, m.depth);
       const a = Actors.spawn(state, Object.assign({}, stats, { uid: prefix + (++n), sp: q.id, size: 1, x: at[0], y: at[1], maxHp: stats.hp, mode: 'dormant',
         arch: q.archetype || 'plodder', mods: (q.modifiers || []).slice(), modParams: q.modParams || {}, trigger: q.trigger || null, group: q.group || null }));
-      if (without.includes(a.uid)) { a.gone = 1; continue; }
+      // A station's tile and its line's runs are kept clear of those set out after it whether
+      // it is made or not, so a department made without it moves no other exhibit (§3.6; M4 FU3:
+      // without the Repeater Arm, the Board Dish took a tile on its line, M.11 seed 3 depth 5).
       if (a.arch === 'demonstrator') {
-        a.route = { dir: armLine(state, a, b) };
-        const room = roomAt(m, a.x, a.y), k = DIR[a.route.dir];
+        const dir = armLine(state, a, b), room = roomAt(m, a.x, a.y), k = DIR[dir];
+        avoid.add(key(a.x, a.y));
         for (const [x, y] of run(m, room, a.x, a.y, k).concat(run(m, room, a.x, a.y, (k + 4) % 8))) avoid.add(key(x, y));
+        if (!without.includes(a.uid)) a.route = { dir };
       }
+      if (without.includes(a.uid)) { a.gone = 1; continue; }
       Archetypes.init(state, a);
     }
   }
