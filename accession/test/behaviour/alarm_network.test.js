@@ -1,8 +1,8 @@
 // ACCESSION — the module alarm_network (BUILD.md §5.4; M4 plan MO6–MO8, D1.6–D1.8; MOD-ALARM): its
 // part on the Wader's line, "On seeing you it chases you, first showing the alarm for a turn and
 // raising it unless one is shown or running: a crash, then every exhibit still asleep that can
-// hear, but the Centrepiece, wakes, sent to look where you stood; for {ALARM_TURNS} turns no pips
-// fade, none left undisturbed or done searching goes back and no other alarm is raised, and the
+// hear, but the Centrepiece, wakes to look where you stood; for {ALARM_TURNS} turns no pips
+// fade, none left undisturbed or done searching goes back, and the
 // bell, or after it the night watch, comes up to {ALARM_CLOCK_ADVANCE} turns sooner". Each scenario runs for every
 // pack Wader (S9.2) at depths 1–7, joined up (the real core, every rule in place, real actions
 // only, every invariant checked after every step, a clone checked where it says so), and is
@@ -24,7 +24,7 @@ module.exports = ({ test, assert, loadCore }) => {
   const tough = (more) => Object.assign({ hp: 999, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 }, more || {});
   const waders = s => s.actors.filter(a => a.arch === 'patrol_guard');
   const ID = 'alarm_network';
-  const PARTS = 'every exhibit still asleep that can hear, but the Centrepiece, wakes, sent to look where you stood';
+  const PARTS = 'every exhibit still asleep that can hear, but the Centrepiece, wakes to look where you stood';
 
   // A room in S.9 running its modules (Modules.init, as a department does), with you hard to
   // kill, and its Waders given their rounds and told they walk them (their story, as population
@@ -153,6 +153,24 @@ module.exports = ({ test, assert, loadCore }) => {
   });
   test('for its turns no pip fades, none goes back, and no other alarm is shown or raised; then it is over, told so, and a Wader seeing you raises it again', () => {
     ok(H.sweep(C, lasting, list()), lasting.name);
+  });
+
+  // alarm.lasting follows a step's events in order (M4 FU3): exhibits act in spawn order, so
+  // one may go back, left undisturbed, earlier in the very turn a Wader acting after it raises
+  // the alarm (S.9 seed 301 at depth 3, monkey play from the hall's opening, turn 88). It went
+  // back before the alarm ran; one going back after the call, in that turn, breaks the line.
+  test('alarm.lasting reads a step in order: going back (idle, searched) or a pip fading before the call, in the alarm\'s first turn, breaks nothing; after it, it does', () => {
+    const inv = require('./alarm.inv.js')(C).find(i => i.id === 'alarm.lasting');
+    const s = callRoom(list()[0].sp, 3, { seed: 3, rulesOff: [] }), t = s.turn, tick = t * 100;
+    const w = waders(s)[0].uid, other = s.actors[2].uid;
+    const alarm = { k: 'alarm', turn: t, tick, by: w, until: t + N.ALARM_TURNS, cause: { k: ID } };
+    const before = [{ k: 'lost', turn: t, tick, who: other, from: 'awake', to: 'returning', cause: { k: 'idle', turns: N.AWAKE_IDLE_TURNS } },
+      { k: 'lost', turn: t, tick, who: other, from: 'searching', to: 'returning', cause: { k: 'searched' } },
+      { k: 'pip', turn: t, tick, who: other, delta: -1, cause: { k: 'decay' } }];
+    for (const e of before) {
+      assert.equal(inv.check(s, [e, alarm], s), null, `${e.k} ${e.cause.k} before the call`);
+      assert.match(String(inv.check(s, [alarm, e], s)), /while the alarm ran/, `${e.k} ${e.cause.k} after the call`);
+    }
   });
 
   // While it runs, an exhibit still goes back for a reason the line leaves open: a tethered
@@ -332,7 +350,7 @@ module.exports = ({ test, assert, loadCore }) => {
     // Its module part's words, through every depth: filled, and in the Wader's slot.
     for (let depth = 1; depth <= 7; depth++) {
       const line = C.Clauses.line(C.Packs.species('S9', 'S9.2'), { depth });
-      assert.ok(line.includes(`On seeing you it chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then ${PARTS}; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back and no other alarm is raised, and the bell`), line);
+      assert.ok(line.includes(`On seeing you it chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then ${PARTS}; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back, and the bell`), line);
       assert.ok(line.endsWith(`comes up to ${N.ALARM_CLOCK_ADVANCE} turns sooner; losing you, it searches, then resumes its round. It never sleeps.`), line);
     }
   });

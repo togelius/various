@@ -3,7 +3,7 @@
 // and its sentences in js/core/text/mod-alarm.js; the alarm it raises is the module's,
 // js/core/rules/modules/alarm_network.js.
 //
-// The rule, as its line says it ("Walks its round and strikes from beside you for {dmg}. On
+// The rule, as its line says it ("Walks its round, stepping aside head on, and strikes from beside you for {dmg}. On
 // seeing you it chases you; losing you, it searches, then resumes its round."; it never
 // sleeps, its trigger `awake`):
 //   - Its round: its posts, route {posts, i} (population places them with no draw: the free
@@ -13,7 +13,8 @@
 //     counting (AI.route); standing on post i, it sets off for the next, round and round. A
 //     closed door on the way is opened as that action, as any exhibit opens one. With every
 //     such step blocked by another actor it waits, and a post another actor stands on counts
-//     as reached once it stands beside it; a post it cannot reach at all it passes over. A
+//     as reached once it stands beside it; a post it cannot reach at all it passes over. Head
+//     on with another patrol on its round, it steps aside (asideOf, below; M4 FU3). A
 //     Wader whose room gave it no round (route null, which population logs) keeps to its
 //     place: its home is its one post.
 //   - Sent to look (a noise; §8.2's awake exhibit) it goes there, round other actors, and once
@@ -83,10 +84,56 @@ const Patrol = (() => {
     if (w.arrived) return AI.wait(state, a, ev);
     if (!w.options.length) {
       // Another actor stands on the post, and it stands beside it: as good as there.
-      if (Actors.at(state, post[0], post[1], a) && Actors.dist(a, post[0], post[1]) === 1) onward(a);
-      return AI.wait(state, a, ev);
+      if (Actors.at(state, post[0], post[1], a) && Actors.dist(a, post[0], post[1]) === 1) { onward(a); return AI.wait(state, a, ev); }
+      // Head on with another patrol: it steps aside, if it can.
+      const m = state.dept, d = asideOf(state, m, a, a.x, a.y, firstSteps(state, m, a, a.x, a.y, AI.field(state, a, post, 'onto')), k => {
+        const q = Actors.at(state, k % m.w, Int.idiv(k, m.w), a);
+        return q && onRound(q) && !Cases.encased(state, q) ? q : null;
+      }, k => !!Actors.at(state, k % m.w, Int.idiv(k, m.w)), q => {
+        const Q = posts(q), j = Q.length > 1 && same([q.x, q.y], Q[index(q, Q)]) ? (index(q, Q) + 1) % Q.length : index(q, Q);
+        return firstSteps(state, m, q, q.x, q.y, AI.field(state, q, Q[j], 'onto'));
+      });
+      return d < 0 ? AI.wait(state, a, ev) : stepTo(state, a, d, ev);
     }
     return stepTo(state, a, w.options[0], ev);
+  }
+
+  // Head on (M4 FU3; decided without play, revisit once M4 is playable). Two patrols walking
+  // their rounds meet head on when each finds every shortest step to its post taken, one of
+  // them by the other (a narrow way between plinths, say): neither would ever move. The one
+  // whose action it is then steps aside: the first step, in compass order, onto a tile it may
+  // step to that no actor stands on, that is no closed door and that is none of the other's
+  // shortest steps; with none it waits. The other walks on at its next action. round() and
+  // the timeline (below) both take it from here.
+  // The shortest first steps of patrol b standing at (x, y), toward the post whose walking
+  // field is f (actors never counting), as map indices in compass order.
+  function firstSteps(state, m, b, x, y, f) {
+    const w = m.w, here = f[y * w + x], out = [];
+    if (!(here > 0)) return out;
+    for (let d = 0; d < 8; d++) {
+      if (!Grid.canStep(m, x, y, d, 'exhibit')) continue;
+      const nx = x + Grid.DX[d], ny = y + Grid.DY[d], v = f[ny * w + nx];
+      if (v >= 0 && v < here && Archetypes.mayStep(state, b, nx, ny)) out.push(ny * w + nx);
+    }
+    return out;
+  }
+  // The step aside of patrol b at (x, y), every one of whose shortest steps (mine) is taken:
+  // the other is the first patrol on its round standing on one of them (who(k), or null) whose
+  // own shortest steps (theirs(q)) are all taken (taken(k)), one by b. Its direction, or -1.
+  function asideOf(state, m, b, x, y, mine, who, taken, theirs) {
+    const w = m.w, me = y * w + x;
+    let other = null;
+    for (const k of mine) {
+      const q = who(k), t = q ? theirs(q) : [];
+      if (t.length && t.includes(me) && t.every(taken)) { other = t; break; }
+    }
+    if (!other) return -1;
+    for (let d = 0; d < 8; d++) {
+      if (!Grid.canStep(m, x, y, d, 'exhibit')) continue;
+      const nx = x + Grid.DX[d], ny = y + Grid.DY[d], k = ny * w + nx;
+      if (!taken(k) && !other.includes(k) && Grid.ch(m, nx, ny) !== '+' && Archetypes.mayStep(state, b, nx, ny)) return d;
+    }
+    return -1;
   }
   // Sent to look at a tile: there, round other actors; once there, or with no step there, it
   // drops it (its round goes on at its next action).
@@ -200,6 +247,13 @@ const Patrol = (() => {
           if (pre(k)) add(nx, ny, i, open.concat([k]).sort((p, r) => p - r), t + c.step, t);
         } else add(nx, ny, i, open, t + c.step, t);
       }
+      // Where something else may stand in its way, it may meet a patrol head on and step aside
+      // (round()): onto any tile no actor in `fixed` stands on that is no closed door.
+      if (any) for (let d = 0; d < 8; d++) {
+        if (steps.includes(d) || !Grid.canStep(m, x, y, d, 'exhibit')) continue;
+        const nx = x + Grid.DX[d], ny = y + Grid.DY[d];
+        if (!fixed[ny * w + nx] && Grid.ch(m, nx, ny) !== '+') add(nx, ny, i, open, t + c.step, t);
+      }
     }
     return { out, from, doors };
   }
@@ -244,7 +298,7 @@ const Patrol = (() => {
     const fixed = new Uint8Array(m0.w * m0.h), movers = [];
     for (let i = 1; i < state.actors.length; i++) {
       const o = state.actors[i];
-      if (o === a || o.gone) continue;
+      if (o.uid === a.uid || o.gone) continue;
       if (o.mode === 'dormant' || Cases.encased(state, o)) { for (const [x, y] of Actors.footprint(o)) if (Grid.inside(m0, x, y)) fixed[y * m0.w + x] = 1; }
       else if (onRound(o)) movers.push(o);
       else return anywhere(state, a, horizon);
@@ -302,9 +356,9 @@ const Patrol = (() => {
   // actions in a row with its way blocked only by exhibits that stand still (asleep or in a
   // case), never by another patrol, is stuck: nothing will move out of its way, so it would
   // wait there for good; its record then carries stuck: {post}, the post it was walking to.
-  // One waiting behind another patrol is not stuck, since it moves once the other does, unless
-  // the two wait on each other (head on), STUCK_ACTIONS actions each: then the later of them in
-  // spawn order is. null
+  // One waiting behind another patrol is not stuck, since it moves once the other does; two head
+  // on step aside as round() does (M4 FU3), and only if they still wait on each other,
+  // STUCK_ACTIONS actions each (neither can step aside), is the later of them in spawn order. null
   // where that cannot be told: another exhibit awake on no round (where it goes is its own),
   // or a door a patrol opens within the earshot of another exhibit (its noise would send it to
   // look or stir it). It draws on no stream and changes
@@ -423,7 +477,14 @@ const Patrol = (() => {
       if (d0 < 0) {
         p.walled = !patrol;
         if (!patrol) p.by = null;
-        if (P.length > 1 && Grid.chebyshev(p.x, p.y, post[0], post[1]) === 1 && taken(p, post[0], post[1])) p.i = (p.i + 1) % P.length;
+        if (P.length > 1 && Grid.chebyshev(p.x, p.y, post[0], post[1]) === 1 && taken(p, post[0], post[1])) { p.i = (p.i + 1) % P.length; p.t += p.c.wait; return; }
+        // Head on with another patrol: it steps aside, if it can (round() above).
+        const d = patrol ? asideOf(state, m, p.a, p.x, p.y, firstSteps(state, m, p.a, p.x, p.y, f), k => sims.find(q => q !== p && q.y * w + q.x === k) || null,
+          k => fixed[k] === 1 || sims.some(q => q.y * w + q.x === k), q => {
+            const j = q.P.length > 1 && q.x === q.P[q.i][0] && q.y === q.P[q.i][1] ? (q.i + 1) % q.P.length : q.i;
+            return q.P.length ? firstSteps(state, m, q.a, q.x, q.y, field(q, j)) : [];
+          }) : -1;
+        if (d >= 0) { p.x += Grid.DX[d]; p.y += Grid.DY[d]; p.t += p.c.step; return; }
         p.t += p.c.wait;
         return;
       }

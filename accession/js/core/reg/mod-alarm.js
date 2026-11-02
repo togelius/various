@@ -21,9 +21,11 @@
   // the next post i; it never sleeps (its trigger, `awake`). On seeing you it hunts you, as a
   // plodder does; having lost you and searched, it goes back to its round, not to sleep. What
   // alarm_network adds is the module's own part, set in the slot: with the module off the
-  // line reads "On seeing you it chases you" (§5.3, Q3).
+  // line reads "On seeing you it chases you" (§5.3, Q3). Two patrols head on (each with every
+  // shortest step taken, one by the other) would wait for good: the one whose action it is
+  // steps aside (M4 FU3; decided without play, revisit once M4 is playable).
   R.define('ARCHETYPES', 'patrol_guard', Object.assign({ icon: null,
-    clause: 'Walks its round and strikes from beside you for {dmg}. On seeing you it {module:alarm_network|chases you}; losing you, it searches, then resumes its round.',
+    clause: 'Walks its round, stepping aside head on, and strikes from beside you for {dmg}. On seeing you it {module:alarm_network|chases you}; losing you, it searches, then resumes its round.',
     params: { dmg: 'role:DMG' }, covers: ['attacked', 'missed'] }, proved(PATROL)));
 
   // The module (§5.4), its panel sentence (§5.4's table, as the panel teaches it) and the words
@@ -43,7 +45,7 @@
   // (ClockRules.advance, whose stage sentence says which).
   R.define('MODULES', 'alarm_network', Object.assign({ icon: 'alarm', special: 'alarm',
     sentence: 'The waders raise the alarm when they see you; then every sleeping exhibit in the department that can hear, but the Centrepiece, wakes.', keywords: ['alarm', 'alarmed'],
-    clause: 'chases you, first {special} and raising it unless one is shown or running: a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes, sent to look where you stood; for {ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back and no other alarm is raised, and the bell, or after it the night watch, comes up to {ALARM_CLOCK_ADVANCE} turns sooner',
+    clause: 'chases you, first {special} and raising it unless one is shown or running: a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes to look where you stood; for {ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back, and the bell, or after it the night watch, comes up to {ALARM_CLOCK_ADVANCE} turns sooner',
     params: { ALARM_TURNS: 'N:ALARM_TURNS', ALARM_CLOCK_ADVANCE: 'N:ALARM_CLOCK_ADVANCE' },
     covers: ['module', 'alarm', 'stage'] }, proved(ALARM)));
 

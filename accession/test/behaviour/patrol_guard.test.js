@@ -1,5 +1,5 @@
 // ACCESSION — the Wader's Behaviour line, its archetype's part (BUILD.md §5.3, §5.5; MOD-ALARM):
-// "Walks its round and strikes from beside you for {dmg}. On seeing you it chases you; losing
+// "Walks its round, stepping aside head on, and strikes from beside you for {dmg}. On seeing you it chases you; losing
 // you, it searches, then resumes its round." (with alarm_network on, its slot holds the
 // module's part, test/behaviour/alarm_network.test.js), and "It never sleeps." (its trigger).
 // Each scenario runs for every pack Wader (S9.2) at depths 1–7, joined up, every invariant
@@ -134,7 +134,7 @@ module.exports = ({ test, assert, loadCore }) => {
       const st = Roles.stats(sp.role, depth);
       assert.equal(json([lo, hi]), json([st.dmin, st.dmax]));
       for (const ctx of [{ depth, rulesOff: ['alarm_network'] }, { depth, modules: [] }])
-        assert.equal(C.Clauses.line(sp, ctx), `Walks its round and strikes from beside you for ${lo}–${hi}. On seeing you it chases you; losing you, it searches, then resumes its round. It never sleeps.`);
+        assert.equal(C.Clauses.line(sp, ctx), `Walks its round, stepping aside head on, and strikes from beside you for ${lo}–${hi}. On seeing you it chases you; losing you, it searches, then resumes its round. It never sleeps.`);
     }
   });
 
@@ -268,6 +268,41 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(Archetypes.wakeRegion(with_([dummy([14, 1], 'dormant')]), a, T)), round, 'a sleeper out of earshot');
     // An exhibit awake on no round, anywhere.
     assert.equal(json(Archetypes.wakeRegion(with_([dummy([22, 5], 'awake')]), a, T)), anywhere, 'an exhibit awake');
+  });
+
+  // ---- Head on (M4 FU3; decided without play, revisit once M4 is playable) ----
+  // Two Waders whose rounds cross through a passage one tile wide, each heading through it the
+  // other way, from either end: walking on as before, each would wait on the other for good
+  // (CP1-RUNNER: about 1.5% of S.9's departments, after two laps or more). Now the one whose
+  // action it is steps aside, off the other's way, and both walk on, lap after lap: each
+  // stands on each of its posts at least twice in 80 turns. Played joined up, every invariant
+  // checked (alarm.round holds each step aside to the clause), and Patrol.timeline tells every
+  // step of both, at its tick, exactly. You stand in a pocket neither sees.
+  const NARROW = ['#################', '#.....###.....#.#', '#.............#.#', '#.....###.....#.#', '#################'];
+  test('two patrols meeting head on in a narrow way: the one whose action it is steps aside, off the other\'s way, and both walk on; Patrol.timeline tells it exactly', () => {
+    for (let depth = 1; depth <= 7; depth++) for (const starts of [[[5, 2], [9, 2]], [[4, 1], [10, 3]]]) {
+      const tag = `depth ${depth}, from ${json(starts)}`, T = 80;
+      const s = Setup.room(depth, { acc: 'S9', depth, map: NARROW, you: [15, 2], exhibits: starts.map(at => ({ sp: 'S9.2', at, stats: Roles.stats('warden', depth) })) }, { rulesOff: [] });
+      s.actors[0].hp = s.actors[0].maxHp = 999;
+      const two = s.actors.filter(a => a.arch === 'patrol_guard'), rounds = [[[12, 2], [2, 2]], [[2, 2], [12, 2]]];
+      two.forEach((a, k) => { a.route = { posts: rounds[k], i: 0 }; Wake.created(s, a, 'patrol', {}, null); });
+      C.Modules.init(s, C.Packs.get('S9'));
+      const told = C.Patrol.timeline(s, T), until = s.tick + T * N.TICKS_PER_TURN;
+      const r = H.play(C, s, waits(T));
+      assert.deepEqual(r.violations.map(v => v.text), [], tag);
+      assert.ok(told && told.every(p => !p.stuck), `${tag}: the timeline is told, none stuck`);
+      let asides = 0;
+      for (const a of two) {
+        const moves = r.events.filter(e => e.k === 'moved' && e.who === a.uid && e.tick <= until);
+        const at = told.find(p => p.uid === a.uid).at, steps = [];
+        for (let k = 1; k < at.length; k++) if (at[k].x !== at[k - 1].x || at[k].y !== at[k - 1].y) steps.push([at[k - 1].t, at[k].x, at[k].y]);
+        assert.equal(json(steps), json(moves.map(e => [e.tick, e.to[0], e.to[1]])), `${tag}: ${a.uid}'s steps, told and played`);
+        for (const p of a.route.posts) assert.ok(moves.filter(e => e.to[0] === p[0] && e.to[1] === p[1]).length >= 2, `${tag}: ${a.uid} stood on ${p} twice`);
+        // A step aside: one that brings it no nearer the post it heads for, along the passage's row.
+        asides += moves.filter(e => Math.abs(e.to[0] - a.route.posts[0][0]) >= Math.abs(e.from[0] - a.route.posts[0][0]) && Math.abs(e.to[0] - a.route.posts[1][0]) >= Math.abs(e.from[0] - a.route.posts[1][0])).length;
+      }
+      assert.ok(asides > 0, `${tag}: they met head on, and one stepped aside`);
+    }
   });
 
   // ---- Whatever stands in its way, its wake region holds all it sees ----

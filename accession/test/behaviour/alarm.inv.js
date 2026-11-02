@@ -11,15 +11,16 @@
 //     alarm.shown, the alarm is shown only by an exhibit the module, on, acts on (flagged),
 //     while none runs and no other is shown; alarm.call, an alarm is raised only by the call
 //     of a mark shown at an earlier action, for ALARM_TURNS turns;
-//   "a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes, sent
-//     to look where you stood": alarm.call again, the crash at the caller's tile comes first,
+//   "a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes to
+//     look where you stood": alarm.call again, the crash at the caller's tile comes first,
 //     and every exhibit then still asleep that can hear, but a Centrepiece's piece, wakes awake
 //     by the alarm, sent to your tile, and no other;
-//   "for 30 turns no pips fade, none left undisturbed or done searching goes back and no
-//     other alarm is raised": alarm.lasting, while one runs no pip decays and no exhibit goes
-//     back for having been left undisturbed (idle) or done searching (a tethered warden you
-//     left goes back by its own rule, which the line leaves open), and alarm.shown: none is
-//     shown or raised;
+//   "for 30 turns no pips fade, none left undisturbed or done searching goes back":
+//     alarm.lasting, while one runs no pip decays and no exhibit goes back for having been
+//     left undisturbed (idle) or done searching (a tethered warden you left goes back by its
+//     own rule, which the line leaves open); and, as "unless one is shown or running" says,
+//     alarm.shown: none is shown or raised while one runs (M4 FU3 dropped the line's "and no
+//     other alarm is raised", which said it twice, to make room for the step aside);
 //   "and the bell, or after it the night watch, comes up to 30 turns sooner": alarm.clock, each
 //     alarm brings the clock's next stage nearer by what its stage event says, up to
 //     ALARM_CLOCK_ADVANCE and never past the next turn, and moves nothing in the night watch;
@@ -60,6 +61,46 @@ module.exports = (C) => {
     let at = b ? [b.x, b.y] : [a.x, a.y];
     for (let k = 0; k < i; k++) if (events[k].k === 'moved' && events[k].who === a.uid) at = events[k].to;
     return at;
+  }
+
+  // Who stood where when the step's i-th event came: 'x,y' → the actor (as before the step).
+  function standing(pre, events, i) {
+    const out = new Map();
+    for (const b of pre.actors) {
+      if (b.gone) continue;
+      const at = where(pre, events, i, b);
+      for (const t of Actors.footprint({ x: at[0], y: at[1], size: b.size || 1 })) out.set(t.join(','), b);
+    }
+    return out;
+  }
+  // The tiles of b's shortest first steps from `from` toward post p on map m, actors never
+  // counting: ['x,y'].
+  function shortest(m, from, p) {
+    const f = Grid.distances(m, [p], m.w * m.h, null, 'exhibit'), here = f[from[1] * m.w + from[0]], out = [];
+    if (!(here > 0)) return out;
+    for (let d = 0; d < 8; d++) {
+      if (!Grid.canStep(m, from[0], from[1], d, 'exhibit')) continue;
+      const x = from[0] + Grid.DX[d], y = from[1] + Grid.DY[d], v = f[y * m.w + x];
+      if (v >= 0 && v < here) out.push(x + ',' + y);
+    }
+    return out;
+  }
+  // Its post as round() takes it at an action from `at`: post i, or the next if it stands on it.
+  const heading = (P, i, at) => P.length > 1 && same(at, P[i]) ? P[(i + 1) % P.length] : P[i];
+  // Was patrol b's step e (the step's i-th event) a step aside, head on with another patrol?
+  function aside(pre, events, i, post, b, e, P, k) {
+    const m = post.dept, by = standing(pre, events, i), me = e.from.join(',');
+    const mine = shortest(m, e.from, heading(P, k, e.from));
+    if (!mine.length || !mine.every(t => by.has(t) && by.get(t).uid !== b.uid)) return false;
+    for (const t of mine) {
+      const q = by.get(t);
+      if (!patrolGuard(q) || q.mode !== 'awake') continue;
+      const Q = postsOf(q);
+      if (!Q.length || (q.target && !same(q.target, Q[Q.length > 1 ? q.route.i : 0]))) continue;
+      const at = t.split(',').map(Number), theirs = shortest(m, at, heading(Q, Q.length > 1 ? q.route.i : 0, at));
+      if (theirs.length && theirs.includes(me) && theirs.every(u => by.has(u)) && !theirs.includes(e.to.join(','))) return true;
+    }
+    return false;
   }
 
   return [
@@ -146,12 +187,15 @@ module.exports = (C) => {
     },
     {
       // While an alarm runs (since ≤ turn < until), no pip decays and no exhibit sets off back
-      // for having been idle or done searching.
+      // for having been idle or done searching. One raised in the step runs from its event on,
+      // in the step's order: an exhibit that acted before its Wader in that turn, and went back
+      // then, went back before the alarm (S.9 seed 301 at depth 3, from the hall's opening).
       id: 'alarm.lasting',
       check(pre, events) {
-        const sp = spans(pre, events);
-        if (!sp.length) return null;
+        if (!runs(pre) && !events.some(raised)) return null;
+        const sp = runs(pre) ? [runs(pre)] : [];
         for (const e of events) {
+          if (raised(e)) sp.push([e.turn, e.until]);
           if (!during(sp, e.turn)) continue;
           if (e.k === 'pip' && e.delta < 0 && e.cause && e.cause.k === 'decay') return `${e.who} lost a pip to decay on turn ${e.turn}, while the alarm ran`;
           if (e.k === 'lost' && e.to === 'returning' && e.cause && (e.cause.k === 'idle' || e.cause.k === 'searched')) return `${e.who} went back (${e.cause.k}) on turn ${e.turn}, while the alarm ran`;
@@ -220,6 +264,10 @@ module.exports = (C) => {
       // its occupant has moved off before the patrol acts, still heads for it, so where the
       // post was taken before or after the step, a step toward it or toward the next is its
       // round (two Waders on one round, S.9's band room, meet this every round).
+      // "… stepping aside if it meets another patrol head on": a step that does not shorten its
+      // walk is a step aside, taken only when, as it stood, every shortest step to its post was
+      // taken, one by another patrol on its round each of whose own shortest steps to its next
+      // post was taken, one by it; and never onto one of that patrol's shortest steps (M4 FU3).
       id: 'alarm.round',
       applies: patrolGuard,
       check(pre, events, post, ctx) {
@@ -246,6 +294,7 @@ module.exports = (C) => {
             if (!(P.length > 1 && (same(e.from, p) || dist(j, e.from[0], e.from[1]) < 0 || (Grid.chebyshev(e.from[0], e.from[1], p[0], p[1]) === 1 && taken(p))))) break;
             j = (j + 1) % P.length;
           }
+          if (found < 0 && aside(pre, events, events.indexOf(e), post, b, e, P, i)) continue;
           if (found < 0) {
             const d0 = dist(j, e.from[0], e.from[1]), d1 = dist(j, e.to[0], e.to[1]);
             return `on its round, it stepped from ${e.from} to ${e.to}, which does not shorten its walk to its post ${P[j]} (${d0} to ${d1})`;

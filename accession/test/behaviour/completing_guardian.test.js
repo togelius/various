@@ -490,7 +490,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // (cp_treasure), its phase parts (phase 2's with alarm_network's part, the Wader's words, while
   // the module is on, "chases you as before" while it is off) and the wake and trigger clauses.
   const span = (lo, hi) => lo === hi ? String(lo) : `${lo}–${hi}`;
-  const ALARM = `chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes, sent to look where you stood; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back and no other alarm is raised, and the bell, or after it the night watch, comes up to ${N.ALARM_CLOCK_ADVANCE} turns sooner`;
+  const ALARM = `chases you, first showing the alarm for a turn and raising it unless one is shown or running: a crash, then every exhibit still asleep that can hear, but the Centrepiece, wakes to look where you stood; for ${N.ALARM_TURNS} turns no pips fade, none left undisturbed or done searching goes back, and the bell, or after it the night watch, comes up to ${N.ALARM_CLOCK_ADVANCE} turns sooner`;
   const PHASE2 = alarm => `it grows its next limb, and in its hall it ${alarm ? ALARM : 'chases you as before'}`;
   function wantLine(d, alarm = true) {
     const r = C.Roles.stats('centrepiece', d), g = C.Specials.cpGross('ROLE_CENTREPIECE_SPECIAL_PCT', d);
@@ -525,8 +525,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         if (LINES.rows(t) > LINES.METRICS.budgetRows) problems.push(`d${d} phase ${k}: ${LINES.rows(t)} rows`);
       }
     }
-    // Phase 2's strip with the alarm takes the budget's rows; without it, few.
-    assert.equal(json([1, 2, 3].map(k => LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: k })))), json([7, 14, 5]));
+    // Phase 2's strip with the alarm takes 13 of the budget's 14 rows (14 before M4 FU3 tightened the alarm's part); without it, few.
+    assert.equal(json([1, 2, 3].map(k => LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: k })))), json([7, 13, 5]));
     assert.equal(LINES.rows(C.Clauses.strip(rec, { depth: 7, phase: 2, rulesOff: ['alarm_network'] })), 4);
     // The whole line is long (the label scrolls, FU1): 57 rows at depth 7, most of them the
     // shared clauses' and the alarm's part (COMPOSITE-PHASES' review trimmed it from 59).
