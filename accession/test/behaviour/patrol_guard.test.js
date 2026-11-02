@@ -277,7 +277,8 @@ module.exports = ({ test, assert, loadCore }) => {
   // action it is steps aside, off the other's way, and both walk on, lap after lap: each
   // stands on each of its posts at least twice in 80 turns. Played joined up, every invariant
   // checked (alarm.round holds each step aside to the clause), and Patrol.timeline tells every
-  // step of both, at its tick, exactly. You stand in a pocket neither sees.
+  // step of both, at its tick, exactly; each one's wake region holds all it sees. You stand in
+  // a pocket neither sees.
   const NARROW = ['#################', '#.....###.....#.#', '#.............#.#', '#.....###.....#.#', '#################'];
   test('two patrols meeting head on in a narrow way: the one whose action it is steps aside, off the other\'s way, and both walk on; Patrol.timeline tells it exactly', () => {
     for (let depth = 1; depth <= 7; depth++) for (const starts of [[[5, 2], [9, 2]], [[4, 1], [10, 3]]]) {
@@ -287,6 +288,8 @@ module.exports = ({ test, assert, loadCore }) => {
       const two = s.actors.filter(a => a.arch === 'patrol_guard'), rounds = [[[12, 2], [2, 2]], [[2, 2], [12, 2]]];
       two.forEach((a, k) => { a.route = { posts: rounds[k], i: 0 }; Wake.created(s, a, 'patrol', {}, null); });
       C.Modules.init(s, C.Packs.get('S9'));
+      // Its wake region over SAFE_ZONE_TURNS still holds all it sees, its steps aside among them.
+      for (const a of two) assert.deepEqual(outside(seenOver(s, a.uid, N.SAFE_ZONE_TURNS).seen, regionOf(s, a, N.SAFE_ZONE_TURNS)), [], `${tag}: ${a.uid}'s region`);
       const told = C.Patrol.timeline(s, T), until = s.tick + T * N.TICKS_PER_TURN;
       const r = H.play(C, s, waits(T));
       assert.deepEqual(r.violations.map(v => v.text), [], tag);

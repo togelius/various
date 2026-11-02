@@ -480,16 +480,21 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // Free, it walks the round and is not stuck.
     st.actors[2].gone = true;
     assert.equal(Patrol.timeline(st, 80)[0].stuck, null);
-    // Two Waders head on in a one-tile corridor, each walking to the other's end: each waits on
-    // the other for good, and the later in spawn order is stuck; one following another is not.
+    // Two Waders head on in a one-tile corridor, each walking to the other's end: the one whose
+    // action it is steps aside, back the way it came (M4 FU3), until one stands beside its post
+    // with the other on it, and so heads for the next: neither is stuck; nor is one following
+    // another. Hemmed in, each with a sleeper at its back, neither can step aside: each waits on
+    // the other for good, and the later in spawn order is stuck.
     const lane = ['############', 'E..........X', '############'];
-    const two = (a, b) => {
-      const s2 = dept({ map: lane, you: [0, 1], exhibits: [{ sp: 'S9.2', at: a.at, stats: S('warden', 3) }, { sp: 'S9.2', at: b.at, stats: S('warden', 3) }] }, [{ id: 1, role: 'section', cells: row(1, 1, 10) }], [0, 1], [[11, 1]]);
+    const two = (a, b, more) => {
+      const s2 = dept({ map: lane, you: [0, 1], exhibits: [{ sp: 'S9.2', at: a.at, stats: S('warden', 3) }, { sp: 'S9.2', at: b.at, stats: S('warden', 3) }].concat(more || []) }, [{ id: 1, role: 'section', cells: row(1, 1, 10) }], [0, 1], [[11, 1]]);
       s2.actors[1].route = { posts: a.posts, i: 1 }; s2.actors[2].route = { posts: b.posts, i: 1 };
       return Patrol.timeline(s2, 40).map(p => p.stuck);
     };
-    same(two({ at: [2, 1], posts: [[2, 1], [10, 1]] }, { at: [9, 1], posts: [[9, 1], [1, 1]] }), [null, { post: 1 }]);
+    same(two({ at: [2, 1], posts: [[2, 1], [10, 1]] }, { at: [9, 1], posts: [[9, 1], [1, 1]] }), [null, null]);
     same(two({ at: [3, 1], posts: [[3, 1], [10, 1]] }, { at: [2, 1], posts: [[2, 1], [9, 1]] }), [null, null]);
+    const asleep = x => ({ sp: 'S9.6', at: [x, 1], stats: S('skirmisher', 3), mode: 'dormant' });
+    same(two({ at: [4, 1], posts: [[4, 1], [10, 1]] }, { at: [5, 1], posts: [[5, 1], [1, 1]] }, [asleep(3), asleep(6)]), [null, { post: 1 }]);
   });
 
   test('the runner times a patrol: it waits for the gap, and the route, played, wakes nothing; untimed, the patrol sees it', () => {

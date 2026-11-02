@@ -203,7 +203,7 @@ const Patrol = (() => {
   // state (tile, post, doors opened) is kept at the first tick it may be reached, expanded in
   // order of tick. With `loose` and `pre` always true and `fixed` empty, that is every way it
   // could walk its round, whatever stood in its way or opened a door before it.
-  function walks(state, b, horizon, fixed, loose, pre) {
+  function walks(state, b, horizon, fixed, loose, pre, others) {
     const m0 = state.dept, w = m0.w, P = posts(b), c = costsOf(state, b), out = [], from = new Int32Array(m0.w * m0.h).fill(-1), doors = new Map();
     const fields = new Map(), field = k => { if (!fields.has(k)) fields.set(k, AI.field(state, b, P[k], 'onto')); return fields.get(k); };
     const best = new Map(), queue = [];
@@ -247,9 +247,10 @@ const Patrol = (() => {
           if (pre(k)) add(nx, ny, i, open.concat([k]).sort((p, r) => p - r), t + c.step, t);
         } else add(nx, ny, i, open, t + c.step, t);
       }
-      // Where something else may stand in its way, it may meet a patrol head on and step aside
-      // (round()): onto any tile no actor in `fixed` stands on that is no closed door.
-      if (any) for (let d = 0; d < 8; d++) {
+      // Head on with another patrol it steps aside (round()): only when each of its shortest
+      // steps is taken, each by a patrol (`others` of them at most may be) where `loose` says one
+      // may stand; then onto any tile no actor in `fixed` stands on that is no closed door.
+      if (steps.length && steps.length <= (others || 0) && steps.every(d => loose((y + Grid.DY[d]) * w + x + Grid.DX[d]))) for (let d = 0; d < 8; d++) {
         if (steps.includes(d) || !Grid.canStep(m, x, y, d, 'exhibit')) continue;
         const nx = x + Grid.DX[d], ny = y + Grid.DY[d];
         if (!fixed[ny * w + nx] && Grid.ch(m, nx, ny) !== '+') add(nx, ny, i, open, t + c.step, t);
@@ -303,8 +304,8 @@ const Patrol = (() => {
       else if (onRound(o)) movers.push(o);
       else return anywhere(state, a, horizon);
     }
-    const none = new Uint8Array(m0.w * m0.h), yes = () => true, theirs = movers.map(o => ({ o, w: walks(state, o, horizon, none, yes, yes) }));
-    const own = walks(state, a, horizon, fixed, k => theirs.some(({ w }) => w.from[k] >= 0), k => theirs.some(({ w }) => w.doors.has(k)));
+    const none = new Uint8Array(m0.w * m0.h), yes = () => true, theirs = movers.map(o => ({ o, w: walks(state, o, horizon, none, yes, yes, movers.length) }));
+    const own = walks(state, a, horizon, fixed, k => theirs.some(({ w }) => w.from[k] >= 0), k => theirs.some(({ w }) => w.doors.has(k)), movers.length);
     for (const { o, w } of theirs.concat([{ o: a, w: own }])) for (const k of w.doors.keys()) if (heard(state, k, o)) return anywhere(state, a, horizon);
     // The doors another patrol may open by then let sight through too.
     const also = [];
