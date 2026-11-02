@@ -135,12 +135,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(!st || !BAD.test(json(st)), `${where}: strip ${json(st)}`);
       // Beside each fixture (up to six of each kind), and on each item lying on the floor.
       const done = {};
-      // A wall panel's label is M4's LABELS-M4's (Labels.ofPanel); M3's fixtures here.
-      for (const f of s.dept.fixtures.filter(q => q.k !== 'panel')) {
+      for (const f of s.dept.fixtures) {
         done[f.k] = (done[f.k] || 0) + 1;
         if (done[f.k] > 6) continue;
         const t = State.clone(s), spot = besideTile(t, f.x, f.y);
         if (spot) [t.actors[0].x, t.actors[0].y] = spot;
+        // A wall panel (M4) has no label yet (LABELS-M4's Labels.ofPanel): the strip beside it.
+        if (f.k === 'panel') { assert.ok(!BAD.test(json(Labels.strip(t))), `${where}: strip beside a panel`); continue; }
         const l = f.k === 'case' ? Labels.ofCase(t, f) : f.k === 'staff' ? Labels.ofStaffDoor(t, f) : Labels.ofPlaque(t, f);
         assert.ok(l, `${where}: ${f.k} at ${f.x},${f.y} has no label`);
         buttons += sound(t, l, `${where} ${f.k} ${f.x},${f.y}`); labels++;
