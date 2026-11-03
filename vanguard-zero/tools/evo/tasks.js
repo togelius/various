@@ -21,7 +21,12 @@ const path = require('path');
 const H = require('./headless');
 const S = require('./sandbox');
 
-const PER_STAGE = 12;     // run starts per stage, alternately train and test
+const PER_STAGE = 16;     // run starts per stage, alternately train and test
+/* Each start is run under several seeds. One seed per start under-samples
+ * the game: enemy timing varies from seed to seed, and the first run of this
+ * search produced controllers that crossed a lava pit with the one training
+ * seed that reached it and fell in under most others. */
+const SEEDS = 3;
 const TRAIN_SEED = 1000, TEST_SEED = 5000;
 
 function standable(lv, TL, tx, ty) {
@@ -69,7 +74,7 @@ function budget(dist) {
 
 function build() {
   const world = H.boot();
-  const tasks = { train: [], test: [], meta: { perStage: PER_STAGE, made: 'tools/evo/tasks.js' } };
+  const tasks = { train: [], test: [], meta: { perStage: PER_STAGE, seeds: SEEDS, made: 'tools/evo/tasks.js' } };
   for (let stage = 0; stage < 3; stage++) {
     const { list, gate } = candidates(world, stage);
     const ok = list.filter(c => verify(world, stage, c));
@@ -89,23 +94,27 @@ function build() {
     picked.sort((a, b) => a.x - b.x);
     picked.forEach((c, i) => {
       const set = i % 2 === 0 ? 'train' : 'test';
-      const n = tasks[set].length;
-      tasks[set].push({
-        id: set[0] + 's' + (stage + 1) + '-' + Math.round(c.x),
-        kind: 'run', stage, x: c.x, y: c.y,
-        seed: (set === 'train' ? TRAIN_SEED : TEST_SEED) + n,
-        frames: budget(gate - c.x)
-      });
+      for (let k = 0; k < SEEDS; k++) {
+        const n = tasks[set].length;
+        tasks[set].push({
+          id: set[0] + 's' + (stage + 1) + '-' + Math.round(c.x) + (SEEDS > 1 ? '.' + k : ''),
+          kind: 'run', stage, x: c.x, y: c.y,
+          seed: (set === 'train' ? TRAIN_SEED : TEST_SEED) + n,
+          frames: budget(gate - c.x)
+        });
+      }
     });
     // The boss: start just short of the gate, so walking in is part of it.
     const nearGate = ok.filter(c => c.x < gate - 24 && c.x > gate - 200).pop() || ok[ok.length - 1];
     for (const set of ['train', 'test']) {
-      tasks[set].push({
-        id: set[0] + 'b' + (stage + 1), kind: 'boss', stage,
-        x: nearGate.x, y: nearGate.y,
-        seed: (set === 'train' ? TRAIN_SEED : TEST_SEED) + 100 + stage,
-        frames: 2700
-      });
+      for (let k = 0; k < SEEDS; k++) {
+        tasks[set].push({
+          id: set[0] + 'b' + (stage + 1) + (SEEDS > 1 ? '.' + k : ''), kind: 'boss', stage,
+          x: nearGate.x, y: nearGate.y,
+          seed: (set === 'train' ? TRAIN_SEED : TEST_SEED) + 100 + stage * 10 + k,
+          frames: 2700
+        });
+      }
     }
     console.log('stage ' + (stage + 1) + ': ' + list.length + ' footholds, ' + ok.length +
       ' verified; starts at x = ' + picked.map(c => Math.round(c.x)).join(', ') +

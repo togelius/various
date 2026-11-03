@@ -43,8 +43,22 @@ for (const e of elites) {
  * equally hard. The seeds were never selected on anything, so their gap is
  * what the sets' difference in difficulty alone produces. Overfitting is how
  * much worse an evolved controller's gap is than that. */
-const seeds = elites.filter(e => e.op === 'seed' && e.test);
 const evolved = elites.filter(e => e.op !== 'seed' && e.test);
+// The seeds are usually displaced from the archive by the end, so re-score
+// them on this run's own starts. Scoring is deterministic, so this is exactly
+// what they scored when the run began.
+let seeds = elites.filter(e => e.op === 'seed' && e.test);
+const runTasks = path.join(DIR, 'tasks.json');
+if (seeds.length < 3 && fs.existsSync(runTasks)) {
+  const H = require('./headless'), S = require('./sandbox');
+  const T = JSON.parse(fs.readFileSync(runTasks, 'utf8'));
+  const w = H.boot();
+  const sd = path.join(__dirname, 'seeds');
+  seeds = fs.readdirSync(sd).filter(f => f.endsWith('.js')).map(f => {
+    const src = fs.readFileSync(path.join(sd, f), 'utf8');
+    return { id: f, quality: S.evaluate(w, src, T.train).quality, test: { quality: S.evaluate(w, src, T.test).quality } };
+  });
+}
 const gap = l => l.reduce((s, e) => s + (e.quality - e.test.quality), 0) / (l.length || 1);
 const mean = (l, f) => l.reduce((s, e) => s + f(e), 0) / (l.length || 1);
 console.log('\nGENERALISATION');
@@ -102,6 +116,39 @@ if (archive.history.length) {
   archive.history.filter((h, i) => i % step === 0 || i === archive.history.length - 1).forEach(h =>
     console.log('  ' + String(h.n).padStart(5) + ': ' + String(h.cells).padStart(3) + ' cells   QD ' + h.qd.toFixed(2).padStart(6) + '   best ' + h.best.toFixed(3)));
 }
+
+// ---------------------------------------------------------------- lineage
+/* How an elite came to be: every step from a seed or a from-scratch program,
+ * with the operator, the model, and what each step did to quality. Read from
+ * the log, so ancestors that were later displaced from the archive still
+ * appear. */
+function lineage(id) {
+  const byId = {};
+  for (const l of kids) byId[l.id] = l;
+  const intentOf = cid => {
+    const f = path.join(DIR, 'children', cid + '.js');
+    if (!fs.existsSync(f)) return '';
+    const m = fs.readFileSync(f, 'utf8').match(/\/\/\s*intent:\s*(.*)/);
+    return m ? m[1] : '';
+  };
+  const chain = [];
+  let cur = id, guard = 0;
+  while (cur && guard++ < 200) {
+    const l = byId[cur];
+    if (!l) { chain.push({ id: cur, op: 'seed' }); break; }
+    chain.push(l);
+    cur = l.parent;
+  }
+  console.log('\nLINEAGE of ' + id + '  (oldest first)');
+  for (const l of chain.reverse()) {
+    if (l.op === 'seed') { console.log('  ' + l.id.padEnd(13) + 'seed'); continue; }
+    const d = l.parentQuality !== null && l.parentQuality !== undefined ? ((l.quality - l.parentQuality >= 0 ? '+' : '') + (l.quality - l.parentQuality).toFixed(3)) : '';
+    console.log('  ' + l.id.padEnd(13) + (l.op + '/' + l.model).padEnd(17) + 'q ' + (l.quality !== undefined ? l.quality.toFixed(3) : '  -  ') + ' ' + d.padStart(7) +
+      (l.parent2 ? '  x ' + l.parent2 : '') + '  [' + (l.cell || '') + ']  ' + intentOf(l.id).slice(0, 90));
+  }
+}
+const lin = arg('lineage', '');
+if (lin) lineage(lin === 'best' ? elites.find(e => e.op !== 'seed').id : lin);
 
 if (process.argv.includes('--export')) {
   const out = path.join(DIR, 'elites');

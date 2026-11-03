@@ -38,6 +38,8 @@ const CFG = {
   init: +arg('init', 6),
   minutes: +arg('minutes', 0),
   resume: process.argv.includes('--resume'),
+  // Start from another run's elites, re-scored on the current training set.
+  from: arg('from', ''),
   testEvery: +arg('test-every', 40)
 };
 // Operator mix. Medium-strength reflection carries the most weight; steering
@@ -52,7 +54,8 @@ fs.mkdirSync(KIDS, { recursive: true });
 const TASKS = JSON.parse(fs.readFileSync(path.join(__dirname, 'tasks.json'), 'utf8'));
 // Stage one of the cascade: two short runs, enough to catch code that throws
 // or hangs before it costs a full evaluation.
-const SMOKE = [TASKS.train[0], TASKS.train[7]].map(t => Object.assign({}, t, { frames: 300 }));
+const SMOKE = [TASKS.train.find(t => t.kind === 'run' && t.stage === 0),
+               TASKS.train.find(t => t.kind === 'run' && t.stage === 1)].map(t => Object.assign({}, t, { frames: 300 }));
 
 const rnd = () => Math.random();
 const pick = a => a[Math.floor(rnd() * a.length)];
@@ -245,6 +248,25 @@ async function seed() {
   save();
 }
 
+/* Carry another run's elites over. Their old scores were measured on other
+ * starts, so every one is re-scored on this run's training set and placed by
+ * what it does now. */
+async function importFrom(name) {
+  const src = new Archive(JSON.parse(fs.readFileSync(path.join(__dirname, 'runs', name, 'archive.json'), 'utf8')));
+  const list = src.elites().concat(src.infeasibles());
+  const placed = {};
+  await Promise.all(list.map(async e => {
+    const res = await pool.evaluate(e.src, 'train');
+    if (res.fatal) return;
+    const ind = individual(name + ':' + e.id, e.src, res, { op: 'import', model: e.model, parents: [], from: name, fromOp: e.op,
+      fromQuality: e.quality, fromTest: e.test ? e.test.quality : null });
+    const o = archive.add(ind);
+    placed[o] = (placed[o] || 0) + 1;
+  }));
+  console.log('imported ' + list.length + ' from ' + name + ': ' + Object.entries(placed).map(([k, v]) => k + ' ' + v).join(', '));
+  save();
+}
+
 async function main() {
   const prior = path.join(DIR, 'archive.json');
   if (CFG.resume && fs.existsSync(prior)) {
@@ -257,7 +279,10 @@ async function main() {
     archive = new Archive();
     fs.writeFileSync(path.join(DIR, 'config.json'), JSON.stringify(Object.assign({}, CFG, { ops: OPS, pRepair: P_REPAIR, pStrong: P_STRONG,
       models: L.MODELS, limits: S.LIMITS, dims: DIMS, started: new Date().toISOString() }), null, 1));
+    // The run keeps its own copy of the starts it was scored on.
+    fs.copyFileSync(path.join(__dirname, 'tasks.json'), path.join(DIR, 'tasks.json'));
     await seed();
+    if (CFG.from) await importFrom(CFG.from);
   }
   console.log(archive.grid() + '\n');
   process.on('SIGINT', () => { if (stopping) process.exit(1); stopping = true; console.log('\nstopping after in-flight children...'); });
