@@ -1,7 +1,8 @@
 // driver: find a free car, drive it along the route, get out at the marker. Walks when there is no car.
 function think(o, m) {
   const a = {}, c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  if (o.ui.dialogue || o.ui.retry) { a.skip = true; return a; }
+  if (o.ui.retry) { a.retry = true; return a; }
+  if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   m.px = m.px === undefined ? o.me.x : m.px;
   const g = o.gps;

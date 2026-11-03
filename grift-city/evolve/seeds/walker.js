@@ -1,7 +1,8 @@
 // walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};
-  if (o.ui.dialogue || o.ui.retry) { a.skip = true; return a; }
+  if (o.ui.retry) { a.retry = true; return a; }
+  if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'car') { a.use = o.t % 2 < 0.2; a.brake = 1; return a; }
   const g = o.gps;
