@@ -1,0 +1,96 @@
+{
+ "seed": 1,
+ "gen": 1,
+ "nbatch": 8,
+ "cells": {
+  "0,0": {
+   "id": "seed-idle",
+   "src": "function think(o, mem) { return { right: true }; }",
+   "op": "SEED",
+   "parents": [],
+   "q": 0.37613481725407133,
+   "rate": 0,
+   "special": 0,
+   "feedback": [
+    "stage 1 fight 5 start hp 100%: died, progress 0.76, damage taken 99, attacks/s 0.00",
+    "stage 1 fight 5 start hp 100%: died, progress 0.69, damage taken 98, attacks/s 0.00",
+    "stage 4 fight 1 start hp 100%: died, progress 0.15, damage taken 98, attacks/s 0.00",
+    "stage 4 fight 3 start hp 100%: died, progress 0.19, damage taken 95, attacks/s 0.00",
+    "stage 1 fight 2 start hp 75%: died, progress 0.23, damage taken 74, attacks/s 0.00",
+    "stage 2 fight 3 start hp 75%: died, progress 0.22, damage taken 73, attacks/s 0.00"
+   ],
+   "bseed": 7920
+  },
+  "3,2": {
+   "id": "seed-walker",
+   "src": "function think(o, mem) {\n  var a = {};\n  var e = o.enemies[0];\n  if (o.me.grabbed) { a.punch = o.t % 4 < 2; return a; }\n  if (!e) { a.right = true; return a; }\n  if (Math.abs(e.dy) > 5) { if (e.dy > 0) a.down = true; else a.up = true; }\n  if (Math.abs(e.dx) > 20) { if (e.dx > 0) a.right = true; else a.left = true; }\n  if (Math.abs(e.dx) < 28 && Math.abs(e.dy) < 12) {\n    a.punch = o.t % 9 < 4;\n    if (o.t % 47 < 3) a.kick = true;\n  }\n  return a;\n}",
+   "op": "SEED",
+   "parents": [],
+   "q": 0.9876176425638068,
+   "rate": 1.570771001864684,
+   "special": 0.34492753623188405,
+   "feedback": [
+    "stage 3 fight 6 start hp 75%: cleared, progress 1.00, damage taken 37, attacks/s 1.68",
+    "stage 1 fight 1 start hp 50%: budget, progress 0.97, damage taken 26, attacks/s 1.42",
+    "stage 2 fight 4 start hp 50%: budget, progress 0.95, damage taken 42, attacks/s 1.40",
+    "stage 1 fight 4 start hp 50%: cleared, progress 1.00, damage taken 10, attacks/s 1.78",
+    "stage 1 fight 5 start hp 75%: cleared, progress 1.00, damage taken 17, attacks/s 1.48",
+    "stage 2 fight 5 start hp 100%: cleared, progress 1.00, damage taken 28, attacks/s 1.66"
+   ],
+   "bseed": 7921
+  },
+  "2,2": {
+   "id": "g1c1",
+   "src": "function think(o, mem) {\n  var a = {};\n  var me = o.me;\n  var es = o.enemies || [];\n  var e = es[0];\n  if (me.grabbed) { a.punch = o.t % 4 < 2; return a; }\n  if (me.grabbing) {\n    // throw the held enemy, with a few knees first\n    if (o.t % 30 < 10) a.punch = o.t % 4 < 2; else a.kick = o.t % 6 < 3;\n    return a;\n  }\n  // count close enemies\n  var close = 0;\n  for (var i = 0; i < es.length; i++) {\n    if (Math.abs(es[i].dx) < 40 && Math.abs(es[i].dy) < 16) close++;\n  }\n  // head for a nearby heart when hurt and nothing is adjacent\n  if (me.hp < me.maxHp * 0.6 && close === 0 && o.items) {\n    for (var k = 0; k < o.items.length; k++) {\n      var it = o.items[k];\n      if (it.kind === 'pickup' && Math.abs(it.dx) < 140 && Math.abs(it.dy) < 80) {\n        if (Math.abs(it.dy) > 4) { if (it.dy > 0) a.down = true; else a.up = true; }\n        if (Math.abs(it.dx) > 4) { if (it.dx > 0) a.right = true; else a.left = true; }\n        return a;\n      }\n    }\n  }\n  if (!e) { a.right = true; return a; }\n  if (Math.abs(e.dy) > 5) { if (e.dy > 0) a.down = true; else a.up = true; }\n  if (Math.abs(e.dx) > 20) { if (e.dx > 0) a.right = true; else a.left = true; }\n  if (close >= 3 && me.free && o.t % 40 < 2) {\n    a.punch = true; a.kick = true;\n    return a;\n  }\n  if (Math.abs(e.dx) < 28 && Math.abs(e.dy) < 12) {\n    // face the enemy first so attacks land\n    if (e.dx > 4 && me.facing < 0) a.right = true;\n    if (e.dx < -4 && me.facing > 0) a.left = true;\n    a.punch = o.t % 9 < 4;\n    if (o.t % 47 < 3) { a.punch = false; a.kick = true; }\n  }\n  return a;\n}",
+   "op": "CROSSOVER",
+   "parents": [
+    "seed-walker",
+    "seed-idle"
+   ],
+   "gen": 1,
+   "q": 0.8720569697763342,
+   "rate": 1.58168376894288,
+   "special": 0.31143552311435524,
+   "feedback": [
+    "stage 2 fight 2 start hp 100%: budget, progress 0.70, damage taken 98, attacks/s 1.54",
+    "stage 1 fight 1 start hp 100%: budget, progress 0.98, damage taken 29, attacks/s 1.56",
+    "stage 1 fight 4 start hp 75%: cleared, progress 1.00, damage taken 6, attacks/s 1.76",
+    "stage 1 fight 4 start hp 50%: cleared, progress 1.00, damage taken 5, attacks/s 1.35",
+    "stage 2 fight 2 start hp 100%: budget, progress 0.77, damage taken 93, attacks/s 1.58",
+    "stage 2 fight 2 start hp 75%: budget, progress 0.78, damage taken 34, attacks/s 1.70"
+   ],
+   "bseed": 7923,
+   "beat": "g1c0"
+  },
+  "1,5": {
+   "id": "g1c4",
+   "src": "function think(o, mem) {\n  var a = {};\n  var me = o.me;\n  var e = o.enemies[0];\n  if (mem.n === undefined) { mem.n = 0; mem.next = 0; mem.start = -999; mem.type = 0; }\n  if (me.grabbed) { a.punch = o.t % 4 < 2; return a; }\n  if (me.grabbing) {\n    // throw the held enemy, then release the key\n    a.kick = o.t % 10 < 3;\n    return a;\n  }\n  if (!e) { a.right = true; return a; }\n\n  var inRange = Math.abs(e.dx) < 40 && Math.abs(e.dy) < 14;\n  var age = o.t - mem.start;\n\n  // continue an attack already in progress\n  if (age >= 0 && age < 14) {\n    var ty = mem.type;\n    if (ty === 0) a.kick = age < 3;\n    else if (ty === 1) { a.up = true; a.punch = age < 3; }\n    else if (ty === 2) {\n      a.jump = age < 2;\n      if (age >= 6) a.kick = age < 9;\n    } else if (ty === 3) { a.punch = age < 3; a.kick = age < 3; }\n    else a.punch = age < 3;\n    if (e.dx > 8) a.right = ty === 2 && age > 2;\n    else if (e.dx < -8) a.left = ty === 2 && age > 2;\n    return a;\n  }\n\n  // approach\n  if (Math.abs(e.dy) > 6) { if (e.dy > 0) a.down = true; else a.up = true; }\n  if (Math.abs(e.dx) > 30) { if (e.dx > 0) a.right = true; else a.left = true; }\n  else if (Math.abs(e.dx) < 14 && inRange) {\n    // too close: face the enemy by stepping slightly toward it\n    if (e.dx > 0) a.right = true; else if (e.dx < 0) a.left = true;\n  }\n\n  if (inRange && me.free && o.t >= mem.next) {\n    var k = mem.n % 8;\n    mem.type = k === 7 ? 4 : (k % 4);\n    // jab-free mix: kick, uppercut, jump kick, spin kick\n    if (e.attacking && mem.type === 3) mem.type = 1;\n    mem.n++;\n    mem.start = o.t;\n    mem.next = o.t + 68;\n  }\n  return a;\n}",
+   "op": "EXPLORE",
+   "parents": [
+    "seed-walker"
+   ],
+   "gen": 1,
+   "q": 0.44010738760174023,
+   "rate": 0.5582273341558651,
+   "special": 0.9148936170212766,
+   "feedback": [
+    "stage 2 fight 2 start hp 100%: died, progress 0.26, damage taken 96, attacks/s 0.62",
+    "stage 2 fight 2 start hp 50%: died, progress 0.22, damage taken 43, attacks/s 0.47",
+    "stage 3 fight 3 start hp 75%: died, progress 0.30, damage taken 72, attacks/s 0.69",
+    "stage 1 fight 2 start hp 100%: died, progress 0.72, damage taken 95, attacks/s 0.57",
+    "stage 3 fight 2 start hp 50%: died, progress 0.16, damage taken 48, attacks/s 0.41",
+    "stage 1 fight 4 start hp 100%: budget, progress 1.00, damage taken 98, attacks/s 0.58"
+   ],
+   "bseed": 7926
+  }
+ },
+ "infeasible": [],
+ "seen": {
+  "g1c0": 1,
+  "g1c1": 1,
+  "g1c2": 1,
+  "g1c3": 1,
+  "g1c4": 1,
+  "g1c5": 1
+ }
+}

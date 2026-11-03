@@ -1,0 +1,10 @@
+  seed-idle [SEED] -> NEW cell 0,0 score 0.376 | attacks/sec 0.00 | non-basic move share 0.00
+  seed-walker [SEED] -> NEW cell 3,2 score 0.866 | attacks/sec 1.67 | non-basic move share 0.34
+[gen 1] proposed 6 prompts in /Users/togelius/code/various/power-city/evolve/runs/t1/queue/gen001
+  g1c0 [MUTATE] -> NEW cell 2,2 score 0.763 | attacks/sec 1.22 | non-basic move share 0.46
+  g1c1 [CROSSOVER] -> cell 2,2 beats g1c0 0.927 > 0.888
+  g1c2 [MUTATE] -> cell 2,2 loses to g1c1 0.842 <= 0.872
+  g1c3 [CROSSOVER] -> cell 3,2 loses to seed-walker 0.916 <= 0.933
+  g1c4 [EXPLORE] -> NEW cell 1,5 score 0.440 | attacks/sec 0.56 | non-basic move share 0.91
+  g1c5 [CROSSOVER] -> cell 3,2 loses to seed-walker 0.988 <= 0.988
+[ingest] 3 candidates placed; archive 4/36 cells, QD-score 2.676
