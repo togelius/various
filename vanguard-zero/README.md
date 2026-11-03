@@ -157,6 +157,13 @@ long it took and which phases and attacks actually fired. Boss HP is tuned
 against it: roughly 18s, 20s and 37s for an invulnerable pilot, which lands a
 real fight in the 30-60s range.
 
+`tools/agent/` is a planning agent (frame-exact forward simulation and search)
+used to measure where the difficulty is. `tools/evo/` evolves controllers as
+code instead: an LLM proposes changes to small JavaScript controllers, each is
+scored on the real game from many starting positions, and a constrained
+MAP-Elites archive keeps the best one for each playstyle. See
+[tools/evo/README.md](tools/evo/README.md).
+
 ## Licence
 
 MIT.

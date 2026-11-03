@@ -1,0 +1,6 @@
+# Every child an LLM produced is kept on disk for analysis, but not in git:
+# archive.json already holds the source of every elite and infeasible candidate,
+# and log.jsonl records every child.
+runs/*/children/
+runs/*/stdout.txt
+runs/*/*.tmp

@@ -1,0 +1,388 @@
+{
+ "train": [
+  {
+   "id": "ts1-24",
+   "kind": "run",
+   "stage": 0,
+   "x": 24,
+   "y": 181,
+   "seed": 1000,
+   "frames": 3000
+  },
+  {
+   "id": "ts1-504",
+   "kind": "run",
+   "stage": 0,
+   "x": 504,
+   "y": 181,
+   "seed": 1001,
+   "frames": 2649
+  },
+  {
+   "id": "ts1-1096",
+   "kind": "run",
+   "stage": 0,
+   "x": 1096,
+   "y": 181,
+   "seed": 1002,
+   "frames": 2111
+  },
+  {
+   "id": "ts1-1608",
+   "kind": "run",
+   "stage": 0,
+   "x": 1608,
+   "y": 181,
+   "seed": 1003,
+   "frames": 1645
+  },
+  {
+   "id": "ts1-2136",
+   "kind": "run",
+   "stage": 0,
+   "x": 2136,
+   "y": 181,
+   "seed": 1004,
+   "frames": 1165
+  },
+  {
+   "id": "ts1-2664",
+   "kind": "run",
+   "stage": 0,
+   "x": 2664,
+   "y": 181,
+   "seed": 1005,
+   "frames": 685
+  },
+  {
+   "id": "tb1",
+   "kind": "boss",
+   "stage": 0,
+   "x": 3032,
+   "y": 181,
+   "seed": 1100,
+   "frames": 2700
+  },
+  {
+   "id": "ts2-24",
+   "kind": "run",
+   "stage": 1,
+   "x": 24,
+   "y": 181,
+   "seed": 1007,
+   "frames": 3000
+  },
+  {
+   "id": "ts2-520",
+   "kind": "run",
+   "stage": 1,
+   "x": 520,
+   "y": 181,
+   "seed": 1008,
+   "frames": 2635
+  },
+  {
+   "id": "ts2-1080",
+   "kind": "run",
+   "stage": 1,
+   "x": 1080,
+   "y": 181,
+   "seed": 1009,
+   "frames": 2125
+  },
+  {
+   "id": "ts2-1608",
+   "kind": "run",
+   "stage": 1,
+   "x": 1608,
+   "y": 181,
+   "seed": 1010,
+   "frames": 1645
+  },
+  {
+   "id": "ts2-2152",
+   "kind": "run",
+   "stage": 1,
+   "x": 2152,
+   "y": 133,
+   "seed": 1011,
+   "frames": 1151
+  },
+  {
+   "id": "ts2-2648",
+   "kind": "run",
+   "stage": 1,
+   "x": 2648,
+   "y": 181,
+   "seed": 1012,
+   "frames": 700
+  },
+  {
+   "id": "tb2",
+   "kind": "boss",
+   "stage": 1,
+   "x": 3032,
+   "y": 181,
+   "seed": 1101,
+   "frames": 2700
+  },
+  {
+   "id": "ts3-24",
+   "kind": "run",
+   "stage": 2,
+   "x": 24,
+   "y": 181,
+   "seed": 1014,
+   "frames": 3000
+  },
+  {
+   "id": "ts3-504",
+   "kind": "run",
+   "stage": 2,
+   "x": 504,
+   "y": 181,
+   "seed": 1015,
+   "frames": 2649
+  },
+  {
+   "id": "ts3-1080",
+   "kind": "run",
+   "stage": 2,
+   "x": 1080,
+   "y": 181,
+   "seed": 1016,
+   "frames": 2125
+  },
+  {
+   "id": "ts3-1592",
+   "kind": "run",
+   "stage": 2,
+   "x": 1592,
+   "y": 181,
+   "seed": 1017,
+   "frames": 1660
+  },
+  {
+   "id": "ts3-2104",
+   "kind": "run",
+   "stage": 2,
+   "x": 2104,
+   "y": 181,
+   "seed": 1018,
+   "frames": 1195
+  },
+  {
+   "id": "ts3-2632",
+   "kind": "run",
+   "stage": 2,
+   "x": 2632,
+   "y": 181,
+   "seed": 1019,
+   "frames": 715
+  },
+  {
+   "id": "tb3",
+   "kind": "boss",
+   "stage": 2,
+   "x": 3032,
+   "y": 181,
+   "seed": 1102,
+   "frames": 2700
+  }
+ ],
+ "test": [
+  {
+   "id": "ts1-264",
+   "kind": "run",
+   "stage": 0,
+   "x": 264,
+   "y": 149,
+   "seed": 5000,
+   "frames": 2867
+  },
+  {
+   "id": "ts1-824",
+   "kind": "run",
+   "stage": 0,
+   "x": 824,
+   "y": 181,
+   "seed": 5001,
+   "frames": 2358
+  },
+  {
+   "id": "ts1-1336",
+   "kind": "run",
+   "stage": 0,
+   "x": 1336,
+   "y": 181,
+   "seed": 5002,
+   "frames": 1893
+  },
+  {
+   "id": "ts1-1896",
+   "kind": "run",
+   "stage": 0,
+   "x": 1896,
+   "y": 181,
+   "seed": 5003,
+   "frames": 1384
+  },
+  {
+   "id": "ts1-2392",
+   "kind": "run",
+   "stage": 0,
+   "x": 2392,
+   "y": 85,
+   "seed": 5004,
+   "frames": 933
+  },
+  {
+   "id": "ts1-2904",
+   "kind": "run",
+   "stage": 0,
+   "x": 2904,
+   "y": 181,
+   "seed": 5005,
+   "frames": 467
+  },
+  {
+   "id": "tb1",
+   "kind": "boss",
+   "stage": 0,
+   "x": 3032,
+   "y": 181,
+   "seed": 5100,
+   "frames": 2700
+  },
+  {
+   "id": "ts2-248",
+   "kind": "run",
+   "stage": 1,
+   "x": 248,
+   "y": 181,
+   "seed": 5007,
+   "frames": 2882
+  },
+  {
+   "id": "ts2-760",
+   "kind": "run",
+   "stage": 1,
+   "x": 760,
+   "y": 181,
+   "seed": 5008,
+   "frames": 2416
+  },
+  {
+   "id": "ts2-1336",
+   "kind": "run",
+   "stage": 1,
+   "x": 1336,
+   "y": 85,
+   "seed": 5009,
+   "frames": 1893
+  },
+  {
+   "id": "ts2-1912",
+   "kind": "run",
+   "stage": 1,
+   "x": 1912,
+   "y": 229,
+   "seed": 5010,
+   "frames": 1369
+  },
+  {
+   "id": "ts2-2392",
+   "kind": "run",
+   "stage": 1,
+   "x": 2392,
+   "y": 181,
+   "seed": 5011,
+   "frames": 933
+  },
+  {
+   "id": "ts2-2952",
+   "kind": "run",
+   "stage": 1,
+   "x": 2952,
+   "y": 117,
+   "seed": 5012,
+   "frames": 424
+  },
+  {
+   "id": "tb2",
+   "kind": "boss",
+   "stage": 1,
+   "x": 3032,
+   "y": 181,
+   "seed": 5101,
+   "frames": 2700
+  },
+  {
+   "id": "ts3-232",
+   "kind": "run",
+   "stage": 2,
+   "x": 232,
+   "y": 101,
+   "seed": 5014,
+   "frames": 2896
+  },
+  {
+   "id": "ts3-808",
+   "kind": "run",
+   "stage": 2,
+   "x": 808,
+   "y": 101,
+   "seed": 5015,
+   "frames": 2373
+  },
+  {
+   "id": "ts3-1304",
+   "kind": "run",
+   "stage": 2,
+   "x": 1304,
+   "y": 181,
+   "seed": 5016,
+   "frames": 1922
+  },
+  {
+   "id": "ts3-1992",
+   "kind": "run",
+   "stage": 2,
+   "x": 1992,
+   "y": 181,
+   "seed": 5017,
+   "frames": 1296
+  },
+  {
+   "id": "ts3-2392",
+   "kind": "run",
+   "stage": 2,
+   "x": 2392,
+   "y": 85,
+   "seed": 5018,
+   "frames": 933
+  },
+  {
+   "id": "ts3-2904",
+   "kind": "run",
+   "stage": 2,
+   "x": 2904,
+   "y": 181,
+   "seed": 5019,
+   "frames": 467
+  },
+  {
+   "id": "tb3",
+   "kind": "boss",
+   "stage": 2,
+   "x": 3032,
+   "y": 181,
+   "seed": 5102,
+   "frames": 2700
+  }
+ ],
+ "meta": {
+  "perStage": 12,
+  "made": "tools/evo/tasks.js"
+ }
+}
