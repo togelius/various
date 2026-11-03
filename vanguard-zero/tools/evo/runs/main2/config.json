@@ -1,0 +1,56 @@
+{
+ "run": "main2",
+ "children": 300,
+ "budget": 12,
+ "conc": 6,
+ "workers": 3,
+ "init": 0,
+ "minutes": 150,
+ "resume": false,
+ "from": "main",
+ "testEvery": 50,
+ "ops": {
+  "tweak": 0.25,
+  "improve": 0.3,
+  "rewrite": 0.1,
+  "crossover": 0.15,
+  "steer": 0.2
+ },
+ "pRepair": 0.12,
+ "pStrong": {
+  "tweak": 0.2,
+  "improve": 0.25,
+  "steer": 0.25,
+  "repair": 0.25,
+  "rewrite": 0.5,
+  "crossover": 0.5,
+  "init": 0.5
+ },
+ "models": {
+  "fast": "claude-haiku-5-5",
+  "strong": "claude-sonnet-5-5"
+ },
+ "limits": {
+  "MAX_CHARS": 4000,
+  "HARD_MAX_CHARS": 8000,
+  "FRAME_MS": 25,
+  "MAX_ERROR_RATE": 0.02
+ },
+ "dims": [
+  {
+   "key": "aggression",
+   "label": "aggression",
+   "min": 0,
+   "max": 1,
+   "bins": 10
+  },
+  {
+   "key": "entropy",
+   "label": "entropy",
+   "min": 0,
+   "max": 0.5,
+   "bins": 10
+  }
+ ],
+ "started": "2026-11-03T22:40:54.997Z"
+}

@@ -123,28 +123,36 @@ if (archive.history.length) {
  * the log, so ancestors that were later displaced from the archive still
  * appear. */
 function lineage(id) {
-  const byId = {};
-  for (const l of kids) byId[l.id] = l;
-  const intentOf = cid => {
-    const f = path.join(DIR, 'children', cid + '.js');
+  // Every run's log, so an ancestor imported from an earlier run (an id like
+  // "main:c0139") is followed back into the run it came from.
+  const logs = {};
+  const logOf = r => logs[r] || (logs[r] = (() => {
+    const f = path.join(__dirname, 'runs', r, 'log.jsonl');
+    const m = {};
+    if (fs.existsSync(f)) for (const line of fs.readFileSync(f, 'utf8').trim().split('\n')) { const l = JSON.parse(line); if (l.id) m[l.id] = Object.assign(l, { run: r }); }
+    return m;
+  })());
+  const intentOf = (r, cid) => {
+    const f = path.join(__dirname, 'runs', r, 'children', cid + '.js');
     if (!fs.existsSync(f)) return '';
     const m = fs.readFileSync(f, 'utf8').match(/\/\/\s*intent:\s*(.*)/);
     return m ? m[1] : '';
   };
   const chain = [];
-  let cur = id, guard = 0;
+  let cur = id, curRun = run, guard = 0;
   while (cur && guard++ < 200) {
-    const l = byId[cur];
-    if (!l) { chain.push({ id: cur, op: 'seed' }); break; }
-    chain.push(l);
+    if (cur.includes(':')) { [curRun, cur] = cur.split(':'); }
+    const l = logOf(curRun)[cur];
+    if (!l) { chain.push({ id: (curRun !== run ? curRun + ':' : '') + cur, op: cur.startsWith('seed') ? 'seed' : 'import' }); break; }
+    chain.push(Object.assign({}, l, { shownId: (curRun !== run ? curRun + ':' : '') + l.id, intent: intentOf(curRun, l.id) }));
     cur = l.parent;
   }
   console.log('\nLINEAGE of ' + id + '  (oldest first)');
   for (const l of chain.reverse()) {
-    if (l.op === 'seed') { console.log('  ' + l.id.padEnd(13) + 'seed'); continue; }
+    if (l.op === 'seed' || l.op === 'import') { console.log('  ' + l.id.padEnd(18) + l.op); continue; }
     const d = l.parentQuality !== null && l.parentQuality !== undefined ? ((l.quality - l.parentQuality >= 0 ? '+' : '') + (l.quality - l.parentQuality).toFixed(3)) : '';
-    console.log('  ' + l.id.padEnd(13) + (l.op + '/' + l.model).padEnd(17) + 'q ' + (l.quality !== undefined ? l.quality.toFixed(3) : '  -  ') + ' ' + d.padStart(7) +
-      (l.parent2 ? '  x ' + l.parent2 : '') + '  [' + (l.cell || '') + ']  ' + intentOf(l.id).slice(0, 90));
+    console.log('  ' + l.shownId.padEnd(18) + (l.op + '/' + l.model).padEnd(17) + 'q ' + (l.quality !== undefined ? l.quality.toFixed(3) : '  -  ') + ' ' + d.padStart(7) +
+      (l.parent2 ? '  x ' + l.parent2 : '') + '  [' + (l.cell || '') + ']  ' + l.intent.slice(0, 84));
   }
 }
 const lin = arg('lineage', '');
