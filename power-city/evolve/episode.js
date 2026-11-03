@@ -102,7 +102,7 @@ function stageProgress(PC) {
 }
 
 function runEpisode(src, sc, opts) {
-  opts = opts || {};
+  opts = Object.assign({ delay: 8, minHold: 2, noise: 0 }, opts || {});   // ~130 ms reaction, buttons change at most every 2 frames
   var sb = H.loadGame(), PC = sb.PC;
   PC.audio.enabled = false;
   PC.rand = PC.RNG(sc.seed); PC.fxRand = PC.RNG(sc.seed ^ 0x5bd1e995);
@@ -139,7 +139,7 @@ function runEpisode(src, sc, opts) {
   var start = stageProgress(PC), best = start;
   var prev = {}, f, done = false, why = 'budget';
   var held = PC.input.p[0];
-  var frameNo = 0;
+  var frameNo = 0, obsQ = [], nrng = PC.RNG(sc.seed ^ 0xabcdef), holdT = {};
   PC.input.poll = function () {
     for (var pi = 0; pi < 2; pi++) { var s = this.p[pi]; for (var k in s.held) { s.held[k] = false; s.pressed[k] = false; s.released[k] = false; } s.tapDir = 0; }
     this.coin = this.pause = this.mute = this.fullscreen = false; this.anyKey = false;
@@ -147,12 +147,14 @@ function runEpisode(src, sc, opts) {
     if (PC.game.state !== 'play' || !pl || pl.dead) return;
     var out = null;
     try {
-      ctx.__o = observe(PC, pl, held, mem, frameNo); ctx.__mem = mem;
+      var ob = observe(PC, pl, held, mem, frameNo); obsQ.push(ob); if (obsQ.length > (opts.delay||0) + 1) obsQ.shift(); ctx.__o = obsQ[0]; ctx.__mem = mem;
       out = vm.runInContext('think(__o, __mem)', ctx, { timeout: 20 });
     } catch (e) { T.crash = String(e && e.message || e).slice(0, 120); return; }
     var st = this.p[0];
     for (var b = 0; b < BUTTONS.length; b++) {
       var name = BUTTONS[b], on = !!(out && out[name]);
+      if (opts.noise && (!opts.noiseOnly || opts.noiseOnly.indexOf(name) >= 0) && nrng() < opts.noise) on = !on;                       // a slipped finger
+      if (opts.minHold) { if (holdT[name] > 0) { holdT[name]--; on = prev[name]; } else if (on !== !!prev[name]) holdT[name] = opts.minHold; }  // action-rate limit
       if (on) { st.held[name] = true; if (!prev[name]) st.pressed[name] = true; }
       else if (prev[name]) st.released[name] = true;
       prev[name] = on;
