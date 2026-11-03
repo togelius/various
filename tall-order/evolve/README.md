@@ -102,3 +102,18 @@ evaluated and may enter the map. Mutations also aim at empty cells next to the p
 - The checkpoint-arrival swarms are skipped for starts above the bottom (the checkpoints are marked reached).
 - Starts are on floors 0–5; none begin partway up the crane.
 - Evaluation noise: 12 starts is small, hence the per-epoch re-scoring rather than trusting one score.
+
+## First run (`runs/run1`)
+
+30 generations x 4 children (96 children evaluated, 25 min on 4 cores; `claude -p` with haiku 60% / sonnet 40%), starting from the three
+hand-written seeds (training scores 0.06 to 0.28; none of the seeds survives in the final archive).
+
+- The map filled 20 of 36 cells. Best controller on 36 unseen starts: 0.43 progress, reaching the flag in 7 of 36 (`runs/run1/best.js`
+  is the best-on-training one at 3330 characters; every elite is under the 3500 cap).
+- Archive-mean score on unseen starts is 0.277, against 0.251 on the training starts, so no sign of overfitting to start positions
+  (a small run: 36 starts, one seed, noisy; the best-of-archive numbers move by about 0.05 between checks).
+- The helper library grew to six functions (`steerTo`, `nearestHittable`, `shotDanger`, `stuckTicks`, ...); 60 of 96 children call one.
+- Mutation instructions that worked most often: `boss` 9/10, `simplify` 7/9, `novel` 4/5; `survive` 0/2, `fight` 1/4.
+- Repair of infeasible candidates produced a map entry 14 times out of 21.
+
+Not tested: a second seed, a run without the per-epoch resampling (to measure what it buys), or longer runs.
