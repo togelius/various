@@ -1,9 +1,9 @@
-// score 0.454  trigger 0.54  pace 0.57  (1969 chars)
-// sprint up the goal marker, spraying the blaster (3 ticks in 4); ladders: face west and push in; hanging/carried: jump out
+// score 0.432  trigger 0.20  pace 0.70  (2038 chars)
+// runner: sprint at the goal, ignore most toys, fire in short bursts (steady at the boss), jump anything winding up; ladders: face west and push in; hanging/carried: jump out
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  const fire = !!o.aim.hit || (m.n % 2 === 0 && o.foes.some(f => f.awake && f.d < 10));
+  const fire = !!o.aim.hit && (m.n % 3 === 0 || o.foes.some(f => f.k === 'boss'));
   if (o.carried || o.hang) return { turn: 0, move: 0, fire, jump: true };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
@@ -29,6 +29,6 @@ function step(o, m) {
     return { turn: clampU(m.dir * 0.8), move: m.esc > 8 ? -0.7 : (edge ? 0 : 0.7), fire, jump: m.esc % 4 === 0 && o.ground };
   }
   const turn = clampU(g.b * 2.5);
-  const mv = edge ? 0 : Math.abs(g.b) < 1.6 ? 0.8 : 0;
-  return { turn, move: mv, fire, jump: hop && o.ground };
+  const mv = edge ? 0 : Math.abs(g.b) < 1.6 ? 1 : 0.4;
+  return { turn, move: mv, fire, jump: (hop || telegraphed(o, 6)) && o.ground };
 }

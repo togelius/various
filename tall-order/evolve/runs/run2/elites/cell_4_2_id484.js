@@ -1,17 +1,16 @@
-// score 0.430  trigger 0.52  pace 0.34  (2089 chars)
+// score 0.270  trigger 0.48  pace 0.27  (2665 chars)
 // slow, heavy-fire climber; boss: hold range, keep facing, jump telegraphs, use pickups
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  const near = o.foes.some(f => f.awake && f.d < 10 && Math.abs(f.dy) < 4);
-  const fire = !!o.aim.hit || (near && m.n % 2 === 0);
+  const fire = !!nearestHittable(o);
   if (o.carried) return { turn: 0, move: 0, fire, jump: true };
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 3.5)) {
     const e = wrapA(Math.PI - o.yaw);
     const walk = g.kind === 'ladder-approach' && g.d > 1.5 && Math.abs(e) > 0.5;
-    if (walk) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
+    if (walk) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 1 : 0, fire, jump: false };
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
   }
   const bw = o.foes.find(f => f.k === 'boss');
@@ -24,16 +23,32 @@ function step(o, m) {
     return {
       turn: clampU(bw.b * 3 + swirl),
       move: Math.abs(bw.b) > 1.2 && mv > 0 ? 0 : mv,
-      fire: true,
+      fire: !!o.aim.hit,
       jump: (atk || shotDanger(o, 3, 0.6)) && o.ground,
       use, sel: use ? sel : undefined
     };
   }
+  let foe = null;
+  for (const f of o.foes) if (f.awake && f.d < 8 && (!foe || f.d < foe.d)) foe = f;
+  m.cd = Math.max(0, (m.cd || 0) - 1);
+  if (foe && m.cd === 0 && !(g.kind === 'lift' && g.d < 1.2)) {
+    m.fc = (m.fc || 0) + 1;
+    if (m.fc > 50) { m.fc = 0; m.cd = 30; }
+    const jmp = telegraphed(o, 4) && o.ground;
+    const t = clampU(foe.b * 3);
+    if (foe.band) {
+      const mv = foe.d < 3 ? -0.4 : foe.d > 6 ? 0.3 : 0;
+      return { turn: t, move: Math.abs(foe.b) > 1.2 && mv > 0 ? 0 : mv, fire: true, jump: jmp };
+    }
+    if (Math.abs(foe.dy) > 1.5 && foe.d < 7 && m.fc < 25) {
+      return { turn: t, move: -0.5, fire: false, jump: jmp };
+    }
+    if (Math.abs(foe.b) > 0.3 && foe.d < 5) return { turn: t, move: 0, fire: false, jump: jmp };
+  } else m.fc = 0;
   const stuck = stuckTicks(o, m, 30) && g.kind !== 'lift';
   const turn = clampU(g.b * 2 + (stuck ? Math.sin(m.n * 0.7) : 0));
-  const hop = (g.kind === 'crane-step' && g.d < 2.5) || o.foes.some(f => f.st === 'slam' && f.d < 5) || shotDanger(o, 3, 0.6) || stuck;
+  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5) || stuck;
   const onLift = g.kind === 'lift' && g.d < 1.2;
-  const pace = /stairs|spring|crane/.test(g.kind) ? 0.6 : 0.45;
-  const mv = onLift || ledgeAhead(o, g) ? 0 : Math.abs(g.b) < 1.2 ? pace : 0;
+  const mv = onLift || ledgeAhead(o, g) ? 0 : Math.abs(g.b) < 1.2 ? 0.45 : 0;
   return { turn, move: mv, fire, jump: hop && o.ground };
 }

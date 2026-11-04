@@ -1,4 +1,4 @@
-// score 0.545  trigger 0.14  pace 0.17  (2530 chars)
+// score 0.102  trigger 0.01  pace 0.04  (2497 chars)
 // special states first: carried/hang -> alternate jump; kitty on head -> jump and shake;
 // ladder: align west and push in (never jump there, a hop releases the lattice);
 // lift: stand still on it; spring: drive onto the pad; otherwise creep toward the goal
@@ -14,7 +14,7 @@ function step(o, m) {
   const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => !s.shootable && s.d < 3);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
   const close = o.foes.some(f => f.awake && f.d < 6);
-  const fire = !!o.aim.hit && ((!!boss && m.n % 4 === 0) || (close && m.n % 3 === 0));
+  const fire = !!o.aim.hit && !!boss && m.n % 8 === 0;
 
   if (boss) {
     const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');
@@ -43,6 +43,6 @@ function step(o, m) {
   // crane-step: hop across gaps
   const hop = threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);
   // spring: once near the pad, keep driving onto it so the throw fires
-  const walk = g.kind === 'spring' && g.d < 2 ? 1 : edge ? 0 : Math.abs(tb) < 0.8 ? 0.6 : 0.1;
+  const walk = g.kind === 'spring' && g.d < 2 ? 1 : edge ? 0 : Math.abs(tb) < 0.5 ? 0.16 : 0;
   return { turn: steerTo(tb, 3), move: walk, fire, jump: hop };
 }

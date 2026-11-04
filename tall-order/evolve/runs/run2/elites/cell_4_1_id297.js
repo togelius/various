@@ -1,4 +1,4 @@
-// score 0.400  trigger 0.56  pace 0.22  (1885 chars)
+// score 0.356  trigger 0.55  pace 0.23  (1885 chars)
 // special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily
 function wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
 function clamp(v) { return Math.max(-1, Math.min(1, v)); }

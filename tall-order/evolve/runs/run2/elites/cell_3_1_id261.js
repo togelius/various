@@ -1,4 +1,4 @@
-// score 0.591  trigger 0.19  pace 0.17  (1962 chars)
+// score 0.692  trigger 0.20  pace 0.18  (1962 chars)
 // Slow, mostly non-firing climber: special states first; ladder: face west and push in; lift: stand still; creep toward goal at ~1/3 pace; fire only at boss
 function step(o, m) {
   const g = o.goal;

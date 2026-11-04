@@ -1,7 +1,7 @@
 pace \ trigger  hold fire   rare shots  some shots  steady fire heavy fire  spray       
-sprint           .           .           .           .           .          0.34*       
-brisk            .           .          0.55*       0.53*       0.45*        .          
-steady          0.47        0.38        0.46*       0.46*       0.58*       0.39*       
-slow            0.40        0.45*       0.60*       0.45*       0.43*       0.42*       
-creeping        0.35        0.49*       0.55*       0.59*       0.21        0.40*       
-standing         .          0.23        0.43        0.11        0.24        0.29        
+sprint           .           .           .          0.43*       0.32*       0.45*       
+brisk            .          0.30*       0.53*        .           .          0.51*       
+steady          0.41        0.36        0.68*       0.50*       0.56*       0.70*       
+slow            0.38        0.47*       0.51*       0.13        0.27        0.43*       
+creeping        0.20        0.46        0.52        0.69*       0.36*       0.13        
+standing        0.10         .          0.53        0.09        0.24        0.26        

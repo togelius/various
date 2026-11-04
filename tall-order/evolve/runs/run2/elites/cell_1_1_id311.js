@@ -1,4 +1,4 @@
-// score 0.488  trigger 0.07  pace 0.22  (2051 chars)
+// score 0.461  trigger 0.06  pace 0.25  (2051 chars)
 // Sprinter: special states first; ladder: face west and push in; lift: stand still; otherwise sprint at the goal, firing rarely (boss: steadier fire, keep range)
 function step(o, m) {
   const g = o.goal;

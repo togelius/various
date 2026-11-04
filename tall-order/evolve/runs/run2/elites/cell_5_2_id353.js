@@ -1,20 +1,22 @@
-// score 0.399  trigger 0.02  pace 0.30  (2260 chars)
-// Near-silent creeper: fires rarely, only at the boss; jumps over telegraphed attacks; handles hang/rider/carried/ladder/lift.
+// score 0.429  trigger 0.72  pace 0.40  (2390 chars)
+// Spray and slow: fire on ~3 of 4 ticks when a foe is near (always during the boss fight); walk at about a third speed; heal earlier
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
+  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
+  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
 
   const stuck = stuckTicks(o, m, 20);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
-  const fire = !!boss && !!o.aim.hit && boss.d < 14 && m.n % 10 === 0;
-  const slam = telegraphed(o, 4.5);
+  const near = o.foes.some(f => f.awake && f.d < 12);
+  const fire = (!!o.aim.hit || near) && (!!boss || m.n % 3 !== 0);
+  const slam = o.foes.some(f => /slam|windup|rev|dive|shock/.test(f.st || '') && f.d < 4.5) || shotDanger(o, 3, 0.5);
   const out = (turn, move, jump, use) => ({
     turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,
   });
 
-  if (boss && boss.d < 14 && o.floor === 5 && g.kind !== 'crane-step' && g.kind !== 'flag') {
+  if (boss && boss.d < 14) {
     const ang = Math.atan2(boss.dy, boss.d);
     const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;
     if (useNow) m.u = m.n;
@@ -40,10 +42,10 @@ function step(o, m) {
     return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.8, true);
   }
 
-  const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;
+  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 10) : null;
   const tb = heal ? heal.b : g.b;
   const edge = !ramp && o.drop.f < 1.5;
   const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;
-  const move = edge || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.55 : 0.25;
+  const move = edge || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.9 : 0.6;
   return out(steerTo(tb, 2.5), move, hop || slam);
 }

@@ -1,4 +1,4 @@
-// score 0.549  trigger 0.13  pace 0.67  (1918 chars)
+// score 0.532  trigger 0.13  pace 0.68  (1918 chars)
 // slow, heavy-fire climber; boss: hold range, keep facing, jump telegraphs, use pickups
 function step(o, m) {
   const g = o.goal;

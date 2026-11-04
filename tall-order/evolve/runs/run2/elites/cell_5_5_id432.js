@@ -1,15 +1,17 @@
-// score 0.393  trigger 0.57  pace 0.50  (1908 chars)
+// score 0.448  trigger 0.75  pace 0.77  (1869 chars)
 // sprint up the goal marker, spraying the blaster (3 ticks in 4); ladders: face west and push in; hanging/carried: jump out
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  const fire = !!o.aim.hit || (m.n % 2 === 0 && o.foes.some(f => f.awake && f.d < 10));
-  if (o.carried) return { turn: 0, move: 0, fire, jump: true };
+  const fire = m.n % 4 !== 0;
+  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 3.5)) {
     const e = wrapA(Math.PI - o.yaw);
-    if (g.kind === 'ladder-approach' && g.d > 1.5 && Math.abs(e) > 0.5) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
+    if (g.kind === 'ladder-approach' && g.d > 1.5 && Math.abs(e) > 0.5) {
+      return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 1 : 0, fire, jump: false };
+    }
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
   }
   const bw = o.foes.find(f => f.k === 'boss');
@@ -22,9 +24,9 @@ function step(o, m) {
   const ramp = /stairs|spring|crane|lift|ladder/.test(g.kind);
   const edge = o.drop.f < 1 && !ramp;
   const hop = (g.kind === 'crane-step' && g.d < 2.5) || o.foes.some(f => f.st === 'slam' && f.d < 5) || shotDanger(o, 3, 0.6);
-  if (g.kind === 'lift' && g.d < 1) return { turn: 0, move: 0, fire, jump: false };
+  if (g.kind === 'lift' && g.d < 1.2) return { turn: 0, move: 0, fire, jump: false };
   const stuck = stuckTicks(o, m, 30) && g.kind !== 'lift';
   const turn = clampU(g.b * 2.5 + (stuck ? Math.sin(m.n * 0.7) : 0));
-  const mv = edge ? 0 : Math.abs(g.b) < 1.6 ? 0.8 : 0;
+  const mv = edge ? 0 : Math.abs(g.b) < 1.6 ? 1 : 0;
   return { turn, move: mv, fire, jump: (hop || stuck) && o.ground };
 }
