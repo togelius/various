@@ -93,6 +93,14 @@ playstyle to aim for.
   porting, tell me and I will add them. (Tall Order's README credits a "helper library" idea to *Profit*; that is the
   Continual Abstraction Discovery paper, a different one. It is not implemented here.)
 
+## Results so far
+
+`EXPERIMENTS.md` has the numbers. In short, run1 (30 generations, haiku + sonnet, about two hours): on held-out neighbourhoods the
+best evolved controller scores 0.59 against 0.33 for the best hand-written seed (the 14 elites average 0.50 against 0.30 for the
+two seeds), holds up at the shipped traffic density, and fills 14 of the 36 playstyle cells. No controller passes a job yet; they
+reliably get from any start to the marker and into the first leg of the job. `runs/run1/` has the archive, every elite, the log
+and the held-out report; `best.js` there is the best on training, `report.md` names the best on held-out starts.
+
 ## Files
 
 | | |

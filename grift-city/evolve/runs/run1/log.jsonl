@@ -27,3 +27,103 @@
 {"t":1378,"gen":6,"ev":"child","tag":"g6c0","id":"g25","op":"mutate","hint":"survive","model":"haiku","q":0.5,"desc":[0.6906,0.8469999999999999],"cell":[3,2],"verdict":"worse","chars":3836,"parents":["g14"]}
 {"t":1388,"gen":6,"ev":"child","tag":"g6c2","id":"g26","op":"mutate","hint":"survive","model":"haiku","q":0.6483399999999999,"desc":[0.7842,0.4168],"cell":[4,1],"verdict":"worse","chars":3837,"parents":["g20"]}
 {"t":1448,"gen":7,"ev":"infeasible","tag":"g7c3","op":"crossover","hint":"crossover","reason":"too long: 4162 characters (limit 4000)"}
+{"t":1577,"gen":7,"ev":"child","tag":"g7c1","id":"g27","op":"mutate","hint":"simplify","model":"sonnet","q":0.46647999999999995,"desc":[0.6206,0],"cell":[3,0],"verdict":"worse","chars":3740,"parents":["g14"]}
+{"t":1596,"gen":7,"ev":"child","tag":"g7c0","id":"g28","op":"mutate","hint":"novel","model":"haiku","q":0.52664,"desc":[0.6686,0],"cell":[3,0],"verdict":"better","chars":3740,"parents":["g14"]}
+{"t":1605,"gen":7,"ev":"child","tag":"g7c2","id":"g29","op":"mutate","hint":"survive","model":"haiku","q":0.6,"desc":[0.5814,0.0858],"cell":[3,0],"verdict":"better","chars":3819,"parents":["g20"]}
+{"t":1720,"gen":8,"ev":"child","tag":"g8c2","id":"g31","op":"mutate","hint":"job","model":"haiku","q":0.58,"desc":[0.8513999999999999,0.0858],"cell":[4,0],"verdict":"new","chars":3918,"parents":["g29"]}
+{"t":1789,"gen":8,"ev":"child","tag":"g8c3","id":"g30","op":"mutate","hint":"cops","model":"sonnet","q":0.48666,"desc":[0.7412,0.6194000000000001],"cell":[3,2],"verdict":"better","chars":3726,"parents":["g23"]}
+{"t":1829,"gen":8,"ev":"child","tag":"g8c0","id":"g33","op":"crossover","hint":"simplify","model":"haiku","q":0.5599999999999999,"desc":[0.75,0],"cell":[4,0],"verdict":"worse","chars":3771,"parents":["g20","g17"]}
+{"t":1841,"gen":8,"ev":"child","tag":"g8c1","id":"g32","op":"crossover","hint":"crossover","model":"haiku","q":0.58,"desc":[0.6718,0.1714],"cell":[3,1],"verdict":"worse","chars":3701,"parents":["g12","g23"]}
+{"t":1931,"gen":9,"ev":"aborted","tag":"g9c1","op":"mutate","hint":"novel","why":"far below the elite of its cell on the first starts","q":0.29495000000000005}
+{"t":1979,"gen":9,"ev":"child","tag":"g9c2","id":"g35","op":"mutate","hint":"route","model":"haiku","q":0.51902,"desc":[0.6588,0.1714],"cell":[3,1],"verdict":"new","chars":3733,"parents":["g29"]}
+{"t":1994,"gen":9,"ev":"child","tag":"g9c0","id":"g36","op":"mutate","hint":"arrive","model":"haiku","q":0.58,"desc":[0.7165999999999999,0.315],"cell":[3,1],"verdict":"better","chars":3264,"parents":["g22"]}
+{"t":2029,"gen":9,"ev":"child","tag":"g9c3","id":"g34","op":"crossover","hint":"crossover","model":"sonnet","q":0.52,"desc":[0.759,0.273],"cell":[4,1],"verdict":"worse","chars":2941,"parents":["g6","g12"]}
+{"t":2159,"gen":10,"ev":"child","tag":"g10c0","id":"g40","op":"crossover","hint":"simplify","model":"haiku","q":0.32098,"desc":[0.7346,2.2765999999999997],"cell":[3,3],"verdict":"new","chars":2522,"parents":["g6","g1"]}
+{"t":2228,"gen":10,"ev":"child","tag":"g10c2","id":"g38","op":"mutate","hint":"traffic","model":"sonnet","q":0.42546,"desc":[0.6378,0.2718],"cell":[3,1],"verdict":"worse","chars":3802,"parents":["g17"]}
+{"t":2245,"gen":10,"ev":"child","tag":"g10c1","id":"g39","op":"mutate","hint":"tune","model":"haiku","q":0.38639999999999997,"desc":[0.6874,0.9652],"cell":[3,2],"verdict":"better","chars":3749,"parents":["g30"]}
+{"t":2275,"gen":10,"ev":"child","tag":"g10c3","id":"g41","op":"crossover","hint":"crossover","model":"haiku","q":0.38058000000000003,"desc":[0.7647999999999999,1.1742000000000001],"cell":[4,2],"verdict":"better","chars":3247,"parents":["g29","g6"]}
+{"t":2373,"gen":10,"ev":"heldout","top":[{"id":"g6","train":0.62,"heldout":0.6333333333333334},{"id":"g29","train":0.6,"heldout":0.6666666666666666},{"id":"g31","train":0.58,"heldout":0.7000000000000001}]}
+{"t":2397,"gen":11,"ev":"infeasible","tag":"g11c3","op":"mutate","hint":"route","reason":"too long: 4035 characters (limit 4000)"}
+{"t":2457,"gen":11,"ev":"child","tag":"g11c0","id":"g42","op":"mutate","hint":"job","model":"sonnet","q":0.41774000000000006,"desc":[0.749,0.11220000000000001],"cell":[3,1],"verdict":"new","chars":3159,"parents":["g22"]}
+{"t":2480,"gen":11,"ev":"child","tag":"g11c1","id":"g43","op":"crossover","hint":"simplify","model":"sonnet","q":0.34074,"desc":[0.7664,0.189],"cell":[4,1],"verdict":"worse","chars":3455,"parents":["g17","g41"]}
+{"t":2491,"gen":11,"ev":"child","tag":"g11c2","id":"g44","op":"mutate","hint":"traffic","model":"haiku","q":0.40046,"desc":[0.7692,0.7438],"cell":[4,2],"verdict":"better","chars":2622,"parents":["g6"]}
+{"t":2560,"gen":12,"ev":"aborted","tag":"g12c1","op":"mutate","hint":"simplify","why":"far below the elite of its cell on the first starts","q":0.12510000000000002}
+{"t":2577,"gen":12,"ev":"child","tag":"g12c3","id":"g46","op":"mutate","hint":"car","model":"sonnet","q":0.44058,"desc":[0.5622,0.6606],"cell":[3,2],"verdict":"better","chars":3651,"parents":["g12"]}
+{"t":2601,"gen":12,"ev":"child","tag":"g12c2","id":"g45","op":"mutate","hint":"tune","model":"haiku","q":0.38283999999999996,"desc":[0.7729999999999999,3.051],"cell":[4,3],"verdict":"new","chars":2292,"parents":["g6"]}
+{"t":2616,"gen":12,"ev":"child","tag":"g12c0","id":"g47","op":"mutate","hint":"job","model":"sonnet","q":0.58078,"desc":[0.7458,0.7442],"cell":[3,2],"verdict":"better","chars":3587,"parents":["g42"]}
+{"t":2838,"gen":13,"ev":"child","tag":"g13c3","id":"g49","op":"mutate","hint":"car","model":"haiku","q":0.39522,"desc":[0.9254,0],"cell":[4,0],"verdict":"worse","chars":3758,"parents":["g17"]}
+{"t":2847,"gen":13,"ev":"child","tag":"g13c2","id":"g50","op":"mutate","hint":"simplify","model":"sonnet","q":0.6,"desc":[0.9326000000000001,0.3886],"cell":[4,1],"verdict":"better","chars":3504,"parents":["g47"]}
+{"t":2868,"gen":13,"ev":"child","tag":"g13c0","id":"g51","op":"mutate","hint":"novel","model":"haiku","q":0.5599999999999999,"desc":[0.5784,0],"cell":[3,0],"verdict":"better","chars":2818,"parents":["g22"]}
+{"t":2907,"gen":13,"ev":"child","tag":"g13c1","id":"g52","op":"mutate","hint":"peaceful","model":"haiku","q":0.5599999999999999,"desc":[0.958,0.2068],"cell":[5,1],"verdict":"worse","chars":3935,"parents":["g31"]}
+{"t":2997,"gen":14,"ev":"child","tag":"g14c1","id":"g54","op":"mutate","hint":"arrive","model":"sonnet","q":0.6599999999999999,"desc":[0.9288000000000001,0.2068],"cell":[4,1],"verdict":"better","chars":3674,"parents":["g47"]}
+{"t":3050,"gen":14,"ev":"child","tag":"g14c2","id":"g55","op":"repair","hint":"repair","model":"haiku","q":0.5599999999999999,"desc":[0.9630000000000001,0],"cell":[5,0],"verdict":"new","chars":3845,"parents":["g31"]}
+{"t":3078,"gen":14,"ev":"child","tag":"g14c3","id":"g56","op":"crossover","hint":"simplify","model":"haiku","q":0.5599999999999999,"desc":[0.9288000000000001,0.4126],"cell":[4,1],"verdict":"worse","chars":2993,"parents":["g40","g45"]}
+{"t":3094,"gen":14,"ev":"child","tag":"g14c0","id":"g53","op":"mutate","hint":"car","model":"sonnet","q":0.5599999999999999,"desc":[0.8262,0.906],"cell":[4,2],"verdict":"worse","chars":3669,"parents":["g47"]}
+{"t":3114,"gen":15,"ev":"infeasible","tag":"g15c0","op":"crossover","hint":"crossover","reason":"too long: 4108 characters (limit 4000)"}
+{"t":3158,"gen":15,"ev":"child","tag":"g15c2","id":"g57","op":"mutate","hint":"simplify","model":"sonnet","q":0.6199999999999999,"desc":[0.9533999999999999,0.7565999999999999],"cell":[5,2],"verdict":"new","chars":2245,"parents":["g1"]}
+{"t":3161,"gen":15,"ev":"infeasible","tag":"g15c1","op":"crossover","hint":"crossover","reason":"too long: 4092 characters (limit 4000)"}
+{"t":3201,"gen":15,"ev":"child","tag":"g15c3","id":"g58","op":"mutate","hint":"arrive","model":"haiku","q":0.5599999999999999,"desc":[0.9614,0],"cell":[5,0],"verdict":"worse","chars":3950,"parents":["g55"]}
+{"t":3341,"gen":15,"ev":"heldout","top":[{"id":"g54","train":0.6599999999999999,"heldout":0.6666666666666666},{"id":"g57","train":0.6199999999999999,"heldout":0.7166666666666667},{"id":"g47","train":0.58078,"heldout":0.6666666666666666}]}
+{"t":3366,"gen":16,"ev":"infeasible","tag":"g16c3","op":"crossover","hint":"crossover","reason":"too long: 4178 characters (limit 4000)"}
+{"t":3372,"gen":16,"ev":"infeasible","tag":"g16c2","op":"mutate","hint":"violence","reason":"too long: 4066 characters (limit 4000)"}
+{"t":3441,"gen":16,"ev":"child","tag":"g16c1","id":"g60","op":"mutate","hint":"cops","model":"haiku","q":0.56,"desc":[0.1432,0],"cell":[1,0],"verdict":"new","chars":3939,"parents":["g19"]}
+{"t":3476,"gen":16,"ev":"child","tag":"g16c0","id":"g59","op":"crossover","hint":"crossover","model":"sonnet","q":0.35328,"desc":[0.34320000000000006,0],"cell":[2,0],"verdict":"better","chars":3759,"parents":["g12","g17"]}
+{"t":3499,"gen":17,"ev":"infeasible","tag":"g17c3","op":"crossover","hint":"crossover","reason":"too long: 4269 characters (limit 4000)"}
+{"t":3504,"gen":17,"ev":"infeasible","tag":"g17c1","op":"mutate","hint":"job","reason":"too long: 4269 characters (limit 4000)"}
+{"t":3560,"gen":17,"ev":"child","tag":"g17c0","id":"g61","op":"mutate","hint":"peaceful","model":"sonnet","q":0.5993999999999999,"desc":[0.8160000000000001,0],"cell":[4,0],"verdict":"new","chars":2646,"parents":["g57"]}
+{"t":3569,"gen":17,"ev":"child","tag":"g17c2","id":"g62","op":"mutate","hint":"violence","model":"haiku","q":0.5,"desc":[0.8520000000000001,1.2026],"cell":[4,2],"verdict":"new","chars":3575,"parents":["g42"]}
+{"t":3733,"gen":18,"ev":"child","tag":"g18c2","id":"g65","op":"crossover","hint":"crossover","model":"sonnet","q":0.7200000000000001,"desc":[0.8907999999999999,0],"cell":[4,0],"verdict":"better","chars":3020,"parents":["g51","g57"]}
+{"t":3774,"gen":18,"ev":"child","tag":"g18c0","id":"g66","op":"mutate","hint":"cops","model":"haiku","q":0.35328,"desc":[0.37279999999999996,0],"cell":[2,0],"verdict":"worse","chars":3914,"parents":["g61"]}
+{"t":3796,"gen":18,"ev":"child","tag":"g18c3","id":"g63","op":"mutate","hint":"job","model":"sonnet","q":0.7,"desc":[0.8562000000000001,0.3938],"cell":[4,1],"verdict":"better","chars":3832,"parents":["g54"]}
+{"t":3814,"gen":18,"ev":"child","tag":"g18c1","id":"g64","op":"repair","hint":"repair","model":"haiku","q":0.56,"desc":[0.8495999999999999,0.48979999999999996],"cell":[4,1],"verdict":"worse","chars":3641,"parents":["g54"]}
+{"t":4041,"gen":19,"ev":"child","tag":"g19c3","id":"g67","op":"mutate","hint":"survive","model":"sonnet","q":0.41790000000000005,"desc":[0.5136000000000001,0.1714],"cell":[3,1],"verdict":"worse","chars":3780,"parents":["g60"]}
+{"t":4057,"gen":19,"ev":"child","tag":"g19c0","id":"g68","op":"mutate","hint":"memory","model":"haiku","q":0.8,"desc":[0.922,1.4608],"cell":[4,2],"verdict":"better","chars":3051,"parents":["g65"]}
+{"t":4072,"gen":19,"ev":"child","tag":"g19c1","id":"g69","op":"mutate","hint":"tune","model":"sonnet","q":0.5650200000000001,"desc":[0.9334,1.0328],"cell":[4,2],"verdict":"worse","chars":2276,"parents":["g45"]}
+{"t":4086,"gen":19,"ev":"child","tag":"g19c2","id":"g70","op":"mutate","hint":"traffic","model":"sonnet","q":0.54,"desc":[0.8638,0.3428],"cell":[4,1],"verdict":"worse","chars":2723,"parents":["g45"]}
+{"t":4222,"gen":20,"ev":"child","tag":"g20c1","id":"g73","op":"mutate","hint":"tune","model":"haiku","q":0.62,"desc":[0.9299999999999999,0.5288],"cell":[4,1],"verdict":"worse","chars":2490,"parents":["g45"]}
+{"t":4262,"gen":20,"ev":"child","tag":"g20c0","id":"g74","op":"crossover","hint":"crossover","model":"haiku","q":0.64,"desc":[0.9059999999999999,0.1714],"cell":[4,1],"verdict":"worse","chars":3713,"parents":["g68","g40"]}
+{"t":4299,"gen":20,"ev":"child","tag":"g20c3","id":"g71","op":"mutate","hint":"novel","model":"sonnet","q":0.5035999999999999,"desc":[0.6068,0.7422],"cell":[3,2],"verdict":"worse","chars":2212,"parents":["g1"]}
+{"t":4316,"gen":20,"ev":"child","tag":"g20c2","id":"g72","op":"mutate","hint":"car","model":"haiku","q":0.39682000000000006,"desc":[0.9,0],"cell":[4,0],"verdict":"worse","chars":3638,"parents":["g17"]}
+{"t":4365,"gen":20,"ev":"heldout","top":[{"id":"g68","train":0.8,"heldout":0.7333333333333333},{"id":"g47","train":0.7,"heldout":0.6666666666666666},{"id":"g57","train":0.6199999999999999,"heldout":0.7166666666666667}]}
+{"t":4461,"gen":21,"ev":"child","tag":"g21c0","id":"g75","op":"mutate","hint":"tune","model":"haiku","q":0.27937999999999996,"desc":[0.7636000000000001,0.093],"cell":[4,0],"verdict":"new","chars":2809,"parents":["g51"]}
+{"t":4474,"gen":21,"ev":"child","tag":"g21c2","id":"g76","op":"mutate","hint":"arrive","model":"sonnet","q":0.46399999999999997,"desc":[0.7346,0.1714],"cell":[3,1],"verdict":"new","chars":2979,"parents":["g51"]}
+{"t":4515,"gen":21,"ev":"child","tag":"g21c3","id":"g78","op":"mutate","hint":"simplify","model":"haiku","q":0.76,"desc":[0.9283999999999999,0.186],"cell":[4,1],"verdict":"better","chars":2790,"parents":["g57"]}
+{"t":4543,"gen":21,"ev":"child","tag":"g21c1","id":"g77","op":"mutate","hint":"novel","model":"haiku","q":0.4248,"desc":[0,0],"cell":[0,0],"verdict":"better","chars":2426,"parents":["g55"]}
+{"t":4773,"gen":22,"ev":"child","tag":"g22c2","id":"g79","op":"repair","hint":"repair","model":"sonnet","q":0.56,"desc":[0.9613999999999999,0.48999999999999994],"cell":[5,1],"verdict":"better","chars":3458,"parents":["g22"]}
+{"t":4795,"gen":22,"ev":"child","tag":"g22c0","id":"g80","op":"mutate","hint":"traffic","model":"haiku","q":0.4822,"desc":[0.7856000000000001,1.5021999999999998],"cell":[4,3],"verdict":"better","chars":3987,"parents":["g55"]}
+{"t":4818,"gen":22,"ev":"child","tag":"g22c3","id":"g81","op":"mutate","hint":"stuck","model":"haiku","q":0.41584000000000004,"desc":[0.7506,0.191],"cell":[4,1],"verdict":"worse","chars":2593,"parents":["g57"]}
+{"t":4834,"gen":22,"ev":"child","tag":"g22c1","id":"g82","op":"mutate","hint":"novel","model":"haiku","q":0.40492,"desc":[0.565,0],"cell":[3,0],"verdict":"worse","chars":3203,"parents":["g19"]}
+{"t":4985,"gen":23,"ev":"child","tag":"g23c0","id":"g85","op":"mutate","hint":"job","model":"haiku","q":0.45877999999999997,"desc":[0.9612,0.4042],"cell":[5,1],"verdict":"worse","chars":3762,"parents":["g19"]}
+{"t":5040,"gen":23,"ev":"child","tag":"g23c3","id":"g86","op":"mutate","hint":"simplify","model":"haiku","q":0.35948,"desc":[0.4,0],"cell":[2,0],"verdict":"worse","chars":3907,"parents":["g60"]}
+{"t":5063,"gen":23,"ev":"child","tag":"g23c2","id":"g83","op":"repair","hint":"repair","model":"haiku","q":0.39988,"desc":[0.7326,0.1714],"cell":[3,1],"verdict":"worse","chars":3799,"parents":["g19"]}
+{"t":5083,"gen":23,"ev":"child","tag":"g23c1","id":"g84","op":"mutate","hint":"car","model":"sonnet","q":0.66,"desc":[0.9162000000000001,1.0455999999999999],"cell":[4,2],"verdict":"better","chars":3624,"parents":["g57"]}
+{"t":5104,"gen":24,"ev":"infeasible","tag":"g24c1","op":"crossover","hint":"crossover","reason":"too long: 4119 characters (limit 4000)"}
+{"t":5172,"gen":24,"ev":"child","tag":"g24c0","id":"g87","op":"repair","hint":"repair","model":"sonnet","q":0.56,"desc":[0.9128000000000001,0.9298],"cell":[4,2],"verdict":"worse","chars":3899,"parents":["g19"]}
+{"t":5193,"gen":24,"ev":"child","tag":"g24c3","id":"g88","op":"mutate","hint":"memory","model":"sonnet","q":0.64,"desc":[0.9566000000000001,0.2964],"cell":[5,1],"verdict":"better","chars":3970,"parents":["g77"]}
+{"t":5225,"gen":24,"ev":"child","tag":"g24c2","id":"g89","op":"crossover","hint":"crossover","model":"haiku","q":0.47661999999999993,"desc":[0.7565999999999999,0.2766],"cell":[4,1],"verdict":"worse","chars":3488,"parents":["g51","g57"]}
+{"t":5461,"gen":25,"ev":"child","tag":"g25c3","id":"g90","op":"mutate","hint":"memory","model":"sonnet","q":0.56,"desc":[0.858,1.6423999999999999],"cell":[4,3],"verdict":"better","chars":2839,"parents":["g40"]}
+{"t":5484,"gen":25,"ev":"child","tag":"g25c2","id":"g91","op":"mutate","hint":"route","model":"sonnet","q":0.4404199999999999,"desc":[0.191,0],"cell":[1,0],"verdict":"better","chars":3159,"parents":["g51"]}
+{"t":5500,"gen":25,"ev":"child","tag":"g25c0","id":"g93","op":"mutate","hint":"peaceful","model":"haiku","q":0.40408,"desc":[0.2182,0],"cell":[1,0],"verdict":"worse","chars":3302,"parents":["g51"]}
+{"t":5524,"gen":25,"ev":"child","tag":"g25c1","id":"g92","op":"mutate","hint":"novel","model":"sonnet","q":0.58,"desc":[0.7942,0.366],"cell":[4,1],"verdict":"worse","chars":3546,"parents":["g76"]}
+{"t":5667,"gen":25,"ev":"heldout","top":[{"id":"g76","train":0.78,"heldout":0.6166666666666667},{"id":"g84","train":0.66,"heldout":0.5666666666666667},{"id":"g88","train":0.64,"heldout":0.6999999999999998}]}
+{"t":5691,"gen":26,"ev":"infeasible","tag":"g26c2","op":"crossover","hint":"crossover","reason":"too long: 4014 characters (limit 4000)"}
+{"t":5760,"gen":26,"ev":"child","tag":"g26c0","id":"g94","op":"repair","hint":"repair","model":"sonnet","q":0.38926,"desc":[0.7594,0.4518],"cell":[4,1],"verdict":"new","chars":3865,"parents":["g47"]}
+{"t":5789,"gen":26,"ev":"child","tag":"g26c3","id":"g95","op":"mutate","hint":"novel","model":"haiku","q":0.4067,"desc":[0.7138,1.1092],"cell":[3,2],"verdict":"worse","chars":3636,"parents":["g77"]}
+{"t":5804,"gen":26,"ev":"child","tag":"g26c1","id":"g96","op":"mutate","hint":"job","model":"haiku","q":0.64,"desc":[0.5342,0.4404],"cell":[3,1],"verdict":"new","chars":3311,"parents":["g76"]}
+{"t":5865,"gen":27,"ev":"child","tag":"g27c0","id":"g97","op":"mutate","hint":"job","model":"sonnet","q":0.43045999999999995,"desc":[0.7657999999999999,2.9102],"cell":[4,3],"verdict":"worse","chars":3893,"parents":["g55"]}
+{"t":5922,"gen":27,"ev":"child","tag":"g27c2","id":"g98","op":"mutate","hint":"novel","model":"haiku","q":0.40714000000000006,"desc":[0.18119999999999997,0.09759999999999999],"cell":[1,0],"verdict":"worse","chars":3471,"parents":["g88"]}
+{"t":5950,"gen":27,"ev":"child","tag":"g27c1","id":"g99","op":"mutate","hint":"memory","model":"haiku","q":0.58992,"desc":[0.7671999999999999,1.8369999999999997],"cell":[4,3],"verdict":"better","chars":3956,"parents":["g88"]}
+{"t":5960,"gen":27,"ev":"child","tag":"g27c3","id":"g100","op":"crossover","hint":"crossover","model":"haiku","q":0.5,"desc":[0.631,0.458],"cell":[3,1],"verdict":"worse","chars":3661,"parents":["g76","g51"]}
+{"t":6219,"gen":28,"ev":"child","tag":"g28c3","id":"g101","op":"crossover","hint":"crossover","model":"sonnet","q":0.55926,"desc":[0.95,0.093],"cell":[5,0],"verdict":"worse","chars":3167,"parents":["g57","g91"]}
+{"t":6230,"gen":28,"ev":"child","tag":"g28c1","id":"g102","op":"repair","hint":"repair","model":"haiku","q":0.58,"desc":[0.9696,0.386],"cell":[5,1],"verdict":"worse","chars":3004,"parents":["g80"]}
+{"t":6280,"gen":28,"ev":"child","tag":"g28c2","id":"g103","op":"crossover","hint":"crossover","model":"sonnet","q":0.72,"desc":[0.8741999999999999,0.3],"cell":[4,1],"verdict":"better","chars":3593,"parents":["g99","g77"]}
+{"t":6291,"gen":28,"ev":"child","tag":"g28c0","id":"g104","op":"repair","hint":"repair","model":"haiku","q":0.58,"desc":[0.9696,0.386],"cell":[5,1],"verdict":"worse","chars":3767,"parents":["g80"]}
+{"t":6440,"gen":29,"ev":"child","tag":"g29c3","id":"g106","op":"mutate","hint":"memory","model":"haiku","q":0.58,"desc":[0.8994000000000002,0.186],"cell":[4,1],"verdict":"worse","chars":3510,"parents":["g96"]}
+{"t":6496,"gen":29,"ev":"child","tag":"g29c1","id":"g107","op":"mutate","hint":"peaceful","model":"haiku","q":0.6,"desc":[0.9729999999999999,0.327],"cell":[5,1],"verdict":"worse","chars":3823,"parents":["g57"]}
+{"t":6523,"gen":29,"ev":"child","tag":"g29c0","id":"g105","op":"mutate","hint":"arrive","model":"haiku","q":0.58,"desc":[0.124,0],"cell":[1,0],"verdict":"worse","chars":3865,"parents":["g19"]}
+{"t":6531,"gen":29,"ev":"child","tag":"g29c2","id":"g108","op":"mutate","hint":"job","model":"haiku","q":0.58,"desc":[0.9634,1.514],"cell":[5,3],"verdict":"new","chars":3916,"parents":["g88"]}
+{"t":6558,"gen":30,"ev":"infeasible","tag":"g30c0","op":"mutate","hint":"survive","reason":"too long: 4437 characters (limit 4000)"}
+{"t":6591,"gen":30,"ev":"infeasible","tag":"g30c2","op":"crossover","hint":"crossover","reason":"too long: 4375 characters (limit 4000)"}
+{"t":6591,"gen":30,"ev":"child","tag":"g30c1","id":"g109","op":"mutate","hint":"novel","model":"haiku","q":0.61738,"desc":[0.9888,0.2],"cell":[5,1],"verdict":"worse","chars":3593,"parents":["g17"]}
+{"t":6592,"gen":30,"ev":"infeasible","tag":"g30c3","op":"mutate","hint":"survive","reason":"too long: 4924 characters (limit 4000)"}
+{"t":6636,"gen":30,"ev":"heldout","top":[{"id":"g76","train":0.78,"heldout":0.6166666666666667},{"id":"g103","train":0.72,"heldout":0.7666666666666666},{"id":"g84","train":0.66,"heldout":0.5666666666666667}]}

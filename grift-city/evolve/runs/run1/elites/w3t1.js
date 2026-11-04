@@ -1,70 +1,69 @@
-// g23 quality 0.508 wheels 0.72 (mostly car), trouble 0.39 per min (a slip) (3357 chars; mutate)
-// mixed: walk the route; take a free parked car only when the place marker is over 200 m away;
-// drive until ~140 m out, then leave and walk in. Stall recovery; pedestrians slow us but rarely stop us.
+// g96 quality 0.640 wheels 0.53 (mostly car), trouble 0.44 per min (a slip) (3311 chars; mutate)
+// sidewalker: walk and sprint everywhere, cut straight across open ground, never take a car unless the job needs that car.
 function think(o, m) {
   const a = {}, c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   if (o.ui.dialogue || o.ui.retry) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
-  const g = o.gps, R = o.rays, gl = o.goal, me = o.me, car = o.car;
-  const pulse = o.t % 1 < 0.1, n = Math.floor(o.t);
-  const gd = gl ? gl.d : 999, carGoal = !!gl && gl.kind === 'car';
-  if (m.noCar === undefined) { m.noCar = 0; m.stuck = 0; m.rec = 0; }
-  // stall check every 2 s; on a stall, back out for 2.5 s
+  const g = o.gps, gl = o.goal, R = o.rays, me = o.me, car = o.car;
+  const n = Math.floor(o.t), pulse = o.t % 1 < 0.1;
+  const gd = gl ? gl.d : 999;
+  // stall check every 2 s; back out briefly if stuck
   if (m.sx === undefined || o.t - m.st >= 2) {
     const mv = m.sx === undefined ? 9 : Math.hypot(me.x - m.sx, me.z - m.sz);
-    m.stuck = mv < (me.mode === 'car' ? 1.5 : 1) && gd > 14 ? m.stuck + 1 : 0;
-    if (m.stuck > 1) { m.rec = o.t + 2.5; m.stuck = 0; }
+    m.stuck = mv < 1 && gd > 8 ? (m.stuck || 0) + 1 : 0;
+    if (m.stuck > 1) { m.rec = o.t + 2; m.stuck = 0; }
     m.sx = me.x; m.sz = me.z; m.st = o.t;
   }
   if (me.mode === 'entering') return a;
-  if (o.t < m.rec) {
-    if (me.mode === 'car') { a.brake = 1; a.steer = n % 2 ? 1 : -1; }
-    else { a.move = -0.8; a.strafe = n % 2 ? 1 : -1; a.jump = pulse; }
-    return a;
-  }
   if (me.mode === 'car') {
-    // leave the car ~140 m from a place marker, then walk the rest
-    if (gl && !carGoal && gd < 15) {
-      a.brake = 1;
-      if (Math.abs(car.spd) < 2.5) { a.use = pulse; m.noCar = o.t + 8; }
+    if (car.burning || car.hp < 0.25) { a.brake = car.spd > 1 ? 1 : 0; a.use = pulse; return a; }
+    // near a goal: stop and climb out; delivery jobs drive the car into the marker
+    if (gl && gl.kind !== 'car' && gd < 25) {
+      if (gl.kind === 'place' && /DELIVERY/.test(o.mission.name || '')) {
+        a.steer = c((g ? g.b : gl.b) * 1.6, -1, 1);
+        a.gas = gd > 6 ? 0.5 : 0;
+        a.brake = gd < 3 && car.spd > 1 ? 1 : 0;
+        return a;
+      }
+      a.brake = car.spd > 2 ? 1 : 0;
+      a.use = car.spd < 1 && pulse;
       return a;
     }
     if (!g) { a.gas = 0.3; a.steer = R[4] > R[2] ? 0.3 : -0.3; return a; }
-    // steer at the waypoint, bend away from walls and kerbs
-    let s = g.b * 1.6;
-    if (R[3] < 8) s += (R[4] > R[2] ? 1 : -1) * 0.5 * (1 - R[3] / 8);
-    if (R[1] < 3) s += 0.4;
-    if (R[5] < 3) s -= 0.4;
-    a.steer = c(s, -1, 1);
-    const turn = Math.max(Math.abs(g.b), Math.abs(g.b2) * 0.8, Math.abs(g.b3) * 0.5);
-    let want = turn > 0.9 ? 5 : turn > 0.45 ? 9 : 16, hot = false;
-    if (gd < 50) want = Math.min(want, 8);
-    if (g.wd < 12 && turn > 0.4) want = Math.min(want, 6);
-    if (R[3] < 7) want = Math.min(want, 4);
-    for (const k of o.cars) if (k.f > 0 && k.f < 14 && Math.abs(k.r) < 2.6 && k.kind !== 'parked') {
-      want = Math.min(want, 2); if (k.f < 6) hot = true;
-    }
-    // pedestrians only slow us down, so some clips happen
-    for (const k of o.peds) if (k.f > 0 && k.f < 6 && Math.abs(k.r) < 1.5) want = Math.min(want, 4);
-    a.gas = car.spd < want && !hot ? 1 : 0;
-    a.brake = hot ? 1 : car.spd > want + 3 ? 0.6 : 0;
+    if (o.t < (m.rec || 0)) { a.brake = 1; a.steer = n % 2 ? 1 : -1; return a; }
+    a.steer = c(g.b * 1.6, -1, 1);
+    let hot = false;
+    for (const k of o.peds) if (k.f > 0 && k.f < 10 && Math.abs(k.r) < 2) hot = true;
+    a.gas = car.spd < (Math.abs(g.b2) > 0.6 ? 8 : 15) && !hot ? 1 : 0;
+    a.brake = hot && car.spd > 1 ? 1 : 0;
     return a;
   }
-  // on foot: take a free car only when the place marker is far (or the goal is a car)
-  const e = o.enter, far = !gl || gd > 40 || carGoal;
-  if (e && e.free && far && o.t > m.noCar && e.d < 3.5) { a.use = pulse; return a; }
-  let tb = g ? g.b : gl ? gl.b : 0.3, tcar = null;
-  if (far && o.t > m.noCar) {
-    for (const k of o.cars) if (k.free && k.kind === 'parked' && k.d < 40 && (!tcar || k.d < tcar.d)) tcar = k;
-    if (tcar) tb = tcar.b;
+  // on foot
+  // pedestrian: walk everywhere, climb in only for a job car
+  const e = o.enter;
+  if (e && e.free && e.d < 3.5 && (e.goal || gd > 40)) { a.use = pulse; return a; }
+  let tb = g ? g.b : gl ? gl.b : 0.3;
+  if (gd > 40 && (!e || !e.free)) for (const k of o.cars) if (k.free && k.kind === 'parked' && k.d < 22) { tb = k.b; break; }
+  // straight-line shortcut across open ground
+  if (gl && R[3] > 10 && R[2] > 6 && R[4] > 6) tb = gl.b;
+  // no car detours: the sidewalk route and the shortcut are enough
+  if (gl && gl.kind === 'person' && gd < 3) tb = gl.b;
+  let av = 0, threat = false;
+  for (const k of o.peds) {
+    if (k.d > 8 || k.f < -1) continue;
+    const bad = k.hostile || k.kind !== 'civ';
+    av -= (k.r >= 0 ? 1 : -1) * (bad ? 2 : 1) * (8 - k.d) / 8;
+    if (bad && k.d < 8) threat = true;
   }
-  let t = tb * 2.2;
+  // at the debtor: hold talk, facing him
+  if (gl && (gl.kind === 'person' || (gl.kind === 'car' && !gl.free)) && gd < 3 && !threat) { a.turn = c(tb * 2, -1, 1); a.talk = true; return a; }
+  let t = tb * 2.2 + av * 0.6;
   if (R[3] < 3) t += (R[4] > R[2] ? 1 : -1) * 0.8;
   if (R[2] < 1.5) t += 0.5;
   if (R[4] < 1.5) t -= 0.5;
   a.turn = c(t, -1, 1);
-  a.move = Math.abs(tb) > 1.2 ? 0.1 : R[3] < 1.2 ? 0.3 : 1;
-  const bend = g && !tcar ? Math.max(Math.abs(g.b2), Math.abs(g.b3) * 0.6) : 0;
-  a.sprint = Math.abs(tb) < 0.4 && bend < 0.7 && R[3] > 4;
+  a.move = threat ? 1 : Math.abs(tb) > 1.2 ? 0.2 : R[3] < 1.2 ? 0.4 : 1;
+  a.sprint = threat || (Math.abs(tb) < 0.6 && R[3] > 5 && Math.abs(av) < 0.5);
+  if (o.t < (m.rec || 0)) { a.move = -0.8; a.sprint = false; a.strafe = n % 2 ? 1 : -1; a.jump = pulse; }
   return a;
 }

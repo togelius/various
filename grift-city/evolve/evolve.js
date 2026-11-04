@@ -154,6 +154,7 @@ class Run {
     // a batch change means every elite's score is from an older batch: rebuild the grid from what each has now
     this.archive.rebuild(this.archive.elites());
     if (this.a.valEvery && this.gen % this.a.valEvery === 0) await this.validateTop();
+    this.jlog({ ev: 'gen', epoch: this.epoch, cells: this.archive.size, qd: +this.archive.qd().toFixed(3), best: +(this.archive.best() || { cur: 0 }).cur.toFixed(3), episodes: this.counts.episodes });
     this.save(); this.log(this.mapText().split('\n').slice(0, 1)[0] + ` | ${Math.round((Date.now() - this.t0) / 60000)} min, ${this.counts.episodes} episodes, ${this.pool.stats.killed} killed`);
   }
   // how the best few elites do on the held-out neighbourhoods (never used for selection)

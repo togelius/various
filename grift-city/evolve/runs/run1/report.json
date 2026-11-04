@@ -1,0 +1,400 @@
+[
+ {
+  "id": "g103",
+  "chars": 3593,
+  "held": {
+   "n": 10,
+   "quality": 0.59056,
+   "wheels": 0.7806,
+   "offencesPerMin": 0.3053,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.73,
+   "wheels": 0.9112,
+   "offencesPerMin": 0.5978,
+   "started": 10,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.72
+ },
+ {
+  "id": "g99",
+  "chars": 3956,
+  "held": {
+   "n": 10,
+   "quality": 0.5905199999999999,
+   "wheels": 0.7896,
+   "offencesPerMin": 0.39249999999999996,
+   "started": 8,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.62185,
+   "wheels": 0.9506,
+   "offencesPerMin": 0.8853,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.58992
+ },
+ {
+  "id": "g57",
+  "chars": 2245,
+  "held": {
+   "n": 10,
+   "quality": 0.5801000000000001,
+   "wheels": 0.8605,
+   "offencesPerMin": 0.808,
+   "started": 8,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.71,
+   "wheels": 0.9109999999999999,
+   "offencesPerMin": 0.7703999999999999,
+   "started": 10,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 1
+  },
+  "train": 0.6199999999999999
+ },
+ {
+  "id": "g84",
+  "chars": 3624,
+  "held": {
+   "n": 10,
+   "quality": 0.57049,
+   "wheels": 0.7879,
+   "offencesPerMin": 0.37300000000000005,
+   "started": 9,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.50394,
+   "wheels": 0.7182999999999999,
+   "offencesPerMin": 0.2597,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.66
+ },
+ {
+  "id": "g76",
+  "chars": 2979,
+  "held": {
+   "n": 10,
+   "quality": 0.56246,
+   "wheels": 0.7316,
+   "offencesPerMin": 0.2774,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.52725,
+   "wheels": 0.5806000000000001,
+   "offencesPerMin": 0.4084,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.78
+ },
+ {
+  "id": "g40",
+  "chars": 2522,
+  "held": {
+   "n": 10,
+   "quality": 0.5606,
+   "wheels": 0.8539,
+   "offencesPerMin": 0.8774000000000001,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.53114,
+   "wheels": 0.9325999999999999,
+   "offencesPerMin": 0.6136,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.32098
+ },
+ {
+  "id": "g88",
+  "chars": 3970,
+  "held": {
+   "n": 10,
+   "quality": 0.52052,
+   "wheels": 0.7941,
+   "offencesPerMin": 0.2826,
+   "started": 8,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.5718500000000001,
+   "wheels": 0.9567,
+   "offencesPerMin": 0.6678,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.6199999999999999
+ },
+ {
+  "id": "g17",
+  "chars": 3396,
+  "held": {
+   "n": 10,
+   "quality": 0.5098499999999999,
+   "wheels": 0.2841,
+   "offencesPerMin": 0,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.44376,
+   "wheels": 0.1,
+   "offencesPerMin": 0,
+   "started": 8,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.44333999999999996
+ },
+ {
+  "id": "g19",
+  "chars": 3803,
+  "held": {
+   "n": 10,
+   "quality": 0.5098499999999999,
+   "wheels": 0.2841,
+   "offencesPerMin": 0,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.46553999999999995,
+   "wheels": 0.1,
+   "offencesPerMin": 0,
+   "started": 8,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 3
+  },
+  "train": 0.39086
+ },
+ {
+  "id": "g91",
+  "chars": 3159,
+  "held": {
+   "n": 10,
+   "quality": 0.46193,
+   "wheels": 0.365,
+   "offencesPerMin": 0.0429,
+   "started": 8,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.42216,
+   "wheels": 0.0986,
+   "offencesPerMin": 0,
+   "started": 7,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.58
+ },
+ {
+  "id": "g77",
+  "chars": 2426,
+  "held": {
+   "n": 10,
+   "quality": 0.46026,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 8,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 1
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.5146599999999999,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.4248
+ },
+ {
+  "id": "g96",
+  "chars": 3311,
+  "held": {
+   "n": 10,
+   "quality": 0.43295000000000006,
+   "wheels": 0.7129,
+   "offencesPerMin": 0.2278,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.5011599999999999,
+   "wheels": 0.6143,
+   "offencesPerMin": 0.22349999999999998,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.64
+ },
+ {
+  "id": "g108",
+  "chars": 3916,
+  "held": {
+   "n": 10,
+   "quality": 0.42039,
+   "wheels": 0.7667,
+   "offencesPerMin": 1.3706999999999998,
+   "started": 7,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.42435999999999996,
+   "wheels": 0.8815,
+   "offencesPerMin": 0.3166,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 1
+  },
+  "train": 0.58
+ },
+ {
+  "id": "seed:walker",
+  "chars": 580,
+  "held": {
+   "n": 10,
+   "quality": 0.33038,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 6,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.45109000000000005,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  }
+ },
+ {
+  "id": "seed:driver",
+  "chars": 1994,
+  "held": {
+   "n": 10,
+   "quality": 0.26603000000000004,
+   "wheels": 0.8508999999999999,
+   "offencesPerMin": 0.0429,
+   "started": 0,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.26548000000000005,
+   "wheels": 0.8230000000000001,
+   "offencesPerMin": 0.0496,
+   "started": 0,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  }
+ },
+ {
+  "id": "g75",
+  "chars": 2809,
+  "held": {
+   "n": 10,
+   "quality": 0.26459,
+   "wheels": 0.7939999999999999,
+   "offencesPerMin": 0.17670000000000002,
+   "started": 0,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 4
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.35161999999999993,
+   "wheels": 0.57,
+   "offencesPerMin": 0.1367,
+   "started": 3,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "train": 0.27937999999999996
+ }
+]

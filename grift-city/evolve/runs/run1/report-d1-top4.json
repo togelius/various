@@ -1,0 +1,150 @@
+[
+ {
+  "id": "g103",
+  "chars": 3593,
+  "held": {
+   "n": 10,
+   "quality": 0.55659,
+   "wheels": 0.8254999999999999,
+   "offencesPerMin": 0.7191000000000001,
+   "started": 8,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.65,
+   "wheels": 0.8901999999999999,
+   "offencesPerMin": 0.3956,
+   "started": 10,
+   "passed": 0,
+   "deaths": 3,
+   "errors": 0
+  },
+  "train": 0.72
+ },
+ {
+  "id": "g84",
+  "chars": 3624,
+  "held": {
+   "n": 10,
+   "quality": 0.53049,
+   "wheels": 0.8006,
+   "offencesPerMin": 0.4056,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.43417000000000006,
+   "wheels": 0.7074,
+   "offencesPerMin": 0.0857,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.66
+ },
+ {
+  "id": "g76",
+  "chars": 2979,
+  "held": {
+   "n": 10,
+   "quality": 0.48663000000000006,
+   "wheels": 0.6634,
+   "offencesPerMin": 0.5381,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.54213,
+   "wheels": 0.6094999999999999,
+   "offencesPerMin": 0.7333000000000001,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.78
+ },
+ {
+  "id": "g96",
+  "chars": 3311,
+  "held": {
+   "n": 10,
+   "quality": 0.43295000000000006,
+   "wheels": 0.6816,
+   "offencesPerMin": 0.35319999999999996,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.44627999999999995,
+   "wheels": 0.5398000000000001,
+   "offencesPerMin": 0.5316000000000001,
+   "started": 7,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.64
+ },
+ {
+  "id": "seed:walker",
+  "chars": 580,
+  "held": {
+   "n": 10,
+   "quality": 0.29759,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 5,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.41742,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 7,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 1
+  }
+ },
+ {
+  "id": "seed:driver",
+  "chars": 1994,
+  "held": {
+   "n": 10,
+   "quality": 0.26366,
+   "wheels": 0.8503999999999999,
+   "offencesPerMin": 0.0857,
+   "started": 0,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.28591,
+   "wheels": 0.8228,
+   "offencesPerMin": 0.3012,
+   "started": 1,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  }
+ }
+]

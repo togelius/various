@@ -44,7 +44,7 @@ class Archive {
       for (let i = 0; i < this.nx; i++) { const g = this.cells.get(i + ',' + j); const v = g && (typeof field === 'function' ? field(g) : g[field]); r += (g && v !== undefined && v !== null ? v.toFixed(digits) : ' .  ').padEnd(12); }
       rows.push(r);
     }
-    return rows.join('\n');
+    return rows.map(r => r.replace(/\s+$/, '')).join('\n');
   }
 }
 module.exports = { Archive, AXES, bin };

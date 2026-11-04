@@ -10,8 +10,10 @@ const dir = path.join(__dirname, 'runs', name);
 const log = fs.readFileSync(path.join(dir, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
 const state = fs.existsSync(path.join(dir, 'state.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')) : null;
 const out = [];
+const gens = log.filter(e => e.ev === 'gen');
+if (gens.length) { out.push('## Progress by generation', '', '| gen | epoch | cells | QD-score | best quality | minutes | episodes |', '|---|---|---|---|---|---|---|'); for (const e of gens) out.push(`| ${e.gen} | ${e.epoch} | ${e.cells} | ${e.qd} | ${e.best} | ${Math.round(e.t / 60)} | ${e.episodes} |`); out.push(''); }
 const outFile = path.join(__dirname, 'runs', name + '.out');
-if (fs.existsSync(outFile)) {
+if (!gens.length && fs.existsSync(outFile)) {
   const rows = [...fs.readFileSync(outFile, 'utf8').matchAll(/^generation (\d+), epoch (\d+): (\d+)\/36 cells, QD-score ([\d.]+), best ([\d.]+) \| (\d+) min, (\d+) episodes/gm)];
   if (rows.length) { out.push('## Progress by generation', '', '| gen | epoch | cells | QD-score | best quality | minutes | episodes |', '|---|---|---|---|---|---|---|'); for (const r of rows) out.push(`| ${r[1]} | ${r[2]} | ${r[3]} | ${r[4]} | ${r[5]} | ${r[6]} | ${r[7]} |`); out.push(''); }
 }

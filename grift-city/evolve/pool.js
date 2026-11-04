@@ -5,7 +5,7 @@ const { fork } = require('node:child_process');
 const path = require('node:path');
 
 class Pool {
-  constructor(n = 4, { wallMs = 180000, recycle = 14 } = {}) {
+  constructor(n = 4, { wallMs = 180000, recycle = 8 } = {}) {
     this.n = n; this.wallMs = wallMs; this.recycle = recycle; this.queue = []; this.workers = []; this.nextId = 1; this.stats = { jobs: 0, killed: 0, wallMs: 0 };
     for (let i = 0; i < n; i++) this.workers.push(this.spawn());
   }

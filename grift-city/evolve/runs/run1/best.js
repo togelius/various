@@ -1,5 +1,5 @@
-// g22 quality 0.700 wheels 0.76 (car), trouble 0.52 per min (a slip)
-// shortcutter: cut straight across open ground toward the goal, sprint when clear, follow the sidewalk route around walls, grab only a car right beside us, stop and climb out near the marker.
+// g76 quality 0.780 wheels 0.74 (mostly car), trouble 0.64 per min (scuffles)
+// sidewalker: walk and sprint everywhere, cut straight across open ground, never take a car unless the job needs that car.
 function think(o, m) {
   const a = {}, c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   if (o.ui.dialogue || o.ui.retry) { a.skip = true; return a; }
@@ -24,20 +24,19 @@ function think(o, m) {
     a.steer = c(g.b * 1.6, -1, 1);
     let hot = false;
     for (const k of o.peds) if (k.f > 0 && k.f < 10 && Math.abs(k.r) < 2) hot = true;
-    a.gas = car.spd < 14 && !hot ? 1 : 0;
+    a.gas = car.spd < (Math.abs(g.b2) > 0.6 ? 8 : 15) && !hot ? 1 : 0;
     a.brake = hot && car.spd > 1 ? 1 : 0;
     return a;
   }
   // on foot
-  const e = o.enter, far = gd > 60;
-  if (e && e.free && e.d < 3.5 && (far || e.goal)) { a.use = pulse; return a; }
-  let tb = g ? g.b : gl ? gl.b : 0.3, tc = null;
+  // pedestrian: walk everywhere, climb in only for a job car
+  const e = o.enter;
+  if (e && e.free && e.d < 3.5 && (e.goal || gd > 60)) { a.use = pulse; return a; }
+  let tb = g ? g.b : gl ? gl.b : 0.3;
+  if (gd > 60 && o.t < 40) for (const k of o.cars) if (k.free && k.kind === 'parked' && k.d < 22) { tb = k.b; break; }
   // straight-line shortcut across open ground
-  if (gl && gd < 150 && R[3] > 10 && R[2] > 6 && R[4] > 6) tb = gl.b;
-  if (far) {
-    for (const k of o.cars) if (k.free && k.kind === 'parked' && k.d < 8 && (!tc || k.d < tc.d)) tc = k;
-    if (tc) tb = tc.b;
-  }
+  if (gl && R[3] > 10 && R[2] > 6 && R[4] > 6) tb = gl.b;
+  // no car detours: the sidewalk route and the shortcut are enough
   if (gl && gl.kind === 'person' && gd < 3) tb = gl.b;
   let av = 0, threat = false;
   for (const k of o.peds) {
@@ -54,7 +53,7 @@ function think(o, m) {
   if (R[4] < 1.5) t -= 0.5;
   a.turn = c(t, -1, 1);
   a.move = threat ? 1 : Math.abs(tb) > 1.2 ? 0.2 : R[3] < 1.2 ? 0.4 : 1;
-  a.sprint = threat || (Math.abs(tb) < 0.4 && R[3] > 6 && Math.abs(av) < 0.3);
+  a.sprint = threat || (Math.abs(tb) < 0.6 && R[3] > 5 && Math.abs(av) < 0.5);
   if (o.t < (m.rec || 0)) { a.move = -0.8; a.sprint = false; a.strafe = n % 2 ? 1 : -1; a.jump = pulse; }
   return a;
 }
