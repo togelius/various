@@ -1,4 +1,4 @@
-// helper library of run run2 (append-only), generation 16
+// helper library of run run2 (append-only), generation 24
 // clamp v into the range [lo, hi]
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // true once progress is under 0.2 m/s for more than n ticks (call once per tick; state in m; idle = waiting on purpose)
@@ -73,4 +73,11 @@ function driveTo(a, sa, want) {
   if (sa < want) a.gas = 0.8;
   else a.brake = sa > want + 3 ? 0.6 : 0;
   return a;
+}
+
+// debtor in talk range (person within 2.5 m, or occupied goal car within 4 m)
+function inTalkRange(o) {
+  const G = o.goal, e = o.enter;
+  if (!G) return false;
+  return G.kind === 'person' ? G.d < 2.5 : G.kind === 'car' && !G.free && G.d < 4 && !(e && e.goal && e.d < 3);
 }
