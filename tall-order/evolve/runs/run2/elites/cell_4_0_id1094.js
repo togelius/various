@@ -1,4 +1,4 @@
-// score 0.062  trigger 0.42  pace 0.09  (2850 chars)
+// score 0.034  trigger 0.41  pace 0.10  (3141 chars)
 // Steady-fire climber: fires whenever foes are near, uses pickups on big threats, grabs nearby items when safe (juice when hurt)
 function step(o, m) {
   const g = o.goal;
@@ -34,7 +34,9 @@ function step(o, m) {
     };
   }
   if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire, jump: telegraphed(o, 4), ...pk };
-  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5) || shotDanger(o, 3, 0.6);
+  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 6) || shotDanger(o, 3, 0.6);
+  // dodge: back away from a winding-up foe in front of us
+  const threat = o.foes.some(f => f.awake && f.d < 4 && Math.abs(f.b) < 1.2 && /slam|wind|crouch|rev|dive|throw/.test(f.st || ''));
   const stuck = stuckTicks(o, m, 30) && g.kind !== 'lift' && g.kind !== 'boss';
   if (stuck && !(m.esc > 0)) { m.esc = 15; m.dir = -(m.dir || 1); m.c = -30; }
   const edge = ledgeAhead(o, g);
@@ -51,7 +53,8 @@ function step(o, m) {
   const brisk = Math.abs(tb) < 1.4;
   const slow = o.foes.some(f => f.awake && f.d < 3);
   const springRun = g.kind === 'spring' && g.d < 2.5;
-  const mv = edge ? 0 : springRun ? 0.5 : brisk ? (slow ? 0.08 : 0.15) : 0.05;
+  const side = tb > 0 ? o.drop.r : o.drop.l;
+  const mv = threat && !edge ? -0.5 : edge || (side < 1.2 && !springRun) ? 0 : springRun ? 0.5 : brisk ? (slow ? 0.08 : 0.15) : 0.05;
   const turn = springRun ? steerTo(g.b, 4) : clampU(tb * 3);
   return { turn, move: mv, fire, jump: hop && o.ground, ...pk };
 }

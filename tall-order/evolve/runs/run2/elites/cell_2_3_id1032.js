@@ -1,6 +1,4 @@
-// score 0.845  trigger 0.15  pace 0.54  (2649 chars)
-
-
+// score 0.763  trigger 0.15  pace 0.54  (2917 chars)
 // Rare steady shots (more on the boss), one shared pickup rule, sprint-first movement.
 function step(o, m) {
   const g = o.goal;
@@ -11,8 +9,9 @@ function step(o, m) {
   const e = wrapA(Math.PI - o.yaw);
   const bw = o.foes.find(f => f.k === 'boss' && f.awake);
   const near = o.foes.some(f => f.awake && f.d < 12);
-  const fire = !!o.aim.hit && (m.n % 8 === 0 || (!!bw && m.n % 3 === 0));
-  const hop = telegraphed(o, 5) || o.foes.some(f => f.k === 'kitty' && f.d < 2.5 && Math.abs(f.dy) < 1.5);
+  const sh = o.shots.find(s => s.shootable && s.d < 14 && Math.abs(s.b) < 0.3 && Math.abs(s.dy) < 2);
+  const fire = (!!o.aim.hit && (m.n % 8 === 0 || (!!bw && m.n % 3 === 0))) || (!!sh && !!o.aim.hit);
+  const hop = telegraphed(o, 6) || o.foes.some(f => (f.k === 'kitty' && f.d < 2.5 && Math.abs(f.dy) < 1.5) || (f.k === 'golem' && f.d < 6 && /slam|wind|crouch/.test(f.st || '')) || (f.k === 'car' && f.d < 8 && /rev|charge|wind/.test(f.st || '')));
   if (o.climbing || g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5 && (g.d <= 1 || Math.abs(e) < 0.5))) {
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0 };
   }

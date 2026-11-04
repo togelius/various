@@ -1,15 +1,15 @@
-// score 0.939  trigger 0.16  pace 0.57  (3408 chars)
-// Parent with steady fire: general fire on 2 of every 4 aimed ticks, boss fire on 3 of 4; boss room keeps a 3-6 m standoff; slower walk in open areas
+// score 0.494  trigger 0.01  pace 0.44  (3383 chars)
+// Steady-fire climber at moderate pace: short bursts at close foes and the boss, 3-6 m boss standoff, slower walking
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   if (o.dead) return {};
   const near = o.foes.some(f => f.awake && f.d < 12);
   const bw = o.foes.find(f => f.k === 'boss' && f.awake);
-  const pulse = m.n % 4;
-  const close = o.foes.some(f => f.awake && f.d < 6);
-  const fire = !!o.aim.hit && (bw ? pulse < 2 : close && m.n % 8 === 0);
-  if (o.carried || o.hang) return { turn: 0, move: 0, fire, jump: true };
+  const fire = !!o.aim.hit && !!bw && m.n % 40 === 0;
+  m.cc = o.carried ? (m.cc || 0) + 1 : 0;
+  if (o.carried) return { turn: 0, move: 0, fire, jump: m.cc > 30 && m.n % 4 === 0 };
+  if (o.hang) return { turn: 0, move: 0, fire, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   const e = wrapA(Math.PI - o.yaw);
   if (o.climbing || g.kind === 'ladder') {
@@ -17,17 +17,17 @@ function step(o, m) {
   }
   if (g.kind === 'ladder-approach' && g.d < 2.5) {
     if (g.d > 1 && Math.abs(e) > 0.5) {
-      return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0.1, fire, jump: false };
+      return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.6 : 0.3, fire, jump: false };
     }
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
   }
 
-  // boss room: close to 3-6 m, back off when crowded, hop wind-ups
+  // boss room: hold a 3-6 m standoff, hop wind-ups, use pickups periodically
   if (bw && o.floor === 5 && g.kind !== 'crane-step' && g.kind !== 'flag') {
     const atk = /slam|wind|crouch|rev|shock|stomp/.test(bw.st || '') && bw.d < 9;
     const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;
     if (useNow) m.u = m.n;
-    let mv = bw.d < 3 ? -0.6 : bw.d > 6 ? 1 : 0.7;
+    let mv = bw.d < 3 ? -0.5 : bw.d > 6 ? 0.5 : 0.3;
     if (mv > 0 && (Math.abs(bw.b) > 1.2 || o.drop.f < 2)) mv = 0;
     const swirl = bw.d < 9 && bw.d > 5 ? 0.15 : 0;
     return {
@@ -49,7 +49,7 @@ function step(o, m) {
     m.esc--;
     return {
       turn: clampU(m.dir * 0.8),
-      move: m.esc > 8 ? -0.7 : (edge ? 0 : 0.7),
+      move: m.esc > 8 ? -0.5 : (edge ? 0 : 0.5),
       fire, jump: m.esc % 4 === 0 && o.ground,
     };
   }
@@ -65,7 +65,10 @@ function step(o, m) {
   const useItem = o.inv.length > 0 && (big || crowd) && m.n - (m.u || -99) > 20;
   if (useItem) m.u = m.n;
   const side = g.kind === 'crane-step' ? 9 : tb > 0 ? o.drop.r : o.drop.l;
-  const fast = Math.abs(tb) < 1.2 || (g.kind === 'spring' && g.d < 2);
-  const mv = edge ? 0 : Math.abs(tb) > 1.6 ? 0.7 : side < 1 ? 0.9 : 1;
-  return { turn: clampU(tb * 2.5), move: mv, fire, jump: hop && o.ground, use: useItem, sel: 0 };
+  const mv = edge ? 0 : Math.abs(tb) > 1.6 ? 0.6 : side < 1 ? 0.5 : 1;
+  return {
+    turn: clampU(tb * 2.5),
+    move: g.kind === 'spring' ? 1 : mv,
+    fire, jump: hop && o.ground, use: useItem, sel: 0,
+  };
 }

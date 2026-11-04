@@ -1,4 +1,4 @@
-// score 0.894  trigger 0.58  pace 0.60  (2838 chars)
+// score 0.808  trigger 0.58  pace 0.60  (2838 chars)
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;

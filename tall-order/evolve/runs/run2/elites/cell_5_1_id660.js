@@ -1,4 +1,4 @@
-// score 0.306  trigger 0.75  pace 0.22  (2851 chars)
+// score 0.289  trigger 0.76  pace 0.22  (2851 chars)
 // Steady-fire climber: fires whenever foes are near, uses pickups on big threats, grabs nearby items when safe (juice when hurt)
 function step(o, m) {
   const g = o.goal;
