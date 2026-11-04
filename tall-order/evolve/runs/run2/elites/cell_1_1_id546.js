@@ -1,4 +1,4 @@
-// score 0.461  trigger 0.06  pace 0.25  (2051 chars)
+// score 0.488  trigger 0.07  pace 0.21  (2316 chars)
 // Sprinter: special states first; ladder: face west and push in; lift: stand still; otherwise sprint at the goal, firing rarely (boss: steadier fire, keep range)
 function step(o, m) {
   const g = o.goal;
@@ -11,12 +11,15 @@ function step(o, m) {
   const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => !s.shootable && s.d < 3);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
   // rare fire: every 12th tick on regular foes, every 3rd when the boss is in the band
-  const fire = !!o.aim.hit && m.n % (boss ? 3 : 12) === 0;
+  const fire = !!o.aim.hit && m.n % (boss ? 4 : 12) === 0;
 
   if (boss) {
-    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');
-    const mv = boss.d > 8 ? 0.5 : boss.d < 5 ? -0.5 : 0;
-    return { turn: clampU(boss.b * 3), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: wave || threat };
+    // stand and track; back off only when crowded, creep in when far; jump telegraphed waves; pickup every 3 s
+    const wave = boss.d < 14 && /slam|wind|shock|stomp|crouch|rev/.test(boss.st || '');
+    const mv = boss.d < 4 ? -0.4 : boss.d > 12 ? 0.3 : 0;
+    const pk = o.inv.length > 0 && boss.d < 9 && m.n % 30 === 0;
+    m.c = 0; // standing here is not a stall
+    return { turn: clampU(boss.b * 3), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: (wave || threat) && o.ground, use: pk, sel: 0 };
   }
 
   const e = wrapA(Math.PI - o.yaw);

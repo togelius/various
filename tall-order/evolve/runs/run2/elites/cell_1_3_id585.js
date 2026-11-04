@@ -1,5 +1,5 @@
-// score 0.512  trigger 0.16  pace 0.33  (2381 chars)
-// Low-fire, careful climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
+// score 0.474  trigger 0.07  pace 0.43  (2316 chars)
+// Low-fire, brisk climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
@@ -7,10 +7,10 @@ function step(o, m) {
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
 
-  const stuck = stuckTicks(o, m, 15);
+  const stuck = stuckTicks(o, m, 20);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
-  const fire = !!boss && !!o.aim.hit && boss.d < 14;
-  const slam = o.foes.some(f => /slam|windup|rev|dive|crouch/.test(f.st || '') && f.d < 5.5) || shotDanger(o, 3.5, 0.5);
+  const fire = !!boss && !!o.aim.hit && boss.d < 14 && m.n % 4 === 0;
+  const slam = o.foes.some(f => /slam|windup|rev|dive|crouch/.test(f.st || '') && f.d < 4.5) || shotDanger(o, 3, 0.5);
   const out = (turn, move, jump, use) => ({
     turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,
   });
@@ -19,7 +19,7 @@ function step(o, m) {
     const ang = Math.atan2(boss.dy, boss.d);
     const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;
     if (useNow) m.u = m.n;
-    let move = boss.d > 9 ? 0.6 : boss.d < 6 ? -0.5 : 0.1;
+    let move = boss.d > 9 ? 0.8 : boss.d < 6 ? -0.5 : 0.2;
     if (!boss.band && Math.abs(ang) > 0.15 && boss.d < 12) move = -0.6;
     if (move > 0 && o.drop.f < 2) move = 0;
     const weave = Math.floor(o.t / 3) % 2 ? 0.15 : -0.15;
@@ -35,16 +35,14 @@ function step(o, m) {
   }
   if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2), 0, slam);
 
-  const ramp = /stairs|spring|crane/.test(g.kind);
   if (stuck) {
     if (/stairs|crane/.test(g.kind)) return out(steerTo(g.b, 2.5), Math.abs(g.b) < 1 ? 1 : 0.3, m.n % 6 < 3);
     return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.8, true);
   }
 
-  const heal = o.hp < 65 ? o.items.find(i => i.k === 'juice' && i.d < 9) : null;
+  const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;
   const tb = heal ? heal.b : g.b;
-  const edge = !ramp && o.drop.f < 1.5;
-  const move = edge || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.6 : 0.4;
   const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;
+  const move = ledgeAhead(o, g) || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.95 : 0.5;
   return out(steerTo(tb, 2.5), move, hop || slam);
 }

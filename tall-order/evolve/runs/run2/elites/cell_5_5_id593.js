@@ -1,9 +1,10 @@
-// score 0.532  trigger 0.13  pace 0.68  (1918 chars)
+// score 0.462  trigger 0.69  pace 0.76  (2026 chars)
 // slow, heavy-fire climber; boss: hold range, keep facing, jump telegraphs, use pickups
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  const fire = false;
+  const near = o.foes.some(f => f.awake && f.d < 12);
+  const fire = !!o.aim.hit || (near && m.n % 3 !== 0);
   if (o.carried) return { turn: 0, move: 0, fire, jump: true };
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
@@ -23,15 +24,15 @@ function step(o, m) {
     return {
       turn: clampU(bw.b * 3 + swirl),
       move: Math.abs(bw.b) > 1.2 && mv > 0 ? 0 : mv,
-      fire: !!o.aim.hit,
+      fire: !!o.aim.hit || m.n % 2 === 0,
       jump: (atk || shotDanger(o, 3, 0.6)) && o.ground,
       use, sel: use ? sel : undefined
     };
   }
   const stuck = stuckTicks(o, m, 30) && g.kind !== 'lift';
-  const turn = clampU(g.b * 2 + (stuck ? Math.sin(m.n * 0.7) : 0));
+  const turn = clampU(g.b * 2.5 + (stuck ? Math.sin(m.n * 0.7) : 0));
   const hop = (g.kind === 'crane-step' && g.d < 2.5) || o.foes.some(f => f.st === 'slam' && f.d < 5) || shotDanger(o, 3, 0.6) || stuck;
   const onLift = g.kind === 'lift' && g.d < 1.2;
-  const mv = onLift || ledgeAhead(o, g) ? 0 : Math.abs(g.b) < 1.2 ? 1 : 0;
+  const mv = onLift || ledgeAhead(o, g) ? 0 : Math.abs(g.b) < 1.2 ? 1 : 0.5;
   return { turn, move: mv, fire, jump: hop && o.ground };
 }

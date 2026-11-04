@@ -34,3 +34,6 @@ function telegraphed(o, d) {
 function ledgeAhead(o, g) {
   return o.drop.f < 1.5 && !/stairs|spring|crane|lift|ladder/.test(g.kind);
 }
+
+// nearest juice within d m, or null (heals; most controllers use it)
+function juiceNear(o, d) { return o.items.find(i => i.k === 'juice' && i.d < d) || null; }
