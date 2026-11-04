@@ -1,7 +1,5 @@
-// g184 quality 0.636 wheels 0.21 (mostly foot), trouble 0.00 per min (law-abiding) (3870 chars; mutate)
-// walker with police avoidance: follows the route on foot and bends its bearing away from cops (weight 2),
-// hostile people (1) and pedestrians (0.5) using their pie slices. Sprints when fleeing or clear, never
-// stops to talk near police. Climbs in only for a car goal; drives the route with the same steering if in a car.
+// g212 quality 0.684 wheels 0.07 (mostly foot), trouble 0.00 per min (law-abiding) (3496 chars; mutate)
+// foot walker with cop/foe/ped avoidance; drives only for car goals, cautiously (side ranges see vehicles).
 function think(o, m) {
   const a = {};
   if (o.ui.retry) { a.retry = true; return a; }
@@ -54,13 +52,12 @@ function think(o, m) {
       return a;
     }
     if (!g && !goal) { a.gas = 0.3; return a; }
-    const want = Math.min(bendSpeed(g), obstacleCap(o));
-    a.steer = clamp(db * 1.6, -1, 1);
+    const fr = Math.min(o.range[0], o.range[1] * 1.5, o.range[11] * 1.5, o.range[2] * 2, o.range[10] * 2);
+    const want = Math.min(bendSpeed(g), obstacleCap(o), fr < 14 ? 3 + fr * 0.6 : 99);
+    const sd = (o.range[11] < 4 ? 0.3 : 0) - (o.range[1] < 4 ? 0.3 : 0);
+    a.steer = clamp(db * 1.6 + sd, -1, 1);
     a.gas = sp < want ? 1 : 0;
     a.brake = sp > want + 3 ? 0.6 : 0;
-    // drift for cash: long empty straight, no cops, far from the goal -> handbrake flick, then gas
-    if (m.dr > 0) { m.dr--; a.hand = m.dr > 4; a.gas = 1; a.brake = 0; a.steer = clamp(tb * 0.5 + m.ds, -1, 1); }
-    else if (sp > 14 && Math.abs(tb) < 0.1 && o.range[0] > 25 && cd > 15 && (!goal || goal.d > 60)) { m.dr = 12; m.ds = Math.random() < 0.5 ? -0.4 : 0.4; }
     return a;
   }
 

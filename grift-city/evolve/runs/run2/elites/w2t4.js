@@ -1,4 +1,4 @@
-// g95 quality 0.819 wheels 0.43 (mixed), trouble 4.11 per min (crime spree) (2986 chars; crossover)
+// g95 quality 0.668 wheels 0.30 (mixed), trouble 3.93 per min (crime spree) (2986 chars; crossover)
 function think(o, m) {
   const a = {}, c = clamp;
   if (o.ui.retry) { a.retry = true; return a; }

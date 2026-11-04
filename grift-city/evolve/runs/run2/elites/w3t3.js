@@ -1,4 +1,4 @@
-// g201 quality 0.758 wheels 0.60 (mostly car), trouble 3.21 per min (troublemaker) (3735 chars; mutate)
+// g214 quality 1.065 wheels 0.62 (mostly car), trouble 2.29 per min (troublemaker) (3759 chars; crossover)
 function repel(arr, r) {
   let p = 0;
   for (let i = 0; i < 8; i++) if (arr[i] < r) p -= (r - arr[i]) / r * Math.sin(i * Math.PI / 4);
@@ -10,14 +10,14 @@ function think(o, m) {
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
-  if (m.n === undefined) { m.n = 0; m.esc = 0; m.dir = 1; m.tk = 0; }
+  if (m.n === undefined) { m.n = 0; m.esc = 0; m.dir = 1; m.tk = 0; m.tc = -99; m.cn = 0; }
   m.n++;
   const pulse = m.n % 4 === 0;
   const b = g ? g.b : goal ? goal.b : 0;
   const cop = nearestPie(o.pie.cop, 14);
   const copClose = !!cop && cop.d < 10;
-  const talkNow = !car && !!goal && (goal.kind === 'person' ? goal.d < 2.5 : goal.kind === 'car' && !goal.free && goal.d < 3);
-  const idle = talkNow || (goal && goal.d < 3) || (e && e.d < 4 && e.goal);
+  const talkNow = !car && inTalkRange(o);
+  const idle = talkNow || m.cn > 0 || (goal && goal.d < 3) || (e && e.d < 4 && e.goal);
   if (stuck(o, m, 15, idle) && m.esc <= 0) { m.esc = 14; m.dir = openSide(o); }
   if (m.esc > 0) {
     m.esc--;
@@ -44,11 +44,10 @@ function think(o, m) {
     if (bs === 16 && o.rays[3] > 18 && o.range[0] > 28) bs = 20;
     if (o.me.wanted > 0 && ca.front < 25) bs = Math.max(bs, 18);
     if (goal && goal.kind !== 'car' && goal.d < 20) bs = Math.min(bs, 7);
-    const push = ca.push + repel(o.pie.car, 6) + repel(o.pie.ped, 6);
+    const push = ca.push + repel(o.pie.car, 6) + repel(o.pie.ped, 7);
     a.steer = c(b * 1.6 + push * 0.8 + lane, -1, 1);
     if (o.range[0] < 8) a.steer = c(a.steer + (o.range[1] > o.range[11] ? 0.5 : -0.5), -1, 1);
     driveTo(a, sa, Math.min(bs, obstacleCap(o)));
-    if (ca.front < 5 && o.me.wanted < 1) { a.gas = 0; a.brake = sa > 1 ? 1 : 0; }
     return a;
   }
 
@@ -59,7 +58,12 @@ function think(o, m) {
     return a;
   }
   m.tk = 0;
-  if (carWorthIt(o) || (!!e && !e.free && !e.goal && e.d < 3.5 && o.me.wanted < 2 && !copClose && (!goal || (goal.kind !== 'car' && goal.d > 40)))) { a.use = pulse; return a; }
+  // con a lone stranger for cash when nothing urgent
+  if (m.cn > 0) { m.cn--; a.talk = true; return a; }
+  if (o.me.wanted === 0 && !cop && o.pie.ped[0] < 2.2 && o.t - m.tc > 25 && (!goal || goal.d > 40)) {
+    m.tc = o.t; m.cn = 15; a.talk = true; return a;
+  }
+  if (carWorthIt(o)) { a.use = pulse; return a; }
   const cw = !!e && e.free && o.me.wanted < 3 && e.d < 60 && (e.goal || !goal || goal.d > 40);
   if (!g && !goal && !cw) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
   let tb = cw ? e.b : goal && (goal.d < 12 || (goal.kind === 'car' && goal.d < 40)) ? goal.b : b;
@@ -71,7 +75,7 @@ function think(o, m) {
   const p = o.pie.ped;
   const cd = Math.min(o.pie.car[0], o.pie.car[1], o.pie.car[7]);
   if (p[0] < 2.5 || p[1] < 2 || p[7] < 2) { a.strafe = p[1] < p[7] ? -0.8 : 0.8; a.move = 0.4; }
-  if (cd < 4) { a.move = 0.2; a.strafe = o.pie.car[1] < o.pie.car[7] ? -1 : 1; }
+  if (cd < 4 && !(e && e.d < 4)) { a.move = 0.2; a.strafe = o.pie.car[1] < o.pie.car[7] ? -1 : 1; }
   a.sprint = !!cop || o.me.wanted > 1 || (Math.abs(tb) < 0.5 && o.rays[3] > 6 && o.range[0] > 6 && p[0] > 5 && cd > 8);
   if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = openSide(o); a.move = 0.3; a.sprint = false; }
   return a;
