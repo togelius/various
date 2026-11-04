@@ -1,4 +1,4 @@
-// g27 quality 0.572 wheels 0.00 (on foot), trouble 0.00 per min (law-abiding) (996 chars; mutate)
+// g27 quality 0.543 wheels 0.00 (on foot), trouble 0.00 per min (law-abiding) (996 chars; mutate)
 // walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};

@@ -1,77 +1,73 @@
-// g93 quality 1.090 wheels 0.79 (car), trouble 0.76 per min (scuffles)
-// walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
+// g122 quality 0.963 wheels 0.76 (car), trouble 1.95 per min (troublemaker)
+// combined: A's route-following, talk/skip and car handling; B's stuck recovery, reversing and cop-aware steering; no early shooting
 function think(o, m) {
   const a = {};
   if (o.ui.retry) { a.retry = true; return a; }
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
-  const c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   m.n = (m.n || 0) + 1;
+  m.cs = m.cs || 0; m.rv = m.rv || 0; m.esc = m.esc || 0;
   const pulse = m.n % 4 === 0;
-  const goal = o.goal, g = o.gps, e = o.enter;
-  const mv = m.px === undefined ? 1 : Math.hypot(o.me.x - m.px, o.me.z - m.pz);
-  m.px = o.me.x; m.pz = o.me.z;
+  const g = o.gps, goal = o.goal, e = o.enter;
+  const b = g ? g.b : goal ? goal.b : 0;
+  const cop = nearestPie(o.pie.cop, 14);
   const idle = (goal && goal.d < 3) || (e && e.d < 4);
-  m.still = mv < 0.02 && !idle ? (m.still || 0) + 1 : 0;
-  if (m.still > 15) { m.esc = 14; m.dir = Math.random() < 0.5 ? -1 : 1; m.still = 0; }
+  // stuck: back off or sidestep for a moment
+  if (stuck(o, m, 15, idle) && m.esc <= 0) { m.esc = 14; m.dir = Math.random() < 0.5 ? -1 : 1; }
   if (m.esc > 0) {
     m.esc--;
     if (o.me.mode === 'car') { a.brake = 1; a.steer = m.dir; }
     else { a.move = m.esc > 7 ? -1 : 1; a.turn = m.dir; a.strafe = m.dir; }
     return a;
   }
-  const b = g ? g.b : goal ? goal.b : 0;
+
   if (o.me.mode === 'car') {
-    if (goal && goal.kind !== 'car' && goal.d < 12) {
-      const st = Math.abs(o.car.spd) < 2.5;
-      a.brake = st ? 0 : 1;
-      if (st) a.use = pulse;
+    const sa = Math.abs(o.car.spd);
+    if (o.car.burning || o.car.hp < 0.15) return parkOut(a, o, pulse);
+    // at a place goal: stop, then step out
+    if (goal && goal.kind !== 'car' && goal.d < 8 + sa * sa / 16) {
+      a.steer = clamp(goal.b * 1.6, -1, 1);
+      a.brake = sa > 1.5 ? 1 : 0;
+      if (sa <= 1.5) a.use = pulse;
       return a;
     }
+    // stopped for a while: reverse if the way behind is clear
+    if (sa < 0.4) m.cs += 0.1; else m.cs = 0;
+    if (m.cs > 3) { m.rv = 1.5; m.cs = 0; }
+    if (m.rv > 0) {
+      m.rv = Math.max(0, m.rv - 0.1);
+      if (o.range[6] > 4) { a.brake = 1; a.steer = clamp(-b * 1.6, -1, 1); return a; }
+    }
     if (!g && !goal) { a.gas = 0.3; return a; }
-    // aim between the next two waypoints when close to a corner; side walls/cars push off; lane keeping; smoothed steering
-    const tb = g && g.wd < 8 ? (b + (g.b2 || 0)) / 2 : b;
-    let want = Math.min(bendSpeed(g), obstacleCap(o));
-    if (want >= 16 && o.rays[3] > 18 && o.range[0] > 28) want = 20;
-    const near = Math.min(o.range[0], o.range[1], o.range[11]);
-    if (near < 6) want = Math.min(want, 3);
+    // drive the route: cop repulsion, wall nudge, speed limited by bends, rain and obstacles
     const ca = copAvoid(o);
-    if (ca.front < 12) want = Math.min(want, 8);
-    const side = (o.range[1] < 10 ? -(10 - o.range[1]) * 0.1 : 0) + (o.range[11] < 10 ? (10 - o.range[11]) * 0.1 : 0);
-    const lane = o.road.on ? c(-o.road.off * 0.1, -0.25, 0.25) : 0;
-    let s = tb * 1.6 + side + lane * 0.5 + ca.push * 0.8;
-    if (o.range[0] < 8) s += (o.range[1] > o.range[11] ? 0.5 : -0.5);
-    m.st = (m.st || 0) * 0.5 + c(s, -1, 1) * 0.5;
-    a.steer = m.st;
-    a.gas = o.car.spd < want ? 1 : 0;
-    a.brake = o.car.spd > want + 3 ? 0.6 : 0;
-    return a;
+    let bs = bendSpeed(g);
+    if (o.rain > 0.5) bs = Math.min(bs, 12);
+    if (o.me.wanted > 0 && ca.front < 25) bs = Math.max(bs, 18);
+    a.steer = clamp(b * 1.6 + ca.push * 0.6, -1, 1);
+    if (o.range[0] < 8) a.steer = clamp(a.steer + (o.range[1] > o.range[11] ? 0.5 : -0.5), -1, 1);
+    return driveTo(a, sa, Math.min(bs, obstacleCap(o)));
   }
-  if (goal && goal.kind === 'person' && goal.d < 3) { a.talk = true; return a; }
-  if (e && e.d < 4 && e.free && (!goal || goal.kind === 'car' || goal.d > 25)) { a.use = pulse; return a; }
-  if (e && e.goal && !e.free && e.d < 3 && o.me.wanted < 3) { a.use = pulse; return a; }
+
+  // on foot
+  if (inTalkRange(o) && !(cop && cop.d < 10)) { a.talk = true; return a; }
+  if (e && e.d < 4 && carWorthIt(o)) { a.use = pulse; return a; }
+  // shoot only at hostiles close by, and only while wanted level is low
+  if (o.me.ammo > 0 && o.me.wanted < 2) {
+    const t = nearestPie(o.pie.foe, 8);
+    if (t) { a.aim = true; a.turn = clamp(t.b * 2, -1, 1); a.fire = Math.abs(t.b) < 0.5; return a; }
+  }
   if (!g && !goal) { a.move = 0.5; a.turn = 0.3; return a; }
-  // trouble: when armed and a hostile is close, face it and shoot it
-  let fi = 0;
-  for (let i = 1; i < 8; i++) if (o.pie.foe[i] < o.pie.foe[fi]) fi = i;
-  const fd = o.pie.foe[fi], fb = (fi > 4 ? fi - 8 : fi) * 0.785;
-  if (fd < 0) {
-    a.turn = c(fb * 2.2, -1, 1);
-    a.aim = true;
-    a.fire = Math.abs(fb) < 0.3;
-    return a;
+  let tb = goal && goal.d < 12 && !cop ? goal.b : g ? g.b : goal.b;
+  if (cop) {
+    const k = (14 - cop.d) / 14 * 1.5;
+    tb = Math.atan2(Math.sin(tb) - k * Math.sin(cop.b), Math.cos(tb) - k * Math.cos(cop.b));
   }
-  let tb = (goal && goal.kind === 'car') ? goal.b : (goal && goal.d < 6 ? goal.b : b);
-  const r = o.rays;
-  if (r[3] < 4 || r[2] < 2 || r[4] < 2) {
-    const side = (r[4] + r[5]) - (r[2] + r[1]);
-    tb = c(tb * 0.3 + (side >= 0 ? 1 : -1) * 0.9, -1.5, 1.5);
-  }
-  a.turn = c(tb * 2.2, -1, 1);
-  a.move = Math.abs(tb) > 1.2 ? 0.1 : 1;
-  const pd = o.pie.ped[0], pd1 = Math.min(o.pie.ped[1], o.pie.ped[7]);
+  walkAt(a, tb);
+  const pd = o.pie.ped[0];
   if (pd < 2.5) a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
-  a.sprint = Math.abs(tb) < 0.5 && r[3] > 6 && pd > 5 && pd1 > 3 && o.range[0] > 6;
+  a.sprint = !cop && Math.abs(tb) < 0.5 && o.rays[3] > 6 && o.range[0] > 6 && pd > 5;
+  if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = openSide(o); a.move = 0.3; a.sprint = false; }
   return a;
 }

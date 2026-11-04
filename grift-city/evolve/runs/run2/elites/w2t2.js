@@ -1,63 +1,72 @@
-// g46 quality 0.512 wheels 0.48 (mixed), trouble 0.72 per min (scuffles) (2748 chars; mutate)
-// walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
+// g130 quality 0.583 wheels 0.49 (mixed), trouble 1.01 per min (scuffles) (3363 chars; mutate)
 function think(o, m) {
-  const a = {};
+  const a = {}, c = clamp;
   if (o.ui.retry) { a.retry = true; return a; }
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
-  const c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   m.n = (m.n || 0) + 1;
   const pulse = m.n % 4 === 0;
-  const goal = o.goal, g = o.gps, e = o.enter;
-  const mv = m.px === undefined ? 1 : Math.hypot(o.me.x - m.px, o.me.z - m.pz);
-  m.px = o.me.x; m.pz = o.me.z;
-  const idle = (goal && goal.d < 3) || (e && e.d < 4);
-  m.still = mv < 0.02 && !idle ? (m.still || 0) + 1 : 0;
-  if (m.still > 15) { m.esc = 14; m.dir = Math.random() < 0.5 ? -1 : 1; m.still = 0; }
+  const car = o.me.mode === 'car';
+  const G = o.goal, g = o.gps, e = o.enter;
+  const b = g ? g.b : G ? G.b : 0;
+  const ca = copAvoid(o);
+  const side = o.range[1] + o.range[2] >= o.range[10] + o.range[11] ? 1 : -1;
+  const talk = !car && inTalkRange(o) && ca.front > 12;
+  const idle = talk || (car && !!G && G.d < 12) || (!car && !!e && !!e.goal && e.d < 4);
+  if (stuck(o, m, 15, idle)) { m.esc = 12; m.dir = m.n % 2 ? 1 : -1; }
   if (m.esc > 0) {
     m.esc--;
-    if (o.me.mode === 'car') { a.brake = 1; a.steer = m.dir; }
-    else { a.move = m.esc > 7 ? -1 : 1; a.turn = m.dir; a.strafe = m.dir; }
+    if (car) { a.brake = 1; a.steer = c(-b * 1.6, -1, 1); }
+    else { a.move = m.esc > 6 ? -0.6 : 0.6; a.turn = m.dir; }
     return a;
   }
-  const b = g ? g.b : goal ? goal.b : 0;
-  if (o.me.mode === 'car') {
-    if (goal && goal.kind !== 'car' && goal.d < 150) {
-      const st = Math.abs(o.car.spd) < 2.5;
-      a.steer = c(b * 1.6, -1, 1);
-      a.brake = st ? 0 : 1;
-      if (st) a.use = pulse;
+  if (car) {
+    const sp = Math.abs(o.car.spd);
+    if (o.car.burning || o.car.hp < 0.15) return parkOut(a, o, pulse);
+    if (G && ((G.kind !== 'car' && G.d < 10 + sp * sp / 16) || (G.kind === 'car' && !G.mine && G.d < 9))) {
+      a.steer = c(G.b * 1.6, -1, 1);
+      a.brake = sp > 1.5 ? 1 : 0;
+      if (sp <= 1.5 && G.d < 25) a.use = pulse;
       return a;
     }
-    if (!g && !goal) { a.gas = 0.3; return a; }
-    const tb = g ? Math.max(Math.abs(g.b), Math.abs(g.b2 || 0) * 0.8) : Math.abs(b);
-    let want = tb > 0.9 ? 5 : tb > 0.45 ? 9 : 15;
-    const ahead = Math.min(o.range[0], o.range[1], o.range[11], o.pie.car[0], o.pie.ped[0]);
-    if (ahead < 10) want = Math.min(want, 3);
-    want = Math.min(want, obstacleCap(o));
-    let s = b * 1.6;
-    if (o.range[0] < 8) s += (o.range[1] > o.range[11] ? 0.5 : -0.5);
-    a.steer = c(s, -1, 1);
-    a.gas = o.car.spd < want ? 1 : 0;
-    a.brake = o.car.spd > want + 3 ? 0.6 : 0;
+    // route steering; hold lane centre on straights; swing round a car ahead toward open room
+    let steer = b * 1.6 + ca.push * 1.2;
+    if (o.road.on && Math.abs(b) < 0.25) steer -= o.road.off * 0.08;
+    const blk = Math.min(o.range[0], o.pie.car[0]);
+    if (blk < 14) steer += side * 0.6 * (1 - blk / 14);
+    // speed: bend, walls and cars ahead, cars alongside, pedestrians ahead
+    let bs = bendSpeed(g);
+    if (bs === 16) bs = o.rays[3] > 18 && o.range[0] > 28 ? 21 : 18;
+    else bs *= 1.1;
+    const sideCar = Math.min(o.pie.car[1], o.pie.car[7]);
+    const pedAhead = o.pie.ped[0] < 15 ? 3 + o.pie.ped[0] * 0.4 : 99;
+    const want = Math.min(bs, obstacleCap(o), sideCar < 6 ? 6 : 99, ca.front < 15 ? 8 : 99, pedAhead);
+    if (sp < want) a.gas = 0.8; else a.brake = sp > want + 3 ? 0.6 : 0;
+    if (ca.front < 6 || o.pie.car[0] < 5) { a.gas = 0; a.brake = sp > 1 ? 1 : 0; }
+    a.steer = c(steer, -1, 1);
     return a;
   }
-  if (goal && goal.kind === 'person' && goal.d < 3) { a.talk = true; return a; }
-  if (e && e.free && e.d < 4 && goal && (goal.kind === 'car' || (goal.d > 300 && e.free && o.me.wanted < 2))) { a.use = pulse; return a; }
-  if (!g && !goal) { a.move = 0.5; a.turn = 0.3; return a; }
-
-  let tb = (goal && goal.kind === 'car') ? goal.b : (goal && goal.d < 6 ? goal.b : b);
-  const r = o.rays;
-  if (r[3] < 4 || r[2] < 2 || r[4] < 2) {
-    const side = (r[4] + r[5]) - (r[2] + r[1]);
-    tb = c(tb * 0.3 + (side >= 0 ? 1 : -1) * 0.9, -1.5, 1.5);
+  if (talk) { a.talk = true; return a; }
+  if (o.me.ammo > 0) {
+    const f = nearestPie(o.pie.foe, 18);
+    if (f && (o.me.wanted < 3 || f.d < 8)) {
+      a.aim = true; a.turn = c(f.b * 2, -1, 1); a.fire = Math.abs(f.b) < 0.5; a.move = a.fire ? 0.3 : 0;
+      return a;
+    }
   }
-  a.turn = c(tb * 2.2, -1, 1);
-  a.move = Math.abs(tb) > 1.2 ? 0.1 : 1;
-  const pd = o.pie.ped[0], pd1 = Math.min(o.pie.ped[1], o.pie.ped[7]);
-  if (pd < 4 || pd1 < 1.5) a.strafe = o.pie.ped[1] < o.pie.ped[7] ? 0.8 : -0.8;
-  if (pd < 2.5) a.move = 0.3;
-  a.sprint = Math.abs(tb) < 0.5 && r[3] > 6 && pd > 5 && pd1 > 3 && o.range[0] > 6;
+  if (carWorthIt(o) || (e && e.goal && e.d < 3 && o.me.wanted < 3)) { a.use = pulse; return a; }
+  if (!g && !G) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
+  // walk the route, bending away from pedestrians within 4 m and from cops
+  let tb = G && G.d < 12 ? G.b : b;
+  for (let i = 0; i < 8; i++) if (o.pie.ped[i] < 4) tb -= (4 - o.pie.ped[i]) / 4 * Math.sin(sliceBearing(i)) * 0.7;
+  walkAt(a, c(tb + ca.push * 0.8, -1.5, 1.5));
+  a.sprint = Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8 && o.pie.ped[0] > 10;
+  if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = openSide(o); a.move = 0.3; a.sprint = false; }
+  if (o.pie.car[0] < 5) a.move = Math.min(a.move, 0.3);
+  if (o.pie.ped[0] < 2.5 || o.pie.ped[1] < 2 || o.pie.ped[7] < 2) {
+    a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
+    a.move = 0.3; a.sprint = false;
+  }
   return a;
 }
