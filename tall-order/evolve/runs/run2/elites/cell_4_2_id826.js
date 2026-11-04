@@ -1,12 +1,11 @@
-// score 0.578  trigger 0.49  pace 0.37  (3182 chars)
+// score 0.452  trigger 0.45  pace 0.34  (3118 chars)
 // Hybrid climber: B's pathing and low fire (boss, or hittable foes within 6 m), A's boss weave, threat item use, stuck escape.
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   const stuck = stuckTicks(o, m, 20);
   if (o.dead) return {};
-  if (o.carried) return { jump: true };
-  if (o.hang) return { jump: m.n % 2 === 0 };
+  if (o.carried || o.hang) return { jump: o.carried || m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, jump: m.n % 2 === 0 };
 
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
@@ -29,12 +28,11 @@ function step(o, m) {
     return { ...base, turn: steerTo(boss.b + weave, 2.5), move: mv, jump: slam && o.ground };
   }
 
-  const e = wrapA(Math.PI - o.yaw);
   if (o.climbing || g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
-    if (!o.climbing && g.kind === 'ladder-approach' && Math.abs(e) > 0.5 && g.d > 1) {
+    if (!o.climbing && g.kind === 'ladder-approach' && g.d > 1 && Math.abs(wrapA(Math.PI - o.yaw)) > 0.5) {
       return { ...base, turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, jump: false };
     }
-    return { ...base, turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, jump: false };
+    return { ...base, ...ladderSteer(o), jump: false };
   }
   if (g.kind === 'lift' && g.d < 1.2) return { ...base, turn: steerTo(g.b, 2), move: 0, jump: false };
 

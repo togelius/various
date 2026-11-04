@@ -1,4 +1,4 @@
-// score 0.799  trigger 0.59  pace 0.59  (3133 chars)
+// score 0.778  trigger 0.57  pace 0.60  (3133 chars)
 // B's sprint-and-spray base, plus A's always-fire and pickup use in the boss room, earlier healing, and ladder-approach steering
 function step(o, m) {
   const g = o.goal;

@@ -1,4 +1,4 @@
-// score 0.588  trigger 0.15  pace 0.34  (2538 chars)
+// score 0.510  trigger 0.16  pace 0.34  (2538 chars)
 // Low-fire, careful climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
 function step(o, m) {
   const g = o.goal;

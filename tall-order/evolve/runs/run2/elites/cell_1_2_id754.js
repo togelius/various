@@ -1,4 +1,4 @@
-// score 0.516  trigger 0.04  pace 0.32  (2395 chars)
+// score 0.467  trigger 0.04  pace 0.32  (2500 chars)
 // Low-fire, brisk climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
 function step(o, m) {
   const g = o.goal;
@@ -36,9 +36,11 @@ function step(o, m) {
   if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2), 0, slam);
 
   const ramp = /stairs|spring|crane/.test(g.kind);
-  if (stuck) {
-    if (/stairs|crane/.test(g.kind)) return out(steerTo(g.b, 2.5), Math.abs(g.b) < 1 ? 1 : 0.3, m.n % 6 < 3);
-    return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.8, true);
+  // stuck at a ramp foot or wall: back off, turning, for 12 ticks, then retry toward the goal
+  if (stuck && !(m.esc > 0)) { m.esc = 12; m.dir = -(m.dir || 1); m.c = -20; }
+  if (m.esc > 0) {
+    m.esc--;
+    return out(m.dir * 0.8, m.esc > 6 ? -0.7 : (o.drop.f < 1.5 ? 0 : 0.7), m.esc % 4 === 0);
   }
 
   const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;

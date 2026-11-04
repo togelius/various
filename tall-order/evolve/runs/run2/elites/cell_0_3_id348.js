@@ -1,4 +1,4 @@
-// score 0.477  trigger 0.02  pace 0.47  (1933 chars)
+// score 0.419  trigger 0.02  pace 0.47  (1933 chars)
 // Brisk runner: sprints for the goal, ignores toys, jumps telegraphed attacks; fires rarely, only at the boss
 function step(o, m) {
   const g = o.goal;
