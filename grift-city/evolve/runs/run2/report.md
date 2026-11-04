@@ -1,0 +1,39 @@
+# Report for run `run2`
+
+17 elites after 63 generations, 1659 episodes. Re-scored on 10 held-out starts and 10 fixed training-distribution starts, density 0.5.
+
+| controller | op | chars | last train batch | fixed train | held-out | held-out story / cash / survival | wheels | trouble/min | jobs started / passed (held-out) |
+|---|---|---|---|---|---|---|---|---|---|
+| g189 | mutate | 3209 | 0.70 | 0.78 | 1.05 | 0.86 / 0.45 / 0.69 | 0.96 | 0.78 | 10/10 / 3 |
+| g169 | mutate | 3319 | 0.96 | 0.86 | 1.00 | 0.81 / 0.41 / 0.85 | 0.84 | 0.84 | 10/10 / 2 |
+| g195 | mutate | 3608 | 1.03 | 0.97 | 0.99 | 0.86 / 0.24 / 0.72 | 0.85 | 2.12 | 9/10 / 3 |
+| g221 | repair | 3924 | 1.10 | 1.33 | 0.96 | 0.81 / 0.22 / 0.91 | 0.84 | 1.03 | 10/10 / 2 |
+| g156 | mutate | 3047 | 1.05 | 0.76 | 0.93 | 0.79 / 0.29 / 0.67 | 0.83 | 1.33 | 10/10 / 2 |
+| g95 | crossover | 2986 | 0.67 | 0.76 | 0.93 | 0.76 / 0.46 / 0.50 | 0.52 | 2.05 | 10/10 / 1 |
+| g214 | crossover | 3759 | 1.07 | 0.90 | 0.87 | 0.74 / 0.15 / 0.91 | 0.82 | 0.80 | 9/10 / 2 |
+| g150 | crossover | 3623 | 0.98 | 0.75 | 0.83 | 0.68 / 0.46 / 0.33 | 0.54 | 1.54 | 10/10 / 0 |
+| g200 | mutate | 3479 | 0.91 | 0.82 | 0.82 | 0.74 / 0.09 / 0.55 | 0.80 | 1.35 | 10/10 / 1 |
+| g232 | mutate | 3247 | 0.82 | 0.82 | 0.77 | 0.69 / 0.03 / 0.80 | 0.78 | 0.71 | 10/10 / 0 |
+| g57 | mutate | 3794 | 0.96 | 0.72 | 0.77 | 0.68 / 0.05 / 0.78 | 0.75 | 0.99 | 10/10 / 0 |
+| g134 | mutate | 2583 | 0.62 | 0.69 | 0.77 | 0.69 / 0.04 / 0.64 | 0.79 | 1.78 | 10/10 / 0 |
+| g51 | mutate | 3989 | 0.90 | 0.73 | 0.72 | 0.65 / 0.03 / 0.61 | 0.82 | 1.53 | 10/10 / 0 |
+| g136 | crossover | 3886 | 0.74 | 0.69 | 0.70 | 0.62 / 0.00 / 0.87 | 0.70 | 0.26 | 10/10 / 0 |
+| g217 | mutate | 3775 | 0.72 | 0.66 | 0.64 | 0.59 / 0.06 / 0.31 | 0.39 | 1.28 | 9/10 / 0 |
+| g212 | mutate | 3496 | 0.68 | 0.65 | 0.61 | 0.55 / 0.08 / 0.35 | 0.31 | 0.13 | 8/10 / 0 |
+| g180 | mutate | 1679 | 0.58 | 0.57 | 0.53 | 0.48 / 0.05 / 0.36 | 0.00 | 0.00 | 7/10 / 0 |
+| seed:walker | hand-written | 580 | - | 0.60 | 0.45 | 0.39 / 0.03 / 0.51 | 0.00 | 0.00 | 6/10 / 0 |
+| seed:driver | hand-written | 1994 | - | 0.36 | 0.35 | 0.27 / 0.01 / 0.85 | 0.85 | 0.24 | 0/10 / 0 |
+
+Held-out quality of the elite in each cell (rows: trouble, columns: wheels):
+
+```
+trouble        \ wheels   on foot     mostly foot mixed       mostly car  car         only car
+rampage                  .           .           .           .           .           .
+crime spree              .           .          0.93         .           .           .
+troublemaker             .          0.64        0.83        0.87        1.00         .
+scuffles                 .           .          0.70        0.96        0.93        1.05
+a slip                   .           .          0.77        0.99        0.77         .
+law-abiding             0.53        0.61         .          0.82        0.77        0.72
+```
+
+Best hand-written seed on held-out starts: 0.45; best evolved elite: 1.05.

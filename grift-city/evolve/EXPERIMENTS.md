@@ -31,3 +31,53 @@ Settings: 4 children per generation, a fresh batch of 5 training starts every 3 
 * **Not general across jobs**: the evolved controllers read keywords from `o.mission.text` (for example `/deliver|crate|pier/`), because the brief describes the three jobs. They generalise across starts, not to jobs the prompt never mentioned.
 
 Reading: the loop, the held-out protocol and the playstyle map work, and LLM-written code beats the hand-written baselines on unseen neighbourhoods by about 1.7x, with the size limit doing real work. The headroom is in finishing jobs, where the signal is sparse. Cost was dominated by simulation, not by the LLM.
+
+## E2: run2, 63 generations, new sensors, broader quality, longer episodes, helper library (2026-11-04)
+Changes since E1: pie-slice sensors (8 x 45 degrees for cars, people, cops, foes), 12 rangefinders, a lane sensor; quality =
+story + 0.25 x cash + 0.1 x survival, where story also credits every objective of a job by distance closed (README); episodes of
+240 s plus up to 45 s for distance (E1: about 2 minutes); a helper library distilled by the LLM every 4 generations. Quality
+numbers are therefore **not comparable with E1's**; E1's elites are re-scored under the new rules below.
+
+Settings: `--gens 300 --minutes 400 --children 4 --batch 5 --epoch 3 --models haiku:0.5,sonnet:0.5 --workers 4 --valEvery 8 --valN 6
+--libEvery 4 --density 0.5`. The time limit ended it after 63 generations: 400 minutes, 1659 episodes, about 250 `claude -p`
+calls for children plus 15 for the library. Then the held-out reports: 77 minutes (half density, all elites) and 33 minutes
+(full density, top four).
+
+* **Candidates**: 252 children; 228 evaluated to the end, 2 stopped by the cascade, 21 infeasible (20 over the size limit), 1
+  unparseable reply. 38 filled a new cell, 65 beat an incumbent. Elites are 1679-3989 characters.
+* **Operators**: repair 50% success (of 20), crossover 45% (60), mutation 43% (148, and 30 of the 38 new cells). **Models**:
+  haiku 47% (108), sonnet 42% (120), 18 new cells each, so the cheaper model is as useful per call. Hints, on 3-39 trials each:
+  `violence` (67%, mostly new cells up the trouble axis), `route`, `traffic` best; `survive`, `cops`, `tune` worst.
+* **Held-out re-score** (`report.md`: 10 held-out starts, 10 fixed training-distribution starts, half density):
+
+  | | held-out | fixed train | jobs passed (held-out) |
+  |---|---|---|---|
+  | best elite (g189, 3209 chars) | **1.05** | 0.78 | 3 of 10 |
+  | mean of the 17 elites | 0.82 | 0.79 | 16 of 170 in all |
+  | E1's best four, re-scored under these rules | RUN1BEST (best) / RUN1MEAN (mean) | | RUN1PASS |
+  | walker seed | 0.45 | 0.60 | 0 |
+  | driver seed | 0.35 | 0.36 | 0 |
+
+  8 of the 17 elites pass a job on at least one held-out start; 15 of 17 start the job in at least
+  9 of 10. The held-out mean is no lower than the fixed-train mean, so there is no sign of overfitting to the training
+  neighbourhoods. The ranking is noisy: g189 scored 0.70 on its last training batch and is the best on held-out starts; g221,
+  the best on training (1.10, 1.33 fixed), is 0.96 held-out.
+* **Full density** (`report-d1-top4.md`): 0.91, 0.88, 0.79, 0.72 for the top four against 0.41 and 0.35 for the seeds; 7 jobs
+  passed in 40 runs. A loss of about 0.1 against half density, still about twice the seeds.
+* **Sensors in use**: all 17 elites read the pie slices, 16 the rangefinders, 9 the lane sensor. Typical uses: a speed cap from
+  the nearest car or person ahead, a nudge away from cars in the front-left and front-right slices, a swerve to the more open
+  front rangefinder at a wall, cop avoidance from the cop slices.
+* **Library**: 13 helpers accepted at generations 4, 8, 16 and 24 (clamp, stuck, bendSpeed, walkAt, openSide, obstacleCap,
+  carWorthIt, parkOut, sliceBearing, nearestPie, copAvoid, driveTo, inTalkRange), 3428 of 3500 characters; every later proposal
+  (10) was rejected for size. All 17 final elites call it (openSide and obstacleCap 16 each, bendSpeed and parkOut 14).
+* **The map**: 17 of 36 cells (E1: 14), QD-score 14.5 at the end (training batch). Every cell above 1.0 drives most of the way.
+  The trouble axis now means what it says: in the elites' last batches the offences were assaults (100), shooting (96), hits
+  (85), kills (27) and a few car-jackings and cop kills; 12 of 17 elites have code that fires. Nothing is in the 'rampage' row,
+  and the pure walker (on foot, law-abiding) is the weakest cell.
+* **Cash**: some elites earn on the way. Two (g217 and g150, the troublemaker cells on foot-ish and mixed) start a handbrake drift on open
+  straights when no job timer is running and the police are far, which pays the game's drift bonus; g150 averaged $4000 a start on its last training batch.
+
+Reading: with the new sensors and the longer, more inclusive measure, evolved controllers now pass jobs from unseen
+neighbourhoods (none did in E1), at about 2.3x the best hand-written seed on held-out starts, with no train/held-out gap. The
+helper library was adopted by every elite but stopped growing at its cap after 24 generations, so it needs pruning or a larger
+cap. Finishing jobs reliably is still the headroom (about one held-out run in ten passes).

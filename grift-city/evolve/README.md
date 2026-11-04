@@ -123,11 +123,14 @@ playstyle to aim for.
 
 ## Results so far
 
-`EXPERIMENTS.md` has the numbers. In short, run1 (30 generations, haiku + sonnet, about two hours): on held-out neighbourhoods the
-best evolved controller scores 0.59 against 0.33 for the best hand-written seed (the 14 elites average 0.50 against 0.30 for the
-two seeds), holds up at the shipped traffic density, and fills 14 of the 36 playstyle cells. No controller passes a job yet; they
-reliably get from any start to the marker and into the first leg of the job. `runs/run1/` has the archive, every elite, the log
-and the held-out report; `best.js` there is the best on training, `report.md` names the best on held-out starts.
+`EXPERIMENTS.md` has the numbers. **run2** (63 generations, haiku + sonnet, the sensors, quality and library above, about seven
+hours): on held-out neighbourhoods the best evolved controller scores 1.05 against 0.45 for the best hand-written seed (the 17
+elites average 0.82 against 0.40 for the two seeds), with no gap between training-distribution and held-out scores. 8 elites
+pass a job from unseen starts (16 of 170 held-out runs), which no run1 controller did. At the shipped traffic density the top
+four score 0.72-0.91 against 0.41. 17 of 36 playstyle cells are filled, and the trouble axis now spans controllers that shoot
+and fight. The library filled its cap by generation 24 and every elite calls it. `runs/run2/` has the archive, every elite,
+`lib.js`, the log, `analysis.md` and the held-out reports; `runs/run1/` the first run (held-out 0.59 against 0.33 under the old
+measure, no job passed).
 
 ## Files
 
@@ -136,7 +139,7 @@ and the held-out report; `best.js` there is the best on training, `report.md` na
 | `world.js` | a fresh headless world per episode (about a second), the gameplay half of `game.js` `step()` replayed in order; `test/evolve.js` fails if `step()` grows a gameplay call that is not replayed |
 | `bridge.js` | runs inside that world: observation, buttons, progress, playstyle, start set-up |
 | `sandbox.js` | the size cap, static bans, controller vm, time limit |
-| `scenarios.js` | start sampler, held-out blocks, time budgets (about 2 game minutes per start) |
+| `scenarios.js` | start sampler, held-out blocks, time budgets (240 s plus up to 45 s for distance per start) |
 | `episode.js` | one controller on one start -> points, playstyle, account of what happened |
 | `archive.js` | the MAP-Elites grid |
 | `prompts.js` | the game brief and contract, mutation / crossover / repair prompts, hints, diff parser |
@@ -149,6 +152,6 @@ and the held-out report; `best.js` there is the best on training, `report.md` na
 
 * Evolution runs at **half traffic and pedestrian density** (cars and people are most of the cost of a step); `report.js --density 1` re-checks at full density.
 * The sim steps at 30 Hz and a controller decides at 10 Hz; the shipped game steps at 60 Hz on a good device.
-* The jobs that follow the first objective are only reachable in part: a start gives about two game minutes, enough to start a job and often to follow it for a while, rarely to pass it.
+* The jobs that follow the first objective are only reachable in part: a start gives four to five game minutes, enough to start a job and follow it, and sometimes (about one held-out run in ten in run2) to pass it.
 * Only the first three story jobs are used as starts. Later jobs need weapons, money and story state the sampler does not set up.
 * Quality is a mean over 5 starts and the game is noisy; the per-epoch batch, the same-batch contests and the held-out report are the defences, not a guarantee.
