@@ -1,4 +1,4 @@
-// g41 quality 0.589 wheels 0.39 (mixed), trouble 0.28 per min (a slip) (3168 chars; mutate)
+// g41 quality 0.681 wheels 0.38 (mixed), trouble 0.24 per min (a slip) (3168 chars; mutate)
 // walker with police avoidance: follows the route on foot and bends its bearing away from cops (weight 2),
 // hostile people (1) and pedestrians (0.5) using their pie slices. Sprints when fleeing or clear, never
 // stops to talk near police. Climbs in only for a car goal; drives the route with the same steering if in a car.
