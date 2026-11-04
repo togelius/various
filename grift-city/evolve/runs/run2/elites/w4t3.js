@@ -1,4 +1,4 @@
-// g47 quality 0.779 wheels 0.84 (car), trouble 1.62 per min (troublemaker) (3926 chars; repair)
+// g47 quality 0.610 wheels 0.80 (car), trouble 1.62 per min (troublemaker) (3926 chars; repair)
 // driver + walker: walks the route, climbs into a free car for a car goal or a long walk, drives with bend- and
 // obstacle-aware speed, steers away from police, bails out of a burning car, reverses when stuck.
 function think(o, m) {

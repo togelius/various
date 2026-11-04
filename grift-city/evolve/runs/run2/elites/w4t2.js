@@ -1,4 +1,4 @@
-// g37 quality 0.888 wheels 0.79 (car), trouble 0.84 per min (scuffles) (3109 chars; mutate)
+// g37 quality 0.795 wheels 0.79 (car), trouble 0.94 per min (scuffles) (3109 chars; mutate)
 // walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};
