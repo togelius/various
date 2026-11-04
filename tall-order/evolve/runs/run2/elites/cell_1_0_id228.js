@@ -1,4 +1,4 @@
-// score 0.342  trigger 0.15  pace 0.16  (2414 chars)
+// score 0.226  trigger 0.08  pace 0.08  (2607 chars)
 // special states first: carried/hang: jump; kitty on head: jump and shake;
 // ladder: face west and push in; lift: stand still; otherwise creep (0.2) toward the goal,
 // firing rarely, jumping over telegraphed attacks and crane-step gaps
@@ -14,12 +14,14 @@ function step(o, m) {
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
   // hold fire almost never: only at a close, hittable foe, every sixth tick; always at the boss
   const close = o.foes.some(f => f.awake && f.d < 3);
-  const fire = !!o.aim.hit && (!!boss || (close && m.n % 30 === 0));
+  const fire = !!o.aim.hit && (!!boss || (close && m.n % 6 === 0));
 
   if (boss) {
     const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');
-    const mv = boss.d > 8 ? 0.2 : boss.d < 5 ? -0.2 : 0;
-    return { turn: clampU(boss.b * 3), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: wave || threat };
+    const mv = boss.d > 9 ? 0.25 : boss.d < 6 ? -0.3 : (boss.band ? 0.05 : -0.2);
+    const swirl = boss.d < 9 && boss.d > 6 ? 0.2 : 0;
+    const brick = o.shots.some(s => !s.shootable && s.d < 3 && Math.abs(s.b) < 0.6);
+    return { turn: clampU(boss.b * 3 + swirl), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: (wave || threat || brick) && o.ground };
   }
 
   // ladder: the lattice is only climbable facing west from the east; push in once aligned
@@ -42,6 +44,6 @@ function step(o, m) {
   const tb = heal ? heal.b : g.b;
   // spring: walk onto the pad and let it throw you; crane-step: hop across gaps
   const hop = threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);
-  const walk = edge ? 0 : Math.abs(tb) < 1.2 ? 0.35 : 0.15;
+  const walk = edge ? 0 : Math.abs(tb) < 1.2 ? 0.2 : 0.05;
   return { turn: steerTo(tb, 2), move: walk, fire, jump: hop };
 }

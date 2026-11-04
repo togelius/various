@@ -20,3 +20,17 @@ function stuckTicks(o, m, maxT) {
   m.py = o.y;
   return m.c > (maxT || 25);
 }
+
+// turn/move that face west and push into a ladder
+function ladderSteer(o) {
+  const e = wrapA(Math.PI - o.yaw);
+  return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0 };
+}
+// foe in a wind-up state within d m, or a dangerous shot: jump now
+function telegraphed(o, d) {
+  return o.foes.some(f => f.d < d && /slam|wind|crouch|rev|dive|shock|stomp/.test(f.st || '')) || shotDanger(o, 3, 0.6);
+}
+// true if stepping forward would fall off a ledge (ramps are exempt)
+function ledgeAhead(o, g) {
+  return o.drop.f < 1.5 && !/stairs|spring|crane|lift|ladder/.test(g.kind);
+}

@@ -1,28 +1,26 @@
-// score 0.018  trigger 0.03  pace 0.10  (1552 chars)
+// score 0.209  trigger 0.50  pace 0.15  (1586 chars)
 // special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily
 function wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
 function clamp(v) { return Math.max(-1, Math.min(1, v)); }
 function step(o, m) {
   m.n = (m.n || 0) + 1;
-  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
+  if (o.carried) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
-  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };
+  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
   const g = o.goal;
   const near = o.foes.find(f => f.awake && f.d < 10);
-  const threat = o.foes.some(f => f.st === 'windup' && f.d < 6 && f.band);
-  const fire = !!o.aim.hit && (threat || m.n % 6 === 0);
+  const fire = !!o.aim.hit || (!!near && m.n % 2 === 0);
   const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);
-  const dodge = slam || shotDanger(o, 3, 0.3);
-  const stuck = stuckTicks(o, m, 30);
   if (g.kind === 'ladder' || g.kind === 'ladder-approach') {
     const e = wrap(Math.PI - o.yaw);
     const ok = Math.abs(e) < 0.5;
+    // far from the approach and not facing west: walk toward the approach point first
+    if (g.kind === 'ladder-approach' && g.d > 1.5 && !ok) return { turn: steerTo(g.b, 2), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: slam };
     return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };
   }
+  // lift: stand still once on it; spring: charge the pad at a firm pace
   if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };
   const edge = o.drop.f < 1.5 && g.kind !== 'spring';
-  const back = near && near.d < 3 ? -0.6 : 0;
-  if (stuck) return { turn: Math.sin(m.n * 0.7), move: edge ? 0 : 0.5, fire, jump: true };
-  const move = back || (Math.abs(g.b) < 0.5 && !edge ? 0.12 : 0);
-  return { turn: clamp(g.b * 2), move, fire, jump: dodge };
+  const move = Math.abs(g.b) < 1 && !edge ? (g.kind === 'spring' ? 0.8 : 0.35) : 0;
+  return { turn: clamp(g.b * 2), move, fire, jump: slam };
 }

@@ -21,29 +21,67 @@ function stuckTicks(o, m, maxT) {
   m.py = o.y;
   return m.c > (maxT || 25);
 }
+
+// turn/move that face west and push into a ladder
+function ladderSteer(o) {
+  const e = wrapA(Math.PI - o.yaw);
+  return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0 };
+}
+// foe in a wind-up state within d m, or a dangerous shot: jump now
+function telegraphed(o, d) {
+  return o.foes.some(f => f.d < d && /slam|wind|crouch|rev|dive|shock|stomp/.test(f.st || '')) || shotDanger(o, 3, 0.6);
+}
+// true if stepping forward would fall off a ledge (ramps are exempt)
+function ledgeAhead(o, g) {
+  return o.drop.f < 1.5 && !/stairs|spring|crane|lift|ladder/.test(g.kind);
+}
 // ---- controller ----
-// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily
-function wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
-function clamp(v) { return Math.max(-1, Math.min(1, v)); }
+// Low-fire, careful climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
 function step(o, m) {
+  const g = o.goal;
   m.n = (m.n || 0) + 1;
   if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
   if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
-  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };
-  const g = o.goal;
-  const near = o.foes.find(f => f.awake && f.d < 10);
-  const fire = !!o.aim.hit && m.n % 2 === 0;
-  const stuck = stuckTicks(o, m, 25);
-  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);
-  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
-    const e = wrap(Math.PI - o.yaw);
-    const ok = Math.abs(e) < 0.5;
-    return { turn: clamp(e * 3), move: ok ? 1 : 0, fire, jump: slam };
+  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
+
+  const stuck = stuckTicks(o, m, 15);
+  const boss = o.foes.find(f => f.k === 'boss' && f.awake);
+  const fire = !!boss && !!o.aim.hit && boss.d < 14;
+  const slam = o.foes.some(f => /slam|windup|rev|dive|crouch/.test(f.st || '') && f.d < 5.5) || shotDanger(o, 3.5, 0.5);
+  const out = (turn, move, jump, use) => ({
+    turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,
+  });
+
+  if (boss && boss.d < 14 && o.floor === 5 && g.kind !== 'crane-step' && g.kind !== 'flag') {
+    const ang = Math.atan2(boss.dy, boss.d);
+    const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;
+    if (useNow) m.u = m.n;
+    let move = boss.d > 9 ? 0.6 : boss.d < 6 ? -0.5 : 0.1;
+    if (!boss.band && Math.abs(ang) > 0.15 && boss.d < 12) move = -0.6;
+    if (move > 0 && o.drop.f < 2) move = 0;
+    const weave = Math.floor(o.t / 3) % 2 ? 0.15 : -0.15;
+    return out(steerTo(boss.b + weave, 2.5), move, slam, useNow);
   }
-  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };
-  const edge = o.drop.f < 1.5 && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && g.kind !== 'crane-step';
-  if (stuck && g.kind !== 'lift') return { turn: Math.sin(m.n * 0.7), move: edge ? 0 : 0.8, fire, jump: true };
-  const move = Math.abs(g.b) < 1 && !edge ? 1 : 0;
+
+  const e = wrapA(Math.PI - o.yaw);
+  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
+    if (g.kind === 'ladder-approach' && Math.abs(e) > 0.5 && g.d > 1) {
+      return out(steerTo(g.b, 2.5), Math.abs(g.b) < 1 ? 0.5 : 0, slam);
+    }
+    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, slam);
+  }
+  if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2), 0, slam);
+
+  const ramp = /stairs|spring|crane/.test(g.kind);
+  if (stuck) {
+    if (/stairs|crane/.test(g.kind)) return out(steerTo(g.b, 2.5), Math.abs(g.b) < 1 ? 1 : 0.3, m.n % 6 < 3);
+    return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.8, true);
+  }
+
+  const heal = o.hp < 65 ? o.items.find(i => i.k === 'juice' && i.d < 9) : null;
+  const tb = heal ? heal.b : g.b;
+  const edge = !ramp && o.drop.f < 1.5;
+  const move = edge || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.6 : 0.4;
   const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;
-  return { turn: clamp(g.b * 2), move, fire, jump: slam || hop };
+  return out(steerTo(tb, 2.5), move, hop || slam);
 }
