@@ -1,72 +1,88 @@
-// g130 quality 0.583 wheels 0.49 (mixed), trouble 1.01 per min (scuffles) (3363 chars; mutate)
+// g137 quality 0.721 wheels 0.40 (mixed), trouble 1.25 per min (scuffles) (3722 chars; crossover)
+// merged: A's route, talk, cop steering and stuck escape; B's lane keeping, hard stop near cops and
+// a rush boost on short timers; on foot it also steps away from nearby traffic.
 function think(o, m) {
-  const a = {}, c = clamp;
+  const a = {};
   if (o.ui.retry) { a.retry = true; return a; }
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
   m.n = (m.n || 0) + 1;
+  m.esc = m.esc || 0;
   const pulse = m.n % 4 === 0;
-  const car = o.me.mode === 'car';
-  const G = o.goal, g = o.gps, e = o.enter;
-  const b = g ? g.b : G ? G.b : 0;
-  const ca = copAvoid(o);
-  const side = o.range[1] + o.range[2] >= o.range[10] + o.range[11] ? 1 : -1;
-  const talk = !car && inTalkRange(o) && ca.front > 12;
-  const idle = talk || (car && !!G && G.d < 12) || (!car && !!e && !!e.goal && e.d < 4);
-  if (stuck(o, m, 15, idle)) { m.esc = 12; m.dir = m.n % 2 ? 1 : -1; }
+  const g = o.gps, goal = o.goal, e = o.enter;
+  const b = g ? g.b : goal ? goal.b : 0;
+  const cop = nearestPie(o.pie.cop, 14);
+  const idle = (goal && goal.d < 3) || (e && e.d < 4) || inTalkRange(o);
+
+  // stuck: back off or sidestep for a moment
+  if (stuck(o, m, 15, idle) && m.esc <= 0) { m.esc = 14; m.dir = Math.random() < 0.5 ? -1 : 1; }
   if (m.esc > 0) {
     m.esc--;
-    if (car) { a.brake = 1; a.steer = c(-b * 1.6, -1, 1); }
-    else { a.move = m.esc > 6 ? -0.6 : 0.6; a.turn = m.dir; }
+    if (o.me.mode === 'car') { a.brake = 1; a.steer = m.dir; }
+    else { a.move = m.esc > 7 ? -1 : 1; a.turn = m.dir; a.strafe = m.dir; }
     return a;
   }
-  if (car) {
-    const sp = Math.abs(o.car.spd);
+
+  if (o.me.mode === 'car') {
+    const sa = Math.abs(o.car.spd);
     if (o.car.burning || o.car.hp < 0.15) return parkOut(a, o, pulse);
-    if (G && ((G.kind !== 'car' && G.d < 10 + sp * sp / 16) || (G.kind === 'car' && !G.mine && G.d < 9))) {
-      a.steer = c(G.b * 1.6, -1, 1);
-      a.brake = sp > 1.5 ? 1 : 0;
-      if (sp <= 1.5 && G.d < 25) a.use = pulse;
+    // at a place goal: stop, then step out
+    if (goal && goal.kind !== 'car' && goal.d < 8 + sa * sa / 16) {
+      a.steer = clamp(goal.b * 1.6, -1, 1);
+      a.brake = sa > 1.5 ? 1 : 0;
+      if (sa <= 1.5) a.use = pulse;
       return a;
     }
-    // route steering; hold lane centre on straights; swing round a car ahead toward open room
-    let steer = b * 1.6 + ca.push * 1.2;
-    if (o.road.on && Math.abs(b) < 0.25) steer -= o.road.off * 0.08;
-    const blk = Math.min(o.range[0], o.pie.car[0]);
-    if (blk < 14) steer += side * 0.6 * (1 - blk / 14);
-    // speed: bend, walls and cars ahead, cars alongside, pedestrians ahead
-    let bs = bendSpeed(g);
-    if (bs === 16) bs = o.rays[3] > 18 && o.range[0] > 28 ? 21 : 18;
-    else bs *= 1.1;
-    const sideCar = Math.min(o.pie.car[1], o.pie.car[7]);
-    const pedAhead = o.pie.ped[0] < 15 ? 3 + o.pie.ped[0] * 0.4 : 99;
-    const want = Math.min(bs, obstacleCap(o), sideCar < 6 ? 6 : 99, ca.front < 15 ? 8 : 99, pedAhead);
-    if (sp < want) a.gas = 0.8; else a.brake = sp > want + 3 ? 0.6 : 0;
-    if (ca.front < 6 || o.pie.car[0] < 5) { a.gas = 0; a.brake = sp > 1 ? 1 : 0; }
-    a.steer = c(steer, -1, 1);
+    if (!g && !goal) { a.gas = 0.3; return a; }
+
+    // steering: route, cop repulsion, gentle lane keeping, wall nudge
+    const ca = copAvoid(o);
+    const lane = o.road.on ? clamp(-o.road.off * 0.1, -0.25, 0.25) : 0;
+    a.steer = clamp(b * 1.6 + ca.push * 1.2 + lane, -1, 1);
+    if (o.range[0] < 8) a.steer = clamp(a.steer + (o.range[1] > o.range[11] ? 0.5 : -0.5), -1, 1);
+
+    // speed: bends, rain, police, obstacles; a short mission timer adds speed on gentle bends
+    const bend = bendSpeed(g);
+    const rush = o.mission.timer > 0 && o.mission.timer < 150 && bend > 5;
+    let want = rush ? bend + 4 : bend;
+    if (o.rain > 0.5) want = Math.min(want, 12);
+    if (o.me.wanted > 0 && ca.front < 25) want = Math.max(want, 18);
+    want = Math.min(want, obstacleCap(o));
+    if (ca.front < 15) want = Math.min(want, 8);
+    if (ca.front < 6) { a.gas = 0; a.brake = sa > 1 ? 1 : 0; return a; }
+    if (sa < want) a.gas = 0.8;
+    else a.brake = sa > want + 3 ? 0.6 : 0;
     return a;
   }
-  if (talk) { a.talk = true; return a; }
-  if (o.me.ammo > 0) {
-    const f = nearestPie(o.pie.foe, 18);
-    if (f && (o.me.wanted < 3 || f.d < 8)) {
-      a.aim = true; a.turn = c(f.b * 2, -1, 1); a.fire = Math.abs(f.b) < 0.5; a.move = a.fire ? 0.3 : 0;
-      return a;
-    }
+
+  // on foot
+  if (inTalkRange(o) && !(cop && cop.d < 10)) { a.talk = true; return a; }
+  if (e && e.d < 4 && carWorthIt(o)) { a.use = pulse; return a; }
+
+  // shoot only at hostiles close by, and only while wanted level is low
+  if (o.me.ammo > 0 && o.me.wanted < 2) {
+    const t = nearestPie(o.pie.foe, 8);
+    if (t) { a.aim = true; a.turn = clamp(t.b * 2, -1, 1); a.fire = Math.abs(t.b) < 0.5; return a; }
   }
-  if (carWorthIt(o) || (e && e.goal && e.d < 3 && o.me.wanted < 3)) { a.use = pulse; return a; }
-  if (!g && !G) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
-  // walk the route, bending away from pedestrians within 4 m and from cops
-  let tb = G && G.d < 12 ? G.b : b;
-  for (let i = 0; i < 8; i++) if (o.pie.ped[i] < 4) tb -= (4 - o.pie.ped[i]) / 4 * Math.sin(sliceBearing(i)) * 0.7;
-  walkAt(a, c(tb + ca.push * 0.8, -1.5, 1.5));
-  a.sprint = Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8 && o.pie.ped[0] > 10;
+  if (!g && !goal) { a.move = 0.5; a.turn = 0.3; return a; }
+
+  // route, bent away from police
+  let tb = goal && goal.d < 12 && !cop ? goal.b : g ? g.b : goal.b;
+  if (cop) {
+    const k = (14 - cop.d) / 14 * 1.5;
+    tb = Math.atan2(Math.sin(tb) - k * Math.sin(cop.b), Math.cos(tb) - k * Math.cos(cop.b));
+  }
+  walkAt(a, tb);
+
+  // people and traffic close: sidestep away from the nearer side
+  const pd = o.pie.ped[0];
+  if (pd < 2.5) a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
+  const cd = Math.min(o.pie.car[0], o.pie.car[1], o.pie.car[7]);
+  if (cd < 4) { a.move = 0.2; a.strafe = o.pie.car[1] < o.pie.car[7] ? -1 : 1; }
+
+  a.sprint = !cop && Math.abs(tb) < 0.5 && o.rays[3] > 6 && o.range[0] > 6 && pd > 5 && cd > 8;
+  // walls or props close ahead: turn to the open side
   if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = openSide(o); a.move = 0.3; a.sprint = false; }
-  if (o.pie.car[0] < 5) a.move = Math.min(a.move, 0.3);
-  if (o.pie.ped[0] < 2.5 || o.pie.ped[1] < 2 || o.pie.ped[7] < 2) {
-    a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
-    a.move = 0.3; a.sprint = false;
-  }
   return a;
 }

@@ -1,4 +1,4 @@
-// g118 quality 0.843 wheels 0.26 (mixed), trouble 1.99 per min (troublemaker) (3756 chars; mutate)
+// g150 quality 0.984 wheels 0.40 (mixed), trouble 3.23 per min (troublemaker) (3623 chars; crossover)
 function think(o, m) {
   const a = {}, c = clamp;
   if (o.ui.retry) { a.retry = true; return a; }
@@ -27,10 +27,9 @@ function think(o, m) {
     if (sa < 0.4) m.cs += 0.1; else m.cs = 0;
     if (m.cs > 1.5) { m.rv = 1.5; m.cs = 0; }
     if (m.rv > 0) { m.rv -= 0.1; a.brake = 1; a.steer = c(-b * 1.6, -1, 1); return a; }
-    // drift: short handbrake flick on a clear bend at speed (style cash); never during a timed job
     if (m.dr > 0) { m.dr -= 0.1; a.hand = m.dr > 0.6; a.gas = 0.9; a.steer = c(m.ds * 1.4, -1, 1); return a; }
     m.dc = (m.dc || 0) - 0.1;
-    if (sa > 14 && m.dc <= 0 && !(o.mission.timer > 0) && Math.abs(b) > 0.2 && Math.abs(b) < 0.7 && o.range[0] > 25 && (!cop || cop.d > 20)) { m.dr = 1; m.ds = b > 0 ? 1 : -1; m.dc = 6; }
+    if (sa > 14 && m.dc <= 0 && !(o.mission.timer > 0) && o.me.wanted === 0 && Math.abs(b) > 0.2 && Math.abs(b) < 0.7 && o.range[0] > 25 && (!cop || cop.d > 20)) { m.dr = 1; m.ds = b > 0 ? 1 : -1; m.dc = 6; }
     const ca = copAvoid(o);
     a.steer = c(b * 1.6 + ca.push * 0.6, -1, 1);
     let bs = bendSpeed(g);
@@ -39,7 +38,6 @@ function think(o, m) {
     return driveTo(a, sa, Math.min(bs, obstacleCap(o)));
   }
 
-  // on foot
   if (m.bk > 0) { m.bk -= 0.1; a.move = -0.6; a.turn = m.side; return a; }
   if (o.t - m.t0 >= 4) {
     if (Math.hypot(o.me.x - m.px, o.me.z - m.pz) < 1 && o.t - m.ft > 1) { m.bk = 1.5; m.side = open; }
@@ -49,12 +47,12 @@ function think(o, m) {
   if (!copClose) {
     if (goal && goal.d < 2.5 && goal.kind === 'person') { a.talk = true; m.ft = o.t; return a; }
     if (goal && goal.kind === 'car' && !goal.free && goal.d < 4 && !(e && e.goal && e.d < 3)) { a.talk = true; m.ft = o.t; return a; }
-    // con a stranger directly ahead (cheap cash) when not wanted and no job marker is close; 4 s hold, 15 s cooldown
     if (!m.ck && o.pie.ped[0] < 2 && o.me.wanted === 0 && !(goal && goal.d < 15) && o.t > (m.cn || 0)) { m.ck = o.t + 4; m.cn = o.t + 15; }
     if (m.ck && o.t < m.ck) { a.talk = true; m.ft = o.t; return a; }
     m.ck = 0;
   }
-  if (o.me.ammo > 0 && !cop) {
+  const fight = o.me.hp > 30 && o.me.wanted < 3;
+  if (o.me.ammo > 0 && !cop && fight) {
     const t = nearestPie(o.pie.foe, 25);
     if (t) { a.aim = true; a.turn = c(t.b * 2, -1, 1); a.fire = Math.abs(t.b) < 0.5; m.ft = o.t; return a; }
   }
@@ -66,7 +64,7 @@ function think(o, m) {
     tb = Math.atan2(Math.sin(tb) - k * Math.sin(cop.b), Math.cos(tb) - k * Math.cos(cop.b));
   }
   walkAt(a, tb);
-  a.sprint = !!cop || (Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8);
+  a.sprint = !!cop || o.me.wanted > 1 || (Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8);
   if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = open; a.move = 0.3; a.sprint = false; }
   return a;
 }
