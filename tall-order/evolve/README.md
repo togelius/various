@@ -126,7 +126,7 @@ of wall time on 4 cores. The container restarted at generation 129 and the run w
   the best held-out value seen at any check was 0.92). Four more elites win on 24 or more of the 36. The mean over all elites is lower, because
   slow and standing cells hold weak controllers: 0.25 of unseen starts won on average.
 - Archive-mean held-out progress rose from 0.277 (run1) to about 0.45 before the restart, then **plateaued around 0.45 to 0.51**
-  for the last two hours (seven checks: 0.48, 0.47, 0.46, 0.51, 0.49, 0.45, 0.49, 0.51, 0.51, 0.50). Longer running improved the top of the map but not the
+  for the last two hours (ten checks: 0.48, 0.47, 0.46, 0.51, 0.49, 0.45, 0.49, 0.51, 0.51, 0.50). Longer running improved the top of the map but not the
   mean; what the later hours bought was mostly filling and polishing cells.
 - Train and held-out stay close (0.514 vs 0.496 at the end; the gap changes sign between checks), so no sign of overfitting to start positions.
   This is one seed and 36 held-out starts.
