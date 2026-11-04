@@ -1,16 +1,15 @@
-// score 0.467  trigger 0.04  pace 0.32  (2500 chars)
+// score 0.547  trigger 0.03  pace 0.36  (2314 chars)
 // Low-fire, brisk climber: fires only at the boss, jumps over telegraphed attacks, handles hang/rider/carried/ladder/lift.
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
-  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
-  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
+  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: o.carried || m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
 
   const stuck = stuckTicks(o, m, 20);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
   const fire = !!boss && !!o.aim.hit && boss.d < 14 && m.n % 6 === 0;
-  const slam = o.foes.some(f => /slam|windup|rev|dive|crouch/.test(f.st || '') && f.d < 4.5) || shotDanger(o, 3, 0.5);
+  const slam = telegraphed(o, 4.5);
   const out = (turn, move, jump, use) => ({
     turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,
   });
@@ -35,7 +34,6 @@ function step(o, m) {
   }
   if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2), 0, slam);
 
-  const ramp = /stairs|spring|crane/.test(g.kind);
   // stuck at a ramp foot or wall: back off, turning, for 12 ticks, then retry toward the goal
   if (stuck && !(m.esc > 0)) { m.esc = 12; m.dir = -(m.dir || 1); m.c = -20; }
   if (m.esc > 0) {
@@ -45,7 +43,7 @@ function step(o, m) {
 
   const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;
   const tb = heal ? heal.b : g.b;
-  const edge = !ramp && o.drop.f < 1.5;
+  const edge = ledgeAhead(o, g);
   const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;
   const move = edge || Math.abs(tb) >= 1.4 ? 0 : Math.abs(tb) < 0.9 ? 0.64 : 0.4;
   return out(steerTo(tb, 2.5), move, hop || slam);

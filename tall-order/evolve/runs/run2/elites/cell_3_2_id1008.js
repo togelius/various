@@ -1,4 +1,4 @@
-// score 0.537  trigger 0.18  pace 0.19  (2135 chars)
+// score 0.696  trigger 0.18  pace 0.39  (2179 chars)
 // Slow, mostly non-firing climber: special states first; ladder: face west and push in; lift: stand still; creep toward goal at ~1/3 pace; fire only at boss
 function step(o, m) {
   const g = o.goal;
@@ -11,7 +11,7 @@ function step(o, m) {
 
   const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => !s.shootable && s.d < 3);
   const boss = o.foes.find(f => f.k === 'boss' && f.awake);
-  const fire = !!o.aim.hit && !!boss && boss.band;
+  const fire = !!o.aim.hit && m.n % 4 < 3 && (!!boss ? !!boss.band : o.foes.some(f => f.awake && f.d < 6));
 
   if (boss) {
     const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');
@@ -39,9 +39,9 @@ function step(o, m) {
 
   const ramp = /stairs|spring|crane/.test(g.kind);
   const edge = o.drop.f < 1.5 && !ramp;
-  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 7) : undefined;
+  const heal = o.hp < 80 ? juiceNear(o, 9) : null;
   const tb = heal ? heal.b : g.b;
-  const hop = threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);
-  const walk = g.kind === 'spring' && g.d < 2 ? 1 : edge ? 0 : Math.abs(tb) < 1.2 ? 0.5 : 0.25;
-  return { turn: steerTo(tb, 2), move: walk, fire: false, jump: hop };
+  const hop = telegraphed(o, 4) || threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);
+  const walk = g.kind === 'spring' && g.d < 2 ? 1 : edge ? 0 : Math.abs(tb) < 1.2 ? 0.9 : 0.6;
+  return { turn: steerTo(tb, 2.5), move: walk, fire: false, jump: hop };
 }

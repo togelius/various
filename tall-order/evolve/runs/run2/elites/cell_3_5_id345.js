@@ -1,4 +1,4 @@
-// score 0.440  trigger 0.19  pace 0.70  (2038 chars)
+// score 0.492  trigger 0.19  pace 0.71  (2038 chars)
 // runner: sprint at the goal, ignore most toys, fire in short bursts (steady at the boss), jump anything winding up; ladders: face west and push in; hanging/carried: jump out
 function step(o, m) {
   const g = o.goal;

@@ -1,16 +1,22 @@
-// score 0.760  trigger 0.16  pace 0.62  (2041 chars)
+// score 0.323  trigger 0.03  pace 0.74  (2358 chars)
 // slow, heavy-fire climber; boss: hold range, keep facing, jump telegraphs, use pickups
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   const near = o.foes.some(f => f.awake && f.d < 12);
-  const fire = !!o.aim.hit && m.n % 4 === 0;
-  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };
-  if (o.hang) return { turn: 0, move: 0, fire: false, jump: true };
+  const fire = !!o.aim.hit && (near ? m.n % 4 === 0 : m.n % 50 === 0);
+  if (o.carried) return { turn: 0, move: 0, fire, jump: true };
+  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
-  if (o.climbing || g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
+  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 3.5)) {
     const e = wrapA(Math.PI - o.yaw);
-    const walk = !o.climbing && g.kind === 'ladder-approach' && g.d > 1 && Math.abs(e) > 0.5;
+    const walk = g.kind === 'ladder-approach' && g.d > 1.5 && Math.abs(e) > 0.5;
+    // stalled at the approach: back off, wiggle and hop for ~1.2 s, then retry
+    if (g.kind === 'ladder-approach' && stuckTicks(o, m, 20)) { m.lad = 12; m.c = -30; }
+    if (m.lad > 0) {
+      m.lad--;
+      return { turn: clampU(Math.sin(m.n) * 0.8), move: -0.6, fire, jump: m.lad % 3 === 0 && o.ground };
+    }
     if (walk) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 1 : 0, fire, jump: false };
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
   }
@@ -24,7 +30,7 @@ function step(o, m) {
     return {
       turn: clampU(bw.b * 3 + swirl),
       move: Math.abs(bw.b) > 1.2 && mv > 0 ? 0 : mv,
-      fire: !!o.aim.hit && m.n % 3 !== 0,
+      fire: !!o.aim.hit && m.n % 4 === 0,
       jump: (atk || shotDanger(o, 3, 0.6)) && o.ground,
       use, sel: use ? sel : undefined
     };

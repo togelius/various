@@ -1,5 +1,4 @@
-// score 0.778  trigger 0.57  pace 0.60  (3133 chars)
-// B's sprint-and-spray base, plus A's always-fire and pickup use in the boss room, earlier healing, and ladder-approach steering
+// score 0.894  trigger 0.58  pace 0.60  (2838 chars)
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
@@ -10,14 +9,10 @@ function step(o, m) {
   if (o.carried || o.hang) return { turn: 0, move: 0, fire, jump: true };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   const e = wrapA(Math.PI - o.yaw);
-  if (o.climbing || g.kind === 'ladder') {
-    return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
-  }
+  if (o.climbing || g.kind === 'ladder') return { ...ladderSteer(o), fire, jump: false };
   if (g.kind === 'ladder-approach' && g.d < 2.5) {
-    if (g.d > 1 && Math.abs(e) > 0.5) {
-      return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
-    }
-    return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };
+    if (g.d > 1 && Math.abs(e) > 0.5) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
+    return { ...ladderSteer(o), fire, jump: false };
   }
 
   if (bw && o.floor === 5 && g.kind !== 'crane-step' && g.kind !== 'flag') {
@@ -37,14 +32,18 @@ function step(o, m) {
     };
   }
 
-  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 9) : undefined;
+  const heal = o.hp < 70 ? juiceNear(o, 9) : null;
   const loot = !near && o.items.find(i => i.d < 6 && Math.abs(i.b) < 1.5);
   const tb = heal ? heal.b : loot ? loot.b : g.b;
   const edge = ledgeAhead(o, g);
 
-  if (g.kind === 'lift' && g.d < 1) return { turn: 0, move: 0, fire, jump: telegraphed(o, 4) };
+  // lift: creep onto the pad, then stand still
+  if (g.kind === 'lift' && g.d < 1.2) {
+    const c = g.d > 0.4;
+    return { turn: c ? steerTo(g.b, 2) : 0, move: c ? 0.3 : 0, fire, jump: telegraphed(o, 4) && o.ground };
+  }
 
-  // stuck: back off and wiggle for 15 ticks (direction flips each escape), then retry
+  // stuck: back off and wiggle, flipping direction each escape
   const stuck = stuckTicks(o, m, 25) && (g.kind !== 'lift' || g.d > 2);
   if (stuck && !(m.esc > 0)) { m.esc = 15; m.dir = -(m.dir || 1); m.c = -30; }
   if (m.esc > 0) {
@@ -57,9 +56,8 @@ function step(o, m) {
     };
   }
 
-  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 4) || o.foes.some(f => f.st === 'slam' && f.d < 5);
+  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5);
   const fast = Math.abs(tb) < 1.2 || (g.kind === 'spring' && g.d < 2);
-  // use a pickup on a golem/car/boss close ahead, or when three or more foes crowd the front
   const big = o.foes.find(f => f.awake && f.d < 6 && Math.abs(f.b) < 0.4 && /golem|car|boss/.test(f.k));
   const crowd = o.foes.filter(f => f.awake && f.d < 7 && Math.abs(f.b) < 0.6).length > 2;
   const useItem = o.inv.length > 0 && (big || crowd) && m.n - (m.u || -99) > 20;

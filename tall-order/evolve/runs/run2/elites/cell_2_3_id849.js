@@ -1,4 +1,4 @@
-// score 0.803  trigger 0.17  pace 0.53  (2649 chars)
+// score 0.845  trigger 0.15  pace 0.54  (2649 chars)
 
 
 // Rare steady shots (more on the boss), one shared pickup rule, sprint-first movement.
