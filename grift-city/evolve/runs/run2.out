@@ -316,3 +316,4 @@ g56c0 crossover/crossover (haiku): infeasible: too long: 4288 characters (limit 
 g56c1 mutate/violence (sonnet) q=0.693 wheels 0.68 (mostly car), trouble 2.17 per min (troublemaker) cell(3,3) WORSE vs 0.758 [3879c]
 g56c2 mutate/library→car/rampage (sonnet) q=0.760 wheels 0.75 (mostly car), trouble 5.18 per min (crime spree) cell(3,4) WORSE vs 0.764 [3848c]
 g56c3 mutate/cops (haiku) q=0.712 wheels 0.56 (mostly car), trouble 2.23 per min (troublemaker) cell(3,3) WORSE vs 0.758 [3258c]
+library: rejected (library would be 4496 characters (limit 3500))
