@@ -1,4 +1,4 @@
-// g156 quality 0.975 wheels 0.81 (car), trouble 1.00 per min (scuffles) (3047 chars; mutate)
+// g156 quality 1.053 wheels 0.85 (car), trouble 1.46 per min (scuffles) (3047 chars; mutate)
 // walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};

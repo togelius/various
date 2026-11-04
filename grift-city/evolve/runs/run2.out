@@ -290,3 +290,29 @@ g51c0 crossover/crossover (sonnet) q=0.662 wheels 0.69 (mostly car), trouble 0.7
 g51c2 mutate/cops→mostly car/a slip (haiku) q=0.505 wheels 0.70 (mostly car), trouble 0.59 per min (a slip) cell(3,1) WORSE vs 0.672 [3421c]
 generation 51, epoch 16: 17/36 cells, QD-score 12.794, best 0.984 | 323 min, 1324 episodes, 0 killed
 -- epoch 17: a fresh batch of 5 starts
+g52c2 mutate/violence→only car/crime spree (sonnet) q=0.698 wheels 0.96 (only car), trouble 0.78 per min (scuffles) cell(5,2) NEW [3209c]
+g52c0 mutate/cops→only car/a slip (haiku) q=0.720 wheels 0.88 (car), trouble 0.86 per min (scuffles) cell(4,2) WORSE vs 1.053 [3900c]
+g52c3 mutate/cops→only car/a slip (haiku) q=0.703 wheels 0.92 (car), trouble 1.35 per min (scuffles) cell(4,2) WORSE vs 1.053 [3849c]
+g52c1 mutate/simplify→only car/scuffles (haiku) q=0.389 wheels 0.59 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) WORSE vs 0.742 [2354c]
+library: rejected (library would be 4761 characters (limit 3500))
+generation 52, epoch 17: 17/36 cells, QD-score 12.974, best 1.053 | 331 min, 1359 episodes, 0 killed
+g53c0 repair/repair (haiku) q=0.957 wheels 0.70 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) NEW [3818c]
+g53c1 mutate/library→only car/a slip (sonnet) q=0.762 wheels 0.78 (car), trouble 0.05 per min (law-abiding) cell(4,0) WORSE vs 0.957 [3360c]
+g53c3 mutate/car (haiku) q=1.131 wheels 0.72 (mostly car), trouble 0.27 per min (a slip) cell(3,1) BETTER vs 0.719 [3608c]
+g53c2 mutate/cash (haiku) q=0.740 wheels 0.74 (mostly car), trouble 0.63 per min (scuffles) cell(3,2) WORSE vs 1.057 [3658c]
+generation 53, epoch 17: 17/36 cells, QD-score 13.605, best 1.131 | 339 min, 1394 episodes, 0 killed
+g54c3 mutate/stuck (sonnet) q=0.709 wheels 0.86 (car), trouble 0.14 per min (a slip) cell(4,1) WORSE vs 0.742 [3484c]
+g54c2 mutate/cash (sonnet) q=0.962 wheels 0.70 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) BETTER vs 0.957 [3774c]
+g54c0 crossover/simplify (sonnet) q=0.927 wheels 0.66 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) WORSE vs 0.962 [2463c]
+g54c1 mutate/library (haiku) q=0.975 wheels 0.69 (mostly car), trouble 0.09 per min (law-abiding) cell(3,0) BETTER vs 0.962 [3479c]
+generation 54, epoch 17: 17/36 cells, QD-score 13.624, best 1.131 | 344 min, 1414 episodes, 0 killed
+-- epoch 18: a fresh batch of 5 starts
+g55c1 mutate/violence (sonnet) q=0.764 wheels 0.72 (mostly car), trouble 5.08 per min (crime spree) cell(3,4) NEW [3977c]
+g55c2 mutate/job→mostly car/scuffles (sonnet) q=0.758 wheels 0.60 (mostly car), trouble 3.21 per min (troublemaker) cell(3,3) BETTER vs 0.662 [3735c]
+g55c0 mutate/peaceful→mostly car/rampage (haiku) q=0.570 wheels 0.42 (mixed), trouble 0.37 per min (a slip) cell(2,1) BETTER vs 0.557 [3494c]
+g55c3 crossover/crossover (haiku) q=0.749 wheels 0.60 (mostly car), trouble 2.97 per min (troublemaker) cell(3,3) WORSE vs 0.662 [3589c]
+generation 55, epoch 18: 18/36 cells, QD-score 14.346, best 1.131 | 351 min, 1449 episodes, 0 killed
+g56c0 crossover/crossover (haiku): infeasible: too long: 4288 characters (limit 4000)
+g56c1 mutate/violence (sonnet) q=0.693 wheels 0.68 (mostly car), trouble 2.17 per min (troublemaker) cell(3,3) WORSE vs 0.758 [3879c]
+g56c2 mutate/library→car/rampage (sonnet) q=0.760 wheels 0.75 (mostly car), trouble 5.18 per min (crime spree) cell(3,4) WORSE vs 0.764 [3848c]
+g56c3 mutate/cops (haiku) q=0.712 wheels 0.56 (mostly car), trouble 2.23 per min (troublemaker) cell(3,3) WORSE vs 0.758 [3258c]

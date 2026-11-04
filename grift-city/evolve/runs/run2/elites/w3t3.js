@@ -1,4 +1,4 @@
-// g179 quality 0.689 wheels 0.71 (mostly car), trouble 1.54 per min (troublemaker) (3508 chars; repair)
+// g201 quality 0.758 wheels 0.60 (mostly car), trouble 3.21 per min (troublemaker) (3735 chars; mutate)
 function repel(arr, r) {
   let p = 0;
   for (let i = 0; i < 8; i++) if (arr[i] < r) p -= (r - arr[i]) / r * Math.sin(i * Math.PI / 4);
@@ -39,7 +39,7 @@ function think(o, m) {
     }
     const ca = copAvoid(o);
     if (!g && !goal) { a.steer = c(ca.push * 0.8, -1, 1); return driveTo(a, sa, Math.min(8, obstacleCap(o))); }
-    const lane = o.road.on ? c(-o.road.off * 0.1, -0.2, 0.2) : 0;
+    const lane = c(-o.road.off * 0.15, -0.25, 0.25);
     let bs = bendSpeed(g);
     if (bs === 16 && o.rays[3] > 18 && o.range[0] > 28) bs = 20;
     if (o.me.wanted > 0 && ca.front < 25) bs = Math.max(bs, 18);
@@ -59,9 +59,10 @@ function think(o, m) {
     return a;
   }
   m.tk = 0;
-  if (carWorthIt(o)) { a.use = pulse; return a; }
-  if (!g && !goal) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
-  let tb = goal && (goal.d < 12 || (goal.kind === 'car' && goal.d < 40)) ? goal.b : b;
+  if (carWorthIt(o) || (!!e && !e.free && !e.goal && e.d < 3.5 && o.me.wanted < 2 && !copClose && (!goal || (goal.kind !== 'car' && goal.d > 40)))) { a.use = pulse; return a; }
+  const cw = !!e && e.free && o.me.wanted < 3 && e.d < 60 && (e.goal || !goal || goal.d > 40);
+  if (!g && !goal && !cw) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
+  let tb = cw ? e.b : goal && (goal.d < 12 || (goal.kind === 'car' && goal.d < 40)) ? goal.b : b;
   if (cop) {
     const k = (14 - cop.d) / 14 * 1.5;
     tb = Math.atan2(Math.sin(tb) - k * Math.sin(cop.b), Math.cos(tb) - k * Math.cos(cop.b));

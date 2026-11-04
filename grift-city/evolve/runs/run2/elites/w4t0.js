@@ -1,4 +1,4 @@
-// g57 quality 0.952 wheels 0.81 (car), trouble 0.09 per min (law-abiding) (3794 chars; mutate)
+// g57 quality 0.957 wheels 0.75 (car), trouble 0.04 per min (law-abiding) (3794 chars; mutate)
 function think(o, m) {
   const a = {}, c = clamp;
   if (o.ui.retry) { a.retry = true; return a; }
