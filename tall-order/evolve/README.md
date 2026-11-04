@@ -116,4 +116,25 @@ hand-written seeds (training scores 0.06 to 0.28; none of the seeds survives in 
 - Mutation instructions that worked most often: `boss` 9/10, `simplify` 7/9, `novel` 4/5; `survive` 0/2, `fight` 1/4.
 - Repair of infeasible candidates produced a map entry 14 times out of 21.
 
-Not tested: a second seed, a run without the per-epoch resampling (to measure what it buys), or longer runs.
+## Longer run (`runs/run2`)
+
+Continued from run1's archive: 6 children per generation, 1251 log entries, 1034 evaluated controllers in total, about 3.5 hours
+of wall time on 4 cores. The container restarted at generation 129 and the run was resumed from `archive.json`
+(`--resume`), so the log has a seam there. The second part ran 112 minutes.
+
+- The map has 29 elites (of 36 cells). The best elite reaches the flag on 27 of 36 unseen starts (held-out progress 0.86;
+  the best held-out value seen at any check was 0.92). Four more elites win on 24 or more of the 36. The mean over all elites is lower, because
+  slow and standing cells hold weak controllers: 0.25 of unseen starts won on average.
+- Archive-mean held-out progress rose from 0.277 (run1) to about 0.45 before the restart, then **plateaued around 0.45 to 0.51**
+  for the last two hours (seven checks: 0.48, 0.47, 0.46, 0.51, 0.49, 0.45, 0.49, 0.51, 0.51, 0.50). Longer running improved the top of the map but not the
+  mean; what the later hours bought was mostly filling and polishing cells.
+- Train and held-out stay close (0.514 vs 0.496 at the end; the gap changes sign between checks), so no sign of overfitting to start positions.
+  This is one seed and 36 held-out starts.
+- Helper library: 10 functions, 1771 of 1800 characters, so it is full. Elites are at most 3449 characters.
+- Operators (accepted / tried, where accepted means a map entry): diff mutation 208/549, full rewrite 55/196, crossover 59/315, repair 58/200.
+  Diffs were the most productive per try. Crossover was the least.
+- Mutation instructions (accepted / tried): `tune` 54/120, `simplify` 45/97, `special` 42/104, `survive` 35/76, `stuck` 30/86, `boss` 29/84,
+  `memory` 26/71, `novel` 24/79, `items` 23/80, `fight` 14/61. The differences are mostly small, and the counts include repeat entries.
+
+Still untested: a second seed, a run without per-epoch resampling (to measure what it buys), and whether the plateau is the
+3500 character cap, the full helper library, or the LLM's mutations.
