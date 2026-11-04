@@ -1,72 +1,67 @@
-// g85 quality 0.742 wheels 0.77 (car), trouble 0.47 per min (a slip) (3451 chars; mutate)
-// driver + walker: walks the route, climbs into a free car for a car goal or a long walk, drives with bend- and
-// obstacle-aware speed, steers away from police, bails out of a burning car, reverses when stuck.
+// g232 quality 0.823 wheels 0.76 (car), trouble 0.18 per min (a slip) (3247 chars; mutate)
+// driver/walker: follow the route at bend/traffic-limited speeds, stop and exit at the goal,
+// bail from burning or wrecked cars, unstick by reversing, talk on foot, fire only at close foes.
 function think(o, m) {
-  const a = {}, c = clamp;
+  const a = {};
   if (o.ui.retry) { a.retry = true; return a; }
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
+  m.n = (m.n || 0) + 1;
+  const pulse = m.n % 4 === 0;
+  const car = o.me.mode === 'car', sa = car ? Math.abs(o.car.spd) : 0;
   const g = o.gps, goal = o.goal, e = o.enter;
-  const open = openSide(o);
-  if (m.t0 === undefined) { m.t0 = o.t; m.px = o.me.x; m.pz = o.me.z; m.bk = 0; m.cs = 0; m.rv = 0; m.n = 0; }
-  m.n++;
-  const pulse = m.n % 4 === 0; // use is an edge: pulse every 0.4 s
-
-  if (o.me.mode === 'car') {
-    m.t0 = o.t; m.px = o.me.x; m.pz = o.me.z; m.bk = 0;
-    const sp = o.car.spd, sa = Math.abs(sp);
-    // burning or wrecked: stop, then step out
-    if (o.car.burning || o.car.hp < 0.15) return parkOut(a, o, pulse);
-    // close to a place marker: brake to a stop, then step out
-    if (goal && goal.kind !== 'car' && goal.d < 10 + sa * sa / 16) {
-      a.steer = c(goal.b * 1.6, -1, 1);
-      a.brake = sa > 1.5 ? 1 : 0;
-      if (sa <= 1.5 && goal.d < 25) a.use = pulse;
-      return a;
-    }
-    // stuck (stopped while wanting to move): reverse for 1.5 s
-    if (sa < 0.4) m.cs += 0.1; else m.cs = 0;
-    if (m.cs > 1.5) { m.rv = 1.5; m.cs = 0; }
-    const b = g ? g.b : goal ? goal.b : 0;
-    if (m.rv > 0) { m.rv -= 0.1; a.brake = 1; a.steer = c(-b * 1.6, -1, 1); return a; }
-    // police within 25 m push the steering away from their side; a cop close ahead slows us
-    const ca = copAvoid(o), push = ca.push, cf = ca.front;
-    const lane = o.road.on ? c(-o.road.off * 0.1, -0.25, 0.25) : 0;
-    a.steer = c(b * 1.6 + push * 1.2 + lane, -1, 1);
-    const want = Math.min(bendSpeed(g), obstacleCap(o), cf < 15 ? 8 : 99);
-    if (sa < want) a.gas = 0.8;
-    else a.brake = sa > want + 3 ? 0.6 : 0;
-    if (cf < 6) { a.gas = 0; a.brake = sa > 1 ? 1 : 0; }
+  const b = g ? g.b : goal ? goal.b : 0;
+  const cop = nearestPie(o.pie.cop, 14);
+  const idle = car ? (!!goal && goal.kind !== 'car' && goal.d < 14) : (inTalkRange(o) || !!(e && e.d < 4));
+  if (stuck(o, m, 18, idle)) { m.esc = 26; m.dir = car ? (b >= 0 ? 1 : -1) : openSide(o); }
+  if (m.esc > 0) {
+    m.esc--;
+    if (car) {
+      if (m.esc > 10) { a.brake = 1; a.steer = -m.dir; } else { a.gas = 0.7; a.steer = m.dir; }
+    } else if (m.esc > 14) { a.move = -1; a.strafe = m.dir; }
+    else { a.move = 1; a.turn = m.dir; a.strafe = m.dir * 0.5; }
     return a;
   }
-
+  if (car) {
+    // burning or wrecked: get out (and do not re-enter this car for a while)
+    if (o.car.burning || o.car.hp < 0.15) { m.bail = o.t; return parkOut(a, o, pulse); }
+    // stop at the place, or beside an occupied car goal, then step out
+    const park = goal && (goal.kind !== 'car' ? goal.d < 10 + sa * sa / 16 : (!goal.free && goal.d < 9));
+    if (park) {
+      a.steer = clamp(goal.b * 1.6, -1, 1);
+      a.brake = sa > 1.5 ? 1 : 0;
+      if (sa <= 1.5) a.use = pulse;
+      return a;
+    }
+    if (!g && !goal) { a.gas = 0.3; return a; }
+    const ca = copAvoid(o);
+    const sidestep = (o.pie.car[7] < 5 ? 0.4 : 0) - (o.pie.car[1] < 5 ? 0.4 : 0);
+    const lane = o.road.on ? clamp(-o.road.off * 0.1, -0.2, 0.2) : 0;
+    a.steer = clamp(b * 1.6 + ca.push * 0.6 + sidestep + lane, -1, 1);
+    const want = Math.min(bendSpeed(g), obstacleCap(o));
+    driveTo(a, sa, want);
+    // something close ahead, or a person right in front: stop
+    if ((o.pie.car[0] < 6 || o.pie.ped[0] < 5) && sa > 2) { a.gas = 0; a.brake = 1; }
+    return a;
+  }
   // on foot
-  if (m.bk > 0) { m.bk -= 0.1; a.move = -0.6; a.turn = m.side; return a; }
-  // stall breaker: under 1 m of progress in 4 s -> back off and turn for 1.5 s
-  if (o.t - m.t0 >= 4) {
-    if (Math.hypot(o.me.x - m.px, o.me.z - m.pz) < 1) { m.bk = 1.5; m.side = open; }
-    m.t0 = o.t; m.px = o.me.x; m.pz = o.me.z;
+  if (inTalkRange(o) && !(cop && cop.d < 10)) { a.talk = true; return a; }
+  if (carWorthIt(o) && o.t - (m.bail || -99) > 30) { a.use = pulse; return a; }
+  if (o.me.ammo > 0 && !cop && o.me.wanted < 2) {
+    const t = nearestPie(o.pie.foe, 6);
+    if (t) { a.aim = true; a.turn = clamp(t.b * 2, -1, 1); a.fire = Math.abs(t.b) < 0.5; return a; }
   }
-  // debtor in front: hold talk
-  if (goal && goal.kind === 'person' && goal.d < 2.5) {
-    a.talk = true; m.t0 = o.t; m.px = o.me.x; m.pz = o.me.z; return a;
+  let tb = goal && goal.d < 12 && !cop ? goal.b : g ? g.b : goal ? goal.b : null;
+  if (tb === null) { a.move = o.rays[3] > 4 ? 0.8 : 0.2; a.turn = o.rays[3] > 4 ? 0 : openSide(o); return a; }
+  if (cop) {
+    const k = (14 - cop.d) / 14 * 1.5;
+    tb = Math.atan2(Math.sin(tb) - k * Math.sin(cop.b), Math.cos(tb) - k * Math.cos(cop.b));
   }
-
-  // climb into a free car next to us for a car goal or a long walk (never carjack)
-  if (e && e.free && e.d < 3 && ((goal && goal.kind === 'car') || (g && g.d > 120))) {
-    a.use = o.t % 0.5 < 0.1; return a;
-  }
-  // straight at the marker when close, otherwise along the route
-  const tb = goal && goal.d < 12 ? goal.b : g ? g.b : goal ? goal.b : null;
-  if (tb === null) { a.move = 0.6; a.turn = Math.sin(o.t * 0.7) * 0.8; return a; }
   walkAt(a, tb);
-  a.sprint = Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8 && o.pie.ped[0] > 10;
-  // walls, props and vehicles close ahead: turn to the open side
-  if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = open; a.move = 0.3; a.sprint = false; }
-  // people close: sidestep away from the nearer side
-  if (o.pie.ped[0] < 2.5 || o.pie.ped[1] < 2 || o.pie.ped[7] < 2) {
-    a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8; a.move = 0.3; a.sprint = false;
-  }
+  const pd = o.pie.ped[0];
+  if (pd < 2) a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
+  a.sprint = !!cop ? pd > 3 : (Math.abs(tb) < 0.5 && o.rays[3] > 8 && o.range[0] > 8 && pd > 5);
+  if (o.rays[3] < 2.5 || o.range[0] < 3) { a.turn = openSide(o); a.move = 0.3; a.sprint = false; }
   return a;
 }

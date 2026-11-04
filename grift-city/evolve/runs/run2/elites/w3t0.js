@@ -1,4 +1,4 @@
-// g200 quality 0.975 wheels 0.69 (mostly car), trouble 0.09 per min (law-abiding) (3479 chars; mutate)
+// g200 quality 0.915 wheels 0.59 (mostly car), trouble 0.09 per min (law-abiding) (3479 chars; mutate)
 // Driver and walker: drive to markers, take goal cars, shoot hostiles, climb free cars for long walks.
 function think(o, m) {
   const a = {};

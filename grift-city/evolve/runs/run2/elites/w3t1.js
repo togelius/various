@@ -1,4 +1,4 @@
-// g195 quality 1.131 wheels 0.72 (mostly car), trouble 0.27 per min (a slip) (3608 chars; mutate)
+// g195 quality 1.027 wheels 0.68 (mostly car), trouble 0.14 per min (a slip) (3608 chars; mutate)
 function repel(arr, r) {
   let p = 0;
   for (let i = 0; i < 8; i++) if (arr[i] < r) p -= (r - arr[i]) / r * Math.sin(i * Math.PI / 4);

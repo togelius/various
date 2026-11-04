@@ -342,3 +342,28 @@ g60c0 repair/repair (haiku) q=1.063 wheels 0.60 (mostly car), trouble 1.39 per m
 library: rejected (library would be 4400 characters (limit 3500))
 generation 60, epoch 19: 19/36 cells, QD-score 15.872, best 1.131 | 382 min, 1569 episodes, 0 killed
 -- epoch 20: a fresh batch of 5 starts
+g61c0 mutate/survive (sonnet) q=0.737 wheels 0.67 (mostly car), trouble 0.47 per min (a slip) cell(3,1) WORSE vs 1.027 [3294c]
+g61c2 mutate/stuck (sonnet) q=0.590 wheels 0.35 (mixed), trouble 0.00 per min (law-abiding) cell(2,0) WORSE vs 0.622 [3123c]
+g61c3 mutate/cash (haiku) q=0.939 wheels 0.51 (mostly car), trouble 0.13 per min (a slip) cell(3,1) WORSE vs 1.027 [3536c]
+g61c1 crossover/simplify (haiku) q=0.738 wheels 0.66 (mostly car), trouble 0.30 per min (a slip) cell(3,1) WORSE vs 1.027 [2974c]
+generation 61, epoch 20: 18/36 cells, QD-score 15.235, best 1.099 | 390 min, 1609 episodes, 0 killed
+g62c1 mutate/stuck (sonnet) q=0.605 wheels 0.38 (mixed), trouble 0.27 per min (a slip) cell(2,1) WORSE vs 0.622 [3418c]
+g62c0 mutate/cops (sonnet) q=0.757 wheels 0.51 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) WORSE vs 0.915 [3623c]
+g62c2 mutate/car (haiku) q=0.738 wheels 0.71 (mostly car), trouble 0.09 per min (law-abiding) cell(3,0) WORSE vs 0.915 [3704c]
+g62c3 repair/repair (haiku) q=0.580 wheels 0.63 (mostly car), trouble 4.11 per min (crime spree) cell(3,4) WORSE vs 0.832 [3306c]
+generation 62, epoch 20: 17/36 cells, QD-score 14.410, best 1.099 | 397 min, 1644 episodes, 0 killed
+g63c0 mutate/traffic: a SEARCH block was not found in the parent
+g63c2 mutate/violence (sonnet): infeasible: too long: 4053 characters (limit 4000)
+g63c1 mutate/tune (haiku) q=0.609 wheels 0.68 (mostly car), trouble 0.27 per min (a slip) cell(3,1) WORSE vs 1.027 [3403c]
+g63c3 mutate/library (haiku) q=0.823 wheels 0.76 (car), trouble 0.18 per min (a slip) cell(4,1) BETTER vs 0.590 [3247c]
+generation 63, epoch 20: 17/36 cells, QD-score 14.492, best 1.099 | 401 min, 1659 episodes, 0 killed
+
+generation 63, epoch 20: 17/36 cells, QD-score 14.492, best 1.099
+quality of the elite in each cell (rows: trouble, columns: wheels)
+trouble        \ wheels   on foot     mostly foot mixed       mostly car  car         only car
+rampage                  .           .           .           .           .           .
+crime spree              .           .          0.67         .           .           .
+troublemaker             .          0.72        0.98        1.07        0.96         .
+scuffles                 .           .          0.74        1.10        1.05        0.70
+a slip                   .           .          0.62        1.03        0.82         .
+law-abiding             0.58        0.68         .          0.91        0.96        0.90
