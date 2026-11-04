@@ -30,9 +30,18 @@ function think(o, m) {            // called 10 times a second; m is memory that 
 ```
 
 It sees a plain-data observation (`prompts.js`, `brief()` is the full spec the LLM reads): its own state, the objective marker
-(`goal`), a GPS route to it along sidewalks or roads (`gps`: bearings to the next three waypoints), seven wall rays, the six
-nearest cars and people (bearing, distance, speed, kind), the car it could enter, the dialogue/retry/choice state and the job's
-own objective text. It answers with `move/strafe/turn/sprint` on foot, `steer/gas/brake/hand` in a car, and `use/skip/choose/talk/
+(`goal`), a GPS route to it along sidewalks or roads (`gps`: bearings to the next three waypoints), the six nearest cars and
+people (bearing, distance, speed, kind), the car it could enter, the dialogue/retry/choice state and the job's own objective
+text, and three kinds of sensor:
+
+* **rangefinders** (`range`): 12 beams every 30 degrees all round, the clear distance up to 30 m, stopped by walls, props
+  *and vehicles*; plus the original 7 forward wall rays (`rays`);
+* **pie-slice sensors** (`pie`): 8 slices of 45 degrees round the player, and for each of cars, people, cops and foes the
+  distance to the nearest one in each slice (the representation used in our FPS-bot work);
+* a **lane sensor** (`road`): on the carriageway or not, offset from the centre of the nearest lane going your way, that
+  lane's direction.
+
+About 2.3 ms per observation, ten times a game second. It answers with `move/strafe/turn/sprint` on foot, `steer/gas/brake/hand` in a car, and `use/skip/choose/talk/
 fire/aim/weapon...` either way: the same inputs as the touch controls. The observation is built inside the game's vm context
 (`bridge.js`), crosses into the controller's own vm context as JSON, and the action comes back as JSON, so a controller never
 holds a game object.
@@ -43,12 +52,31 @@ that breaks a rule is not thrown away: it goes to an *infeasible pool*, and a fr
 (the prompt states the violation), which are then evaluated like any other child.
 This keeps honest LLM output from hanging a worker; **it is not a security sandbox**, so do not run controllers you do not trust.
 
-## Quality is progress, and nothing else
+## Quality: progress, made more inclusive
 
-Per start: **points** = up to 3 for closing the distance to the first objective marker (best fraction of the distance closed),
-2 for starting the job there, 1 for each further objective reached (up to 5), 5 for passing the job, 5 more for each further
-job passed. **Quality = points / 10**, averaged over the starts of a batch. Nothing rewards speed beyond progress, style, or
-violence. One life: death or arrest ends the start.
+**Quality = story + 0.25 cash + 0.1 survival**, averaged over the starts of a batch (`episode.js`, `facets`):
+
+* **story** (points / 10, the bulk of it): up to 3 points for closing the distance to the first marker, 2 for starting the job
+  there, then for *every* further objective up to 1 point for the fraction of the distance to it closed (1 when reached; up
+  to 8 objectives), 5 for passing the job and 5 more for each further job. Continuous credit inside a job means the long
+  legs of a job (drive the van 800 m to Pier 9) are no longer a desert between two milestones.
+* **cash**: money made by any means during the run (job pay, cons, style chains for drifts and near misses, stunts, hidden
+  packages) / $2000, capped at 1.5. Other ways of getting on in the game count, a little.
+* **survival**: 0 if dead or arrested at the end, else 0.5 + 0.5 x health. One life: death or arrest ends the start.
+
+Nothing rewards violence for its own sake. Episodes last about **4 game minutes** (240 s plus up to 45 s for a long way to go),
+ended early when the player has not moved for a minute.
+
+## The helper library
+
+Following Continual Abstraction Discovery (Siper, Khalifa, Togelius: "Procedural Content Metageneration via Program Search
+and Continual Abstraction Discovery", arXiv 2608.17947; the idea, not their code), every 4 generations the LLM is shown the
+best elites from different cells and asked for 1-4 small reusable helper functions. An addition is **append-only** and is kept
+only if it is plain function declarations with new names, passes the same bans, keeps the library under 3500 characters and
+still compiles and runs with *every* elite and seed, so no elite ever changes behaviour because the library grew. The library
+runs in the controller's context before the controller and **does not count toward a controller's size limit**; prompts
+show it, and a `library` hint asks the LLM to refactor a parent onto it. `runs/<name>/lib.js` is the library; `log.jsonl`
+records which helpers each child calls.
 
 ## Starts vary, and some neighbourhoods are never trained on
 
@@ -60,7 +88,7 @@ ever begins there. So the held-out check is a spatial generalisation test, not j
 
 * The training batch of 5 starts is **redrawn every 3 generations**. A child and the elite it fights are compared on the
   **same** batch; an incumbent whose score is from an older batch is re-run on the current one before they fight.
-* Every 5 generations the best three elites are scored on 6 held-out starts and the gap is logged (never used for selection).
+* Every 8 generations the best three elites are scored on 6 held-out starts and the gap is logged (never used for selection).
 * `report.js` re-scores every elite and the hand-written seeds on held-out and fixed training starts.
 
 ## The map
@@ -90,8 +118,8 @@ playstyle to aim for.
   market feedback, and the group's related ELMER paper describes the protocol of fitting on training data, selecting on
   validation data and touching the test data once. What I took is that spirit: selection never sees the held-out set, the
   prompts carry measured feedback from play, and generalisation is reported separately. If ProFiT has specific mechanisms worth
-  porting, tell me and I will add them. (Tall Order's README credits a "helper library" idea to *Profit*; that is the
-  Continual Abstraction Discovery paper, a different one. It is not implemented here.)
+  porting, tell me and I will add them. (Tall Order's README credits its helper library to *Profit*; that idea is from the Continual Abstraction Discovery
+  paper, a different one, which is what the helper library here follows.)
 
 ## Results so far
 

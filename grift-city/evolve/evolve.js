@@ -86,7 +86,7 @@ class Run {
   }
   pickInspirations(parent, n = 2) { const others = this.archive.elites().filter(g => g !== parent); for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(this.rng() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; } return others.slice(0, n); }
   pickHint() {
-    const hs = P.HINTS, w = hs.map(h => { const b = this.bandit[h.id]; return (b.wins + 1) / (b.tries + 3); }), tot = w.reduce((s, v) => s + v, 0); let r = this.rng() * tot;
+    const hs = P.HINTS.filter(h => h.id !== 'library' || this.libText), w = hs.map(h => { const b = this.bandit[h.id] || (this.bandit[h.id] = { tries: 0, wins: 0 }); return (b.wins + 1) / (b.tries + 3); }), tot = w.reduce((s, v) => s + v, 0); let r = this.rng() * tot;
     for (let i = 0; i < hs.length; i++) if ((r -= w[i]) < 0) return hs[i]; return hs[0];
   }
   plan() {

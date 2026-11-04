@@ -1,0 +1,86 @@
+seed seeds/walker.js: q=0.460 wheels 0.00 (on foot), trouble 0.00 per min (law-abiding) cell(0,0) new
+seed seeds/driver.js: q=0.334 wheels 0.72 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) new
+g1c0 mutate/library (sonnet) q=0.550 wheels 0.74 (mostly car), trouble 0.82 per min (scuffles) cell(3,2) NEW [2024c]
+g1c3 mutate/route→car/a slip (haiku) q=0.387 wheels 0.58 (mostly car), trouble 0.37 per min (a slip) cell(3,1) NEW [2367c]
+g1c1 mutate/route→mixed/a slip (haiku) q=0.194 wheels 0.65 (mostly car), trouble 0.15 per min (a slip) cell(3,1) WORSE vs 0.387 [3551c]
+g1c2 crossover/simplify (haiku) q=0.797 wheels 0.75 (mostly car), trouble 1.00 per min (scuffles) cell(3,2) BETTER vs 0.550 [2586c]
+generation 1, epoch 0: 4/36 cells, QD-score 1.977, best 0.797 | 6 min, 30 episodes, 0 killed
+g2c2 mutate/violence (sonnet) q=0.700 wheels 0.87 (car), trouble 1.02 per min (scuffles) cell(4,2) NEW [3059c]
+g2c1 mutate/arrive (haiku) q=0.570 wheels 0.32 (mixed), trouble 0.24 per min (a slip) cell(2,1) NEW [1430c]
+g2c3 crossover/crossover (haiku) q=0.379 wheels 0.60 (mostly car), trouble 0.00 per min (law-abiding) cell(3,0) BETTER vs 0.334 [2678c]
+g2c0 crossover/crossover (haiku) q=0.541 wheels 0.80 (car), trouble 1.06 per min (scuffles) cell(4,2) WORSE vs 0.700 [3225c]
+generation 2, epoch 0: 6/36 cells, QD-score 3.292, best 0.797 | 11 min, 50 episodes, 0 killed
+g3c0 mutate/sensors→mostly foot/a slip (sonnet) q=0.627 wheels 0.96 (only car), trouble 0.56 per min (a slip) cell(5,1) NEW [2619c]
+g3c1 mutate/violence→mixed/scuffles (sonnet) q=0.556 wheels 0.62 (mostly car), trouble 0.86 per min (scuffles) cell(3,2) WORSE vs 0.797 [2837c]
+g3c3 mutate/novel→car/a slip (haiku) q=0.451 wheels 0.80 (car), trouble 0.09 per min (law-abiding) cell(4,0) NEW [3401c]
+g3c2 mutate/memory→mostly foot/law-abiding (haiku) q=0.561 wheels 0.47 (mixed), trouble 0.09 per min (law-abiding) cell(2,0) NEW [3255c]
+generation 3, epoch 0: 9/36 cells, QD-score 4.931, best 0.797 | 15 min, 70 episodes, 0 killed
+-- epoch 1: a fresh batch of 5 starts
+g4c2 mutate/violence (haiku) q=0.622 wheels 0.70 (mostly car), trouble 1.83 per min (troublemaker) cell(3,3) NEW [3677c]
+g4c1 mutate/sensors→car/a slip (sonnet) q=0.593 wheels 0.85 (car), trouble 0.42 per min (a slip) cell(4,1) NEW [3031c]
+g4c3 mutate/job (sonnet) q=0.571 wheels 0.79 (car), trouble 1.42 per min (scuffles) cell(4,2) WORSE vs 0.659 [2628c]
+g4c0 crossover/crossover (sonnet) q=0.663 wheels 0.70 (mostly car), trouble 1.26 per min (scuffles) cell(3,2) WORSE vs 0.666 [3206c]
+library: + clamp, stuck, bendSpeed, walkAt (993 chars, haiku)
+generation 4, epoch 1: 10/36 cells, QD-score 5.316, best 0.666 | 21 min, 100 episodes, 0 killed
+g5c1 mutate/route→mostly car/scuffles (sonnet) q=0.753 wheels 0.77 (car), trouble 1.43 per min (scuffles) cell(4,2) BETTER vs 0.666 [3158c]
+g5c3 crossover/simplify (haiku) q=0.776 wheels 0.87 (car), trouble 1.29 per min (scuffles) cell(4,2) BETTER vs 0.753 [2205c]
+g5c2 mutate/stuck (haiku) q=0.774 wheels 0.58 (mostly car), trouble 1.07 per min (scuffles) cell(3,2) NEW [3587c]
+g5c0 crossover/simplify (haiku) q=0.679 wheels 0.79 (car), trouble 0.49 per min (a slip) cell(4,1) BETTER vs 0.593 [3598c]
+generation 5, epoch 1: 11/36 cells, QD-score 6.285, best 0.776 | 26 min, 120 episodes, 0 killed
+g6c1 mutate/cash→only car/scuffles (haiku) q=0.694 wheels 0.81 (car), trouble 1.67 per min (troublemaker) cell(4,3) NEW [3873c]
+g6c2 mutate/arrive (sonnet) q=0.784 wheels 0.76 (car), trouble 0.80 per min (scuffles) cell(4,2) BETTER vs 0.776 [2455c]
+g6c3 crossover/crossover (haiku) q=0.592 wheels 0.69 (mostly car), trouble 2.48 per min (troublemaker) cell(3,3) WORSE vs 0.622 [3322c]
+g6c0 mutate/cash (sonnet) q=0.651 wheels 0.64 (mostly car), trouble 0.59 per min (a slip) cell(3,1) BETTER vs 0.400 [3076c]
+generation 6, epoch 1: 12/36 cells, QD-score 7.252, best 0.784 | 32 min, 145 episodes, 0 killed
+-- epoch 2: a fresh batch of 5 starts
+g7c0 mutate/library (sonnet) q=0.572 wheels 0.00 (on foot), trouble 0.00 per min (law-abiding) cell(0,0) BETTER vs 0.566 [996c]
+g7c2 mutate/sensors (sonnet) q=0.344 wheels 0.47 (mixed), trouble 0.00 per min (law-abiding) cell(2,0) WORSE vs 0.617 [3610c]
+g7c3 mutate/cash (sonnet) q=0.773 wheels 0.76 (car), trouble 0.31 per min (a slip) cell(4,1) WORSE vs 1.109 [3731c]
+g7c1 crossover/simplify (haiku) q=0.773 wheels 0.72 (mostly car), trouble 0.67 per min (scuffles) cell(3,2) BETTER vs 0.558 [3006c]
+generation 7, epoch 2: 11/36 cells, QD-score 7.471, best 1.109 | 41 min, 185 episodes, 0 killed
+g8c2 mutate/job→only car/law-abiding (sonnet) q=0.696 wheels 0.66 (mostly car), trouble 0.20 per min (a slip) cell(3,1) WORSE vs 0.722 [2928c]
+g8c0 crossover/crossover (sonnet) q=0.971 wheels 0.79 (car), trouble 0.63 per min (scuffles) cell(4,2) BETTER vs 0.707 [2926c]
+g8c1 mutate/route (haiku) q=0.726 wheels 0.66 (mostly car), trouble 0.36 per min (a slip) cell(3,1) BETTER vs 0.722 [3271c]
+g8c3 mutate/survive→only car/scuffles (haiku) q=0.836 wheels 0.66 (mostly car), trouble 0.13 per min (a slip) cell(3,1) BETTER vs 0.722 [3235c]
+library: + openSide, obstacleCap, carWorthIt, parkOut (2042 chars, haiku)
+held-out check: g22 train 1.11 / held-out 0.90; g32 train 0.97 / held-out 0.84; g34 train 0.84 / held-out 0.75
+generation 8, epoch 2: 11/36 cells, QD-score 7.842, best 1.109 | 55 min, 225 episodes, 0 killed
+g9c3 mutate/car→only car/scuffles (sonnet) q=0.969 wheels 0.80 (car), trouble 0.46 per min (a slip) cell(4,1) WORSE vs 1.109 [3755c]
+g9c0 mutate/survive (sonnet) q=0.971 wheels 0.79 (car), trouble 0.63 per min (scuffles) cell(4,2) WORSE vs 0.971 [3606c]
+g9c1 mutate/violence→only car/scuffles (haiku) q=0.837 wheels 0.68 (mostly car), trouble 0.31 per min (a slip) cell(3,1) BETTER vs 0.836 [3109c]
+g9c2 crossover/crossover (haiku) q=0.714 wheels 0.69 (mostly car), trouble 0.09 per min (law-abiding) cell(3,0) BETTER vs 0.617 [2915c]
+generation 9, epoch 2: 11/36 cells, QD-score 7.940, best 1.109 | 60 min, 245 episodes, 0 killed
+-- epoch 3: a fresh batch of 5 starts
+g10c2 mutate/survive (haiku): infeasible: too long: 4637 characters (limit 4000)
+g10c0 crossover/simplify (sonnet) q=0.860 wheels 0.92 (car), trouble 0.97 per min (scuffles) cell(4,2) BETTER vs 0.705 [2592c]
+g10c1 crossover/crossover (sonnet) q=0.621 wheels 0.87 (car), trouble 0.85 per min (scuffles) cell(4,2) WORSE vs 0.705 [3004c]
+g10c3 mutate/cops→on foot/a slip (haiku) q=0.794 wheels 0.70 (mostly car), trouble 0.94 per min (scuffles) cell(3,2) BETTER vs 0.616 [3168c]
+generation 10, epoch 3: 11/36 cells, QD-score 7.850, best 1.109 | 66 min, 275 episodes, 0 killed
+g11c3 mutate/tune (haiku): infeasible: too long: 4114 characters (limit 4000)
+g11c0 mutate/violence→mixed/law-abiding (haiku) q=0.506 wheels 0.47 (mixed), trouble 0.70 per min (scuffles) cell(2,2) NEW [3117c]
+g11c2 mutate/simplify (haiku) q=0.860 wheels 0.92 (car), trouble 0.97 per min (scuffles) cell(4,2) BETTER vs 0.860 [2584c]
+g11c1 crossover/simplify (haiku) q=0.649 wheels 0.83 (car), trouble 0.18 per min (a slip) cell(4,1) BETTER vs 0.620 [3206c]
+generation 11, epoch 3: 12/36 cells, QD-score 7.896, best 0.860 | 72 min, 295 episodes, 0 killed
+g12c1 mutate/peaceful (sonnet) q=0.512 wheels 0.48 (mixed), trouble 0.72 per min (scuffles) cell(2,2) BETTER vs 0.506 [2748c]
+g12c0 mutate/cash→only car/law-abiding (sonnet) q=0.505 wheels 0.83 (car), trouble 1.01 per min (scuffles) cell(4,2) WORSE vs 0.860 [3448c]
+g12c2 mutate/sensors (haiku) q=0.813 wheels 0.80 (car), trouble 0.65 per min (scuffles) cell(4,2) WORSE vs 0.860 [2806c]
+g12c3 repair/repair (sonnet) q=0.779 wheels 0.84 (car), trouble 1.62 per min (troublemaker) cell(4,3) BETTER vs 0.620 [3926c]
+library: rejected (library would be 3628 characters (limit 3500))
+generation 12, epoch 3: 12/36 cells, QD-score 7.988, best 0.860 | 78 min, 320 episodes, 0 killed
+-- epoch 4: a fresh batch of 5 starts
+g13c1 mutate/violence (haiku) q=0.900 wheels 0.96 (only car), trouble 0.04 per min (law-abiding) cell(5,0) NEW [3989c]
+g13c2 mutate/arrive→only car/law-abiding (haiku) q=0.389 wheels 0.58 (mostly car), trouble 0.09 per min (law-abiding) cell(3,0) WORSE vs 1.113 [3578c]
+g13c3 mutate/route→only car/troublemaker (haiku) q=1.122 wheels 0.83 (car), trouble 0.37 per min (a slip) cell(4,1) BETTER vs 0.734 [2789c]
+g13c0 mutate/memory (haiku) q=0.923 wheels 0.90 (car), trouble 0.55 per min (a slip) cell(4,1) WORSE vs 0.734 [3283c]
+generation 13, epoch 4: 12/36 cells, QD-score 8.647, best 1.122 | 87 min, 355 episodes, 0 killed
+g14c1 mutate/tune (haiku) q=0.900 wheels 0.81 (car), trouble 0.60 per min (a slip) cell(4,1) WORSE vs 1.122 [3188c]
+g14c2 repair/repair (sonnet) q=0.900 wheels 0.85 (car), trouble 0.19 per min (a slip) cell(4,1) WORSE vs 1.122 [3512c]
+g14c3 repair/repair (sonnet) q=0.746 wheels 0.95 (only car), trouble 0.19 per min (a slip) cell(5,1) WORSE vs 0.904 [3467c]
+g14c0 repair/repair (sonnet) q=0.744 wheels 0.90 (car), trouble 0.05 per min (law-abiding) cell(4,0) BETTER vs 0.527 [3778c]
+generation 14, epoch 4: 11/36 cells, QD-score 8.313, best 1.122 | 94 min, 385 episodes, 0 killed
+g15c2 crossover/crossover (haiku): infeasible: too long: 4645 characters (limit 4000)
+g15c3 mutate/job (sonnet) q=0.952 wheels 0.81 (car), trouble 0.09 per min (law-abiding) cell(4,0) BETTER vs 0.744 [3794c]
+g15c1 crossover/simplify (haiku) q=0.980 wheels 0.87 (car), trouble 0.19 per min (a slip) cell(4,1) WORSE vs 1.122 [3954c]
+g15c0 mutate/library (haiku) q=0.958 wheels 0.86 (car), trouble 0.54 per min (a slip) cell(4,1) WORSE vs 1.122 [3221c]
+generation 15, epoch 4: 11/36 cells, QD-score 8.521, best 1.122 | 98 min, 400 episodes, 0 killed
+-- epoch 5: a fresh batch of 5 starts
