@@ -1,4 +1,4 @@
-// score 0.656  trigger 0.20  pace 0.18  (1962 chars)
+// score 0.473  trigger 0.15  pace 0.19  (2135 chars)
 // Slow, mostly non-firing climber: special states first; ladder: face west and push in; lift: stand still; creep toward goal at ~1/3 pace; fire only at boss
 function step(o, m) {
   const g = o.goal;
@@ -27,7 +27,15 @@ function step(o, m) {
 
   if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire: false, jump: threat };
 
-  if (stuck) return { turn: Math.sin(m.n * 0.7), move: o.drop.f < 1.5 ? 0 : 0.4, fire: false, jump: true };
+  if (stuck && !(m.esc > 0)) { m.esc = 15; m.dir = -(m.dir || 1); m.c = -30; }
+  if (m.esc > 0) {
+    m.esc--;
+    return {
+      turn: clampU(m.dir * 0.8),
+      move: m.esc > 8 ? -0.7 : (o.drop.f < 1.5 ? 0 : 0.7),
+      fire: false, jump: m.esc % 4 === 0 && o.ground,
+    };
+  }
 
   const ramp = /stairs|spring|crane/.test(g.kind);
   const edge = o.drop.f < 1.5 && !ramp;

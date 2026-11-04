@@ -1,4 +1,4 @@
-// score 0.420  trigger 0.02  pace 0.32  (2258 chars)
+// score 0.472  trigger 0.02  pace 0.32  (2258 chars)
 // Near-silent creeper: fires rarely, only at the boss; jumps over telegraphed attacks; handles hang/rider/carried/ladder/lift.
 function step(o, m) {
   const g = o.goal;

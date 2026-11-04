@@ -1,4 +1,4 @@
-// score 0.391  trigger 0.06  pace 0.56  (2563 chars)
+// score 0.332  trigger 0.06  pace 0.56  (2563 chars)
 // Sprinting climber: fast on ramps, orbits the mega wolf at range and fires in short bursts, jumps telegraphed attacks.
 function step(o, m) {
   const g = o.goal;

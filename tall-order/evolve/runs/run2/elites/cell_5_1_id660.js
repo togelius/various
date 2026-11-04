@@ -1,11 +1,11 @@
-// score 0.578  trigger 0.73  pace 0.36  (2714 chars)
+// score 0.427  trigger 0.76  pace 0.23  (2851 chars)
 // Steady-fire climber: fires whenever foes are near, uses pickups on big threats, grabs nearby items when safe (juice when hurt)
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   if (o.dead) return {};
   const near = o.foes.some(f => f.awake && f.d < 10);
-  const fire = !!o.aim.hit || (near && m.n % 4 !== 0);
+  const fire = !!o.aim.hit || (near && m.n % 6 !== 0);
   // pickup use: big threat or crowd close and in front
   let pk = {};
   const si = o.inv.findIndex(i => i.n > 0 && i.k !== 'balloon');
@@ -14,8 +14,8 @@ function step(o, m) {
     const big = front.some(f => /golem|boss|car/.test(f.k) && f.d < 6);
     if (big || front.length >= 3) pk = { sel: si, use: m.n % 4 === 0 };
   }
-  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };
-  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };
+  if (o.carried || o.hang) return { turn: 0, move: 0, fire: true, jump: m.n % 2 === 0 };
+  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: true, jump: m.n % 2 === 0 };
   if (o.climbing || g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2)) {
     const e = wrapA(Math.PI - o.yaw);
     return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false, ...pk };
@@ -33,7 +33,7 @@ function step(o, m) {
       ...pk,
     };
   }
-  if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire, jump: false, ...pk };
+  if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire, jump: telegraphed(o, 4), ...pk };
   const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5) || shotDanger(o, 3, 0.6);
   const stuck = stuckTicks(o, m, 30) && g.kind !== 'lift' && g.kind !== 'boss';
   if (stuck && !(m.esc > 0)) { m.esc = 15; m.dir = -(m.dir || 1); m.c = -30; }
@@ -50,6 +50,8 @@ function step(o, m) {
   if (want && !edge) tb = want.b;
   const brisk = Math.abs(tb) < 1.4;
   const slow = o.foes.some(f => f.awake && f.d < 3);
-  const mv = edge ? 0 : brisk ? (slow ? 0.45 : 0.7) : 0.3;
-  return { turn: clampU(tb * 2.5), move: mv, fire, jump: hop && o.ground, ...pk };
+  const springRun = g.kind === 'spring' && g.d < 2.5;
+  const mv = edge ? 0 : springRun ? 0.5 : brisk ? (slow ? 0.25 : 0.35) : 0.2;
+  const turn = springRun ? steerTo(g.b, 4) : clampU(tb * 2.5);
+  return { turn, move: mv, fire, jump: hop && o.ground, ...pk };
 }
