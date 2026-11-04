@@ -126,7 +126,8 @@ playstyle to aim for.
 `EXPERIMENTS.md` has the numbers. **run2** (63 generations, haiku + sonnet, the sensors, quality and library above, about seven
 hours): on held-out neighbourhoods the best evolved controller scores 1.05 against 0.45 for the best hand-written seed (the 17
 elites average 0.82 against 0.40 for the two seeds), with no gap between training-distribution and held-out scores. 8 elites
-pass a job from unseen starts (16 of 170 held-out runs), which no run1 controller did. At the shipped traffic density the top
+pass a job from unseen starts (16 of 170 held-out runs), which no run1 controller did, even re-scored with the longer episodes (run1's top four: 0.70 held-out under the new
+measure, run2's: 0.94). At the shipped traffic density the top
 four score 0.72-0.91 against 0.41. 17 of 36 playstyle cells are filled, and the trouble axis now spans controllers that shoot
 and fight. The library filled its cap by generation 24 and every elite calls it. `runs/run2/` has the archive, every elite,
 `lib.js`, the log, `analysis.md` and the held-out reports; `runs/run1/` the first run (held-out 0.59 against 0.33 under the old

@@ -54,7 +54,8 @@ calls for children plus 15 for the library. Then the held-out reports: 77 minute
   |---|---|---|---|
   | best elite (g189, 3209 chars) | **1.05** | 0.78 | 3 of 10 |
   | mean of the 17 elites | 0.82 | 0.79 | 16 of 170 in all |
-  | E1's best four, re-scored under these rules | RUN1BEST (best) / RUN1MEAN (mean) | | RUN1PASS |
+  | E1's four best on training, re-scored under these rules (`runs/run1/report-d0.5-top4.md`) | 0.85 best / 0.70 mean | 0.72 mean | 0 of 40 |
+  | run2's four best on training, same comparison | 0.99 best / 0.94 mean | 0.99 mean | 9 of 40 |
   | walker seed | 0.45 | 0.60 | 0 |
   | driver seed | 0.35 | 0.36 | 0 |
 
@@ -78,6 +79,7 @@ calls for children plus 15 for the library. Then the held-out reports: 77 minute
   straights when no job timer is running and the police are far, which pays the game's drift bonus; g150 averaged $4000 a start on its last training batch.
 
 Reading: with the new sensors and the longer, more inclusive measure, evolved controllers now pass jobs from unseen
-neighbourhoods (none did in E1), at about 2.3x the best hand-written seed on held-out starts, with no train/held-out gap. The
+neighbourhoods (none did in E1), at about 2.3x the best hand-written seed on held-out starts, with no train/held-out gap; E1's top four, given the
+same longer episodes, average 0.70 held-out against 0.94 for E2's and still pass nothing, so the gain is not only the longer budget. The
 helper library was adopted by every elite but stopped growing at its cap after 24 generations, so it needs pruning or a larger
 cap. Finishing jobs reliably is still the headroom (about one held-out run in ten passes).

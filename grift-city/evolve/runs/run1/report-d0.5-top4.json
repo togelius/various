@@ -1,0 +1,186 @@
+[
+ {
+  "id": "g84",
+  "chars": 3624,
+  "held": {
+   "n": 10,
+   "quality": 0.8460999999999999,
+   "story": 0.6696799999999998,
+   "cash": 0.48125,
+   "survival": 0.5609999999999999,
+   "wheels": 0.7706000000000001,
+   "offencesPerMin": 2.1637,
+   "started": 9,
+   "passed": 0,
+   "deaths": 3,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.712,
+   "story": 0.5801700000000001,
+   "cash": 0.17855000000000001,
+   "survival": 0.8720000000000001,
+   "wheels": 0.5733,
+   "offencesPerMin": 0.47400000000000003,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.66
+ },
+ {
+  "id": "g103",
+  "chars": 3593,
+  "held": {
+   "n": 10,
+   "quality": 0.6779000000000001,
+   "story": 0.5988899999999998,
+   "cash": 0.0153,
+   "survival": 0.752,
+   "wheels": 0.8491,
+   "offencesPerMin": 0.849,
+   "started": 9,
+   "passed": 0,
+   "deaths": 1,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.7502099999999999,
+   "story": 0.6412199999999999,
+   "cash": 0.08080000000000001,
+   "survival": 0.8879999999999999,
+   "wheels": 0.9496,
+   "offencesPerMin": 0.9786999999999999,
+   "started": 10,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.72
+ },
+ {
+  "id": "g76",
+  "chars": 2979,
+  "held": {
+   "n": 10,
+   "quality": 0.67709,
+   "story": 0.6250199999999999,
+   "cash": 0.01245,
+   "survival": 0.48949999999999994,
+   "wheels": 0.7769999999999999,
+   "offencesPerMin": 0.5125,
+   "started": 9,
+   "passed": 0,
+   "deaths": 3,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.7520800000000001,
+   "story": 0.62162,
+   "cash": 0.18185,
+   "survival": 0.85,
+   "wheels": 0.6526,
+   "offencesPerMin": 0.2428,
+   "started": 9,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.78
+ },
+ {
+  "id": "g96",
+  "chars": 3311,
+  "held": {
+   "n": 10,
+   "quality": 0.6105700000000001,
+   "story": 0.5220999999999999,
+   "cash": 0.028250000000000004,
+   "survival": 0.8139999999999998,
+   "wheels": 0.7001000000000001,
+   "offencesPerMin": 0.2432,
+   "started": 8,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.6600699999999999,
+   "story": 0.5591700000000001,
+   "cash": 0.028600000000000004,
+   "survival": 0.9375,
+   "wheels": 0.5494,
+   "offencesPerMin": 0.1768,
+   "started": 10,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "train": 0.64
+ },
+ {
+  "id": "seed:walker",
+  "chars": 580,
+  "held": {
+   "n": 10,
+   "quality": 0.44645,
+   "story": 0.3895,
+   "cash": 0.025,
+   "survival": 0.507,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 6,
+   "passed": 0,
+   "deaths": 3,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.59807,
+   "story": 0.52025,
+   "cash": 0.0669,
+   "survival": 0.6110000000000001,
+   "wheels": 0,
+   "offencesPerMin": 0,
+   "started": 8,
+   "passed": 0,
+   "deaths": 2,
+   "errors": 0
+  }
+ },
+ {
+  "id": "seed:driver",
+  "chars": 1994,
+  "held": {
+   "n": 10,
+   "quality": 0.35261,
+   "story": 0.26578999999999997,
+   "cash": 0.007299999999999999,
+   "survival": 0.8499999999999999,
+   "wheels": 0.8488,
+   "offencesPerMin": 0.242,
+   "started": 0,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  },
+  "fixed": {
+   "n": 10,
+   "quality": 0.36360000000000003,
+   "story": 0.26226999999999995,
+   "cash": 0.023299999999999998,
+   "survival": 0.9549999999999998,
+   "wheels": 0.8085000000000001,
+   "offencesPerMin": 0.1333,
+   "started": 1,
+   "passed": 0,
+   "deaths": 0,
+   "errors": 0
+  }
+ }
+]
