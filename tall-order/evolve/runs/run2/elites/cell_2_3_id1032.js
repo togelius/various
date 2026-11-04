@@ -1,4 +1,4 @@
-// score 0.763  trigger 0.15  pace 0.54  (2917 chars)
+// score 0.665  trigger 0.15  pace 0.54  (2917 chars)
 // Rare steady shots (more on the boss), one shared pickup rule, sprint-first movement.
 function step(o, m) {
   const g = o.goal;

@@ -1,17 +1,18 @@
-// score 0.808  trigger 0.58  pace 0.60  (2838 chars)
+// score 0.932  trigger 0.29  pace 0.49  (3386 chars)
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   if (o.dead) return {};
   const near = o.foes.some(f => f.awake && f.d < 12);
   const bw = o.foes.find(f => f.k === 'boss' && f.awake);
-  const fire = (!!o.aim.hit && m.n % 3 !== 0) || (m.n % 7 < 3 && near) || (!!bw && m.n % 4 !== 0);
+  const fire = !!o.aim.hit && (m.n % 2 === 0 || (!!bw && m.n % 3 !== 0));
   if (o.carried || o.hang) return { turn: 0, move: 0, fire, jump: true };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   const e = wrapA(Math.PI - o.yaw);
   if (o.climbing || g.kind === 'ladder') return { ...ladderSteer(o), fire, jump: false };
-  if (g.kind === 'ladder-approach' && g.d < 2.5) {
-    if (g.d > 1 && Math.abs(e) > 0.5) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
+  // ladder approach: commit from 4 m, line up on the approach point, then push west
+  if (g.kind === 'ladder-approach' && g.d < 4) {
+    if (g.d > 1 && (Math.abs(e) > 0.5 || Math.abs(g.b) > 0.5)) return { turn: steerTo(g.b, 2.5), move: Math.abs(g.b) < 1 ? 0.5 : 0, fire, jump: false };
     return { ...ladderSteer(o), fire, jump: false };
   }
 
@@ -56,12 +57,18 @@ function step(o, m) {
     };
   }
 
-  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5);
+  if (g.kind === 'spring' && g.d < 2.5) {
+    return { turn: steerTo(g.b, 3), move: Math.abs(g.b) < 0.6 ? 1 : 0.3, fire, jump: false };
+  }
+  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 5) ||
+    o.foes.some(f => f.d < 6 && (f.st === 'throw' || f.st === 'slam' || (f.k === 'car' && /rev|charge/.test(f.st || '')))) ||
+    o.foes.some(f => f.k === 'kitty' && f.d < 2.5 && Math.abs(f.dy) < 1.5);
   const fast = Math.abs(tb) < 1.2 || (g.kind === 'spring' && g.d < 2);
   const big = o.foes.find(f => f.awake && f.d < 6 && Math.abs(f.b) < 0.4 && /golem|car|boss/.test(f.k));
   const crowd = o.foes.filter(f => f.awake && f.d < 7 && Math.abs(f.b) < 0.6).length > 2;
   const useItem = o.inv.length > 0 && (big || crowd) && m.n - (m.u || -99) > 20;
   if (useItem) m.u = m.n;
-  const mv = edge ? 0 : fast ? 1 : 0.85;
+  const side = g.kind === 'crane-step' ? 9 : tb > 0 ? o.drop.r : o.drop.l;
+  const mv = edge ? 0 : Math.abs(tb) > 1.6 ? 0.3 : side < 1.5 ? 0.5 : fast ? 1 : 0.85;
   return { turn: clampU(tb * 2.5), move: mv, fire, jump: hop && o.ground, use: useItem, sel: 0 };
 }

@@ -1,4 +1,4 @@
-// score 0.418  trigger 0.09  pace 0.25  (3348 chars)
+// score 0.459  trigger 0.09  pace 0.25  (3348 chars)
 // Steady-fire climber at moderate pace: short bursts at close foes and the boss, 3-6 m boss standoff, slower walking
 function step(o, m) {
   const g = o.goal;

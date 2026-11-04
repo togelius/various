@@ -1,11 +1,11 @@
-// score 0.396  trigger 0.03  pace 0.65  (2868 chars)
+// score 0.419  trigger 0.04  pace 0.58  (3198 chars)
 // runner: sprint at the goal, ignore most toys, fire in short bursts (steady at the boss), jump anything winding up; ladders: face west and push in; hanging/carried: jump out
 // merged runner: rare shots (steady on the boss), jump anything winding up, ladders face west and push, one stuck-escape path
 function step(o, m) {
   const g = o.goal;
   m.n = (m.n || 0) + 1;
   const bw = o.foes.find(f => f.k === 'boss');
-  const fire = !!o.aim.hit && (m.n % 64 === 0 || (m.n % 5 === 0 && !!bw));
+  const fire = !!o.aim.hit && (m.n % 100 === 0 || (m.n % 5 === 0 && !!bw));
   if (o.carried || o.hang) return { turn: 0, move: 0, fire, jump: true };
   if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire, jump: m.n % 2 === 0 };
   if (o.climbing || g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {
@@ -25,7 +25,7 @@ function step(o, m) {
     };
   }
   if (g.kind === 'lift' && g.d < 1) return { turn: 0, move: 0, fire, jump: false };
-  const edge = o.drop.f < 1 && !/stairs|spring|crane|lift|ladder/.test(g.kind);
+  const edge = ledgeAhead(o, g);
   // stuck: back off and wiggle for 15 ticks (direction flips each escape), then retry the goal
   if (stuckTicks(o, m, 30) && g.kind !== 'lift' && !(m.esc > 0)) { m.esc = 15; m.dir = -(m.dir || 1); m.c = -30; }
   if (m.esc > 0) {
@@ -41,7 +41,12 @@ function step(o, m) {
   const crowd = o.foes.filter(f => f.awake && f.d < 7 && Math.abs(f.b) < 0.6).length > 2;
   const useItem = o.inv.length > 0 && (big || crowd) && m.n - (m.u || -99) > 25;
   if (useItem) m.u = m.n;
-  const mv = edge ? 0 : Math.abs(tb) < 1.6 ? 0.95 : 0.5;
-  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 6);
+  const side = g.kind === 'crane-step' ? 9 : tb > 0 ? o.drop.r : o.drop.l;
+  const slam = o.foes.some(f => f.st === 'slam' && f.d < 3.5);
+  const mv0 = edge ? 0 : Math.abs(tb) > 1.6 ? 0.4 : side < 1 ? 0.5 : 1;
+  const mv = slam && !edge ? -0.6 : mv0;
+  const hop = (g.kind === 'crane-step' && g.d < 2.5) || telegraphed(o, 6) ||
+    o.foes.some(f => (f.k === 'car' && f.d < 9 && /rev|charge/.test(f.st || '')) ||
+      (f.st === 'throw' && f.d < 7) || (f.k === 'kitty' && f.d < 2.5 && Math.abs(f.dy) < 1.5));
   return { turn: clampU(tb * 2.5), move: mv, fire, jump: hop && o.ground, use: useItem, sel: 0 };
 }

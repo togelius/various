@@ -1,4 +1,4 @@
-// score 0.337  trigger 0.50  pace 0.25  (2066 chars)
+// score 0.393  trigger 0.54  pace 0.26  (2066 chars)
 // Hybrid: B's safe state handling + A's targeted firing and faster pace when clear
 function step(o, m) {
   const g = o.goal;
