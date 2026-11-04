@@ -1,9 +1,9 @@
-generation 26, epoch 8: 13/36 cells, QD-score 10.216, best 1.480
+generation 31, epoch 10: 14/36 cells, QD-score 10.550, best 1.090
 quality of the elite in each cell (rows: trouble, columns: wheels)
 trouble        \ wheels   on foot     mostly foot mixed       mostly car  car         only car
 rampage                  .           .           .           .           .           .
 crime spree              .           .          0.82         .           .           .
-troublemaker             .           .           .          0.76        0.61         .
-scuffles                 .           .          0.51        1.48        0.79         .
-a slip                   .           .          0.66        0.64        0.91         .
+troublemaker             .           .          0.84        0.76        0.61         .
+scuffles                 .           .          0.51        0.57        1.09         .
+a slip                   .           .          0.66        0.71        0.94         .
 law-abiding             0.57         .           .          0.61        0.95        0.90

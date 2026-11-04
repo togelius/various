@@ -1,4 +1,4 @@
-// g93 quality 1.480 wheels 0.75 (mostly car), trouble 0.89 per min (scuffles)
+// g93 quality 1.090 wheels 0.79 (car), trouble 0.76 per min (scuffles)
 // walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};

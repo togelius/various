@@ -1,87 +1,63 @@
-// g84 quality 0.909 wheels 0.79 (car), trouble 0.34 per min (a slip) (3687 chars; mutate)
+// g106 quality 0.938 wheels 0.94 (car), trouble 0.54 per min (a slip) (2767 chars; mutate)
+// walker: follow the route on foot, sprinting when the way is clear; skip dialogue; never drive.
 function think(o, m) {
   const a = {};
   if (o.ui.retry) { a.retry = true; return a; }
   if (o.ui.dialogue) { a.skip = true; return a; }
   if (o.ui.choice) { a.choose = 1; return a; }
   if (o.me.mode === 'entering') return a;
+  const c = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   m.n = (m.n || 0) + 1;
-  const pulse = m.n % 4 === 0; // use is an edge: pulse every 0.4 s
+  const pulse = m.n % 4 === 0;
   const goal = o.goal, g = o.gps, e = o.enter;
-  const inCar = o.me.mode === 'car';
-  const sp = inCar ? Math.abs(o.car.spd) : 0;
-  const near = !!goal && goal.kind === 'place' && goal.d < 8;
-  // route bearing; near a waypoint, aim between it and the next one to cut the corner smoothly
-  const tb = g ? (g.wd < 8 ? (g.b + (g.b2 || 0)) / 2 : g.b) : goal ? goal.b : 0;
-
-  // repulsion: cops, gang people, pedestrians, vehicles (pie slices), and walls (rays)
-  const sets = [[o.pie.cop, 2, 25], [o.pie.foe, 1, 20], [o.pie.ped, 0.5, inCar ? 5 : 8], [o.pie.car, 1.5, inCar ? 10 : 6]];
-  const RB = [-1.571, -0.785, -0.349, 0, 0.349, 0.785, 1.571];
-  let rx = 0, rz = 0, cd = 99;
-  for (let k = 0; k < 4; k++) {
-    for (let i = 0; i < 8; i++) {
-      const d = sets[k][0][i];
-      if (d >= sets[k][2]) continue;
-      if (k === 0 && d < cd) cd = d;
-      const w = sets[k][1] * (sets[k][2] - d) / sets[k][2];
-      rx -= w * Math.sin(i * Math.PI / 4);
-      rz -= w * Math.cos(i * Math.PI / 4);
-    }
-  }
-  for (let j = 0; j < 7; j++) {
-    const d = o.rays[j];
-    if (d >= 5) continue;
-    const w = 1.5 * (5 - d) / 5;
-    rx -= w * Math.sin(RB[j]);
-    rz -= w * Math.cos(RB[j]);
-  }
-
-  // on foot, aim through the repulsion; in a car, only the lateral part steers
-  let db = near && cd > 8 ? goal.b : clamp(Math.atan2(Math.sin(tb) + rx, Math.cos(tb) + rz), -1.5, 1.5);
-  if (!near && o.rays[3] < 3) db = clamp(db + openSide(o) * 0.8, -1.5, 1.5);
-
-  // never talk with police close; stuck -> back away
-  const talk = !inCar && cd > 12 && !!goal && goal.d < 3 &&
-    (goal.kind === 'person' || (goal.kind === 'car' && goal.free === false));
-  const idle = talk || (!inCar && !!e && e.free && e.d < 4 && !!e.goal) || (inCar && !!goal && goal.d < 12);
-  if (stuck(o, m, 20, idle)) { m.esc = 12; m.dir = Math.random() < 0.5 ? -1 : 1; }
+  const mv = m.px === undefined ? 1 : Math.hypot(o.me.x - m.px, o.me.z - m.pz);
+  m.px = o.me.x; m.pz = o.me.z;
+  const idle = (goal && goal.d < 3) || (e && e.d < 4);
+  m.still = mv < 0.02 && !idle ? (m.still || 0) + 1 : 0;
+  if (m.still > 15) { m.esc = 14; m.dir = Math.random() < 0.5 ? -1 : 1; m.still = 0; }
   if (m.esc > 0) {
     m.esc--;
-    if (inCar) { a.brake = 1; a.steer = m.dir; } else { a.move = -1; a.turn = m.dir; }
+    if (o.me.mode === 'car') { a.brake = 1; a.steer = m.dir; }
+    else { a.move = m.esc > 7 ? -1 : 1; a.turn = m.dir; a.strafe = m.dir; }
     return a;
   }
-
-  if (inCar) {
-    // near a place marker: brake to a stop, then step out
-    if (goal && goal.kind !== 'car' && goal.d < 12 + sp * sp / 12) {
-      a.steer = clamp(goal.b * 1.6, -1, 1);
-      a.brake = sp > 1.5 ? 1 : 0;
-      if (sp <= 1.5) a.use = pulse;
+  const b = g ? g.b : goal ? goal.b : 0;
+  if (o.me.mode === 'car') {
+    if (goal && goal.kind !== 'car' && goal.d < 12) {
+      const st = Math.abs(o.car.spd) < 2.5;
+      a.brake = st ? 0 : 1;
+      if (st) a.use = pulse;
       return a;
     }
     if (!g && !goal) { a.gas = 0.3; return a; }
-    // lane keeping (pull back to lane centre), weaker while dodging something
-    const lane = o.road.on ? clamp(-o.road.off * 0.1, -0.25, 0.25) : 0;
-    const s = tb * 1.6 + rx * 0.8 + lane * Math.max(0, 1 - Math.abs(rx));
-    m.st = (m.st || 0) * 0.5 + clamp(s, -1, 1) * 0.5; // smoothed steering
-    a.steer = m.st;
-    // speed: slow for bends ahead and for anything close in front
-    const cap = Math.min(bendSpeed(g), obstacleCap(o));
-    const stop = o.range[0] < 4 || o.pie.car[0] < 4;
-    a.gas = !stop && sp < cap ? 1 : 0;
-    a.brake = stop && sp > 1 ? 1 : sp > cap + 3 ? 0.6 : 0;
+    const tb = g ? Math.max(Math.abs(g.b), Math.abs(g.b2 || 0) * 0.8) : Math.abs(b);
+    let want = tb > 0.9 ? 5 : tb > 0.45 ? 9 : 15;
+    const ahead = Math.min(o.range[0], o.range[1], o.range[11], o.pie.car[0], o.pie.ped[0]);
+    const pn = Math.min(o.pie.ped[0], o.pie.ped[1], o.pie.ped[7]);
+    if (ahead < 10 || pn < 6) want = Math.min(want, 3);
+    let s = b * 1.6;
+    if (o.range[0] < 8) s += (o.range[1] > o.range[11] ? 0.5 : -0.5);
+    a.steer = c(s, -1, 1);
+    a.gas = o.car.spd < want ? 1 : 0;
+    a.brake = o.car.spd > want + 3 ? 0.6 : 0;
     return a;
   }
+  if (goal && goal.kind === 'person' && goal.d < 3) { a.talk = true; return a; }
+  if (e && e.d < 4 && (goal && (goal.kind === 'car' || (goal.d > 60 && e.free && o.me.wanted < 3)))) { a.use = pulse; return a; }
 
-  // on foot
-  if (talk) { a.talk = true; return a; }
-  if (carWorthIt(o)) { a.use = pulse; return a; }
   if (!g && !goal) { a.move = 0.5; a.turn = 0.3; return a; }
-  a.turn = clamp(db * 2.2, -1, 1);
-  a.move = Math.abs(db) > 1.6 ? 0.2 : 1;
-  if (o.rays[3] < 2 && !near) a.move = 0.3;
-  if (near && goal.d < 2.5) a.move = 0.5;
-  const fleeing = cd < 25;
-  a.sprint = a.move > 0.5 && (fleeing || (Math.abs(db) < 0.5 && o.rays[3] > 6 && !near));
+  // trouble: when armed and a hostile is close, face it and shoot it
+
+  let tb = (goal && goal.kind === 'car') ? goal.b : (goal && goal.d < 6 ? goal.b : b);
+  const r = o.rays;
+  if (r[3] < 4 || r[2] < 2 || r[4] < 2) {
+    const side = (r[4] + r[5]) - (r[2] + r[1]);
+    tb = c(tb * 0.3 + (side >= 0 ? 1 : -1) * 0.9, -1.5, 1.5);
+  }
+  a.turn = c(tb * 2.2, -1, 1);
+  a.move = Math.abs(tb) > 1.2 ? 0.1 : 1;
+  const pd = o.pie.ped[0], pd1 = Math.min(o.pie.ped[1], o.pie.ped[7]);
+  if (pd < 2.5) a.strafe = o.pie.ped[1] < o.pie.ped[7] ? -0.8 : 0.8;
+  a.sprint = Math.abs(tb) < 0.5 && r[3] > 6 && pd > 5 && pd1 > 3 && o.range[0] > 6;
   return a;
 }
