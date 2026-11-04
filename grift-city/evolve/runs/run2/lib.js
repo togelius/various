@@ -1,4 +1,4 @@
-// helper library of run run2 (append-only), generation 8
+// helper library of run run2 (append-only), generation 16
 // clamp v into the range [lo, hi]
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // true once progress is under 0.2 m/s for more than n ticks (call once per tick; state in m; idle = waiting on purpose)
@@ -43,5 +43,34 @@ function parkOut(a, o, pulse) {
   const stopped = Math.abs(o.car.spd) < 2.5;
   a.brake = stopped ? 0 : 1;
   if (stopped) a.use = pulse;
+  return a;
+}
+
+// pie slice index (0-7, clockwise from ahead) -> signed bearing in radians (right positive)
+function sliceBearing(i) { return (i > 4 ? i - 8 : i) * 0.785; }
+
+// nearest threat in a pie array within maxD: returns {i, d, b} (b = signed bearing), or null if none
+function nearestPie(arr, maxD) {
+  let bi = -1, bd = maxD;
+  for (let i = 0; i < 8; i++) if (arr[i] < bd) { bd = arr[i]; bi = i; }
+  return bi < 0 ? null : { i: bi, d: bd, b: sliceBearing(bi) };
+}
+
+// cop repulsion for driving: returns {push (add to steer, left/right), front (nearest cop in ahead slices, 50 = none)}
+function copAvoid(o) {
+  let push = 0, front = 50;
+  for (let i = 0; i < 8; i++) {
+    const d = o.pie.cop[i];
+    if (d >= 25) continue;
+    push -= (25 - d) / 25 * Math.sin(i * Math.PI / 4);
+    if (i === 0 || i === 1 || i === 7) front = Math.min(front, d);
+  }
+  return { push: push, front: front };
+}
+
+// car throttle/brake for a target speed: sets a.gas or a.brake from current speed sa (abs m/s) and want
+function driveTo(a, sa, want) {
+  if (sa < want) a.gas = 0.8;
+  else a.brake = sa > want + 3 ? 0.6 : 0;
   return a;
 }

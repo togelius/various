@@ -84,3 +84,16 @@ g15c1 crossover/simplify (haiku) q=0.980 wheels 0.87 (car), trouble 0.19 per min
 g15c0 mutate/library (haiku) q=0.958 wheels 0.86 (car), trouble 0.54 per min (a slip) cell(4,1) WORSE vs 1.122 [3221c]
 generation 15, epoch 4: 11/36 cells, QD-score 8.521, best 1.122 | 98 min, 400 episodes, 0 killed
 -- epoch 5: a fresh batch of 5 starts
+g16c0 mutate/traffic→mostly foot/a slip (sonnet) q=0.627 wheels 0.38 (mixed), trouble 0.00 per min (law-abiding) cell(2,0) NEW [2896c]
+g16c1 crossover/simplify (sonnet) q=0.717 wheels 0.72 (mostly car), trouble 0.59 per min (a slip) cell(3,1) WORSE vs 0.888 [3213c]
+g16c3 mutate/traffic (haiku) q=0.746 wheels 0.84 (car), trouble 0.73 per min (scuffles) cell(4,2) BETTER vs 0.732 [3222c]
+g16c2 crossover/simplify (haiku) q=0.919 wheels 0.75 (car), trouble 0.54 per min (a slip) cell(4,1) BETTER vs 0.899 [3949c]
+library: + sliceBearing, nearestPie, copAvoid, driveTo (3151 chars, sonnet)
+held-out check: g57 train 0.95 / held-out 0.74; g63 train 0.92 / held-out 0.74; g51 train 0.90 / held-out 0.75
+generation 16, epoch 5: 11/36 cells, QD-score 8.136, best 0.952 | 114 min, 435 episodes, 0 killed
+g17c3 mutate/peaceful→mostly car/a slip (sonnet) q=0.747 wheels 0.64 (mostly car), trouble 0.17 per min (a slip) cell(3,1) NEW [3837c]
+g17c1 repair/repair (sonnet) q=0.716 wheels 0.60 (mostly car), trouble 0.37 per min (a slip) cell(3,1) WORSE vs 0.747 [3355c]
+g17c2 mutate/library (haiku) q=0.412 wheels 0.62 (mostly car), trouble 0.26 per min (a slip) cell(3,1) WORSE vs 0.747 [2300c]
+g17c0 mutate/peaceful→only car/a slip (haiku) q=0.728 wheels 0.73 (mostly car), trouble 0.22 per min (a slip) cell(3,1) WORSE vs 0.747 [3991c]
+generation 17, epoch 5: 12/36 cells, QD-score 8.883, best 0.952 | 119 min, 455 episodes, 0 killed
+g18c1 mutate/cash (haiku): infeasible: too long: 4724 characters (limit 4000)
