@@ -12,7 +12,7 @@
 'use strict';
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), crypto = require('node:crypto');
 const { Archive, AXES } = require('./archive');
-const { LIMITS, validate } = require('./sandbox');
+const { LIMITS, validate, validateLib, libCalls } = require('./sandbox');
 const { makeStarts, mulberry } = require('./scenarios');
 const { aggregate } = require('./episode');
 const P = require('./prompts');
@@ -21,7 +21,7 @@ const { Pool } = require('./pool');
 
 function parseArgs(argv) {
   const a = { name: 'run', gens: 10, children: 4, batch: 5, epoch: 3, workers: Math.min(4, os.cpus().length), models: 'haiku:1', backend: 'claude-cli', density: 0.5, maxChars: LIMITS.maxChars, maxLines: LIMITS.maxLines,
-    seeds: 'seeds/walker.js,seeds/driver.js', seed: 1, resume: false, minutes: 0, llmPar: 4, valEvery: 5, valN: 6, cascade: 2, seconds: 0, quiet: false };
+    seeds: 'seeds/walker.js,seeds/driver.js', seed: 1, resume: false, minutes: 0, llmPar: 4, valEvery: 5, valN: 6, libEvery: 4, lib: 1, cascade: 2, seconds: 0, quiet: false };
   for (let i = 0; i < argv.length; i++) { const k = argv[i].replace(/^--/, ''); if (k === 'resume' || k === 'quiet') a[k] = true; else if (k in a) { const v = argv[++i]; a[k] = typeof a[k] === 'number' ? +v : v; } else throw new Error('unknown option ' + argv[i]); }
   return a;
 }
@@ -33,17 +33,17 @@ class Run {
     this.limits = { ...LIMITS, maxChars: args.maxChars, maxLines: args.maxLines };
     this.archive = new Archive(); this.pool = null; this.llm = makeLLM({ backend: args.backend, models: parseModels(args.models), queueDir: path.join(this.dir, 'queue') });
     this.rng = mulberry(args.seed * 7919 + 13); this.gen = 0; this.epoch = 0; this.nextId = 1; this.seen = new Set(); this.infeasible = []; this.bandit = Object.fromEntries(P.HINTS.map(h => [h.id, { tries: 0, wins: 0 }])); this.counts = { children: 0, llmFail: 0, parseFail: 0, infeasible: 0, aborted: 0, duplicates: 0, new: 0, better: 0, worse: 0, episodes: 0 };
-    this.t0 = Date.now(); this.logFile = path.join(this.dir, 'log.jsonl'); this.valCache = {};
+    this.t0 = Date.now(); this.logFile = path.join(this.dir, 'log.jsonl'); this.valCache = {}; this.libText = ''; this.libNames = []; this.seedCodes = [];
   }
   log(msg) { if (!this.a.quiet) console.log(msg); }
   jlog(o) { fs.appendFileSync(this.logFile, JSON.stringify({ t: Math.round((Date.now() - this.t0) / 1000), gen: this.gen, ...o }) + '\n'); }
   batchStarts(epoch = this.epoch) { return makeStarts(this.a.seed * 1000 + epoch, this.a.batch, 'train'); }
-  epOpts() { return { density: this.a.density, limits: this.limits, seconds: this.a.seconds || undefined }; }
+  epOpts() { return { density: this.a.density, limits: this.limits, seconds: this.a.seconds || undefined, lib: this.libText }; }
 
   // ---- persistence ----
   save() {
     const slim = g => ({ ...g, cell: g.cell });
-    fs.writeFileSync(path.join(this.dir, 'state.json'), JSON.stringify({ args: this.a, gen: this.gen, epoch: this.epoch, nextId: this.nextId, counts: this.counts, bandit: this.bandit, valCache: this.valCache, elites: this.archive.elites().map(slim), infeasible: this.infeasible.slice(-30), seen: [...this.seen] }));
+    fs.writeFileSync(path.join(this.dir, 'state.json'), JSON.stringify({ args: this.a, gen: this.gen, epoch: this.epoch, nextId: this.nextId, counts: this.counts, bandit: this.bandit, valCache: this.valCache, lib: this.libText, libNames: this.libNames, seedCodes: this.seedCodes, elites: this.archive.elites().map(slim), infeasible: this.infeasible.slice(-30), seen: [...this.seen] }));
     for (const f of fs.readdirSync(path.join(this.dir, 'elites'))) fs.unlinkSync(path.join(this.dir, 'elites', f));
     for (const g of this.archive.elites()) fs.writeFileSync(path.join(this.dir, 'elites', `w${g.cell[0]}t${g.cell[1]}.js`), `// ${g.id} quality ${g.cur.toFixed(3)} ${P.fmtDesc(g)} (${g.code.length} chars; ${g.op})\n` + g.code);
     const best = this.archive.best(); if (best) fs.writeFileSync(path.join(this.dir, 'best.js'), `// ${best.id} quality ${best.cur.toFixed(3)} ${P.fmtDesc(best)}\n` + best.code);
@@ -51,7 +51,7 @@ class Run {
   }
   load() {
     const s = JSON.parse(fs.readFileSync(path.join(this.dir, 'state.json'), 'utf8'));
-    Object.assign(this, { gen: s.gen, epoch: s.epoch, nextId: s.nextId, counts: s.counts, bandit: s.bandit, valCache: s.valCache || {}, infeasible: s.infeasible, seen: new Set(s.seen) });
+    Object.assign(this, { libText: s.lib || '', libNames: s.libNames || [], seedCodes: s.seedCodes || [], gen: s.gen, epoch: s.epoch, nextId: s.nextId, counts: s.counts, bandit: s.bandit, valCache: s.valCache || {}, infeasible: s.infeasible, seen: new Set(s.seen) });
     for (const g of s.elites) { this.archive.cells.set(this.archive.key(g.cell), g); }
   }
   mapText() { return `generation ${this.gen}, epoch ${this.epoch}: ${this.archive.size}/${this.archive.nx * this.archive.ny} cells, QD-score ${this.archive.qd().toFixed(3)}, best ${(this.archive.best() || { cur: 0 }).cur.toFixed(3)}\nquality of the elite in each cell (rows: ${AXES[1].name}, columns: ${AXES[0].name})\n` + this.archive.render('cur'); }
@@ -91,11 +91,11 @@ class Run {
   }
   plan() {
     const r = this.rng(), els = this.archive.elites();
-    if (this.infeasible.length && r < 0.12) { const g = this.infeasible[Math.floor(this.rng() * this.infeasible.length)]; return { op: 'repair', infeasible: g, prompt: P.repairPrompt({ g, reason: g.reason, limits: this.limits }), format: 'full' }; }
-    if (els.length >= 2 && r < 0.35) { const a = this.pickParent(); const bs = els.filter(g => g !== a); const b = bs[Math.floor(this.rng() * bs.length)]; const hint = this.rng() < 0.25 ? P.HINTS.find(h => h.id === 'simplify') : null; return { op: 'crossover', parents: [a, b], hint, prompt: P.crossoverPrompt({ a, b, hint, limits: this.limits }), format: 'full' }; }
+    if (this.infeasible.length && r < 0.12) { const g = this.infeasible[Math.floor(this.rng() * this.infeasible.length)]; return { op: 'repair', infeasible: g, prompt: P.repairPrompt({ g, reason: g.reason, limits: this.limits, lib: this.libText }), format: 'full' }; }
+    if (els.length >= 2 && r < 0.35) { const a = this.pickParent(); const bs = els.filter(g => g !== a); const b = bs[Math.floor(this.rng() * bs.length)]; const hint = this.rng() < 0.25 ? P.HINTS.find(h => h.id === 'simplify') : null; return { op: 'crossover', parents: [a, b], hint, prompt: P.crossoverPrompt({ a, b, hint, limits: this.limits, lib: this.libText }), format: 'full' }; }
     const parent = this.pickParent(), hint = this.pickHint(), mode = this.rng() < 0.7 ? 'diff' : 'full';
     let target = null; if (this.rng() < 0.35) { const e = this.archive.emptyNear(parent.cell || this.archive.cellOf(parent.desc)); if (e.length) { const c = e[Math.floor(this.rng() * e.length)]; target = { cell: c, desc: this.archive.centre(c) }; } }
-    return { op: 'mutate', parents: [parent], hint, target, mode, prompt: P.mutationPrompt({ parent, inspirations: this.pickInspirations(parent), hint, target, mode, limits: this.limits }), format: mode };
+    return { op: 'mutate', parents: [parent], hint, target, mode, prompt: P.mutationPrompt({ parent, inspirations: this.pickInspirations(parent), hint, target, mode, limits: this.limits, lib: this.libText }), format: mode };
   }
   // ask the LLM and turn its reply into candidate source; returns { code } or { error }
   async produce(plan) {
@@ -113,7 +113,7 @@ class Run {
     const bump = win => { if (plan.hint && this.bandit[plan.hint.id]) { this.bandit[plan.hint.id].tries++; if (win) this.bandit[plan.hint.id].wins++; } };
     if (prod.error) { this.log(`${tag} ${plan.op}/${hintId}: ${prod.error}`); bump(false); this.jlog({ ev: 'fail', tag, op: plan.op, hint: hintId, error: prod.error }); return; }
     const h = hash(prod.code); if (this.seen.has(h)) { this.counts.duplicates++; this.log(`${tag} ${plan.op}/${hintId} (${prod.model}): duplicate of a known controller`); bump(false); return; } this.seen.add(h);
-    const v = validate(prod.code, this.limits);
+    const v = validate(prod.code, this.limits, this.libText);
     const parents = (plan.parents || (plan.infeasible ? [plan.infeasible.parentId] : [])).map(p => (p && p.id) || p);
     if (!v.ok) { this.counts.infeasible++; this.infeasible.push({ id: tag, code: prod.code, reason: v.reason, parentId: parents[0] }); if (this.infeasible.length > 40) this.infeasible.shift();
       this.log(`${tag} ${plan.op}/${hintId} (${prod.model}): infeasible: ${v.reason}`); bump(false); this.jlog({ ev: 'infeasible', tag, op: plan.op, hint: hintId, reason: v.reason }); return; }
@@ -131,7 +131,8 @@ class Run {
     }
     this.counts[verdict]++; bump(verdict !== 'worse');
     this.log(`${tag} ${plan.op}/${hintId}${plan.target ? '→' + AXES[0].label[plan.target.cell[0]] + '/' + AXES[1].label[plan.target.cell[1]] : ''} (${prod.model}) q=${g.cur.toFixed(3)} ${P.fmtDesc(g)} cell(${g.cell}) ${verdict.toUpperCase()}${inc && verdict !== 'new' ? ' vs ' + inc.cur.toFixed(3) : ''} [${g.code.length}c]`);
-    this.jlog({ ev: 'child', tag, id: g.id, op: plan.op, hint: hintId, model: prod.model, q: g.cur, desc: g.desc, cell: g.cell, verdict, chars: g.code.length, parents: g.parents });
+    g.libCalls = libCalls(g.code, this.libNames);
+    this.jlog({ ev: 'child', libCalls: g.libCalls, tag, id: g.id, op: plan.op, hint: hintId, model: prod.model, q: g.cur, desc: g.desc, cell: g.cell, verdict, chars: g.code.length, parents: g.parents });
   }
 
   // ---- the loop ----
@@ -139,8 +140,8 @@ class Run {
     this.pool = new Pool(this.a.workers);
     if (this.a.resume && fs.existsSync(path.join(this.dir, 'state.json'))) { this.load(); this.log(`resumed ${this.dir} at generation ${this.gen}`); return; }
     fs.writeFileSync(this.logFile, ''); this.jlog({ ev: 'start', args: this.a });
-    const seeds = this.a.seeds.split(',').filter(Boolean).map(f => ({ f, code: fs.readFileSync(path.resolve(__dirname, f), 'utf8') }));
-    const evs = await Promise.all(seeds.map(async s => { const v = validate(s.code, this.limits); if (!v.ok) throw new Error(`seed ${s.f} is not valid: ${v.reason}`); return this.evaluate(s.code, { cascade: false }); }));
+    const seeds = this.a.seeds.split(',').filter(Boolean).map(f => ({ f, code: fs.readFileSync(path.resolve(__dirname, f), 'utf8') })); this.seedCodes = seeds.map(x => x.code);
+    const evs = await Promise.all(seeds.map(async s => { const v = validate(s.code, this.limits, this.libText); if (!v.ok) throw new Error(`seed ${s.f} is not valid: ${v.reason}`); return this.evaluate(s.code, { cascade: false }); }));
     seeds.forEach((s, i) => { const g = this.makeGenome(s.code, { op: 'seed', hint: path.basename(s.f), parents: [] }); this.seen.add(hash(s.code)); this.record(g, evs[i]); const verdict = this.archive.contest(g); this.counts[verdict]++;
       this.log(`seed ${s.f}: q=${g.cur.toFixed(3)} ${P.fmtDesc(g)} cell(${g.cell}) ${verdict}`); this.jlog({ ev: 'seed', file: s.f, q: g.cur, desc: g.desc, cell: g.cell }); });
     this.save();
@@ -153,9 +154,21 @@ class Run {
     await Promise.all(lanes);
     // a batch change means every elite's score is from an older batch: rebuild the grid from what each has now
     this.archive.rebuild(this.archive.elites());
+    if (this.a.lib && this.a.libEvery && this.gen % this.a.libEvery === 0) await this.growLibrary();
     if (this.a.valEvery && this.gen % this.a.valEvery === 0) await this.validateTop();
     this.jlog({ ev: 'gen', epoch: this.epoch, cells: this.archive.size, qd: +this.archive.qd().toFixed(3), best: +(this.archive.best() || { cur: 0 }).cur.toFixed(3), episodes: this.counts.episodes });
     this.save(); this.log(this.mapText().split('\n').slice(0, 1)[0] + ` | ${Math.round((Date.now() - this.t0) / 60000)} min, ${this.counts.episodes} episodes, ${this.pool.stats.killed} killed`);
+  }
+  // Continual Abstraction Discovery: the LLM proposes helpers distilled from the best elites of different cells; an
+  // addition is kept only if every elite and seed still compiles and runs with it (append-only: no behaviour changes)
+  async growLibrary() {
+    const top = this.archive.elites().sort((a, b) => b.cur - a.cur).slice(0, 5); if (top.length < 2) return;
+    let res; try { res = await this.llm.ask(P.libraryPrompt({ elites: top, lib: this.libText, limits: this.limits })); } catch (e) { this.log('library: llm failed'); return; }
+    const add = P.extractCode(res.text); if (!add) { this.log('library: no code'); this.jlog({ ev: 'lib', ok: false, reason: 'no code' }); return; }
+    const v = validateLib(this.libText, add, [...this.archive.elites().map(g => g.code), ...this.seedCodes], this.limits);
+    if (!v.ok) { this.log('library: rejected (' + v.reason + ')'); this.jlog({ ev: 'lib', ok: false, reason: v.reason, model: res.model }); return; }
+    this.libText = v.lib; this.libNames.push(...v.names); fs.writeFileSync(path.join(this.dir, 'lib.js'), `// helper library of run ${this.a.name} (append-only), generation ${this.gen}\n` + this.libText);
+    this.log(`library: + ${v.names.join(', ')} (${this.libText.length} chars, ${res.model})`); this.jlog({ ev: 'lib', ok: true, names: v.names, chars: this.libText.length, model: res.model });
   }
   // how the best few elites do on the held-out neighbourhoods (never used for selection)
   async validateTop() {

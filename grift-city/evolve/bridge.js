@@ -53,10 +53,41 @@ var __bridge = (() => {
     const p = P(), h = heading(), car = p.car, rr = car ? Math.min(1.2, car.spec.wid / 2) : 0.45, hgt = car ? car.spec.hgt : 1.8, y = p.y, out = [];
     for (const deg of RAY_ANGLES) {
       const a = h + (-deg * Math.PI / 180), dx = Math.sin(a), dz = Math.cos(a); let dist = 20;
-      for (let s = 1.5; s <= 20; s += 1.5) { const res = W.pushOut(p.x + dx * s, p.z + dz * s, rr, { y, height: hgt }); if (res.hit || W.onWater(p.x + dx * s, p.z + dz * s)) { dist = s - 1.5; break; } }
+      let prev = 0; for (const s of [1.5, 3, 4.5, 6.5, 9, 12, 16, 20]) { const res = W.pushOut(p.x + dx * s, p.z + dz * s, rr, { y, height: hgt }); if (res.hit || W.onWater(p.x + dx * s, p.z + dz * s)) { dist = prev; break; } prev = s; }
       out.push(m1(dist));
     }
     return out;
+  }
+
+  // ---- rangefinders all round: 12 beams every 30 degrees (0 = ahead, 3 = right, 6 = behind, 9 = left), up to 30 m,
+  // stopped by walls, props, water AND vehicles (their collision circles) ----
+  const RANGE = 30, RANGE_SAMPLES = [2, 4, 7, 10, 14, 19, 24, 30]; // denser near, where it matters
+  function range() {
+    const p = P(), h = heading(), car = p.car, rr = car ? Math.min(1.1, car.spec.wid / 2) : 0.4, hgt = car ? car.spec.hgt : 1.8, y = p.y, out = [];
+    const near = []; for (const c of W.cars) if (!c.removed && c !== car && M.dist2(c.x, c.z, p.x, p.z) < (RANGE + 6) * (RANGE + 6)) near.push(c);
+    for (let i = 0; i < 12; i++) {
+      const a = h - i * Math.PI / 6, dx = Math.sin(a), dz = Math.cos(a); let dist = RANGE;
+      let prev = 0; for (const s of RANGE_SAMPLES) { const x = p.x + dx * s, z = p.z + dz * s; if (W.pushOut(x, z, rr, { y, height: hgt }).hit || W.onWater(x, z)) { dist = prev; break; } prev = s; }
+      for (const c of near) for (const [cx, cz, cr] of c.circles()) { const t = M.rayCircle2(p.x, p.z, dx * RANGE, dz * RANGE, cx, cz, cr); if (t >= 0 && t * RANGE < dist) dist = t * RANGE; }
+      out.push(m1(dist));
+    }
+    return out;
+  }
+  // ---- pie-slice sensors: 8 slices of 45 degrees round the player (0 = ahead, 2 = right, 4 = behind, 6 = left); each says
+  // how far the nearest thing of a kind is in that slice (50 = nothing within 50 m) ----
+  const PIE = 50;
+  function pie() {
+    const p = P(), h = heading(), car = p.car, o = { car: [], ped: [], cop: [], foe: [] }; for (const k in o) for (let i = 0; i < 8; i++) o[k].push(PIE);
+    const put = (k, x, z) => { const r = rel(h, x, z); if (r.d >= PIE) return; const i = ((Math.round(Math.atan2(r.r, r.f) / (Math.PI / 4)) % 8) + 8) % 8; if (r.d < o[k][i]) o[k][i] = r.d; };
+    for (const c of W.cars) { if (c.removed || c === car || c.wrecked || M.dist2(c.x, c.z, p.x, p.z) > PIE * PIE) continue; put('car', c.x, c.z); if (c.driver && c.driver.isCop) put('cop', c.x, c.z); }
+    for (const q of W.peds) { if (q.removed || q.inCar || !q.alive || M.dist2(q.x, q.z, p.x, p.z) > PIE * PIE) continue; if (q.isCop) put('cop', q.x, q.z); else if (q.hostile || q.isGang) put('foe', q.x, q.z); else put('ped', q.x, q.z); }
+    return o;
+  }
+  // ---- the road under you: on the carriageway or not, how far right of the centre of your lane, and the lane's direction ----
+  function road() {
+    const p = P(), h = heading(), on = CITY.onRoad(p.x, p.z), ln = CITY.nearestLane(p.x, p.z, Math.sin(h), Math.cos(h)); if (!ln) return { on, off: 0, b: 0, d: 99 };
+    const [lx, lz] = CITY.lanePoint(ln.e, ln.k, ln.s), e = ln.e; const off = (p.x - lx) * -e.dz + (p.z - lz) * e.dx; // the lane's right is (-dz, dx)
+    return { on, off: m1(off), b: rad(-M.wrapAngle(Math.atan2(e.dx, e.dz) - h)), d: m1(Math.hypot(p.x - lx, p.z - lz)) };
   }
 
   // ---- everything the controller may look at ----
@@ -73,7 +104,7 @@ var __bridge = (() => {
     const bp = MISSIONS.blipPos();
     if (bp && p.alive) { const obj = S.blip && S.blip.obj; const r = rel(h, bp.x, bp.z); o.goal = { x: Math.round(bp.x), z: Math.round(bp.z), d: r.d, f: r.f, r: r.r, b: r.b, kind: obj ? (obj.spec ? 'car' : 'person') : 'place' };
       if (obj && obj.spec) { o.goal.free = !obj.driver && !obj.wrecked && !obj.locked; o.goal.spd = rad(obj.absSpeed); o.goal.mine = obj === car; } o.gps = gps(bp); } else { o.goal = null; o.gps = null; G.route = null; }
-    o.rays = rays();
+    o.rays = rays(); o.range = range(); o.pie = pie(); o.road = road();
     // cars: the 6 nearest within 45 m
     const cars = []; for (const c of W.cars) { if (c.removed || c === car) continue; const dd = M.dist2(c.x, c.z, p.x, p.z); if (dd > 45 * 45) continue; cars.push([dd, c]); } cars.sort((a, b) => a[0] - b[0]);
     const want = S.blip && S.blip.obj;
@@ -119,7 +150,7 @@ var __bridge = (() => {
   const T = { };
   function reset(start) {
     const S = MISSIONS.S, p = P();
-    Object.assign(T, { t: 0, d0: 0, dBest: 0, started: false, blips: new Set(), passed: 0, base: S.progress + S.progress2 + S.phoneProgress, startedName: null, goalSeen: false,
+    Object.assign(T, { objs: new Map(), objKey: null, cash0: p.stats.cash, t: 0, d0: 0, dBest: 0, started: false, blips: new Set(), passed: 0, base: S.progress + S.progress2 + S.phoneProgress, startedName: null, goalSeen: false,
       tFoot: 0, tCar: 0, dFoot: 0, dCar: 0, offences: 0, shots: 0, wantedSec: 0, maxWanted: 0, deaths: 0, kills: p.stats.kills, kills0: p.stats.kills, stolen0: p.stats.carsStolen, stuckT: 0, stuckTotal: 0, last: [p.x, p.z], events: [], notes: [], aliveLast: true, status0: p.stats.wasted + p.stats.busted, still: 0, farStill: 0 });
     L.t0 = W.state.elapsed; L.start = start; G.route = null;
   }
@@ -137,18 +168,29 @@ var __bridge = (() => {
     const bp = MISSIONS.blipPos(), done = S.progress + S.progress2 + S.phoneProgress;
     if (bp) { const dd = M.dist(p.x, p.z, bp.x, bp.z); if (!T.goalSeen) { T.goalSeen = true; T.d0 = Math.max(dd, 1); T.dBest = dd; T.goalAt = [bp.x, bp.z]; ev('first objective ' + Math.round(dd) + ' m away'); } else if (!T.started && M.dist(bp.x, bp.z, T.goalAt[0], T.goalAt[1]) < 12) T.dBest = Math.min(T.dBest, dd);
       const key = Math.round(bp.x / 6) + ',' + Math.round(bp.z / 6); if (!T.blips.has(key) && dd < (p.car ? 9 : 5)) { T.blips.add(key); if (T.started) ev('reached objective ' + (T.blips.size - 1)); } }
+    // every objective after the first earns up to a point as the distance to it closes (a moving goal is keyed by
+    // the object, a place by where it is), so the long legs of a job are not a desert
+    if (bp && T.started) { const obj = S.blip && S.blip.obj; const key = obj ? (obj.__evk || (obj.__evk = 'o' + (++T.nObj || (T.nObj = 1)))) : 'p' + Math.round(bp.x / 8) + ',' + Math.round(bp.z / 8); const dd = M.dist(p.x, p.z, bp.x, bp.z);
+      let rec = T.objs.get(key); if (!rec) { if (T.objs.size < 12) { rec = { d0: Math.max(dd, 5), best: dd, reached: false }; T.objs.set(key, rec); } } else rec.best = Math.min(rec.best, dd);
+      if (rec && dd < (p.car ? 9 : 5)) rec.reached = true; T.objKey = key; }
     if (!T.started && S.current) { T.started = true; T.startedName = S.current.name; ev('started ' + S.current.name); }
     if (done > T.base + T.passed) { T.passed = done - T.base; ev('PASSED a mission (' + T.passed + ')'); }
   }
+  // story points: up to 3 for closing the distance to the first marker, 2 for starting the job there, up to 1 for each
+  // objective after it (the fraction of its distance closed; 1 when reached; at most 8), 5 for passing the job, 5 more for
+  // each further job
+  function objectivePoints() { let s = 0, n = 0; for (const r of T.objs.values()) { if (n++ >= 8) break; s += r.reached ? 1 : M.clamp(1 - r.best / r.d0, 0, 1); } return s; }
   function points() {
     const approach = T.goalSeen ? M.clamp(1 - T.dBest / T.d0, 0, 1) : (T.started ? 1 : 0);
-    const further = Math.min(5, Math.max(0, T.blips.size - (T.started ? 1 : 0)));
     const started = T.started || T.passed > 0;
-    return 3 * (started ? 1 : approach) + (started ? 2 : 0) + (started ? further : 0) + (T.passed > 0 ? 5 : 0) + 5 * Math.max(0, T.passed - 1);
+    return 3 * (started ? 1 : approach) + (started ? 2 + objectivePoints() : 0) + (T.passed > 0 ? 5 : 0) + 5 * Math.max(0, T.passed - 1);
   }
+  // the other facets of quality: money made by any means (jobs, cons, style chains, stunts, packages) and being alive at the end
+  const cashGained = () => Math.max(0, P().stats.cash - T.cash0);
+  const stalled = () => T.still;
   function summary() {
     const p = P(), dur = Math.max(T.t, 1), dist = T.dFoot + T.dCar;
-    return { points: +points().toFixed(3), t: rad(T.t), started: T.startedName, passed: T.passed, approach: T.goalSeen ? +M.clamp(1 - T.dBest / T.d0, 0, 1).toFixed(2) : 0, d0: Math.round(T.d0), dEnd: (() => { const bp = MISSIONS.blipPos(); return bp ? Math.round(M.dist(p.x, p.z, bp.x, bp.z)) : null; })(),
+    return { points: +points().toFixed(3), objectives: +objectivePoints().toFixed(2), cash: Math.round(cashGained()), t: rad(T.t), started: T.startedName, passed: T.passed, approach: T.goalSeen ? +M.clamp(1 - T.dBest / T.d0, 0, 1).toFixed(2) : 0, d0: Math.round(T.d0), dEnd: (() => { const bp = MISSIONS.blipPos(); return bp ? Math.round(M.dist(p.x, p.z, bp.x, bp.z)) : null; })(),
       tFoot: rad(T.tFoot), tCar: rad(T.tCar), dFoot: Math.round(T.dFoot), dCar: Math.round(T.dCar), deaths: T.deaths, offences: T.offences, shots: rad(T.shots), kills: p.stats.kills - T.kills0, stolen: p.stats.carsStolen - T.stolen0,
       wanted: p.wanted | 0, maxWanted: T.maxWanted, wantedSec: Math.round(T.wantedSec), stuck: Math.round(T.stuckTotal + (T.still > 4 ? T.still : 0)), alive: !!p.alive, mode: p.car ? 'car' : 'foot', hp: Math.round(p.health),
       events: T.events.slice(), notes: T.notes.slice(-8),
@@ -178,5 +220,5 @@ var __bridge = (() => {
     MISSIONS.update(1 / 30);
     reset(s);
   }
-  return { obs, act, applyInput, track, points, summary, setup, note, reset, G, alive: () => !!P().alive };
+  return { parts: { rays, range, pie, road }, obs, act, applyInput, track, points, summary, setup, note, reset, G, stalled, alive: () => !!P().alive };
 })();

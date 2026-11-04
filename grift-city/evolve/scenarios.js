@@ -58,8 +58,8 @@ function makeStarts(seed, n, split, opts = {}) {
   for (let i = 0; i < n; i++) { const s = sampleStart(rng, { split, ...opts }); s.id = `${split[0]}${seed}-${i}`; out.push(s); }
   return out;
 }
-// seconds of game time a start is given: 90 s, plus time for a long way to go (about 2 minutes for a typical start;
-// a job passed from where you stand takes most of that, so passing one is within reach but not easy)
-const budget = s => Math.round(90 + Math.min(50, s.giverDist / 7));
+// seconds of game time a start is given: four minutes, plus a little for a long way to go. Enough to get to the marker,
+// start the job and, played well, finish it. (A player who stops moving for a minute ends the run early: episode.js.)
+const budget = s => Math.round(240 + Math.min(45, s.giverDist / 10));
 
 module.exports = { cityMap, sampleStart, makeStarts, mulberry, isHeldOutBlock, budget };

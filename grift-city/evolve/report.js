@@ -21,19 +21,19 @@ async function main() {
   const limits = { ...LIMITS, maxChars: st.args.maxChars, maxLines: st.args.maxLines };
   const held = makeStarts(seed, n, 'heldout'), fixed = makeStarts(seed + 1, n, 'train');
   const subjects = [...['walker', 'driver'].map(s => ({ id: 'seed:' + s, code: fs.readFileSync(path.join(__dirname, 'seeds', s + '.js'), 'utf8'), seedFile: true })), ...[...st.elites].sort((a, b) => b.cur - a.cur).slice(0, top || st.elites.length).map(g => ({ id: g.id, code: g.code, g }))];
-  const pool = new Pool(Math.min(4, os.cpus().length)), opts = { density, limits };
+  const lib = st.lib || '', pool = new Pool(Math.min(4, os.cpus().length)), opts = { density, limits, lib };
   const rows = await Promise.all(subjects.map(async s => {
-    const v = validate(s.code, limits); if (!v.ok) return { ...s, error: v.reason };
+    const v = validate(s.code, limits, lib); if (!v.ok) return { ...s, error: v.reason };
     const [h, f] = await Promise.all([pool.runBatch(s.code, held, opts), pool.runBatch(s.code, fixed, opts)]);
     return { ...s, held: aggregate(h), fixed: aggregate(f), heldResults: h };
   }));
   pool.close();
   const f2 = v => v.toFixed(2);
   const out = [`# Report for run \`${name}\``, '', `${top ? 'The ' + top + ' best of ' : ''}${st.elites.length} elites after ${st.gen} generations, ${st.counts.episodes} episodes. Re-scored on ${n} held-out starts and ${n} fixed training-distribution starts, density ${density}.`, '',
-    '| controller | op | chars | last train batch | fixed train | held-out | gap (train batch − held-out) | wheels | trouble/min | jobs started (held-out) |', '|---|---|---|---|---|---|---|---|---|---|'];
+    '| controller | op | chars | last train batch | fixed train | held-out | held-out story / cash / survival | wheels | trouble/min | jobs started / passed (held-out) |', '|---|---|---|---|---|---|---|---|---|---|'];
   for (const r of rows.sort((a, b) => (b.held ? b.held.quality : -1) - (a.held ? a.held.quality : -1))) {
     if (r.error) { out.push(`| ${r.id} | | | | | invalid: ${r.error} | | | | |`); continue; }
-    out.push(`| ${r.id} | ${r.g ? r.g.op : 'hand-written'} | ${r.code.length} | ${r.g ? f2(r.g.cur) : '-'} | ${f2(r.fixed.quality)} | ${f2(r.held.quality)} | ${r.g ? f2(r.g.cur - r.held.quality) : '-'} | ${f2(r.held.wheels)} | ${f2(r.held.offencesPerMin)} | ${r.held.started}/${n} |`);
+    out.push(`| ${r.id} | ${r.g ? r.g.op : 'hand-written'} | ${r.code.length} | ${r.g ? f2(r.g.cur) : '-'} | ${f2(r.fixed.quality)} | ${f2(r.held.quality)} | ${f2(r.held.story || 0)} / ${f2(r.held.cash || 0)} / ${f2(r.held.survival || 0)} | ${f2(r.held.wheels)} | ${f2(r.held.offencesPerMin)} | ${r.held.started}/${n} / ${r.held.passed} |`);
   }
   const a = new Archive(); for (const r of rows) if (r.g && r.held) { a.place(r.g); a.cells.set(a.key(r.g.cell), { ...r.g, cur: r.held.quality }); }
   out.push('', 'Held-out quality of the elite in each cell (rows: ' + AXES[1].name + ', columns: ' + AXES[0].name + '):', '', '```', a.render('cur'), '```');

@@ -26,6 +26,16 @@ check(validate('function think(o,m){ /* while (true) {} */ const s = "while(1)";
   const a1 = c.step({}), a2 = c.step({}), b1 = d.step({}); check(a2.move === 2 && a1.r === b1.r && a1.r !== a2.r, 'memory persists across calls and Math.random is seeded per run'); }
 { const c = new Controller('function think(o,m){ return {hp:o.me.hp, f:function(){}} }', 1); const r = c.step({ me: { hp: 5 } }); check(r.hp === 5 && r.f === undefined, 'only JSON crosses the boundary'); }
 
+// 1b. The helper library: append-only, new names only, function declarations only, and it must not break a controller.
+{ const { validateLib, libCalls } = require(E + '/sandbox'); const w = seed('walker.js');
+  const r = validateLib('', '// clamp\nfunction clampv(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }', [w]); check(r.ok && r.names.join() === 'clampv', 'a helper is accepted');
+  check(!validateLib(r.lib, 'function clampv(v) { return v; }', [w]).ok, 'a name already in the library is refused');
+  check(!validateLib(r.lib, 'var n = 0;\nfunction bump() { return ++n; }', [w]).ok, 'top-level state is refused');
+  check(!validateLib(r.lib, 'function think(o, m) { return {}; }', [w]).ok, 'a helper cannot be called think');
+  check(!validateLib(r.lib, 'function aa() { return 1; }', ['const aa = 2;\nfunction think(o, m) { return {}; }']).ok, 'a helper that would break an existing controller is refused');
+  const c = 'function think(o, m) { return { turn: clampv(o.gps ? o.gps.b * 3 : 0, -1, 1) }; }';
+  check(validate(c, LIMITS, r.lib).ok && !validate(c).ok && libCalls(c, r.names).length === 1, 'a controller can call the library, which does not count toward its size'); }
+
 // 2. Prompts: diff application and code extraction.
 check(P.applyDiff('a\nb\nc\n', '<<<<<<< SEARCH\nb\n=======\nB\n>>>>>>> REPLACE').code === 'a\nB\nc\n', 'a SEARCH/REPLACE block is applied');
 check(P.applyDiff('a\nb\nb\n', '<<<<<<< SEARCH\nb\n=======\nB\n>>>>>>> REPLACE').error, 'an ambiguous SEARCH block is refused');
@@ -54,8 +64,14 @@ check(P.extractCode('idea\n```js\nfunction think(o,m){}\n```\n') === 'function t
   const h0 = w.obs().me.h; for (let i = 0; i < 4; i++) { w.act({ turn: 1 }); w.tick(false); } const dh = w.obs().me.h - h0;
   check(dh < -0.5 && dh > -2, 'turn +1 turns right: the heading decreases (' + dh.toFixed(2) + ' rad)');
   const o = w.obs(); check(o.goal && o.gps && o.rays.length === 7 && typeof o.me.hp === 'number', 'the observation has a goal, a route and rays');
+  check(o.range.length === 12 && o.range.every(v => v >= 0 && v <= 30) && ['car', 'ped', 'cop', 'foe'].every(k => o.pie[k].length === 8 && o.pie[k].every(v => v >= 0 && v <= 50)) && typeof o.road.on === 'boolean', 'rangefinders, pie slices and the road sensor are there and in range');
   const run = () => { const r = runEpisode(seed('walker.js'), s, { density: 0.3, seconds: 12 }); return JSON.stringify({ p: r.points, a: r.approach, df: r.dFoot, ev: r.events, e: r.ended }); };
   check(run() === run(), 'the same controller on the same start plays out identically'); }
+
+// 5b. Quality facets: story dominates; cash and survival count a little; a dead player gets no survival.
+{ const { facets } = require(E + '/episode');
+  const a = facets({ points: 6, cash: 1000, alive: true, hp: 100 }), b = facets({ points: 6, cash: 0, alive: false, hp: 0 });
+  check(Math.abs(a.quality - (0.6 + 0.25 * 0.5 + 0.1)) < 1e-9 && Math.abs(b.quality - 0.6) < 1e-9 && facets({ points: 0, cash: 99999, alive: true, hp: 50 }).cash === 1.5, 'quality = story + 0.25 cash + 0.1 survival, cash capped'); }
 
 // 6. Drift guard: every gameplay call in game.js's step() is replayed by the headless world.
 { const s = fs.readFileSync(path.join(__dirname, '..', 'js', 'game.js'), 'utf8'), i = s.indexOf('function step(dt) {'); let d = 0, j = i; for (let k = s.indexOf('{', i); k < s.length; k++) { if (s[k] === '{') d++; if (s[k] === '}' && !--d) { j = k; break; } }

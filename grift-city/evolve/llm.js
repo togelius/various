@@ -38,6 +38,7 @@ async function queue(dir, prompt, timeoutMs) {
 }
 // perturbs the numbers in the PARENT block (or the first parent) and flips an occasional comparison
 async function mock(prompt) {
+  if (/We keep a shared HELPER LIBRARY/.test(prompt)) { const n = 'mockHelper' + Math.floor(Math.random() * 1e6); return '```js\n// clamp to -1..1\nfunction ' + n + '(v) { return Math.max(-1, Math.min(1, v)); }\n```'; }
   const m = prompt.match(/PARENT[^\n]*\n```js\n([\s\S]*?)```/); if (!m) throw new Error('mock: no parent');
   let code = m[1], n = 0;
   code = code.replace(/(?<![\w.])(\d+\.?\d*)(?![\w.])/g, (s, v) => { if (+v > 3 && Math.random() < 0.15) { n++; return String(+(v * (0.7 + Math.random() * 0.6)).toFixed(2)); } if (+v <= 3 && Math.random() < 0.1) { n++; return String(+(v * (0.6 + Math.random() * 0.8)).toFixed(2)); } return s; });
