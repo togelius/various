@@ -1,0 +1,8 @@
+{"at":"2026-11-04T00:10:40.627Z","ev":"epoch","epoch":11,"evals":96,"rescored":20,"cells":18,"qd":4.506,"floors":"523401041253"}
+{"at":"2026-11-04T00:10:54.061Z","ev":"epoch","epoch":12,"evals":96,"rescored":18,"cells":18,"qd":4.809,"floors":"120453431025"}
+{"at":"2026-11-04T00:11:20.456Z","ev":"child","id":124,"op":"mutate-diff","hint":"boss","model":"haiku","parents":[110],"res":"new","cur":0.308,"parentCur":0.247,"desc":[0.188,0.246],"cell":[3,1],"chars":3368,"wins":0,"usesLib":true}
+{"at":"2026-11-04T00:11:21.651Z","ev":"child","id":125,"op":"mutate-full","hint":"boss","model":"sonnet","parents":[110],"res":"better","cur":0.29,"parentCur":0.247,"desc":[0.167,0.414],"cell":[3,3],"chars":2243,"wins":0,"usesLib":true}
+{"at":"2026-11-04T00:11:22.925Z","ev":"child","id":126,"op":"mutate-diff","hint":"memory","model":"sonnet","parents":[86],"res":"new","cur":0.236,"parentCur":0.309,"desc":[0.052,0.474],"cell":[1,3],"chars":3079,"wins":0,"usesLib":true}
+{"at":"2026-11-04T00:11:22.926Z","ev":"infeasible","id":127,"op":"crossover","kind":"forbidden","reason":"uses forbidden word \"while\" (no while/do loops, no globals, no async)"}
+{"at":"2026-11-04T00:11:24.205Z","ev":"child","id":128,"op":"mutate-diff","hint":"items","model":"sonnet","parents":[8],"res":"worse","cur":0.298,"parentCur":0.247,"desc":[0.134,0.191],"cell":[2,1],"chars":2071,"wins":0,"usesLib":true}
+{"at":"2026-11-04T00:11:25.438Z","ev":"child","id":129,"op":"mutate-diff","hint":"tune","model":"sonnet","parents":[114],"res":"new","cur":0.28,"parentCur":0.372,"desc":[0.469,0.287],"cell":[4,2],"chars":2250,"wins":0,"usesLib":true}

@@ -1,0 +1,2956 @@
+{
+ "opt": {
+  "name": "run2",
+  "gens": 400,
+  "batch": 6,
+  "workers": 4,
+  "starts": 12,
+  "epochGens": 3,
+  "heldout": 36,
+  "heldoutEvery": 10,
+  "seed": 1,
+  "backend": "claude-cli",
+  "minutes": 110,
+  "libEvery": 10,
+  "maxChars": 3500,
+  "models": [
+   {
+    "name": "haiku",
+    "weight": 0.6
+   },
+   {
+    "name": "sonnet",
+    "weight": 0.4
+   }
+  ],
+  "resume": true
+ },
+ "epoch": 12,
+ "gen": 31,
+ "evals": 101,
+ "nextId": 130,
+ "lib": "// wrap an angle into -PI..PI\nfunction wrapA(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\n// clamp a control value into -1..1\nfunction clampU(v) { return Math.max(-1, Math.min(1, v)); }\n// turn command that faces bearing b (positive turns right); gain 2 is a steady turn\nfunction steerTo(b, gain) { return clampU((gain || 2) * b); }\n// nearest awake foe the blaster can hit right now, or null\nfunction nearestHittable(o) {\n  let best = null;\n  for (const f of o.foes) if (f.awake && f.band && (!best || f.d < best.d)) best = f;\n  return best;\n}\n// true if a non-shootable (unstoppable) shot is within dist metres and within ang radians ahead\nfunction shotDanger(o, dist, ang) {\n  return o.shots.some(s => !s.shootable && s.d < dist && Math.abs(s.b) < ang);\n}\n// stuck detector: counts ticks with no vertical progress in m.c; true once it exceeds maxT ticks\nfunction stuckTicks(o, m, maxT) {\n  m.c = Math.abs(o.y - (m.py === undefined ? o.y : m.py)) < 0.05 ? (m.c || 0) + 1 : 0;\n  m.py = o.y;\n  return m.c > (maxT || 25);\n}\n",
+ "hintStats": {
+  "stuck": {
+   "tries": 11,
+   "succ": 6
+  },
+  "survive": {
+   "tries": 2,
+   "succ": 0
+  },
+  "fight": {
+   "tries": 4,
+   "succ": 1
+  },
+  "items": {
+   "tries": 8,
+   "succ": 4
+  },
+  "special": {
+   "tries": 15,
+   "succ": 9
+  },
+  "boss": {
+   "tries": 12,
+   "succ": 11
+  },
+  "simplify": {
+   "tries": 9,
+   "succ": 7
+  },
+  "novel": {
+   "tries": 5,
+   "succ": 4
+  },
+  "tune": {
+   "tries": 9,
+   "succ": 6
+  },
+  "memory": {
+   "tries": 8,
+   "succ": 4
+  }
+ },
+ "opStats": {
+  "mutate-diff": {
+   "tries": 53,
+   "ok": 31
+  },
+  "mutate-full": {
+   "tries": 19,
+   "ok": 9
+  },
+  "crossover": {
+   "tries": 33,
+   "ok": 12
+  },
+  "repair": {
+   "tries": 21,
+   "ok": 14
+  }
+ },
+ "infeasible": [
+  {
+   "id": 127,
+   "code": "// carried: jump off; hang: climb; rider: shake and jump; boss: circle and shoot;\n// lift: stand and turn to foes; ladder: face west, push in; spring: run at pad; fights; else walk to goal\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 25);\n  const press = m.n % 2 === 0;\n  if (o.carried) return { turn: 0, move: 0, fire: !!o.aim.hit, jump: press };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: press };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: press };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => (f.st === 'slam' || f.st === 'windup') && f.d < 5) || o.shots.some(s => s.d < 3);\n  const fire = !!o.aim.hit;\n  const big = near.some(f => Math.abs(f.b) < 0.6 && /golem|car|boss/.test(f.k));\n  const use = !!((boss || big || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 15);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = !boss.band ? -0.7 : boss.d < 6 ? -0.8 : boss.d > 9 ? 0.6 : 0.3;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp|jump|leap|crouch/.test(boss.st || '');\n    return { ...out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat), fire: true };\n  }\n\n  // lift: stand still (it rises while you stand on it), turning toward the nearest target\n  if (g.kind === 'lift' && g.d < 1.2) {\n    const tgt = nearestHittable(o);\n    return out(steerTo(tgt ? tgt.b : g.b, 2), 0, threat);\n  }\n\n  if (stuck) return out(Math.sin(m.n * 0.7), edge ? 0 : 0.7, true);\n\n  // spring pad: run straight at it\n  if (g.kind === 'spring') return out(steerTo(g.b, 3), Math.abs(g.b) < 0.6 ? 1 : 0.3, threat);\n\n  // ladder: face west (yaw near PI), then push into the lattice from the east\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  // close-range fight: face fast melee toys in reach, hold ground and shoot\n  const pest = near.filter(f => f.d < 4 && Math.abs(f.dy) < 2 && /kitty|wolf|bee/.test(f.k))\n    .sort((a, b) => a.d - b.d)[0];\n  if (pest && !ramp && g.kind !== 'lift') {\n    const back = pest.d < 2 && o.drop.l > 1.5 && o.drop.r > 1.5 ? -0.5 : 0;\n    return out(pest.b * 3, back, threat || pest.st === 'dive');\n  }\n\n  // heal when hurt, grab nearby items when calm, otherwise walk to the goal\n  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 8) : undefined;\n  const calm = !o.foes.some(f => f.awake && f.d < 5);\n  const it = heal || (calm ? o.items.find(i => i.d < 4) : undefined);\n  const tb = it ? it.b : g.b;\n  const climb = !it && g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const walk = !edge && Math.abs(tb) < 1.2 ? 0.55 : 0.2;\n  return out(tb * 2, edge && !it ? 0 : walk, climb || threat);\n}\n",
+   "reason": "uses forbidden word \"while\" (no while/do loops, no globals, no async)",
+   "kind": "forbidden"
+  }
+ ],
+ "elites": [
+  {
+   "id": 79,
+   "op": "mutate-diff",
+   "parents": [
+    8
+   ],
+   "gen": 19,
+   "model": "sonnet",
+   "hint": "memory",
+   "cur": 0.6033333333333334,
+   "hist": [
+    0.3333,
+    0.3583,
+    0.5267,
+    0.395,
+    0.3867,
+    0.6033
+   ],
+   "descHist": [
+    [
+     0.060782598805836204,
+     0.6020755880924765
+    ],
+    [
+     0.07307764807453414,
+     0.5448605543981968
+    ],
+    [
+     0.09133747325360198,
+     0.5359942280785962
+    ],
+    [
+     0.08327502497682071,
+     0.5048249415205083
+    ],
+    [
+     0.0758778072714444,
+     0.573012245138628
+    ],
+    [
+     0.10402675025519881,
+     0.5020265698773706
+    ]
+   ],
+   "desc": [
+    0.08139621710623937,
+    0.543799021184296
+   ],
+   "cell": [
+    2,
+    3
+   ],
+   "wins": 5,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const fire = !!o.aim.hit && m.n % 2 === 0;\n  const stuck = stuckTicks(o, m, 25);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? 1 : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && g.kind !== 'crane-step';\n  if (stuck && g.kind !== 'lift') return { turn: Math.sin(m.n * 0.7), move: edge ? 0 : 0.8, fire, jump: true };\n  const move = Math.abs(g.b) < 1 && !edge ? 1 : 0;\n  const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  return { turn: clamp(g.b * 2), move, fire, jump: slam || hop };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 5,
+    "deaths": 1.9166666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.89,-4.8) having reached y=11.4 by t=31s; t60 y11.4 hp37 stairs0.3",
+     "start on floor 0: ended at y=15.47 near (3.76,1.69) having reached y=15.2 by t=144s; t60 y0 hp27 stairs0.22",
+     "start on floor 5: ended at y=19 near (0.66,4.47) having reached y=19; t40 y19 hp16 boss0.47",
+     "start on floor 3: ended at y=19 near (-1.63,4.56) having reached y=19 by t=51s; t60 y19 hp18 boss0.61"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.615,
+      "win": false,
+      "deaths": 6,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y11",
+       "kitty@y12"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.66,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y12",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 1,
+      "win": true,
+      "deaths": 5,
+      "killedBy": [
+       "bee@y12",
+       "eagle@y16",
+       "boss@y19"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.34500000000000003,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "golem@y12",
+       "bee@y15",
+       "boss@y20"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 1,
+      "win": true,
+      "deaths": 4,
+      "killedBy": [
+       "boss@y19",
+       "boss@y19",
+       "kitty@y19"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 0,
+      "killedBy": []
+     }
+    ],
+    "cur": 0.6033333333333334,
+    "desc": [
+     0.10402675025519881,
+     0.5020265698773706
+    ]
+   }
+  },
+  {
+   "id": 54,
+   "op": "mutate-diff",
+   "parents": [
+    3
+   ],
+   "gen": 13,
+   "model": "haiku",
+   "hint": "stuck",
+   "cur": 0.46916666666666657,
+   "hist": [
+    0.45,
+    0.2933,
+    0.5158,
+    0.4425,
+    0.3825,
+    0.3308,
+    0.2317,
+    0.4692
+   ],
+   "descHist": [
+    [
+     0.15315561408504505,
+     0.576992640494647
+    ],
+    [
+     0.09624126634734627,
+     0.6412834084080042
+    ],
+    [
+     0.16544171023904328,
+     0.5914331021911057
+    ],
+    [
+     0.138515718348765,
+     0.6316609239978439
+    ],
+    [
+     0.1304126998453516,
+     0.6130862627694517
+    ],
+    [
+     0.1350085131604846,
+     0.5330768700962089
+    ],
+    [
+     0.10559094698539251,
+     0.49783153444626643
+    ],
+    [
+     0.15609399163455887,
+     0.553444412460724
+    ]
+   ],
+   "desc": [
+    0.1350575575807484,
+    0.5798511443580314
+   ],
+   "cell": [
+    2,
+    4
+   ],
+   "wins": 3,
+   "code": "// walk toward the goal marker, shoot whatever is in the aim band\n// ladders: at the approach, face west (yaw PI) and push in; hanging/carried: jump out\nfunction step(o, m) {\n  const g = o.goal;\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire: !!o.aim.hit, jump: false };\n  }\n  const turn = Math.max(-1, Math.min(1, g.b * 2));\n  return { turn, move: Math.abs(g.b) < 1 ? 1 : 0, fire: !!o.aim.hit, jump: false };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 3,
+    "deaths": 1.6666666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=15.2 near (3.7,2.69) having reached y=15.2 by t=24s; t60 y15.2 hp0 ladder-approach2.82",
+     "start on floor 2: ended at y=19 near (-0.42,4.85) having reached y=19 by t=77s; t60 y15.2 hp35 ladder-approach2.53",
+     "start on floor 0: ended at y=0 near (3.93,6.28) having reached y=0; t60 y0 hp27 stairs0.27",
+     "start on floor 5: ended at y=19 near (-0.05,4.38) having reached y=19; t40 y19 hp75 boss0.4"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.34,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y12",
+       "kitty@y15",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.39,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y12",
+       "kitty@y15",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.47000000000000003,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "kitty@y8",
+       "golem@y12",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.615,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "golem@y12",
+       "eagle@y15",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 1,
+      "win": true,
+      "deaths": 2,
+      "killedBy": [
+       "boss@y19",
+       "boss@y19"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y19",
+       "boss@y19"
+      ]
+     }
+    ],
+    "cur": 0.46916666666666657,
+    "desc": [
+     0.15609399163455887,
+     0.553444412460724
+    ]
+   }
+  },
+  {
+   "id": 114,
+   "op": "crossover",
+   "parents": [
+    54,
+    107
+   ],
+   "gen": 28,
+   "model": "sonnet",
+   "hint": "special",
+   "cur": 0.37166666666666665,
+   "hist": [
+    0.485,
+    0.34,
+    0.3717
+   ],
+   "descHist": [
+    [
+     0.5107394351962222,
+     0.3901172829058975
+    ],
+    [
+     0.4720362041794655,
+     0.43531564083201385
+    ],
+    [
+     0.40866177756379174,
+     0.41039962417528253
+    ]
+   ],
+   "desc": [
+    0.4638124723131598,
+    0.41194418263773125
+   ],
+   "cell": [
+    4,
+    3
+   ],
+   "wins": 1,
+   "code": "// Hybrid: A's brisk walking + ladder push; B's survival rules, boss spacing, stuck recovery.\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 30);\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const hit = !!o.aim.hit || o.foes.some(f => f.awake && f.band);\n  const fire = hit && (boss ? true : m.n % 5 < 3);\n  const slam = o.foes.some(f => (f.st === 'slam' || f.st === 'windup') && f.d < 4.5) || shotDanger(o, 3, 0.5);\n  const out = (turn, move, jump, use) => ({\n    turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,\n  });\n\n  if (boss && boss.d < 14) {\n    const ang = Math.atan2(boss.dy, boss.d);\n    const wind = boss.d < 9 && /slam|wind|shock|stomp|charge|throw/.test(boss.st || '');\n    const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;\n    if (useNow) m.u = m.n;\n    let move = boss.d > 9 ? 0.8 : boss.d < 5 ? -0.6 : 0.3;\n    if (!boss.band && Math.abs(ang) > 0.15 && boss.d < 12) move = -0.6;\n    if (move > 0 && o.drop.f < 2) move = 0;\n    if (move < 0 && o.drop.b !== undefined && o.drop.b < 2) move = 0;\n    const weave = Math.floor(o.t / 3) % 2 ? 0.15 : -0.15;\n    return out(steerTo(boss.b + weave, 2.5), move, wind || slam, useNow);\n  }\n\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2.5), 0, slam);\n\n  if (stuck) return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.8, true);\n\n  const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;\n  const tb = heal ? heal.b : g.b;\n  const crane = /crane/.test(g.kind);\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground && (g.stepY || 0) > o.y + 0.3;\n  const edge = !crane && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && o.drop.f < 1.5;\n  const move = edge || Math.abs(tb) >= 1.3 ? 0 : Math.abs(tb) < 0.6 ? 1 : 0.6;\n  return out(steerTo(tb, 2.5), move, climb || slam);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 1,
+    "deaths": 1.25,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.91,-4.82) having reached y=11.35 by t=23s; t60 y11.4 hp94 stairs0.29",
+     "start on floor 2: ended at y=11.4 near (6.2,-6.08) having reached y=11.4 by t=24s; t60 y11.4 hp76 stairs0.25",
+     "start on floor 0: ended at y=11.4 near (1.85,-4.88) having reached y=11.39 by t=31s; t60 y11.79 hp92 stairs0.45",
+     "start on floor 4: ended at y=19 near (3.2,6.2) having reached y=19 by t=40s; t60 y0 hp0 stairs7.21"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.41,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.31,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "wolf@y8",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28500000000000003,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.345,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "eagle@y0",
+       "boss@y0",
+       "boss@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.33499999999999996,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "wolf@y0",
+       "boss@y0",
+       "boss@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.545,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "bee@y11"
+      ]
+     }
+    ],
+    "cur": 0.37166666666666665,
+    "desc": [
+     0.40866177756379174,
+     0.41039962417528253
+    ]
+   }
+  },
+  {
+   "id": 122,
+   "op": "mutate-diff",
+   "parents": [
+    93
+   ],
+   "gen": 30,
+   "model": "haiku",
+   "hint": "memory",
+   "cur": 0.34249999999999997,
+   "hist": [
+    0.435,
+    0.4408,
+    0.3425
+   ],
+   "descHist": [
+    [
+     0.14591562166353386,
+     0.1603763289986255
+    ],
+    [
+     0.17682177201000407,
+     0.15138200165992122
+    ],
+    [
+     0.12138796270310435,
+     0.16377709131240917
+    ]
+   ],
+   "desc": [
+    0.14804178545888078,
+    0.15851180732365197
+   ],
+   "cell": [
+    2,
+    1
+   ],
+   "wins": 0,
+   "code": "// special states first: carried/hang: jump; kitty on head: jump and shake;\n// ladder: face west and push in; lift: stand still; otherwise creep (0.2) toward the goal,\n// firing rarely, jumping over telegraphed attacks and crane-step gaps\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const stuck = stuckTicks(o, m, 30);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => !s.shootable && s.d < 3);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  // hold fire almost never: only at a close, hittable foe, every sixth tick; always at the boss\n  const close = o.foes.some(f => f.awake && f.d < 3);\n  const fire = !!o.aim.hit && (!!boss || (close && m.n % 30 === 0));\n\n  if (boss) {\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    const mv = boss.d > 8 ? 0.2 : boss.d < 5 ? -0.2 : 0;\n    return { turn: clampU(boss.b * 3), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: wave || threat };\n  }\n\n  // ladder: the lattice is only climbable facing west from the east; push in once aligned\n  const lattice = g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5);\n  if (lattice) {\n    const e = wrapA(Math.PI - o.yaw);\n    return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };\n  }\n\n  // lift: stand still on it, it rises as long as you stand there\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire, jump: threat };\n\n  // stuck: no vertical progress for ~3 s, so hop and wander\n  if (stuck) return { turn: Math.sin(m.n * 0.7), move: o.drop.f < 1.5 ? 0 : 0.2, fire, jump: true };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  // grab nearby juice when hurt\n  const heal = o.hp < 60 ? o.items.find(i => i.k === 'juice' && i.d < 6) : undefined;\n  const tb = heal ? heal.b : g.b;\n  // spring: walk onto the pad and let it throw you; crane-step: hop across gaps\n  const hop = threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);\n  const walk = edge ? 0 : Math.abs(tb) < 1.2 ? 0.35 : 0.15;\n  return { turn: steerTo(tb, 2), move: walk, fire, jump: hop };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 2.5833333333333335,
+    "stuck": [
+     "start on floor 1: ended at y=15.2 near (3.7,2.7) having reached y=15.2 by t=39s; t60 y15.2 hp46 ladder-approach2.99",
+     "start on floor 2: ended at y=15.2 near (2.7,2.9) having reached y=15.2 by t=51s; t60 y15.2 hp46 ladder-approach4.82",
+     "start on floor 0: ended at y=15.2 near (4.28,5.7) having reached y=19 by t=142s; t60 y7.6 hp15 lift6.95",
+     "start on floor 4: ended at y=15.2 near (5.43,0.35) having reached y=15.2; t60 y15.2 hp21 ladder-approach2.53"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.615,
+      "win": false,
+      "deaths": 10,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y4",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.55,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "bee@y0",
+       "kitty@y0",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.255,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "bee@y8",
+       "eagle@y0",
+       "kitty@y9"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.485,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "golem@y0",
+       "wolf@y15",
+       "kitty@y19"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "bee@y15",
+       "boss@y16",
+       "boss@y15"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.15,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "boss@y11"
+      ]
+     }
+    ],
+    "cur": 0.34249999999999997,
+    "desc": [
+     0.12138796270310435,
+     0.16377709131240917
+    ]
+   }
+  },
+  {
+   "id": 86,
+   "op": "repair",
+   "parents": [
+    61
+   ],
+   "gen": 21,
+   "model": "haiku",
+   "hint": null,
+   "cur": 0.30916666666666665,
+   "hist": [
+    0.3308,
+    0.3142,
+    0.3017,
+    0.3292,
+    0.385,
+    0.3092
+   ],
+   "descHist": [
+    [
+     0.08062091372192341,
+     0.21075243194114435
+    ],
+    [
+     0.054843046791061854,
+     0.20765756545696787
+    ],
+    [
+     0.06745824284994124,
+     0.2058320268337661
+    ],
+    [
+     0.07661646182203528,
+     0.22082950609500218
+    ],
+    [
+     0.09161655148816807,
+     0.21823389715298336
+    ],
+    [
+     0.0673895673560564,
+     0.21468324587330243
+    ]
+   ],
+   "desc": [
+    0.0730907973381977,
+    0.2129981122255277
+   ],
+   "cell": [
+    1,
+    1
+   ],
+   "wins": 0,
+   "code": "// slow, deliberate climber: holds fire only at the boss or a foe winding up an attack;\n// rider: shake and jump; carried/hang: jump out; boss: circle and shoot; ladder: face west and push in;\n// lift: stand still; stuck: hop and wander; otherwise steer to the goal at about a third pace, grabbing juice when hurt\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const stuck = stuckTicks(o, m, 25);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  // shoot only at the boss, or at a close foe that is telegraphing an attack\n  const winding = o.foes.some(f => f.awake && f.band && f.d < 6 && /wind|rev|slam|throw|dive|crouch/.test(f.st || ''));\n  const fire = !!o.aim.hit && (!!boss || winding);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => s.d < 3);\n  // use the selected pickup when outnumbered or facing the boss, at most every 20 ticks\n  const use = !!((boss || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 20);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    // circle at range 6-9 with a sideways arc; shoot when in band; jump telegraphed shockwaves\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = boss.d < 6 ? -0.8 : boss.d > 9 ? 0.8 : 0.4;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    return out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat);\n  }\n\n  // ladders: face west and push in once aligned; no hopping on the lattice\n  const lattice = g.kind === 'ladder' || g.kind === 'ladder-approach';\n  if (lattice && (g.kind === 'ladder' || g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  // stuck escape: no vertical progress for ~2.5 s, so hop and wander\n  if (stuck) return out(Math.sin(m.n * 0.7), edge ? 0 : 0.5, true);\n\n  // grab nearby juice when hurt (below 50), otherwise head for the goal\n  const heal = o.hp < 50 ? o.items.find(i => i.k === 'juice' && i.d < 5) : undefined;\n  const tb = heal ? heal.b : g.b;\n  if (g.kind === 'lift' && g.d < 1.2) return out(tb * 2.5, 0, threat);\n\n  // crane steps are stepping stones over air: hop onto them\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  // slow pace: about a third of full speed when roughly facing the goal, a crawl on turns\n  const walk = !edge && Math.abs(tb) < 1.2 ? 0.35 : 0.1;\n  return out(tb * 2.5, edge ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 3.0833333333333335,
+    "stuck": [
+     "start on floor 1: ended at y=3.8 near (5.33,8.28) having reached y=19.8 by t=106s; t60 y7.6 hp29 lift6.42",
+     "start on floor 2: ended at y=11.4 near (6.08,-6.09) having reached y=15 by t=24s; t60 y11.4 hp20 stairs4.38",
+     "start on floor 0: ended at y=15.2 near (4.95,-1.83) having reached y=15.2 by t=101s; t60 y4.55 hp100 spring11.29",
+     "start on floor 4: ended at y=15.2 near (2.7,2.95) having reached y=15.2; t60 y15.2 hp44 ladder-approach3.5"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.535,
+      "win": false,
+      "deaths": 10,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y4",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.49,
+      "win": false,
+      "deaths": 10,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y8",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.375,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "kitty@y9",
+       "bee@y0",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.225,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "bee@y0",
+       "kitty@y15",
+       "golem@y11"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.185,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "car@y16",
+       "bee@y0",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.045,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "eagle@y11"
+      ]
+     }
+    ],
+    "cur": 0.30916666666666665,
+    "desc": [
+     0.0673895673560564,
+     0.21468324587330243
+    ]
+   }
+  },
+  {
+   "id": 124,
+   "op": "mutate-diff",
+   "parents": [
+    110
+   ],
+   "gen": 31,
+   "model": "haiku",
+   "hint": "boss",
+   "cur": 0.30750000000000005,
+   "hist": [
+    0.3075
+   ],
+   "descHist": [
+    [
+     0.18814015243092594,
+     0.24643077362762297
+    ]
+   ],
+   "desc": [
+    0.18814015243092594,
+    0.24643077362762297
+   ],
+   "cell": [
+    3,
+    1
+   ],
+   "wins": 0,
+   "code": "// rider: shake+jump; hang: jump up; carried: jump off; lift: stand and shoot; stuck escape;\n// spring: run at pad; ladder: face west, push in; boss circling; close fights; else walk to goal\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 25);\n  const press = m.n % 2 === 0; // alternate so every other tick is a jump press\n  if (o.carried) return { turn: 0, move: 0, fire: !!o.aim.hit, jump: press };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: press };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: press };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => s.d < 3);\n  const fire = !!o.aim.hit && (m.n % 4 !== 0 || !!boss || near.length > 0);\n  const big = near.some(f => Math.abs(f.b) < 0.6 && (f.k === 'golem' || f.k === 'car' || f.k === 'boss'));\n  const use = !!((boss || big || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 15);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = !boss.band ? -0.5 : boss.d < 5 ? -0.8 : boss.d > 9 ? 0.4 : 0.15;\n    const wave = (boss.d < 14 && /slam|wind|shock|stomp|jump|leap|crouch/.test(boss.st || '')) || shotDanger(o, 6, 0.6);\n    const r = out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat);\n    r.fire = true;\n    return r;\n  }\n\n  // lift: stand still on it (it rises as long as you stand there), turning toward the nearest target\n  if (g.kind === 'lift' && g.d < 1.2) {\n    const tgt = nearestHittable(o);\n    return out(steerTo(tgt ? tgt.b : g.b, 2), 0, threat);\n  }\n\n  if (stuck && g.kind !== 'lift') return out(Math.sin(m.n * 0.7), edge ? 0 : 0.7, true);\n\n  // spring pad: run straight at it; it throws you up\n  if (g.kind === 'spring') return out(steerTo(g.b, 3), Math.abs(g.b) < 0.6 ? 1 : 0.3, threat);\n\n  // ladder: face west (yaw near PI), then push into the lattice from the east\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  // close-range fight: face fast melee toys in reach, hold ground and shoot\n  const pest = near.filter(f => f.d < 4 && Math.abs(f.dy) < 2 && /kitty|wolf|bee/.test(f.k))\n    .sort((a, b) => a.d - b.d)[0];\n  if (pest && !ramp && g.kind !== 'lift') {\n    const back = pest.d < 2 && o.drop.l > 1.5 && o.drop.r > 1.5 ? -0.5 : 0;\n    return out(pest.b * 3, back, threat || pest.st === 'dive');\n  }\n\n  // heal when hurt, grab nearby items when calm, otherwise walk to the goal\n  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 8) : undefined;\n  const calm = !o.foes.some(f => f.awake && f.d < 5);\n  const it = heal || (calm ? o.items.find(i => i.d < 4) : undefined);\n  const tb = it ? it.b : g.b;\n  const climb = !it && g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const walk = !edge && Math.abs(tb) < 1.2 ? 0.55 : 0.2;\n  return out(tb * 2, edge && !it ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.93,-4.85) having reached y=11.4 by t=9s; t60 y11.4 hp70 stairs0.15",
+     "start on floor 2: ended at y=12.63 near (6.46,-5.89) having reached y=11.4 by t=3s; t60 y11.4 hp42 stairs4.11",
+     "start on floor 0: ended at y=15.2 near (3.75,1.29) having reached y=15.2 by t=100s; t60 y0 hp2 stairs10.02",
+     "start on floor 4: ended at y=15.2 near (2.76,0.52) having reached y=15.2; t60 y15.2 hp83 ladder-approach4.24"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.48,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y1",
+       "kitty@y0",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "bee@y8",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "bee@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.23,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "cannon@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y17",
+       "eagle@y16"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.45999999999999996,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y11",
+       "eagle@y0"
+      ]
+     }
+    ],
+    "cur": 0.30750000000000005,
+    "desc": [
+     0.18814015243092594,
+     0.24643077362762297
+    ]
+   }
+  },
+  {
+   "id": 125,
+   "op": "mutate-full",
+   "parents": [
+    110
+   ],
+   "gen": 31,
+   "model": "sonnet",
+   "hint": "boss",
+   "cur": 0.29,
+   "hist": [
+    0.29
+   ],
+   "descHist": [
+    [
+     0.16708152019228564,
+     0.41379890591565
+    ]
+   ],
+   "desc": [
+    0.16708152019228564,
+    0.41379890591565
+   ],
+   "cell": [
+    3,
+    3
+   ],
+   "wins": 0,
+   "code": "// special states first; boss: hold range, arc, shoot, jump shockwaves; ladder: face west; lift: stand; else brisk walk to goal\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  const g = o.goal;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const slam = o.foes.some(f => /slam|shock|stomp/.test(f.st || '') && f.d < 5);\n  const shell = o.shots.some(s => s.d < 3 && Math.abs(s.b) < 0.7);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const stuck = stuckTicks(o, m, 25);\n  const fire = !!o.aim.hit && (m.n % 3 !== 0 || !!boss);\n  const use = !!((boss || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 15);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump: !!jump, fire, use, sel: 0 });\n\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.3 : -0.3;\n    const want = !boss.band ? -0.7 : boss.d < 6 ? -0.8 : boss.d > 9 ? 0.7 : 0.35;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp|jump|leap|crouch/.test(boss.st || '');\n    const r = out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || shell || slam);\n    r.fire = !!o.aim.hit || boss.band;\n    return r;\n  }\n\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, slam);\n  }\n  if (g.kind === 'lift' && g.d < 1.2) {\n    const t = nearestHittable(o);\n    return out(steerTo(t ? t.b : g.b, 2), 0, slam);\n  }\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  if (stuck && g.kind !== 'lift') return out(Math.sin(m.n * 0.7), edge ? 0 : 0.8, true);\n\n  const heal = o.hp < 60 ? o.items.find(i => i.k === 'juice' && i.d < 6) : undefined;\n  const tb = heal ? heal.b : g.b;\n  const hop = !heal && g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const move = edge ? 0 : Math.abs(tb) < 0.5 ? 1 : Math.abs(tb) < 1.2 ? 0.6 : 0.1;\n  return out(tb * 2, move, hop || slam || shell);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 2.8333333333333335,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.32,-4.53) having reached y=11.4 by t=15s; t60 y12.12 hp100 stairs0.55",
+     "start on floor 2: ended at y=19.66 near (5.64,8.32) having reached y=19.8 by t=84s; t60 y15.37 hp43 ladder3.52",
+     "start on floor 0: ended at y=0 near (3.09,5.23) having reached y=0; t60 y0 hp27 stairs0.18",
+     "start on floor 4: ended at y=15.2 near (7.54,-7.51) having reached y=15.2; t60 y15.2 hp73 ladder11"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.275,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y11",
+       "kitty@y16",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y9",
+       "kitty@y13"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y11",
+       "wolf@y0"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.34500000000000003,
+      "win": false,
+      "deaths": 9,
+      "killedBy": [
+       "cannon@y0",
+       "kitty@y8",
+       "eagle@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.185,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "wolf@y1",
+       "wolf@y0",
+       "boss@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.145,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "eagle@y11",
+       "kitty@y0",
+       "kitty@y0"
+      ]
+     }
+    ],
+    "cur": 0.29,
+    "desc": [
+     0.16708152019228564,
+     0.41379890591565
+    ]
+   }
+  },
+  {
+   "id": 95,
+   "op": "mutate-full",
+   "parents": [
+    8
+   ],
+   "gen": 23,
+   "model": "haiku",
+   "hint": "boss",
+   "cur": 0.28250000000000003,
+   "hist": [
+    0.2217,
+    0.3625,
+    0.1183,
+    0.1833,
+    0.2825
+   ],
+   "descHist": [
+    [
+     0.7514286001101271,
+     0.2788311792743309
+    ],
+    [
+     0.6091138117028935,
+     0.3140803245953081
+    ],
+    [
+     0.6628067678635058,
+     0.2656966762187322
+    ],
+    [
+     0.8077966933394274,
+     0.30047936586674767
+    ],
+    [
+     0.6668928834914061,
+     0.2937339707092734
+    ]
+   ],
+   "desc": [
+    0.699607751301472,
+    0.29056430333287847
+   ],
+   "cell": [
+    5,
+    2
+   ],
+   "wins": 1,
+   "code": "// Boss (top floor): hold range 6-10, face the MEGA WOLF, back off when it is outside the blaster band,\n// fire constantly, jump its wind-ups and incoming shells, use pickups every ~2.5 s. Then climb the crane steps.\n// Elsewhere: ladders face west and push in; lifts stand still; otherwise walk to the goal, firing at anything in band.\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 25);\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const fire = !!o.aim.hit || o.foes.some(f => f.awake && f.band);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 5) || shotDanger(o, 3, 0.5);\n  const out = (turn, move, jump, use) => ({\n    turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,\n  });\n\n  if (boss) {\n    const ang = Math.atan2(boss.dy, boss.d);\n    const wind = boss.d < 9 && /slam|wind|shock|stomp|charge|throw/.test(boss.st || '');\n    const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;\n    if (useNow) m.u = m.n;\n    let move = boss.d > 10 ? 0.8 : boss.d < 6 ? -0.6 : 0.3;\n    // out of the band vertically and not far: backing away lowers the angle into the band\n    if (!boss.band && Math.abs(ang) > 0.15 && boss.d < 12) move = -0.6;\n    if (move > 0 && o.drop.f < 2) move = 0;\n    const weave = Math.floor(o.t / 3) % 2 ? 0.2 : -0.2;\n    return out(steerTo(boss.b + weave, 2), move, wind || slam, useNow);\n  }\n\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? (g.kind === 'ladder' ? 1 : 0.4) : 0, slam);\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2), 0, slam);\n\n  if (stuck) return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.7, true);\n\n  const heal = o.hp < 60 ? o.items.find(i => i.k === 'juice' && i.d < 6) : null;\n  const tb = heal ? heal.b : g.b;\n  const crane = /crane/.test(g.kind);\n  // crane steps are stepping stones over air: no edge check, hop up when the next step is higher\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground && (g.stepY || 0) > o.y + 0.3;\n  const edge = !crane && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && o.drop.f < 1.5;\n  const pace = crane ? 0.8 : 0.6;\n  return out(steerTo(tb, 2), !edge && Math.abs(tb) < 1.2 ? pace : 0, climb || slam);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 1,
+    "deaths": 1.4166666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (5.82,-6.22) having reached y=11.4 by t=7s; t60 y12.51 hp51 stairs4.32",
+     "start on floor 2: ended at y=15.2 near (4.58,-1.39) having reached y=15.2 by t=69s; t60 y11.4 hp8 stairs6.14",
+     "start on floor 0: ended at y=0 near (4.11,6.06) having reached y=0; t60 y0 hp21 stairs0.31",
+     "start on floor 4: ended at y=15.2 near (3.67,2.7) having reached y=15.2; t60 y15.2 hp76 ladder-approach2.55"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.27,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y11",
+       "kitty@y12"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y16",
+       "kitty@y16"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.375,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y11",
+       "bee@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.11,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "cannon@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "boss@y15",
+       "eagle@y15",
+       "eagle@y16"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.545,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y11",
+       "eagle@y0"
+      ]
+     }
+    ],
+    "cur": 0.28250000000000003,
+    "desc": [
+     0.6668928834914061,
+     0.2937339707092734
+    ]
+   }
+  },
+  {
+   "id": 129,
+   "op": "mutate-diff",
+   "parents": [
+    114
+   ],
+   "gen": 31,
+   "model": "sonnet",
+   "hint": "tune",
+   "cur": 0.27999999999999997,
+   "hist": [
+    0.28
+   ],
+   "descHist": [
+    [
+     0.4690861510573019,
+     0.2867707222595585
+    ]
+   ],
+   "desc": [
+    0.4690861510573019,
+    0.2867707222595585
+   ],
+   "cell": [
+    4,
+    2
+   ],
+   "wins": 0,
+   "code": "// Hybrid: A's brisk walking + ladder push; B's survival rules, boss spacing, stuck recovery.\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 30);\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const hit = !!o.aim.hit || o.foes.some(f => f.awake && f.band);\n  const fire = hit && (boss ? true : m.n % 5 < 4);\n  const slam = o.foes.some(f => (f.st === 'slam' || f.st === 'windup') && f.d < 4.5) || shotDanger(o, 3, 0.5);\n  const out = (turn, move, jump, use) => ({\n    turn: clampU(turn), move: clampU(move), fire, jump: !!jump, use: !!use, sel: 0,\n  });\n\n  if (boss && boss.d < 14) {\n    const ang = Math.atan2(boss.dy, boss.d);\n    const wind = boss.d < 9 && /slam|wind|shock|stomp|charge|throw/.test(boss.st || '');\n    const useNow = o.inv.length > 0 && m.n - (m.u || -99) > 25;\n    if (useNow) m.u = m.n;\n    let move = boss.d > 9 ? 0.6 : boss.d < 6 ? -0.5 : 0.2;\n    if (!boss.band && Math.abs(ang) > 0.15 && boss.d < 12) move = -0.6;\n    if (move > 0 && o.drop.f < 2) move = 0;\n    if (move < 0 && o.drop.b !== undefined && o.drop.b < 2) move = 0;\n    const weave = Math.floor(o.t / 3) % 2 ? 0.15 : -0.15;\n    return out(steerTo(boss.b + weave, 2.5), move, wind || slam, useNow);\n  }\n\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return out(steerTo(g.b, 2.5), 0, slam);\n\n  if (stuck) return out(Math.sin(m.n * 0.7), o.drop.f < 1.5 ? 0 : 0.6, true);\n\n  const heal = o.hp < 55 ? o.items.find(i => i.k === 'juice' && i.d < 8) : null;\n  const tb = heal ? heal.b : g.b;\n  const crane = /crane/.test(g.kind);\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground && (g.stepY || 0) > o.y + 0.3;\n  const edge = !crane && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && o.drop.f < 1.5;\n  const move = edge || Math.abs(tb) >= 1.3 ? 0 : Math.abs(tb) < 0.6 ? 0.6 : 0.4;\n  return out(steerTo(tb, 2.5), move, climb || slam);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.1666666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=15.2 near (4.25,0.3) having reached y=15.2 by t=87s; t60 y11.4 hp29 stairs4.33",
+     "start on floor 2: ended at y=11.4 near (1.83,-5.06) having reached y=11.35 by t=31s; t60 y11.4 hp93 stairs0.16",
+     "start on floor 0: ended at y=0 near (4.8,7.55) having reached y=0; t60 y0.75 hp32 stairs0.28",
+     "start on floor 4: ended at y=15.2 near (2.7,2.91) having reached y=15.2; t60 y15.2 hp69 ladder-approach3.5"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.34,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y15",
+       "kitty@y9"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.39,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y11",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.19,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "eagle@y8"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "bee@y15"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.185,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "eagle@y15",
+       "wolf@y0",
+       "boss@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.45999999999999996,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y11",
+       "bee@y0"
+      ]
+     }
+    ],
+    "cur": 0.27999999999999997,
+    "desc": [
+     0.4690861510573019,
+     0.2867707222595585
+    ]
+   }
+  },
+  {
+   "id": 7,
+   "op": "mutate-diff",
+   "parents": [
+    3
+   ],
+   "gen": 1,
+   "model": "haiku",
+   "hint": "special",
+   "cur": 0.2791666666666667,
+   "hist": [
+    0.1942,
+    0.2008,
+    0.2292,
+    0.2125,
+    0.2242,
+    0.2717,
+    0.2167,
+    0.2075,
+    0.2625,
+    0.34,
+    0.1242,
+    0.2142,
+    0.2792
+   ],
+   "descHist": [
+    [
+     0.5257526744801774,
+     0.11735928207431733
+    ],
+    [
+     0.5431641281621737,
+     0.11459502412882062
+    ],
+    [
+     0.523824107118039,
+     0.12202057216869944
+    ],
+    [
+     0.5484777660051418,
+     0.11911091881676777
+    ],
+    [
+     0.5449493290268965,
+     0.11428516381059493
+    ],
+    [
+     0.5472683909686324,
+     0.1193575482995981
+    ],
+    [
+     0.5322220506292192,
+     0.10656809001208484
+    ],
+    [
+     0.537856937624144,
+     0.11699079618017533
+    ],
+    [
+     0.5496528928890013,
+     0.11818532706485524
+    ],
+    [
+     0.555734249151407,
+     0.1297275621024553
+    ],
+    [
+     0.5067074970750239,
+     0.11575109967061753
+    ],
+    [
+     0.5058775315554834,
+     0.10893505791854419
+    ],
+    [
+     0.5436609626115229,
+     0.13531175015227734
+    ]
+   ],
+   "desc": [
+    0.5357806551766817,
+    0.1183229378769083
+   ],
+   "cell": [
+    4,
+    0
+   ],
+   "wins": 0,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const fire = !!o.aim.hit || (!!near && m.n % 2 === 0);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || g.kind === 'ladder-approach') {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring';\n  const move = Math.abs(g.b) < 1 && !edge ? 0.35 : 0;\n  return { turn: clamp(g.b * 2), move, fire, jump: slam };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.6666666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.68,-5) having reached y=15.2 by t=52s; t60 y14.4 hp82 stairs2.12",
+     "start on floor 2: ended at y=11.4 near (1.78,-5.13) having reached y=11.4 by t=13s; t60 y11.4 hp24 stairs0.07",
+     "start on floor 0: ended at y=0 near (-11.06,-4.04) having reached y=15 by t=145s; t60 y0 hp21 stairs0.07",
+     "start on floor 4: ended at y=11.4 near (1.79,-5.14) having reached y=15.2; t60 y11.4 hp69 stairs0.14"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.475,
+      "win": false,
+      "deaths": 6,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y0",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.47,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y15",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y9",
+       "eagle@y0"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "golem@y12",
+       "golem@y12"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y4",
+       "kitty@y4",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.335,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "boss@y19",
+       "boss@y19"
+      ]
+     }
+    ],
+    "cur": 0.2791666666666667,
+    "desc": [
+     0.5436609626115229,
+     0.13531175015227734
+    ]
+   }
+  },
+  {
+   "id": 94,
+   "op": "mutate-diff",
+   "parents": [
+    7
+   ],
+   "gen": 23,
+   "model": "sonnet",
+   "hint": "simplify",
+   "cur": 0.2575,
+   "hist": [
+    0.3425,
+    0.3533,
+    0.4483,
+    0.11,
+    0.2575
+   ],
+   "descHist": [
+    [
+     0.7661669882757668,
+     0.21055193090547186
+    ],
+    [
+     0.7665292290162696,
+     0.21616095258570703
+    ],
+    [
+     0.7675783817866167,
+     0.21772844971493985
+    ],
+    [
+     0.7621226135037746,
+     0.20476557483000754
+    ],
+    [
+     0.765799424412533,
+     0.2231786779718813
+    ]
+   ],
+   "desc": [
+    0.7656393273989922,
+    0.2144771172016015
+   ],
+   "cell": [
+    5,
+    1
+   ],
+   "wins": 1,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 14);\n  const fire = !!o.aim.hit || (!!near && m.n % 4 !== 0);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrap(Math.PI - o.yaw);\n    return { turn: clamp(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring';\n  const move = Math.abs(g.b) < 1 && !edge ? 0.5 : 0;\n  return { turn: clamp(g.b * 2), move, fire, jump: slam };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 1,
+    "deaths": 1.5,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.68,-5.13) having reached y=11.4 by t=26s; t60 y11.4 hp29 stairs0.09",
+     "start on floor 2: ended at y=15.2 near (3.95,4.45) having reached y=15.2 by t=23s; t60 y15.2 hp100 ladder-approach7.97",
+     "start on floor 0: ended at y=0 near (4.11,6.49) having reached y=0; t60 y0 hp27 stairs0.23",
+     "start on floor 4: ended at y=15.2 near (3,5.38) having reached y=15.2; t60 y15.2 hp29 ladder-approach2.84"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.27,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y12"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y7",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.38,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "kitty@y11",
+       "bee@y15",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.5,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y15",
+       "boss@y19"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "eagle@y15",
+       "bee@y15",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "boss@y19"
+      ]
+     }
+    ],
+    "cur": 0.2575,
+    "desc": [
+     0.765799424412533,
+     0.2231786779718813
+    ]
+   }
+  },
+  {
+   "id": 71,
+   "op": "mutate-full",
+   "parents": [
+    7
+   ],
+   "gen": 17,
+   "model": "sonnet",
+   "hint": "tune",
+   "cur": 0.24916666666666665,
+   "hist": [
+    0.2642,
+    0.2833,
+    0.2758,
+    0.26,
+    0.27,
+    0.2525,
+    0.2492
+   ],
+   "descHist": [
+    [
+     0.04811447695785389,
+     0.29205601172474727
+    ],
+    [
+     0.058630205450315616,
+     0.2694726077449206
+    ],
+    [
+     0.04376118528167818,
+     0.27376197080419057
+    ],
+    [
+     0.08007279251232408,
+     0.2688920484380974
+    ],
+    [
+     0.10273965877423934,
+     0.2697841332830627
+    ],
+    [
+     0.07553003473372118,
+     0.26940018394113413
+    ],
+    [
+     0.0529173961446299,
+     0.2676357944600997
+    ]
+   ],
+   "desc": [
+    0.06596653569353746,
+    0.27300039291375033
+   ],
+   "cell": [
+    1,
+    2
+   ],
+   "wins": 0,
+   "code": "// specials first; boss circling; close-range fight vs fast toys; ladder; stuck escape;\n// otherwise steady walk to goal, heal/pickup items, fire when a target is in band\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const stuck = stuckTicks(o, m, 25);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => s.d < 3);\n  const fire = !!o.aim.hit && (m.n % 2 === 0 || !!boss);\n  const big = near.some(f => Math.abs(f.b) < 0.6 && (f.k === 'golem' || f.k === 'car' || f.k === 'boss'));\n  const use = !!((boss || big || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 15);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = boss.d < 6 ? -0.8 : boss.d > 9 ? 0.6 : 0.3;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    return out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat);\n  }\n\n  const lattice = g.kind === 'ladder' || g.kind === 'ladder-approach';\n  if (lattice && (g.kind === 'ladder' || g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  if (stuck) return out(Math.sin(m.n * 0.7), edge ? 0 : 0.7, true);\n\n  // close-range fight: face fast melee toys that are in reach, hold ground and shoot\n  const pest = near.filter(f => f.d < 4 && Math.abs(f.dy) < 2 && /kitty|wolf|bee/.test(f.k))\n    .sort((a, b) => a.d - b.d)[0];\n  if (pest && !ramp && g.kind !== 'lift') {\n    const back = pest.d < 2 && o.drop.l > 1.5 && o.drop.r > 1.5 ? -0.5 : 0;\n    return out(pest.b * 3, back, threat || pest.st === 'dive');\n  }\n\n  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 8) : undefined;\n  const calm = !o.foes.some(f => f.awake && f.d < 5);\n  const it = heal || (calm ? o.items.find(i => i.d < 4) : undefined);\n  const tb = it ? it.b : g.b;\n  if (!it && g.kind === 'lift' && g.d < 1.2) return out(tb * 2, 0, threat);\n\n  const climb = !it && g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const walk = !edge && Math.abs(tb) < 1.2 ? 0.55 : 0.2;\n  return out(tb * 2, edge && !it ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.5833333333333333,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (6.09,-6.01) having reached y=15 by t=31s; t60 y11.4 hp70 stairs0.15",
+     "start on floor 2: ended at y=15.95 near (4.95,-2.82) having reached y=15.2 by t=28s; t60 y11.4 hp42 stairs4.59",
+     "start on floor 0: ended at y=0 near (5.79,6.79) having reached y=0; t60 y0 hp50 stairs0.18",
+     "start on floor 4: ended at y=19 near (4.49,3.89) having reached y=19 by t=62s; t60 y16.51 hp47 ladder-approach2.63"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.275,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y8",
+       "kitty@y17"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "cannon@y0"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28500000000000003,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y0",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.34500000000000003,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "cannon@y0",
+       "bee@y11",
+       "cannon@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.15,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "boss@y8",
+       "boss@y17",
+       "eagle@y8"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.045,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "eagle@y11",
+       "eagle@y0"
+      ]
+     }
+    ],
+    "cur": 0.24916666666666665,
+    "desc": [
+     0.0529173961446299,
+     0.2676357944600997
+    ]
+   }
+  },
+  {
+   "id": 110,
+   "op": "repair",
+   "parents": [
+    104
+   ],
+   "gen": 27,
+   "model": "haiku",
+   "hint": null,
+   "cur": 0.24666666666666667,
+   "hist": [
+    0.4467,
+    0.3325,
+    0.4208,
+    0.2467
+   ],
+   "descHist": [
+    [
+     0.2704599117507381,
+     0.28622274066936215
+    ],
+    [
+     0.16680376797014015,
+     0.29346764966270295
+    ],
+    [
+     0.23284253928291132,
+     0.30515179372554574
+    ],
+    [
+     0.19713468621316324,
+     0.2852526232528699
+    ]
+   ],
+   "desc": [
+    0.21681022630423818,
+    0.29252370182762016
+   ],
+   "cell": [
+    3,
+    2
+   ],
+   "wins": 0,
+   "code": "// rider: shake+jump; hang: jump up; carried: jump off; lift: stand and shoot; stuck escape;\n// spring: run at pad; ladder: face west, push in; boss circling; close fights; else walk to goal\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  const stuck = stuckTicks(o, m, 25);\n  const press = m.n % 2 === 0; // alternate so every other tick is a jump press\n  if (o.carried) return { turn: 0, move: 0, fire: !!o.aim.hit, jump: press };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: press };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: press };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => s.d < 3);\n  const fire = !!o.aim.hit && (m.n % 2 === 0 || !!boss);\n  const big = near.some(f => Math.abs(f.b) < 0.6 && (f.k === 'golem' || f.k === 'car' || f.k === 'boss'));\n  const use = !!((boss || big || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 15);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = !boss.band ? -0.7 : boss.d < 6 ? -0.8 : boss.d > 9 ? 0.6 : 0.3;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp|jump|leap|crouch/.test(boss.st || '');\n    const r = out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat);\n    r.fire = true;\n    return r;\n  }\n\n  // lift: stand still on it (it rises as long as you stand there), turning toward the nearest target\n  if (g.kind === 'lift' && g.d < 1.2) {\n    const tgt = nearestHittable(o);\n    return out(steerTo(tgt ? tgt.b : g.b, 2), 0, threat);\n  }\n\n  if (stuck && g.kind !== 'lift') return out(Math.sin(m.n * 0.7), edge ? 0 : 0.7, true);\n\n  // spring pad: run straight at it; it throws you up\n  if (g.kind === 'spring') return out(steerTo(g.b, 3), Math.abs(g.b) < 0.6 ? 1 : 0.3, threat);\n\n  // ladder: face west (yaw near PI), then push into the lattice from the east\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  // close-range fight: face fast melee toys in reach, hold ground and shoot\n  const pest = near.filter(f => f.d < 4 && Math.abs(f.dy) < 2 && /kitty|wolf|bee/.test(f.k))\n    .sort((a, b) => a.d - b.d)[0];\n  if (pest && !ramp && g.kind !== 'lift') {\n    const back = pest.d < 2 && o.drop.l > 1.5 && o.drop.r > 1.5 ? -0.5 : 0;\n    return out(pest.b * 3, back, threat || pest.st === 'dive');\n  }\n\n  // heal when hurt, grab nearby items when calm, otherwise walk to the goal\n  const heal = o.hp < 70 ? o.items.find(i => i.k === 'juice' && i.d < 8) : undefined;\n  const calm = !o.foes.some(f => f.awake && f.d < 5);\n  const it = heal || (calm ? o.items.find(i => i.d < 4) : undefined);\n  const tb = it ? it.b : g.b;\n  const climb = !it && g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const walk = !edge && Math.abs(tb) < 1.2 ? 0.55 : 0.2;\n  return out(tb * 2, edge && !it ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 2.0833333333333335,
+    "stuck": [
+     "start on floor 1: ended at y=7.6 near (-2.57,-5.21) having reached y=10.14 by t=8s; t60 y7.6 hp100 lift4.85",
+     "start on floor 2: ended at y=0 near (12.56,9.68) having reached y=19 by t=80s; t60 y11.4 hp8 stairs0.36",
+     "start on floor 0: ended at y=0 near (2.92,6.19) having reached y=0; t60 y0 hp46 stairs0.35",
+     "start on floor 4: ended at y=17 near (4.63,3.69) having reached y=15.2; t60 y15.2 hp86 ladder-approach3.4"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.205,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.365,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y0",
+       "kitty@y13"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.47000000000000003,
+      "win": false,
+      "deaths": 9,
+      "killedBy": [
+       "kitty@y11",
+       "bee@y13",
+       "wolf@y1"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.245,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "cannon@y13",
+       "bee@y11",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.15,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "bee@y8",
+       "eagle@y17",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.045,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "eagle@y11",
+       "eagle@y0",
+       "bee@y0"
+      ]
+     }
+    ],
+    "cur": 0.24666666666666667,
+    "desc": [
+     0.19713468621316324,
+     0.2852526232528699
+    ]
+   }
+  },
+  {
+   "id": 8,
+   "op": "mutate-diff",
+   "parents": [
+    7
+   ],
+   "gen": 2,
+   "model": "sonnet",
+   "hint": "novel",
+   "cur": 0.24666666666666667,
+   "hist": [
+    0.23,
+    0.2358,
+    0.2542,
+    0.2683,
+    0.2783,
+    0.2183,
+    0.2717,
+    0.1833,
+    0.2483,
+    0.3108,
+    0.1925,
+    0.25,
+    0.2467
+   ],
+   "descHist": [
+    [
+     0.7442197680275453,
+     0.1174176314609255
+    ],
+    [
+     0.7458297401179651,
+     0.10777593003238391
+    ],
+    [
+     0.7433181765805358,
+     0.11638917508160591
+    ],
+    [
+     0.7415539558667114,
+     0.12987310912683012
+    ],
+    [
+     0.7399436378728207,
+     0.12186913590497284
+    ],
+    [
+     0.7428959518806261,
+     0.1059218280635037
+    ],
+    [
+     0.7437136888177158,
+     0.11755622097226855
+    ],
+    [
+     0.7466568048613927,
+     0.1105423487847001
+    ],
+    [
+     0.7430682838836452,
+     0.1206299938087023
+    ],
+    [
+     0.7466444253278538,
+     0.1201238528229152
+    ],
+    [
+     0.7215389292353921,
+     0.11478715852115091
+    ],
+    [
+     0.744590598474412,
+     0.11475430846419586
+    ],
+    [
+     0.7418400618858353,
+     0.12256870870408638
+    ]
+   ],
+   "desc": [
+    0.7419856940640346,
+    0.1169391847498647
+   ],
+   "cell": [
+    5,
+    0
+   ],
+   "wins": 0,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const fire = m.n % 4 !== 0;\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || g.kind === 'ladder-approach') {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring' && g.kind.indexOf('stairs') < 0 && g.kind !== 'crane-step';\n  const move = Math.abs(g.b) < 1 && !edge ? 0.3 : 0;\n  const hop = g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  return { turn: clamp(g.b * 2), move, fire, jump: slam || hop };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.75,
+    "stuck": [
+     "start on floor 1: ended at y=15 near (-0.3,-4.96) having reached y=15 by t=73s; t60 y11.4 hp6 stairs0.08",
+     "start on floor 2: ended at y=15 near (-0.23,-5.14) having reached y=15.2 by t=32s; t60 y15 hp65 ladder-approach10.22",
+     "start on floor 0: ended at y=11.4 near (1.75,-5.02) having reached y=11.35 by t=103s; t60 y3.8 hp100 spring8.92",
+     "start on floor 4: ended at y=11.4 near (1.72,-4.93) having reached y=15.2; t60 y11.4 hp8 stairs0.05"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.48,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y0",
+       "kitty@y9"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.42,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y11",
+       "kitty@y8",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.38,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y13",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "cannon@y14",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "kitty@y4",
+       "kitty@y4",
+       "eagle@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.085,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y19",
+       "boss@y19"
+      ]
+     }
+    ],
+    "cur": 0.24666666666666667,
+    "desc": [
+     0.7418400618858353,
+     0.12256870870408638
+    ]
+   }
+  },
+  {
+   "id": 10,
+   "op": "repair",
+   "parents": [
+    5
+   ],
+   "gen": 2,
+   "model": "sonnet",
+   "hint": null,
+   "cur": 0.23666666666666666,
+   "hist": [
+    0.2592,
+    0.2583,
+    0.2717,
+    0.2558,
+    0.24,
+    0.2592,
+    0.2333,
+    0.2175,
+    0.2367,
+    0.24,
+    0.2367,
+    0.2525,
+    0.2367
+   ],
+   "descHist": [
+    [
+     0.01972519316371547,
+     0.3932297518011377
+    ],
+    [
+     0.024084829712344647,
+     0.4533627257892421
+    ],
+    [
+     0.020021195712053286,
+     0.40824365211621755
+    ],
+    [
+     0.022544868163738362,
+     0.39698538474143774
+    ],
+    [
+     0.022435522038640413,
+     0.4673302325118065
+    ],
+    [
+     0.02482419004546157,
+     0.4430684912672942
+    ],
+    [
+     0.021944460732538567,
+     0.462282886492036
+    ],
+    [
+     0.029076468943217484,
+     0.41718956980089356
+    ],
+    [
+     0.030311643613890205,
+     0.41646457681991955
+    ],
+    [
+     0.021408772246140326,
+     0.4220628323391036
+    ],
+    [
+     0.027417561978813208,
+     0.41448465785457594
+    ],
+    [
+     0.023803480353816454,
+     0.42457011960891383
+    ],
+    [
+     0.022116420530771393,
+     0.4117730744195382
+    ]
+   ],
+   "desc": [
+    0.023824200556549338,
+    0.42546522735093206
+   ],
+   "cell": [
+    0,
+    3
+   ],
+   "wins": 0,
+   "code": "// Tall Order controller v2: special states, lift/spring/ladder, rare shots\nfunction step(o, m) {\n  const g = o.goal;\n  const clamp = v => Math.max(-1, Math.min(1, v));\n  const pulse = Math.floor(o.t * 5) % 2 === 0; // alternate jump presses\n  if (o.dead) return { turn: 0, move: 0, fire: false, jump: false };\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: pulse };\n  if (o.rider) return { turn: Math.floor(o.t * 2) % 2 ? 1 : -1, move: 0, fire: false, jump: pulse };\n\n  // jump over telegraphed slams (golem) and incoming shells/bricks\n  let jump = o.shots.some(s => !s.shootable && s.d < 2.5 && Math.abs(s.b) < 0.5);\n  for (const f of o.foes) if (/slam|windup/.test(f.st) && f.d < 3 && f.dy < 1) jump = true;\n\n  // shoot now and then when something is in the band\n  const fire = !!o.aim.hit && Math.floor(o.t * 10) % 5 === 0;\n\n  let turn = 0, move = 0;\n  if (!m.s) m.s = 1;\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 1.5)) {\n    // stand east of the lattice, face west (yaw ~ PI), then push in\n    const a = Math.abs(o.yaw);\n    if (m.lt && a < m.ly - 0.02) m.s = -m.s; // last turn made us less west: flip\n    m.ly = a; m.lt = false;\n    const e = Math.PI - a;\n    if (e > 0.25) { turn = clamp(m.s * e * 3); m.lt = true; } else move = 1;\n  } else if (g.kind === 'lift') {\n    // stand on the platform; it rises as long as you stay on it\n    turn = clamp(g.b * 2);\n    move = g.d > 1 ? 1 : 0;\n  } else {\n    const edge = o.drop.f < 1.5 && g.kind !== 'spring';\n    turn = clamp(g.b * 3);\n    move = Math.abs(g.b) < 1.2 && !edge ? 1 : 0;\n    if (edge) turn = (o.drop.r > o.drop.l ? 1 : -1) * 0.6; // look for solid ground\n  }\n  return { turn, move, fire, jump };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 5.166666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=15.2 near (3.1,-4.41) having reached y=15.2 by t=22s; t60 y15.52 hp49 ladder4.74",
+     "start on floor 2: ended at y=11.4 near (1.98,-4.41) having reached y=11.4 by t=20s; t60 y11.4 hp49 stairs0.54",
+     "start on floor 0: ended at y=15.42 near (5.81,3.07) having reached y=15.2 by t=56s; t60 y15.87 hp77 ladder-approach1.81",
+     "start on floor 4: ended at y=15.93 near (4.6,1.81) having reached y=15.2; t60 y15.2 hp100 ladder-approach4.85"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.55,
+      "win": false,
+      "deaths": 19,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y12",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.47,
+      "win": false,
+      "deaths": 17,
+      "killedBy": [
+       "kitty@y12",
+       "kitty@y0",
+       "cannon@y4"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28500000000000003,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "wolf@y9",
+       "kitty@y11",
+       "kitty@y11"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "car@y4",
+       "bee@y1",
+       "wolf@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 9,
+      "killedBy": [
+       "cannon@y0",
+       "eagle@y0",
+       "eagle@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y19",
+       "boss@y19"
+      ]
+     }
+    ],
+    "cur": 0.23666666666666666,
+    "desc": [
+     0.022116420530771393,
+     0.4117730744195382
+    ]
+   }
+  },
+  {
+   "id": 126,
+   "op": "mutate-diff",
+   "parents": [
+    86
+   ],
+   "gen": 31,
+   "model": "sonnet",
+   "hint": "memory",
+   "cur": 0.2358333333333333,
+   "hist": [
+    0.2358
+   ],
+   "descHist": [
+    [
+     0.05234135395679171,
+     0.4741601148212247
+    ]
+   ],
+   "desc": [
+    0.05234135395679171,
+    0.4741601148212247
+   ],
+   "cell": [
+    1,
+    3
+   ],
+   "wins": 0,
+   "code": "// slow, deliberate climber: holds fire only at the boss or a foe winding up an attack;\n// rider: shake and jump; carried/hang: jump out; boss: circle and shoot; ladder: face west and push in;\n// lift: stand still; stuck: hop and wander; otherwise steer to the goal at about a third pace, grabbing juice when hurt\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const stuck = stuckTicks(o, m, 25);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  // shoot only at the boss, or at a close foe that is telegraphing an attack\n  const winding = o.foes.some(f => f.awake && f.band && f.d < 6 && /wind|rev|slam|throw|dive|crouch/.test(f.st || ''));\n  const fire = !!o.aim.hit && (!!boss || winding || m.n % 2 === 0);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => s.d < 3);\n  // use the selected pickup when outnumbered or facing the boss, at most every 20 ticks\n  const use = !!((boss || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 20);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    // circle at range 6-9 with a sideways arc; shoot when in band; jump telegraphed shockwaves\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = boss.d < 6 ? -0.8 : boss.d > 9 ? 0.8 : 0.4;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    return out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || threat);\n  }\n\n  // ladders: face west and push in once aligned; no hopping on the lattice\n  const lattice = g.kind === 'ladder' || g.kind === 'ladder-approach';\n  if (lattice && (g.kind === 'ladder' || g.d < 2.5)) {\n    const e = wrapA(Math.PI - o.yaw);\n    if (stuck && !(m.back > 0)) { m.back = 12; m.c = 0; }\n    if (m.back > 0) { m.back--; return out(e * 3, -1, false); }\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, false);\n  }\n\n  // stuck escape: no vertical progress for ~2.5 s, so hop and wander\n  if (stuck) {\n    if (m.c > 60) m.c = 0;\n    return out(Math.sin(m.n * 0.7 + (m.n >> 5)), edge ? 0 : 0.8, true);\n  }\n\n  // grab nearby juice when hurt (below 50), otherwise head for the goal\n  const heal = o.hp < 50 ? o.items.find(i => i.k === 'juice' && i.d < 5) : undefined;\n  const tb = heal ? heal.b : g.b;\n  if (g.kind === 'lift' && g.d < 1.2) return out(tb * 2.5, 0, threat);\n\n  // crane steps are stepping stones over air: hop onto them\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  // slow pace: about a third of full speed when roughly facing the goal, a crawl on turns\n  const walk = !edge && Math.abs(tb) < 1.2 ? 1 : 0;\n  return out(tb * 2.5, edge ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.8333333333333333,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (6.38,-5.91) having reached y=11.35 by t=13s; t60 y11.4 hp20 stairs3.94",
+     "start on floor 2: ended at y=11.4 near (1.43,-6.38) having reached y=11.4 by t=12s; t60 y11.56 hp11 stairs0.5",
+     "start on floor 0: ended at y=0 near (6.08,5.84) having reached y=0; t60 y0 hp21 stairs0.34",
+     "start on floor 4: ended at y=15.2 near (3.68,2.7) having reached y=15.2; t60 y15.2 hp77 ladder-approach2.53"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.355,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y0",
+       "kitty@y2"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.39,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "bee@y0",
+       "kitty@y16",
+       "kitty@y15"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.395,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "kitty@y10",
+       "wolf@y12",
+       "eagle@y17"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.23,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "bee@y11",
+       "eagle@y16",
+       "wolf@y16"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "eagle@y0",
+       "eagle@y4",
+       "eagle@y8"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.045,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "eagle@y11"
+      ]
+     }
+    ],
+    "cur": 0.2358333333333333,
+    "desc": [
+     0.05234135395679171,
+     0.4741601148212247
+    ]
+   }
+  },
+  {
+   "id": 93,
+   "op": "repair",
+   "parents": [
+    82
+   ],
+   "gen": 23,
+   "model": "haiku",
+   "hint": null,
+   "cur": 0.2308333333333333,
+   "hist": [
+    0.195,
+    0.2525,
+    0.2258,
+    0.2517,
+    0.2308
+   ],
+   "descHist": [
+    [
+     0.09083135132092662,
+     0.07227824611113551
+    ],
+    [
+     0.15066083383770146,
+     0.06546187058621727
+    ],
+    [
+     0.09951118357615267,
+     0.06802756886477382
+    ],
+    [
+     0.12156923630974337,
+     0.07801307387879125
+    ],
+    [
+     0.13259456201391948,
+     0.06936751686688665
+    ]
+   ],
+   "desc": [
+    0.11903343341168873,
+    0.0706296552615609
+   ],
+   "cell": [
+    2,
+    0
+   ],
+   "wins": 0,
+   "code": "// special states first: carried/hang: jump; kitty on head: jump and shake;\n// ladder: face west and push in; lift: stand still; otherwise creep (0.2) toward the goal,\n// firing rarely, jumping over telegraphed attacks and crane-step gaps\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const stuck = stuckTicks(o, m, 30);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) || o.shots.some(s => !s.shootable && s.d < 3);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  // hold fire almost never: only at a close, hittable foe, every sixth tick; always at the boss\n  const close = o.foes.some(f => f.awake && f.d < 3);\n  const fire = !!o.aim.hit && (!!boss || (close && m.n % 6 === 0));\n\n  if (boss) {\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    const mv = boss.d > 8 ? 0.2 : boss.d < 5 ? -0.2 : 0;\n    return { turn: clampU(boss.b * 3), move: o.drop.f < 2 && mv > 0 ? 0 : mv, fire, jump: wave || threat };\n  }\n\n  // ladder: the lattice is only climbable facing west from the east; push in once aligned\n  const lattice = g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5);\n  if (lattice) {\n    const e = wrapA(Math.PI - o.yaw);\n    return { turn: clampU(e * 3), move: Math.abs(e) < 0.5 ? 1 : 0, fire, jump: false };\n  }\n\n  // lift: stand still on it, it rises as long as you stand there\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: steerTo(g.b, 2), move: 0, fire, jump: threat };\n\n  // stuck: no vertical progress for ~3 s, so hop and wander\n  if (stuck) return { turn: Math.sin(m.n * 0.7), move: o.drop.f < 1.5 ? 0 : 0.2, fire, jump: true };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  // grab nearby juice when hurt\n  const heal = o.hp < 60 ? o.items.find(i => i.k === 'juice' && i.d < 6) : undefined;\n  const tb = heal ? heal.b : g.b;\n  // spring: walk onto the pad and let it throw you; crane-step: hop across gaps\n  const hop = threat || (g.kind === 'crane-step' && g.d < 1.5 && o.ground);\n  const walk = edge ? 0 : Math.abs(tb) < 1.2 ? 0.2 : 0.05;\n  return { turn: steerTo(tb, 2), move: walk, fire, jump: hop };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 3.4166666666666665,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (-2.38,-2.48) having reached y=12.6 by t=121s; t60 y7.6 hp0 lift6.32",
+     "start on floor 2: ended at y=11.4 near (-7.15,-3.57) having reached y=13.8 by t=68s; t60 y11.4 hp0 stairs-approach1.91",
+     "start on floor 0: ended at y=0 near (5.4,16.28) having reached y=1.8 by t=76s; t60 y0 hp54 stairs11.59",
+     "start on floor 4: ended at y=19 near (1.83,5.11) having reached y=20.83 by t=52s; t60 y19 hp84 crane-step3.1"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.30500000000000005,
+      "win": false,
+      "deaths": 12,
+      "killedBy": [
+       "kitty@y0",
+       "wolf@y2",
+       "wolf@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.37,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "kitty@y4",
+       "bee@y4",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28,
+      "win": false,
+      "deaths": 10,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y11",
+       "eagle@y8"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "wolf@y12",
+       "eagle@y11",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0.225,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "eagle@y19",
+       "bee@y21",
+       "eagle@y15"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.09,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "boss@y11"
+      ]
+     }
+    ],
+    "cur": 0.2308333333333333,
+    "desc": [
+     0.13259456201391948,
+     0.06936751686688665
+    ]
+   }
+  },
+  {
+   "id": 72,
+   "op": "mutate-diff",
+   "parents": [
+    7
+   ],
+   "gen": 18,
+   "model": "haiku",
+   "hint": "boss",
+   "cur": 0.22166666666666668,
+   "hist": [
+    0.3333,
+    0.2525,
+    0.1892,
+    0.2458,
+    0.1467,
+    0.2533,
+    0.2217
+   ],
+   "descHist": [
+    [
+     0.49733198603672085,
+     0.1738715494141884
+    ],
+    [
+     0.45251600683691423,
+     0.15112088874628463
+    ],
+    [
+     0.3998814406876259,
+     0.1601472247733827
+    ],
+    [
+     0.48505757828680235,
+     0.17905974731240235
+    ],
+    [
+     0.3621942007295842,
+     0.15569940844424238
+    ],
+    [
+     0.45668053339783304,
+     0.15411062338725567
+    ],
+    [
+     0.4577167926107075,
+     0.15257755267824472
+    ]
+   ],
+   "desc": [
+    0.44448264836945545,
+    0.16094099925085725
+   ],
+   "cell": [
+    4,
+    1
+   ],
+   "wins": 0,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  // boss: circle at range, face it, keep firing, jump its slam/shockwave telegraphs\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  if (boss) {\n    const arc = Math.floor(o.t / 3) % 2 ? 0.4 : -0.4;\n    const want = boss.d < 6 ? -0.8 : boss.d > 9 ? 0.8 : 0.3;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    const close = o.foes.some(f => f.st === 'slam' && f.d < 4);\n    const move = want > 0 && o.drop.f < 2 ? 0 : want;\n    return { turn: clamp(boss.b * 3 + arc), move, fire: !!boss.band || !!o.aim.hit, jump: wave || close };\n  }\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const fire = !!o.aim.hit || (!!near && m.n % 2 === 0);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || g.kind === 'ladder-approach') {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && !/stairs|spring|crane/.test(g.kind);\n  const move = Math.abs(g.b) < 1 && !edge ? 0.35 : 0;\n  return { turn: clamp(g.b * 2), move, fire, jump: slam };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1.9166666666666667,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (1.89,-5.22) having reached y=15.2 by t=69s; t60 y9.14 hp100 lift1.06",
+     "start on floor 2: ended at y=11.4 near (1.88,-4.92) having reached y=15.2 by t=20s; t60 y11.4 hp15 stairs0.1",
+     "start on floor 0: ended at y=14.4 near (-0.32,-4.87) having reached y=15 by t=74s; t60 y7.6 hp77 lift1.12",
+     "start on floor 4: ended at y=11.4 near (1.72,-4.92) having reached y=15.2; t60 y11.4 hp9 stairs0.11"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.545,
+      "win": false,
+      "deaths": 6,
+      "killedBy": [
+       "kitty@y0",
+       "kitty@y8",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.385,
+      "win": false,
+      "deaths": 9,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y8",
+       "kitty@y12"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.28500000000000003,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "bee@y0",
+       "kitty@y15",
+       "bee@y8"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.115,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "wolf@y12",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "kitty@y4",
+       "eagle@y8"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "eagle@y11"
+      ]
+     }
+    ],
+    "cur": 0.22166666666666668,
+    "desc": [
+     0.4577167926107075,
+     0.15257755267824472
+    ]
+   }
+  },
+  {
+   "id": 47,
+   "op": "mutate-diff",
+   "parents": [
+    37
+   ],
+   "gen": 11,
+   "model": "haiku",
+   "hint": "special",
+   "cur": 0.1575,
+   "hist": [
+    0.2708,
+    0.1733,
+    0.2467,
+    0.205,
+    0.1842,
+    0.34,
+    0.2125,
+    0.1875,
+    0.1575
+   ],
+   "descHist": [
+    [
+     0.7494728480057516,
+     0.5941724281276121
+    ],
+    [
+     0.7494822514420495,
+     0.6115155376235487
+    ],
+    [
+     0.7498012707038852,
+     0.5766539007552817
+    ],
+    [
+     0.7493417374398605,
+     0.5541358772964222
+    ],
+    [
+     0.7490372658383785,
+     0.5655034065979325
+    ],
+    [
+     0.7504950295161746,
+     0.4831642725285163
+    ],
+    [
+     0.7494948272956902,
+     0.5044678851306315
+    ],
+    [
+     0.7500502920311893,
+     0.5640881937139665
+    ],
+    [
+     0.7496346040372188,
+     0.5511312877735058
+    ]
+   ],
+   "desc": [
+    0.7496455695900219,
+    0.5560925321719352
+   ],
+   "cell": [
+    5,
+    4
+   ],
+   "wins": 0,
+   "code": "// rider: shake and jump; carried/hang: jump out; boss: hold range, arc, shoot, jump telegraphed attacks;\n// stuck: hop and wander; ladder: face west and push in; lift: stand still;\n// otherwise walk at a steady pace toward the goal, firing only at targets in band\nfunction step(o, m) {\n  const g = o.goal;\n  m.n = (m.n || 0) + 1;\n  if (o.carried || o.hang) return { turn: 0, move: 0, fire: true, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 2 === 0 };\n\n  const ramp = /stairs|spring|crane/.test(g.kind);\n  const edge = o.drop.f < 1.5 && !ramp;\n  const stuck = stuckTicks(o, m, 25);\n  const boss = o.foes.find(f => f.k === 'boss' && f.awake);\n  const near = o.foes.filter(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'slam' && f.d < 5) ||\n                 o.shots.some(s => s.shootable !== false && s.d < 3);\n  const fire = m.n % 4 !== 0; // spray: hold trigger on 3 of every 4 ticks\n  // use the selected pickup when outnumbered or facing the boss, at most every 20 ticks\n  const use = !!((boss || near.length >= 2) && o.inv.length > 0 && m.n - (m.u || -99) > 20);\n  if (use) m.u = m.n;\n  const out = (turn, move, jump) => ({ turn: clampU(turn), move: clampU(move), jump, fire, use, sel: 0 });\n\n  if (boss) {\n    // circle at range 6-9 with a sideways arc; keep shooting; jump telegraphed shockwaves and close shells\n    const arc = Math.floor(o.t / 3) % 2 ? 0.35 : -0.35;\n    const want = boss.d < 6 ? -0.8 : boss.d > 9 ? 0.8 : 0.4;\n    const wave = boss.d < 14 && /slam|wind|shock|stomp/.test(boss.st || '');\n    const shell = o.shots.some(s => s.d < 3 && Math.abs(s.b) < 0.6);\n    return out(boss.b * 3 + arc, want > 0 && o.drop.f < 2 ? 0 : want, wave || shell || threat);\n  }\n\n  // stuck escape: no vertical progress for ~2.5 s, so hop and wander\n  if (stuck) return out(Math.sin(m.n * 0.7), edge ? 0 : 0.7, true);\n\n  const e = wrapA(Math.PI - o.yaw);\n  if (g.kind === 'ladder' || (g.kind === 'ladder-approach' && g.d < 2.5)) {\n    return out(e * 3, Math.abs(e) < 0.5 ? 1 : 0, threat); // face west, then push in\n  }\n\n  // grab nearby juice when hurt, otherwise head for the goal\n  const heal = o.hp < 60 ? o.items.find(i => i.k === 'juice' && i.d < 6) : undefined;\n  const tb = heal ? heal.b : g.b;\n  if (g.kind === 'lift' && g.d < 1.2) return out(tb * 2, 0, threat);\n\n  // crane steps are stepping stones over air: hop onto them\n  const climb = g.kind === 'crane-step' && g.d < 1.5 && o.ground;\n  const walk = !edge && Math.abs(tb) < 1.2 ? 1 : 0.6;\n  return out(tb * 2, edge ? 0 : walk, climb || threat);\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 1,
+    "stuck": [
+     "start on floor 1: ended at y=11.4 near (6.04,-4.55) having reached y=11.4 by t=7s; t60 y11.4 hp37 stairs5.13",
+     "start on floor 2: ended at y=11.4 near (5.69,-5.61) having reached y=11.4 by t=16s; t60 y11.4 hp52 stairs4.88",
+     "start on floor 0: ended at y=0 near (3.5,5.46) having reached y=0; t60 y0 hp33 stairs0.96",
+     "start on floor 4: ended at y=19 near (3.19,6.2) having reached y=19.8 by t=52s; t60 y0 hp0 stairs2.6"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.205,
+      "win": false,
+      "deaths": 0,
+      "killedBy": []
+     },
+     {
+      "floor": 1,
+      "progress": 0.32,
+      "win": false,
+      "deaths": 0,
+      "killedBy": []
+     },
+     {
+      "floor": 2,
+      "progress": 0.19,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "wolf@y9",
+       "kitty@y12"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0,
+      "win": false,
+      "deaths": 0,
+      "killedBy": []
+     },
+     {
+      "floor": 4,
+      "progress": 0.185,
+      "win": false,
+      "deaths": 9,
+      "killedBy": [
+       "bee@y0",
+       "bee@y0",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.045,
+      "win": false,
+      "deaths": 1,
+      "killedBy": [
+       "eagle@y11"
+      ]
+     }
+    ],
+    "cur": 0.1575,
+    "desc": [
+     0.7496346040372188,
+     0.5511312877735058
+    ]
+   }
+  },
+  {
+   "id": 48,
+   "op": "mutate-diff",
+   "parents": [
+    28
+   ],
+   "gen": 12,
+   "model": "sonnet",
+   "hint": "stuck",
+   "cur": 0.08333333333333333,
+   "hist": [
+    0.0875,
+    0.09,
+    0.1067,
+    0.09,
+    0.06,
+    0.0975,
+    0.0742,
+    0.0767,
+    0.0833
+   ],
+   "descHist": [
+    [
+     0.2885306839359793,
+     0.0627368264342973
+    ],
+    [
+     0.300227158387439,
+     0.05824600497777182
+    ],
+    [
+     0.3067010653638354,
+     0.05701285970387233
+    ],
+    [
+     0.29771462286868505,
+     0.047393296449269984
+    ],
+    [
+     0.3000490437657665,
+     0.05333423861091172
+    ],
+    [
+     0.2886430631614914,
+     0.05111859418703679
+    ],
+    [
+     0.2956206853754848,
+     0.0496514863356074
+    ],
+    [
+     0.28850202095849525,
+     0.0599638450497707
+    ],
+    [
+     0.29977185476491414,
+     0.049451351101493374
+    ]
+   ],
+   "desc": [
+    0.2961955776202323,
+    0.05432316698333682
+   ],
+   "cell": [
+    3,
+    0
+   ],
+   "wins": 0,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const fire = (!!o.aim.hit || !!near) && m.n % 3 === 0;\n  m.c = Math.abs(o.y - (m.py === undefined ? o.y : m.py)) < 0.05 ? (m.c || 0) + 1 : 0;\n  m.py = o.y;\n  if (m.c > 40 && g.kind !== 'ladder' && g.kind !== 'lift') {\n    if (m.c > 52) m.c = 0;\n    return { turn: Math.sin(m.n * 0.7), move: o.drop.f < 1.5 ? 0 : 0.5, fire, jump: true };\n  }\n  const hold = o.foes.some(f => f.awake && f.band && f.d < 7);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  if (g.kind === 'ladder' || g.kind === 'ladder-approach') {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  // steady walk toward the goal; stairs treads are not drops, so only real edges stop us\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring' && g.kind !== 'stairs' && g.kind !== 'stairs-approach';\n  const move = Math.abs(g.b) < 1.2 && !edge && !hold ? (Math.abs(g.b) < 0.5 ? 0.25 : 0.1) : 0;\n  // at a drop, turn toward the side with more ground\n  const turn = edge ? (o.drop.r > o.drop.l ? 0.6 : -0.6) : clamp(g.b * 2);\n  return { turn, move, fire, jump: slam };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 2.8333333333333335,
+    "stuck": [
+     "start on floor 1: ended at y=0.16 near (2.7,8.3) having reached y=3.8; t60 y0 hp13 stairs0.2",
+     "start on floor 2: ended at y=12.6 near (-3.84,-4.57) having reached y=12.6 by t=106s; t60 y7.6 hp48 lift1.14",
+     "start on floor 0: ended at y=0.05 near (5.26,15.29) having reached y=0.6 by t=82s; t60 y0 hp0 stairs9.09",
+     "start on floor 4: ended at y=11.4 near (-6.69,-4.97) having reached y=15.2; t60 y11.4 hp68 stairs-approach1.41"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0.04,
+      "win": false,
+      "deaths": 7,
+      "killedBy": [
+       "kitty@y0",
+       "wolf@y0",
+       "kitty@y0"
+      ]
+     },
+     {
+      "floor": 1,
+      "progress": 0.17,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "bee@y1",
+       "wolf@y4",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0.25,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "kitty@y8",
+       "kitty@y11",
+       "kitty@y8"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.04,
+      "win": false,
+      "deaths": 11,
+      "killedBy": [
+       "cannon@y0",
+       "cannon@y0",
+       "cannon@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 3,
+      "killedBy": [
+       "boss@y8",
+       "bee@y11",
+       "kitty@y4"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0,
+      "win": false,
+      "deaths": 4,
+      "killedBy": [
+       "eagle@y19",
+       "boss@y20",
+       "boss@y12"
+      ]
+     }
+    ],
+    "cur": 0.08333333333333333,
+    "desc": [
+     0.29977185476491414,
+     0.049451351101493374
+    ]
+   }
+  },
+  {
+   "id": 106,
+   "op": "mutate-diff",
+   "parents": [
+    7
+   ],
+   "gen": 26,
+   "model": "haiku",
+   "hint": "novel",
+   "cur": 0.018333333333333333,
+   "hist": [
+    0.0617,
+    0.015,
+    0.0108,
+    0.0183
+   ],
+   "descHist": [
+    [
+     0.03822281391317703,
+     0.10694675210914761
+    ],
+    [
+     0.02865311340805654,
+     0.10865980221833262
+    ],
+    [
+     0.023784760496468747,
+     0.09192399395150676
+    ],
+    [
+     0.03414120081304072,
+     0.11224895748691745
+    ]
+   ],
+   "desc": [
+    0.03120047215768576,
+    0.1049448764414761
+   ],
+   "cell": [
+    1,
+    0
+   ],
+   "wins": 0,
+   "code": "// special states first; ladders: face west and push in; lift: stand still; otherwise walk slowly toward the goal, firing heavily\nfunction wrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }\nfunction clamp(v) { return Math.max(-1, Math.min(1, v)); }\nfunction step(o, m) {\n  m.n = (m.n || 0) + 1;\n  if (o.carried) return { turn: 0, move: 0, fire: false, jump: true };\n  if (o.hang) return { turn: 0, move: 0, fire: false, jump: m.n % 2 === 0 };\n  if (o.rider) return { turn: m.n % 4 < 2 ? -1 : 1, move: 0, fire: false, jump: m.n % 3 === 0 };\n  const g = o.goal;\n  const near = o.foes.find(f => f.awake && f.d < 10);\n  const threat = o.foes.some(f => f.st === 'windup' && f.d < 6 && f.band);\n  const fire = !!o.aim.hit && (threat || m.n % 6 === 0);\n  const slam = o.foes.some(f => f.st === 'slam' && f.d < 4);\n  const dodge = slam || shotDanger(o, 3, 0.3);\n  const stuck = stuckTicks(o, m, 30);\n  if (g.kind === 'ladder' || g.kind === 'ladder-approach') {\n    const e = wrap(Math.PI - o.yaw);\n    const ok = Math.abs(e) < 0.5;\n    return { turn: clamp(e * 3), move: ok ? (g.kind === 'ladder' ? 1 : 0.4) : 0, fire, jump: slam };\n  }\n  if (g.kind === 'lift' && g.d < 1.2) return { turn: clamp(g.b * 2), move: 0, fire, jump: slam };\n  const edge = o.drop.f < 1.5 && g.kind !== 'spring';\n  const back = near && near.d < 3 ? -0.6 : 0;\n  if (stuck) return { turn: Math.sin(m.n * 0.7), move: edge ? 0 : 0.5, fire, jump: true };\n  const move = back || (Math.abs(g.b) < 0.5 && !edge ? 0.12 : 0);\n  return { turn: clamp(g.b * 2), move, fire, jump: dodge };\n}\n",
+   "summary": {
+    "n": 12,
+    "wins": 0,
+    "deaths": 4.75,
+    "stuck": [
+     "start on floor 1: ended at y=0 near (-64.98,14.51) having reached y=3.8; t60 y1.11 hp81 stairs11.63",
+     "start on floor 2: ended at y=7.6 near (-4.58,-6.94) having reached y=7.6; t60 y7.6 hp100 lift4.7",
+     "start on floor 0: ended at y=0 near (-21.68,-25.22) having reached y=0; t60 y0 hp45 stairs29.21",
+     "start on floor 4: ended at y=12.56 near (-2.55,-2.05) having reached y=15.2; t60 y15 hp100 ladder-approach9.87"
+    ],
+    "errors": [],
+    "byFloor": [
+     {
+      "floor": 0,
+      "progress": 0,
+      "win": false,
+      "deaths": 0,
+      "killedBy": []
+     },
+     {
+      "floor": 1,
+      "progress": 0,
+      "win": false,
+      "deaths": 2,
+      "killedBy": [
+       "bee@y0",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 2,
+      "progress": 0,
+      "win": false,
+      "deaths": 18,
+      "killedBy": [
+       "bee@y1",
+       "kitty@y0",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 3,
+      "progress": 0.02,
+      "win": false,
+      "deaths": 24,
+      "killedBy": [
+       "bee@y0",
+       "bee@y0",
+       "bee@y0"
+      ]
+     },
+     {
+      "floor": 4,
+      "progress": 0,
+      "win": false,
+      "deaths": 8,
+      "killedBy": [
+       "eagle@y4",
+       "eagle@y0",
+       "eagle@y0"
+      ]
+     },
+     {
+      "floor": 5,
+      "progress": 0.09,
+      "win": false,
+      "deaths": 5,
+      "killedBy": [
+       "eagle@y19",
+       "boss@y0",
+       "boss@y0"
+      ]
+     }
+    ],
+    "cur": 0.018333333333333333,
+    "desc": [
+     0.03414120081304072,
+     0.11224895748691745
+    ]
+   }
+  }
+ ]
+}
