@@ -19,7 +19,6 @@ Things to know:
 - **Pink heart brick** gives a heart back.
 - **ZOOMIES!** Every so often a kid crawls through the cabinet tunnel under your
   plate and shakes the whole tower. Eyes in the dark warn you which side.
-- The pace picks up the longer you play and with every tower you bank.
 - You lose a heart when a piece you stacked falls off, or when you miss a
   piece. Five hearts. A tower that collapses costs one heart per second at most.
 
