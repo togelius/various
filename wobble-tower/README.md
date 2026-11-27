@@ -17,7 +17,7 @@ Things to know:
 - **Gold foil bar** makes everything you land for a few seconds stick.
 - **Snowman lamp** makes things fall in slow motion for a few seconds.
 - **Pink heart brick** gives a heart back.
-- **Weird events.** Every 8 to 13 seconds the rules change for a few seconds:
+- **Weird events.** Every 14 to 20 seconds the rules change for about seven seconds:
   bouncy bricks, moon gravity, sneeze wind, backwards finger, giant blocks,
   teeny blocks, sheep rain, upside down, rainbow time (double points) or woozy
   cam. They are picked at random and can overlap later in a run.
@@ -27,8 +27,13 @@ Things to know:
   slowly spinning rainbow portal and the room changes colour as you go.
 - **ZOOMIES!** Every so often a kid crawls through the cabinet tunnel under your
   plate and shakes the whole tower. Eyes in the dark warn you which side.
-- You lose a heart when a piece you stacked falls off, or when you miss a
-  piece. Five hearts. A tower that collapses costs one heart per second at most.
+- A dashed **ghost** shows where each falling piece will land, and a red cross
+  means it will miss. Falling pieces drift gently toward the plate and level
+  themselves out, so landings are neat.
+- You have five hearts. A tower that collapses costs one heart (at most one per
+  five seconds), and every fourth miss costs one. Banking a tower gives one back.
+- The game starts gentle and speeds up. The rougher weird events (wind, bouncy,
+  backwards finger, upside down, woozy) only show up after 45 seconds.
 
 Open `index.html` in a browser. It is one file. It loads Matter.js (physics)
 from cdnjs and Lilita One and Fredoka from Google Fonts, and uses fallback fonts

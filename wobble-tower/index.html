@@ -118,7 +118,7 @@ const { Engine, Bodies, Body, Composite, Events } = Matter;
 const W = 390;                       // logical width; height follows the screen
 let H = 760, K = 1;                  // logical height, canvas pixels per logical px
 let baseY = 560, roofY = 130, floorY = 674, cabTop = 594, cavTop = 608, cavBot = 660;
-const BASE_W = 160, BASE_H = 14, MAXL = 5;
+const BASE_W = 176, BASE_H = 14, MAXL = 5;
 const VMAX = 14, ACC = 0.9, CARRY = 1;          // plate speed and acceleration, px per physics step
 const DISP = '"Lilita One","Fredoka",system-ui,sans-serif';
 const BODYF = '"Fredoka",system-ui,sans-serif';
@@ -235,14 +235,14 @@ muteBtn.addEventListener('click', () => {
 /* ------------------------------------------------------------------ state */
 const G = {
   state: 'title', time: 0, score: 0, shownScore: 0, lives: MAXL, streak: 0,
-  towers: 0, stacked: 0, bestStack: 0, best: 0, newBest: false,
+  towers: 0, stacked: 0, bestStack: 0, best: 0, newBest: false, misses: 0,
   items: [], parts: [], texts: [],
   shake: 0, hurtCd: 0, sticky: 0, floaty: 0, spawnT: 0.5, nextPower: 11,
   zoom: { s: 'idle', t: 0, dir: 1, x: 0, next: 15 },
   peek: { t: 0, x: 200, side: 1 },
   targetX: W / 2, baseV: 0, overT: 0, panelShown: false, bankFlash: 0, wheelRot: 0,
   say: 'Build me a tower!', anim: 0,
-  mut: {}, nextMut: 7, lastMut: '', flipT: 0, woo: 0, hueAcc: 0,
+  mut: {}, nextMut: 20, lastMut: '', flipT: 0, woo: 0, hueAcc: 0,
   banner: { t: 0, max: 1, text: '', sub: '' }
 };
 const mu = k => G.mut[k] > 0;
@@ -253,7 +253,7 @@ G.hooks = { addItem: (k, x) => addItem(k, x), bank: () => bank(), hurt: () => hu
 
 /* ---------------------------------------------------------------- physics */
 const engine = Engine.create({ positionIterations: 10, velocityIterations: 8 });
-const NORMAL_GRAV = 0.0009;
+const NORMAL_GRAV = 0.0007;          // gentle at first, speeds up with time
 engine.gravity.scale = NORMAL_GRAV;
 const base = Bodies.rectangle(W / 2, baseY, BASE_W, BASE_H, {
   friction: 3, frictionStatic: 4, restitution: 0, inertia: Infinity, frictionAir: 0, label: 'base'
@@ -299,7 +299,7 @@ function addItem(kind, x) {
   } else if (kind === 'beam' || kind === 'heart') {
     it.studs = d.studs; it.color = d.color; it.eyes = kind === 'beam';
   } else if (kind === 'sheep') {
-    opts.density = 0.0046; opts.chamfer = { radius: 16 }; opts.restitution = 0.12;
+    opts.density = 0.003; opts.chamfer = { radius: 16 }; opts.restitution = 0.12;
   } else if (kind === 'gold') {
     opts.density = 0.0018;
   } else if (kind === 'fish') {
@@ -327,8 +327,8 @@ function addItem(kind, x) {
   const sc = (mu('giant') ? 1.4 : 1) * (mu('tiny') ? 0.6 : 1);
   if (sc !== 1) { Body.scale(body, sc, sc); it.sc = sc; }
   body.item = it;
-  Body.setAngle(body, rnd(-0.3, 0.3));
-  Body.setAngularVelocity(body, rnd(-0.025, 0.025));
+  Body.setAngle(body, rnd(-0.12, 0.12));
+  Body.setAngularVelocity(body, rnd(-0.01, 0.01));
   Body.setVelocity(body, { x: rnd(-0.6, 0.6), y: 2 });
   Composite.add(engine.world, body);
   G.items.push(body);
@@ -355,7 +355,7 @@ function spawn(kind) {
   addItem(kind, x);
 }
 function spawnInterval() {
-  return Math.max(0.48, 1.35 - G.time * 0.008 - G.towers * 0.05) * rnd(0.85, 1.15);
+  return Math.max(0.6, 1.9 - G.time * 0.012 - G.towers * 0.06) * rnd(0.85, 1.15);
 }
 
 Events.on(engine, 'collisionStart', ev => {
@@ -394,9 +394,9 @@ function activate(p, b) {
   burst(x, y, p === 'sticky' ? '#ffd23f' : p === 'float' ? '#bfefff' : '#ff7aa8', 18, 4);
 }
 
-function hurt() {
+function hurt(cd = 2.5) {
   if (G.state !== 'play' || G.hurtCd > 0) return;
-  G.lives--; G.hurtCd = 1.1; G.shake = 13; G.streak = 0;
+  G.lives--; G.hurtCd = cd; G.shake = 13; G.streak = 0;
   sfx.oops();
   if (navigator.vibrate) { try { navigator.vibrate(60); } catch (e) {} }
   if (G.lives <= 0) gameOver();
@@ -405,6 +405,7 @@ function hurt() {
 function settle(b) {
   const it = b.item;
   it.settled = true;
+  b.frictionStatic = 1e5;                 // once it has held still, it stays put
   G.streak++;
   const mult = Math.min(5, 1 + Math.floor(G.streak / 4));
   const floors = Math.max(0, Math.floor((baseY - b.position.y) / 30));
@@ -421,17 +422,17 @@ function settle(b) {
 function lost(b) {
   const it = b.item;
   if (it.power && !it.touched) return;          // missing a power-up costs nothing
-  const costs = it.settled || !it.touched;      // pieces that never held still cost nothing
   G.streak = 0;
   const x = clamp(b.position.x, 30, W - 30);
   floatText(it.touched ? 'TIMBER!' : 'OOPS!', x, H - 112, '#ff8a7a', 22);
-  if (costs) hurt();
+  if (it.settled) hurt(5);                      // a tower you built came down: one heart per collapse
+  else if (!it.touched && ++G.misses >= 4) { G.misses = 0; hurt(); }   // four misses cost a heart
 }
 
 function bank() {
   const settled = G.items.filter(b => b.item.settled);
   const bonus = settled.length * 25 * (G.towers + 1);
-  G.score += bonus; G.towers++; G.bankFlash = 1;
+  G.score += bonus; G.towers++; G.bankFlash = 1; G.misses = 0;
   if (G.lives < MAXL) { G.lives++; floatText('+1 LIFE', W / 2, roofY + 140, '#ff7aa8', 24); }
   sfx.bank();
   for (const b of settled) {
@@ -456,16 +457,16 @@ function gameOver() {
 
 /* ------------------------------------------------------------ weird events */
 const MUTS = {
-  bouncy:  { name: 'BOUNCY BRICKS!',    sub: 'Boing boing boing.',        chip: 'BOUNCY', dur: 8 },
-  moon:    { name: 'MOON GRAVITY!',     sub: 'Everything is floaty.',     chip: 'MOON', dur: 8 },
-  wind:    { name: 'SNEEZE WIND!',      sub: 'Ah... ah... CHOO!',         chip: 'WIND', dur: 8 },
-  mirror:  { name: 'BACKWARDS FINGER!', sub: 'Left is right now.',        chip: 'MIRROR', dur: 8 },
-  giant:   { name: 'GIANT BLOCKS!',     sub: 'Whoa. Big.',                chip: 'GIANT', dur: 8 },
-  tiny:    { name: 'TEENY BLOCKS!',     sub: 'So small. So many.',        chip: 'TEENY', dur: 8 },
+  bouncy:  { name: 'BOUNCY BRICKS!',    sub: 'Boing boing boing.',        chip: 'BOUNCY', hard: true, dur: 7 },
+  moon:    { name: 'MOON GRAVITY!',     sub: 'Everything is floaty.',     chip: 'MOON', dur: 7 },
+  wind:    { name: 'SNEEZE WIND!',      sub: 'Ah... ah... CHOO!',         chip: 'WIND', hard: true, dur: 7 },
+  mirror:  { name: 'BACKWARDS FINGER!', sub: 'Left is right now.',        chip: 'MIRROR', hard: true, dur: 7 },
+  giant:   { name: 'GIANT BLOCKS!',     sub: 'Whoa. Big.',                chip: 'GIANT', dur: 7 },
+  tiny:    { name: 'TEENY BLOCKS!',     sub: 'So small. So many.',        chip: 'TEENY', dur: 7 },
   sheep:   { name: 'SHEEP RAIN!',       sub: 'Baa baa baa baa baa.',      chip: 'SHEEP', dur: 7 },
-  flip:    { name: 'UPSIDE DOWN!',      sub: 'Down is up. Probably.',     chip: 'FLIP', dur: 8 },
-  rainbow: { name: 'RAINBOW TIME!',     sub: 'Double points!',            chip: 'RAINBOW x2', dur: 8 },
-  woozy:   { name: 'WOOZY CAM!',        sub: 'Hold on to your tower.',    chip: 'WOOZY', dur: 9 }
+  flip:    { name: 'UPSIDE DOWN!',      sub: 'Down is up. Probably.',     chip: 'FLIP', hard: true, dur: 7 },
+  rainbow: { name: 'RAINBOW TIME!',     sub: 'Double points!',            chip: 'RAINBOW x2', dur: 7 },
+  woozy:   { name: 'WOOZY CAM!',        sub: 'Hold on to your tower.',    chip: 'WOOZY', hard: true, dur: 7 }
 };
 function startMut(k) {
   const m = MUTS[k];
@@ -474,7 +475,7 @@ function startMut(k) {
   sfx.weird();
 }
 function randomMut() {
-  const keys = Object.keys(MUTS).filter(k => !mu(k) && k !== G.lastMut);
+  const keys = Object.keys(MUTS).filter(k => !mu(k) && k !== G.lastMut && (!MUTS[k].hard || G.time > 45));
   return pick(keys);
 }
 
@@ -766,6 +767,33 @@ function drawItem(b) {
   ctx.restore();
 }
 
+function drawGuides() {
+  const fall = G.items.filter(b => !b.item.touched && b.position.y > 0).sort((a, b) => b.position.y - a.position.y).slice(0, 2);
+  for (const b of fall) {
+    const hw = (b.bounds.max.x - b.bounds.min.x) / 2, hh = (b.bounds.max.y - b.bounds.min.y) / 2;
+    const x0 = b.position.x - hw, x1 = b.position.x + hw;
+    const onPlate = x1 > base.position.x - BASE_W / 2 && x0 < base.position.x + BASE_W / 2;
+    let top = onPlate ? baseY - BASE_H / 2 : Infinity;
+    for (const o of G.items) if (o.item.touched && o.bounds.max.x > x0 && o.bounds.min.x < x1) top = Math.min(top, o.bounds.min.y);
+    const miss = top === Infinity;
+    const col = miss ? 'rgba(255,138,122,' : 'rgba(190,255,176,';
+    const ty = miss ? baseY + 8 : top;
+    ctx.save();
+    ctx.setLineDash([6, 6]); ctx.lineDashOffset = -G.anim * 40;
+    ctx.strokeStyle = col + '0.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(b.position.x, b.position.y + hh); ctx.lineTo(b.position.x, ty - (miss ? 0 : hh * 2)); ctx.stroke();
+    ctx.setLineDash([]);
+    if (miss) {
+      ctx.lineWidth = 4; ctx.strokeStyle = col + '0.9)';
+      ctx.beginPath(); ctx.moveTo(b.position.x - 9, ty - 9); ctx.lineTo(b.position.x + 9, ty + 9); ctx.moveTo(b.position.x + 9, ty - 9); ctx.lineTo(b.position.x - 9, ty + 9); ctx.stroke();
+    } else {
+      ctx.fillStyle = col + '0.16)'; ctx.strokeStyle = col + '0.85)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+      rr(b.position.x - hw, ty - hh * 2, hw * 2, hh * 2, 4); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function drawBase(x, t) {
   const bx = x, by = baseY;
   // wheel + little block
@@ -909,6 +937,7 @@ function render() {
 
   // base + tower
   drawBase(bx, G.anim);
+  if (G.state === 'play') drawGuides();
   for (const b of G.items) drawItem(b);
 
   // particles
@@ -960,6 +989,12 @@ function drawHUD() {
     ctx.restore();
     txt('x' + mult + ' · ' + G.streak, 47, 69, 15, '#fff', { align: 'center', lw: 3 });
   }
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath(); ctx.arc(22 + i * 14, 92, 4.5, 0, 7);
+    ctx.fillStyle = i < G.misses ? '#ff6a5a' : 'rgba(255,255,255,.4)'; ctx.fill();
+    ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  txt('misses', 80, 96, 11, '#fff6e4', { lw: 3, font: BODYF });
   // hearts
   for (let i = 0; i < MAXL; i++) {
     const hx = W - 18 - i * 25, hy = 30;
@@ -1012,6 +1047,19 @@ function stepPhysics() {
   Body.applyForce(base, base.position, { x: 0, y: -base.mass * engine.gravity.y * engine.gravity.scale });
   // Matter's friction cannot carry a stack through hard turns, so the plate hands
   // most of its acceleration to everything resting on it (like a very grippy hand).
+  // a little help: falling pieces drift toward the plate and level themselves out
+  for (const b of G.items) {
+    const it = b.item;
+    if (it.touched || b.position.y < 40 || b.position.y > baseY - 20) continue;
+    if (!mu('wind')) {
+      const dx = clamp(base.position.x - b.position.x, -140, 140);
+      Body.setVelocity(b, { x: b.velocity.x + dx * 0.0001, y: b.velocity.y });
+    }
+    if (!it.r && it.kind !== 'pizza') {
+      const tgt = Math.round(b.angle / (Math.PI / 2)) * Math.PI / 2;
+      Body.setAngularVelocity(b, b.angularVelocity * 0.85 + (tgt - b.angle) * 0.02);
+    }
+  }
   if (mu('wind')) {
     const gust = Math.sin(G.time * 2.1) * (0.5 + 0.5 * Math.sin(G.time * 0.7));
     for (const b of G.items) {
@@ -1021,7 +1069,7 @@ function stepPhysics() {
   }
   for (const b of G.items) {
     if (!b.item.touched) continue;
-    if (!b.item.r) Body.setAngularVelocity(b, b.angularVelocity * 0.8);   // heavy, gluey wobble
+    if (!b.item.r) Body.setAngularVelocity(b, b.angularVelocity * (b.item.settled ? 0.6 : 0.8));   // heavy, gluey wobble
     if (acc && Math.abs(b.position.x - base.position.x) < BASE_W / 2 + 90 && b.position.y < baseY + 6) {
       Body.applyForce(b, b.position, { x: b.mass * acc * CARRY / 277.8, y: 0 });
     }
@@ -1074,7 +1122,7 @@ function update(dt) {
     G.floaty = Math.max(0, G.floaty - dt);
     for (const k in G.mut) if (G.mut[k] > 0) G.mut[k] = Math.max(0, G.mut[k] - dt);
     G.nextMut -= dt;
-    if (G.nextMut <= 0) { startMut(randomMut()); G.nextMut = rnd(8, 13) - Math.min(3, G.time / 40); }
+    if (G.nextMut <= 0) { startMut(randomMut()); G.nextMut = rnd(14, 20) - Math.min(4, G.time / 40); }
     // spawn
     G.spawnT -= dt;
     if (G.spawnT <= 0) {
@@ -1085,8 +1133,8 @@ function update(dt) {
         G.nextPower = G.time + rnd(13, 19);
       } else {
         spawn();
-        if (G.time > 40 && Math.random() < 0.18) spawn();
-        if (Math.random() < 0.07) { spawn(); spawn(); floatText('PARTY!', W / 2, 140, '#fff6e4', 22); }
+        if (G.time > 70 && Math.random() < 0.12) spawn();
+        if (G.time > 20 && Math.random() < 0.04) { spawn(); spawn(); floatText('PARTY!', W / 2, 140, '#fff6e4', 22); }
       }
     }
     // zoomies
@@ -1104,7 +1152,7 @@ function update(dt) {
     }
   }
   if (G.state === 'play' || G.state === 'over') {
-    const gs = NORMAL_GRAV * (G.floaty > 0 || mu('moon') ? 0.38 : 1);
+    const gs = (NORMAL_GRAV + Math.min(0.0003, G.time * 0.000006)) * (G.floaty > 0 || mu('moon') ? 0.38 : 1);
     engine.gravity.scale += (gs - engine.gravity.scale) * Math.min(1, dt * 6);
     acc += dt;
     let n = 0;
@@ -1187,7 +1235,7 @@ function showPanel(kind) {
       '<p class="tag">Catch it. Stack it. Keep it standing.</p>' +
       '<div class="card"><p><b>Drag</b> to slide the wheelie plate under the falling stuff.</p>' +
       '<p><b>Reach the bank line</b> to cash in your tower.</p>' +
-      '<p>Sheep are heavy. Wheels roll. <b>Gold</b> glues, <b>snowman</b> floats, <b>hearts</b> heal.</p>' +
+      '<p>A <b>ghost</b> shows where each piece will land. Four misses cost a heart.</p><p>Sheep are heavy. Wheels roll. <b>Gold</b> glues, <b>snowman</b> floats, <b>hearts</b> heal.</p>' +
       '<p><b>Expect weirdness.</b> The rules change every few seconds.</p></div>' +
       (G.best ? `<div class="stats">Best ${G.best}</div>` : '') +
       '<button class="btn" id="go" type="button">PLAY</button>';
@@ -1206,9 +1254,9 @@ function startGame() {
   G.items = []; G.parts = []; G.texts = [];
   Object.assign(G, {
     state: 'play', time: 0, score: 0, shownScore: 0, lives: MAXL, streak: 0, towers: 0, stacked: 0,
-    bestStack: 0, newBest: false, shake: 0, hurtCd: 0, sticky: 0, floaty: 0, spawnT: 0.5, nextPower: 11,
+    bestStack: 0, newBest: false, misses: 0, shake: 0, hurtCd: 0, sticky: 0, floaty: 0, spawnT: 0.5, nextPower: 11,
     overT: 0, panelShown: false, bankFlash: 0, targetX: W / 2, baseV: 0,
-    mut: {}, nextMut: 7, lastMut: '', flipT: 0, woo: 0, hueAcc: 0, banner: { t: 0, max: 1, text: '', sub: '' }
+    mut: {}, nextMut: 20, lastMut: '', flipT: 0, woo: 0, hueAcc: 0, banner: { t: 0, max: 1, text: '', sub: '' }
   });
   G.zoom = { s: 'idle', t: 0, dir: 1, x: 0, next: 15 };
   G.peek = { t: 0, x: 200 };
