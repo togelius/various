@@ -17,6 +17,14 @@ Things to know:
 - **Gold foil bar** makes everything you land for a few seconds stick.
 - **Snowman lamp** makes things fall in slow motion for a few seconds.
 - **Pink heart brick** gives a heart back.
+- **Weird events.** Every 8 to 13 seconds the rules change for a few seconds:
+  bouncy bricks, moon gravity, sneeze wind, backwards finger, giant blocks,
+  teeny blocks, sheep rain, upside down, rainbow time (double points) or woozy
+  cam. They are picked at random and can overlap later in a run.
+- **Odd guests.** Rubber ducks (bouncy, squeaky), pizza slices (triangles) and
+  slippery fish join the usual bricks. Most bricks have googly eyes that follow
+  the fall and a mouth that screams on the way down. The fireplace is a
+  slowly spinning rainbow portal and the room changes colour as you go.
 - **ZOOMIES!** Every so often a kid crawls through the cabinet tunnel under your
   plate and shakes the whole tower. Eyes in the dark warn you which side.
 - You lose a heart when a piece you stacked falls off, or when you miss a

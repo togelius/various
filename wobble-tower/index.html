@@ -37,7 +37,8 @@
   }
   #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
   #app { position: relative; overflow: hidden; background: #efe8da; }
-  canvas { display: block; width: 100%; height: 100%; }
+  #world { position: absolute; inset: 0; }
+  canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 
   .panel {
     position: absolute; left: 0; right: 0; top: 7%;
@@ -101,7 +102,7 @@
 <body>
 <div id="stage">
   <div id="app">
-    <canvas id="c" aria-label="Wobble Tower game"></canvas>
+    <div id="world"><canvas id="bgc"></canvas><canvas id="c" aria-label="Wobble Tower game"></canvas></div>
     <div id="panel" class="panel"></div>
     <button id="mute" type="button" aria-label="Toggle sound">&#128266;</button>
   </div>
@@ -125,17 +126,19 @@ const BODYF = '"Fredoka",system-ui,sans-serif';
 const app = document.getElementById('app');
 const stage = document.getElementById('stage');
 const cv = document.getElementById('c');
+const bgc = document.getElementById('bgc');
+const world = document.getElementById('world');
 let ctx = cv.getContext('2d');
+const FP = { x: 0, y: 0, w: 0, h: 0 };   // fireplace opening
 const panel = document.getElementById('panel');
 const muteBtn = document.getElementById('mute');
-let bg = null;
 
 const PAL = {
   red: '#e8352b', orange: '#ff8a1f', purple: '#a35ad6', lime: '#8fd62d',
   coral: '#ff7a6b', mint: '#7fdcc6', blue: '#2f8fe8', yellow: '#ffd23f',
-  pink: '#ff5fa8', white: '#f6f3ec'
+  pink: '#ff5fa8', white: '#f6f3ec', cyan: '#26d0e8', magenta: '#e83be0'
 };
-const BRICK_COLORS = ['red', 'orange', 'purple', 'lime', 'coral', 'mint', 'blue', 'yellow'];
+const BRICK_COLORS = ['red', 'orange', 'purple', 'lime', 'coral', 'mint', 'blue', 'yellow', 'cyan', 'magenta'];
 const LETTERS = 'ABCDEFGHKLMNOPRSTUW';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -217,6 +220,8 @@ const sfx = {
   power: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, 'triangle', 0.08, 0, i * 0.06)),
   bank: () => [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.05, 0, i * 0.07)),
   giggle: () => [900, 1100, 950, 1200, 1000, 1250].forEach((f, i) => tone(f, 0.07, 'sine', 0.07, 80, i * 0.08)),
+  weird: () => { for (let i = 0; i < 6; i++) tone(rnd(300, 900), 0.12, 'sine', 0.08, rnd(-300, 300), i * 0.07); },
+  squeak: () => { tone(1500, 0.09, 'square', 0.05, -500); tone(1900, 0.07, 'square', 0.04, -700, 0.09); },
   over: () => [392, 330, 262, 196].forEach((f, i) => tone(f, 0.22, 'triangle', 0.09, -20, i * 0.16))
 };
 function setMuteIcon() { muteBtn.innerHTML = muted ? '&#128263;' : '&#128266;'; }
@@ -236,12 +241,15 @@ const G = {
   zoom: { s: 'idle', t: 0, dir: 1, x: 0, next: 15 },
   peek: { t: 0, x: 200, side: 1 },
   targetX: W / 2, baseV: 0, overT: 0, panelShown: false, bankFlash: 0, wheelRot: 0,
-  say: 'Build me a tower!', anim: 0
+  say: 'Build me a tower!', anim: 0,
+  mut: {}, nextMut: 7, lastMut: '', flipT: 0, woo: 0, hueAcc: 0,
+  banner: { t: 0, max: 1, text: '', sub: '' }
 };
+const mu = k => G.mut[k] > 0;
 try { G.best = +localStorage.getItem('wobble-best') || 0; } catch (e) {}
 window.__wt = G;
 window.__wtBaseX = () => base.position.x;
-G.hooks = { addItem: (k, x) => addItem(k, x), bank: () => bank(), hurt: () => hurt() };
+G.hooks = { addItem: (k, x) => addItem(k, x), bank: () => bank(), hurt: () => hurt(), mut: k => startMut(k) };
 
 /* ---------------------------------------------------------------- physics */
 const engine = Engine.create({ positionIterations: 10, velocityIterations: 8 });
@@ -265,13 +273,16 @@ const DEF = {
   wheel: { pts: 25, r: 16, say: 'ZOOM' },
   gold:  { pts: 30, w: 90, h: 16, power: 'sticky' },
   snow:  { pts: 30, w: 34, h: 62, power: 'float' },
-  heart: { pts: 10, w: 44, h: 30, studs: 2, color: 'pink', power: 'heart' }
+  heart: { pts: 10, w: 44, h: 30, studs: 2, color: 'pink', power: 'heart' },
+  duck:  { pts: 30, r: 15, say: 'SQUEAK' },
+  fish:  { pts: 35, w: 72, h: 24, say: 'BLUB' },
+  pizza: { pts: 25, r: 26, say: 'SLICE!' }
 };
 const SAYS = ['PLOP', 'NICE', 'YES!', 'TALL!', 'OOH', 'BOING'];
 
 function addItem(kind, x) {
   const d = DEF[kind];
-  const it = { kind, touched: false, settled: false, settleT: 0, flip: Math.random() < 0.5 ? -1 : 1, pts: d.pts, power: d.power || null, spin: 0 };
+  const it = { kind, touched: false, settled: false, settleT: 0, flip: Math.random() < 0.5 ? -1 : 1, pts: d.pts, power: d.power || null, ph: Math.random(), pvx: 0, pvy: 0, sc: 1, eyes: false };
   let w = d.w, h = d.h;
   const opts = { friction: 3, frictionStatic: 3, restitution: 0.02, frictionAir: 0.004, density: 0.002, label: 'item' };
   let body;
@@ -281,26 +292,40 @@ function addItem(kind, x) {
     h = it.studs === 2 && Math.random() < 0.2 ? 58 : 30;
     it.color = pick(BRICK_COLORS);
     if (it.studs === 2 && Math.random() < 0.55) it.letter = pick(LETTERS);
+    it.eyes = !it.letter;
   } else if (kind === 'plate') {
     it.studs = rint(5, 8); w = it.studs * 20; h = 10;
     it.color = Math.random() < 0.7 ? 'white' : 'lime';
   } else if (kind === 'beam' || kind === 'heart') {
-    it.studs = d.studs; it.color = d.color;
+    it.studs = d.studs; it.color = d.color; it.eyes = kind === 'beam';
   } else if (kind === 'sheep') {
     opts.density = 0.0046; opts.chamfer = { radius: 16 }; opts.restitution = 0.12;
   } else if (kind === 'gold') {
     opts.density = 0.0018;
+  } else if (kind === 'fish') {
+    opts.friction = 0.05; opts.chamfer = { radius: 10 }; opts.density = 0.0016;
+  } else if (kind === 'duck') {
+    opts.density = 0.0015; opts.restitution = 0.5;
+  } else if (kind === 'cup') {
+    it.eyes = true;
   } else if (kind === 'snow') {
     opts.chamfer = { radius: 12 }; opts.density = 0.0016;
   }
-  if (d.r) {
-    opts.restitution = 0.3; opts.frictionAir = 0.002;
+  if (mu('bouncy')) { opts.restitution = 0.7; it.bouncy = true; }
+  if (kind === 'pizza') {
+    body = Bodies.polygon(x, -70, 3, d.r, opts);
+    it.eyes = true;
+  } else if (d.r) {
+    if (kind !== 'duck' && !it.bouncy) opts.restitution = 0.3;
+    opts.frictionAir = 0.002;
     body = Bodies.circle(x, -70, d.r, opts);
     it.r = d.r;
   } else {
     body = Bodies.rectangle(x, -70, w, h, opts);
   }
   it.w = w; it.h = h;
+  const sc = (mu('giant') ? 1.4 : 1) * (mu('tiny') ? 0.6 : 1);
+  if (sc !== 1) { Body.scale(body, sc, sc); it.sc = sc; }
   body.item = it;
   Body.setAngle(body, rnd(-0.3, 0.3));
   Body.setAngularVelocity(body, rnd(-0.025, 0.025));
@@ -312,10 +337,14 @@ function addItem(kind, x) {
 
 function pickKind() {
   const t = G.time;
+  if (mu('sheep')) return weighted([['sheep', 6], ['cup', 1], ['duck', 1.2]]);
   const tb = [['brick', 8], ['plate', 2.2]];
   if (t > 7) tb.push(['beam', 1.4]);
   if (t > 10) tb.push(['sheep', 1.7]);
   if (t > 15) tb.push(['cup', 1.4], ['wheel', 1.3]);
+  if (t > 9) tb.push(['duck', 1.2]);
+  if (t > 13) tb.push(['pizza', 1.2]);
+  if (t > 18) tb.push(['fish', 1.1]);
   return weighted(tb);
 }
 function spawn(kind) {
@@ -337,7 +366,8 @@ function touch(b, other) {
   if (!it || it.touched) return;
   if (!(other === base || (other.item && other.item.touched))) return;
   it.touched = true;
-  if (!it.r) {                         // soft landing: take the sting out of the impact
+  if (it.kind === 'duck') sfx.squeak();
+  if (!it.r && !it.bouncy) {           // soft landing: take the sting out of the impact
     Body.setVelocity(b, { x: b.velocity.x * 0.2, y: b.velocity.y * 0.2 });
     Body.setAngularVelocity(b, b.angularVelocity * 0.2);
   }
@@ -378,7 +408,7 @@ function settle(b) {
   G.streak++;
   const mult = Math.min(5, 1 + Math.floor(G.streak / 4));
   const floors = Math.max(0, Math.floor((baseY - b.position.y) / 30));
-  const pts = Math.round((it.pts + floors * 3) * mult);
+  const pts = Math.round((it.pts + floors * 3) * mult * (mu('rainbow') ? 2 : 1));
   G.score += pts; G.stacked++;
   const n = G.items.filter(o => o.item.settled).length;
   G.bestStack = Math.max(G.bestStack, n);
@@ -424,6 +454,30 @@ function gameOver() {
   sfx.over();
 }
 
+/* ------------------------------------------------------------ weird events */
+const MUTS = {
+  bouncy:  { name: 'BOUNCY BRICKS!',    sub: 'Boing boing boing.',        chip: 'BOUNCY', dur: 8 },
+  moon:    { name: 'MOON GRAVITY!',     sub: 'Everything is floaty.',     chip: 'MOON', dur: 8 },
+  wind:    { name: 'SNEEZE WIND!',      sub: 'Ah... ah... CHOO!',         chip: 'WIND', dur: 8 },
+  mirror:  { name: 'BACKWARDS FINGER!', sub: 'Left is right now.',        chip: 'MIRROR', dur: 8 },
+  giant:   { name: 'GIANT BLOCKS!',     sub: 'Whoa. Big.',                chip: 'GIANT', dur: 8 },
+  tiny:    { name: 'TEENY BLOCKS!',     sub: 'So small. So many.',        chip: 'TEENY', dur: 8 },
+  sheep:   { name: 'SHEEP RAIN!',       sub: 'Baa baa baa baa baa.',      chip: 'SHEEP', dur: 7 },
+  flip:    { name: 'UPSIDE DOWN!',      sub: 'Down is up. Probably.',     chip: 'FLIP', dur: 8 },
+  rainbow: { name: 'RAINBOW TIME!',     sub: 'Double points!',            chip: 'RAINBOW x2', dur: 8 },
+  woozy:   { name: 'WOOZY CAM!',        sub: 'Hold on to your tower.',    chip: 'WOOZY', dur: 9 }
+};
+function startMut(k) {
+  const m = MUTS[k];
+  G.mut[k] = m.dur; G.lastMut = k;
+  G.banner = { t: 2.4, max: 2.4, text: m.name, sub: m.sub };
+  sfx.weird();
+}
+function randomMut() {
+  const keys = Object.keys(MUTS).filter(k => !mu(k) && k !== G.lastMut);
+  return pick(keys);
+}
+
 /* ---------------------------------------------------------------- effects */
 function burst(x, y, color, n, sp) {
   for (let i = 0; i < n; i++) {
@@ -454,9 +508,8 @@ function layout() {
 }
 
 function buildBG() {
-  bg = document.createElement('canvas');
-  bg.width = cv.width; bg.height = cv.height;
-  const old = ctx; ctx = bg.getContext('2d');
+  bgc.width = cv.width; bgc.height = cv.height;
+  const old = ctx; ctx = bgc.getContext('2d');
   ctx.setTransform(K, 0, 0, K, 0, 0);
   const seed = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
@@ -470,7 +523,7 @@ function buildBG() {
     }
   }
   // fireplace
-  const fx = 34, fw = W - 68, fy = Math.round(H * 0.3), fh = floorY - 26 - fy;
+  const fx = FP.x = 34, fw = FP.w = W - 68, fy = FP.y = Math.round(H * 0.3), fh = FP.h = floorY - 26 - fy;
   ctx.fillStyle = '#e2d9c6'; rr(fx - 14, fy - 14, fw + 28, fh + 14, 6); ctx.fill();
   const g = ctx.createLinearGradient(0, fy, 0, fy + fh);
   g.addColorStop(0, '#1a1514'); g.addColorStop(1, '#0b0808');
@@ -563,14 +616,70 @@ function aura(color, r) {
   ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill(); ctx.restore();
 }
 
+function eye(it, ca, sa, x, y, r) {
+  const wx = it.pvx / 3 * r * 0.5, wy = it.pvy / 3 * r * 0.5;
+  const lx = wx * ca + wy * sa, ly = -wx * sa + wy * ca;
+  const blink = ((G.anim + it.ph * 9) % 3.7) < 0.1;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(42,26,20,.8)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.ellipse(x, y, r, blink ? r * 0.15 : r, 0, 0, 7); ctx.fill(); ctx.stroke();
+  if (!blink) { ctx.fillStyle = '#2a1a14'; ctx.beginPath(); ctx.arc(x + lx, y + ly, r * 0.5, 0, 7); ctx.fill(); }
+}
+function mouth(it, b, x, y, w) {
+  if (!it.touched && b.speed > 2.5) {          // screaming on the way down
+    ctx.fillStyle = '#5a1a1a'; ctx.beginPath(); ctx.ellipse(x, y + 1, w * 0.32, w * 0.42, 0, 0, 7); ctx.fill();
+  } else {
+    ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 1.7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, y - w * 0.25, w * 0.42, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
+}
+function drawFace(it, b, ca, sa) {
+  const k = it.kind;
+  if (k === 'brick') {
+    const ex = Math.min(9, it.w * 0.2), ey = it.h > 40 ? -9 : -3;
+    eye(it, ca, sa, -ex, ey, 5.2); eye(it, ca, sa, ex, ey, 5.2);
+    mouth(it, b, 0, it.h > 40 ? 9 : 8, 8);
+  } else if (k === 'beam') {
+    eye(it, ca, sa, -24, -2, 6); eye(it, ca, sa, 24, -2, 6); mouth(it, b, 0, 6, 11);
+  } else if (k === 'cup') {
+    eye(it, ca, sa, -5, -2, 4); eye(it, ca, sa, 5, -2, 4); mouth(it, b, 0, 6, 6);
+  } else if (k === 'pizza') {
+    eye(it, ca, sa, -4, -2, 4.5); eye(it, ca, sa, 6, -2, 4.5); mouth(it, b, 1, 8, 7);
+  }
+}
+function drawPortal() {
+  const w = G.state === 'title' ? 0.35 : Math.min(1, G.time / 50);
+  const a = 0.08 + 0.2 * w + (mu('rainbow') ? 0.22 : 0);
+  ctx.save();
+  rr(FP.x, FP.y, FP.w, FP.h, 4); ctx.clip();
+  const cx = FP.x + FP.w / 2, cy = FP.y + FP.h * 0.5, R = Math.hypot(FP.w, FP.h);
+  const n = 16, rot = G.anim * 0.4;
+  for (let i = 0; i < n; i += 2) {
+    ctx.fillStyle = `hsla(${(i * 360 / n + G.anim * 50) % 360},90%,60%,${a})`;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, rot + i * 2 * Math.PI / n, rot + (i + 1) * 2 * Math.PI / n);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.lineWidth = 7;
+  for (let r = 0; r < 5; r++) {
+    const rad = (G.anim * 45 + r * 60) % 300;
+    ctx.strokeStyle = `hsla(${(rad * 1.2 + G.anim * 60) % 360},90%,65%,${a * 1.3 * (1 - rad / 300)})`;
+    ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 7); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawItem(b) {
   const it = b.item, k = it.kind;
   ctx.save();
   ctx.translate(b.position.x, b.position.y);
   ctx.rotate(b.angle);
+  const ca = Math.cos(b.angle), sa = Math.sin(b.angle);
+  const br = it.sc * (1 + 0.035 * Math.sin(G.anim * 4 + it.ph * 6.3));
+  ctx.scale(br, br);
   const fresh = !it.touched;
   if (k === 'brick' || k === 'plate' || k === 'beam') {
     brickShape(it.w, it.h, it.studs, it.color, it.letter);
+    if (it.eyes) drawFace(it, b, ca, sa);
   } else if (k === 'heart') {
     if (fresh) aura('rgba(255,110,170,.9)', 52);
     brickShape(it.w, it.h, it.studs, 'pink');
@@ -620,7 +729,32 @@ function drawItem(b) {
     ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#a9d8f2'; ctx.beginPath(); ctx.arc(0, 0, 10.5, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff'; rr(-4, -17, 8, 7, 3); ctx.fill();
-    ctx.fillStyle = '#7fb6d8'; ctx.beginPath(); ctx.arc(-3, -3, 3, 0, 7); ctx.fill();
+    drawFace(it, b, ca, sa);
+  } else if (k === 'duck') {
+    ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = 'rgba(42,26,20,.65)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff8a1f'; rr(11, -2, 12, 7, 3.5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#f0b81f'; ctx.beginPath(); ctx.ellipse(-4, 4, 8, 5, 0.4, 0, 7); ctx.fill();
+    eye(it, ca, sa, 5, -6, 4);
+  } else if (k === 'fish') {
+    ctx.scale(it.flip, 1);
+    ctx.fillStyle = '#ff8a5f'; ctx.strokeStyle = 'rgba(42,26,20,.65)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-40, -12); ctx.lineTo(-40, 12); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6, -9); ctx.lineTo(4, -20); ctx.lineTo(12, -9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#4aa8e8'; ctx.beginPath(); ctx.ellipse(0, 0, 32, 13, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#a9dcf7'; ctx.beginPath(); ctx.ellipse(2, 5, 24, 5, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+    for (const sx of [-12, -4, 4]) { ctx.beginPath(); ctx.moveTo(sx, -8); ctx.lineTo(sx + 3, 0); ctx.stroke(); }
+    eye(it, ca * it.flip, sa, 18, -3, 4.5);
+    ctx.fillStyle = '#5a1a1a'; ctx.beginPath(); ctx.ellipse(30, 2, 2.5, 3.5, 0, 0, 7); ctx.fill();
+  } else if (k === 'pizza') {
+    const vs = b.vertices.map(v => { const dx = v.x - b.position.x, dy = v.y - b.position.y; return { x: (dx * ca + dy * sa) / it.sc, y: (-dx * sa + dy * ca) / it.sc }; });
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = '#ffcf4a'; ctx.strokeStyle = '#c8792b'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(vs[0].x, vs[0].y); ctx.lineTo(vs[1].x, vs[1].y); ctx.lineTo(vs[2].x, vs[2].y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#d9382b';
+    for (const [px, py] of [[-9, -12], [10, -9], [-12, 10], [9, 12]]) { ctx.beginPath(); ctx.arc(px, py, 3, 0, 7); ctx.fill(); }
+    drawFace(it, b, ca, sa);
   } else if (k === 'wheel') {
     ctx.fillStyle = '#f6f3ec'; ctx.strokeStyle = 'rgba(42,26,20,.65)'; ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fill(); ctx.stroke();
@@ -735,7 +869,9 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   ctx.save();
   if (G.shake > 0.2) ctx.translate(rnd(-1, 1) * G.shake * 0.6, rnd(-1, 1) * G.shake * 0.6);
-  if (bg) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bg, 0, 0); ctx.restore(); }
+  const fy = Math.cos(Math.PI * G.flipT);
+  if (fy !== 1) { ctx.translate(0, H / 2); ctx.scale(1, fy); ctx.translate(0, -H / 2); }
+  drawPortal();
 
   // bank line
   const bx = base.position.x;
@@ -788,6 +924,23 @@ function render() {
   }
   ctx.restore();
 
+  // weird-event banner (never flipped)
+  if (G.banner.t > 0) {
+    const b = G.banner, k = b.t / b.max;
+    const pop = k > 0.88 ? 1 + (k - 0.88) * 5 : 1;
+    const a = Math.min(1, b.t * 2.5);
+    ctx.save(); ctx.translate(W / 2, H * 0.2); ctx.scale(pop, pop);
+    ctx.font = `34px ${DISP}`;
+    const total = ctx.measureText(b.text).width;
+    let x = -total / 2;
+    for (let i = 0; i < b.text.length; i++) {
+      const ch = b.text[i], cw = ctx.measureText(ch).width;
+      txt(ch, x, Math.sin(G.anim * 9 + i * 0.7) * 5, 34, `hsl(${(i * 28 + G.anim * 260) % 360},95%,62%)`, { lw: 7, alpha: a });
+      x += cw;
+    }
+    txt(b.sub, 0, 30, 17, '#fff', { align: 'center', font: BODYF, lw: 5, alpha: a });
+    ctx.restore();
+  }
   // flash on bank
   if (G.bankFlash > 0) {
     ctx.fillStyle = `rgba(255,236,150,${G.bankFlash * 0.5})`; ctx.fillRect(0, 0, W, H);
@@ -830,6 +983,7 @@ function drawHUD() {
   };
   if (G.sticky > 0) chip('STICKY', G.sticky / 9, '#ffd23f');
   if (G.floaty > 0) chip('FLOATY', G.floaty / 7, '#bfefff');
+  for (const k in MUTS) if (mu(k)) chip(MUTS[k].chip, G.mut[k] / MUTS[k].dur, `hsl(${(G.anim * 120 + k.length * 40) % 360},85%,70%)`);
 }
 
 /* ---------------------------------------------------------------- the loop */
@@ -858,6 +1012,13 @@ function stepPhysics() {
   Body.applyForce(base, base.position, { x: 0, y: -base.mass * engine.gravity.y * engine.gravity.scale });
   // Matter's friction cannot carry a stack through hard turns, so the plate hands
   // most of its acceleration to everything resting on it (like a very grippy hand).
+  if (mu('wind')) {
+    const gust = Math.sin(G.time * 2.1) * (0.5 + 0.5 * Math.sin(G.time * 0.7));
+    for (const b of G.items) {
+      const f = b.item.touched ? 0.03 : 0.16;
+      Body.applyForce(b, b.position, { x: b.mass * gust * f / 277.8, y: 0 });
+    }
+  }
   for (const b of G.items) {
     if (!b.item.touched) continue;
     if (!b.item.r) Body.setAngularVelocity(b, b.angularVelocity * 0.8);   // heavy, gluey wobble
@@ -866,6 +1027,22 @@ function stepPhysics() {
     }
   }
   Engine.update(engine, 1000 / 60);
+}
+
+function applyFX(dt) {
+  const w = G.state === 'title' ? 0.4 : Math.min(1, G.time / 50);
+  G.hueAcc += dt * (mu('rainbow') ? 220 : 0);
+  G.flipT += ((mu('flip') ? 1 : 0) - G.flipT) * Math.min(1, dt * 4);
+  if (Math.abs(G.flipT - Math.round(G.flipT)) < 0.002) G.flipT = Math.round(G.flipT);
+  G.woo += ((mu('woozy') ? 1 : 0) - G.woo) * Math.min(1, dt * 3);
+  G.banner.t = Math.max(0, G.banner.t - dt);
+  const hue = Math.sin(G.anim * 0.25) * 50 * w + G.anim * 8 * w + G.hueAcc;
+  const sat = 1 + 0.5 * w + (mu('rainbow') ? 0.7 : 0);
+  bgc.style.filter = `hue-rotate(${hue.toFixed(0)}deg) saturate(${sat.toFixed(2)})`;
+  bgc.style.transform = G.flipT ? `scaleY(${Math.cos(Math.PI * G.flipT).toFixed(3)})` : '';
+  world.style.transform = G.woo > 0.01
+    ? `rotate(${(Math.sin(G.anim * 1.7) * 2.6 * G.woo).toFixed(2)}deg) scale(${(1 + 0.06 * G.woo + Math.sin(G.anim * 2.3) * 0.03 * G.woo).toFixed(3)})`
+    : '';
 }
 
 function update(dt) {
@@ -891,10 +1068,13 @@ function update(dt) {
   if (G.state === 'title') { G.targetX = W / 2; }
   if (G.state === 'play') {
     G.time += dt;
-    if (keys.left || keys.right) G.targetX += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 420 * dt;
+    if (keys.left || keys.right) G.targetX += ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 420 * dt * (mu('mirror') ? -1 : 1);
     G.targetX = clamp(G.targetX, 0, W);
     G.sticky = Math.max(0, G.sticky - dt);
     G.floaty = Math.max(0, G.floaty - dt);
+    for (const k in G.mut) if (G.mut[k] > 0) G.mut[k] = Math.max(0, G.mut[k] - dt);
+    G.nextMut -= dt;
+    if (G.nextMut <= 0) { startMut(randomMut()); G.nextMut = rnd(8, 13) - Math.min(3, G.time / 40); }
     // spawn
     G.spawnT -= dt;
     if (G.spawnT <= 0) {
@@ -906,6 +1086,7 @@ function update(dt) {
       } else {
         spawn();
         if (G.time > 40 && Math.random() < 0.18) spawn();
+        if (Math.random() < 0.07) { spawn(); spawn(); floatText('PARTY!', W / 2, 140, '#fff6e4', 22); }
       }
     }
     // zoomies
@@ -923,7 +1104,7 @@ function update(dt) {
     }
   }
   if (G.state === 'play' || G.state === 'over') {
-    const gs = NORMAL_GRAV * (G.floaty > 0 ? 0.38 : 1);
+    const gs = NORMAL_GRAV * (G.floaty > 0 || mu('moon') ? 0.38 : 1);
     engine.gravity.scale += (gs - engine.gravity.scale) * Math.min(1, dt * 6);
     acc += dt;
     let n = 0;
@@ -933,6 +1114,11 @@ function update(dt) {
     const bvx = base.velocity.x;
     for (let i = G.items.length - 1; i >= 0; i--) {
       const b = G.items[i], it = b.item;
+      it.pvx += (clamp(-b.velocity.x * 0.5, -3, 3) - it.pvx) * 0.25;
+      it.pvy += (clamp(-b.velocity.y * 0.5 + 0.8, -3, 3) - it.pvy) * 0.25;
+      if (!it.touched && Math.random() < dt * 14) {
+        G.parts.push({ x: b.position.x + rnd(-6, 6), y: b.position.y - 8, vx: 0, vy: 0.3, life: 0, max: 0.55, c: `hsl(${(G.anim * 200 + rnd(0, 80)) % 360},90%,65%)`, s: rnd(2, 4.5), r: 0 });
+      }
       if (it.touched && !it.settled) {
         const rel = Math.hypot(b.velocity.x - bvx, b.velocity.y);
         if (rel < 0.3 && Math.abs(b.angularVelocity) < 0.012) { it.settleT += dt; if (it.settleT > 0.4) settle(b); }
@@ -950,6 +1136,7 @@ function update(dt) {
       if (cnt >= 4 && top < roofY) bank();
     }
   }
+  applyFX(dt);
   if (G.state === 'over') {
     G.overT += dt;
     if (G.overT > 1.3 && !G.panelShown) showPanel('over');
@@ -967,8 +1154,9 @@ function frame(now) {
 /* ------------------------------------------------------------------- input */
 const keys = { left: false, right: false };
 function setTarget(e) {
-  const r = cv.getBoundingClientRect();
-  G.targetX = (e.clientX - r.left) / r.width * W;
+  const r = app.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * W;
+  G.targetX = mu('mirror') ? W - x : x;
 }
 app.addEventListener('pointerdown', e => {
   if (G.state === 'play') { setTarget(e); try { app.setPointerCapture(e.pointerId); } catch (_) {} }
@@ -999,7 +1187,8 @@ function showPanel(kind) {
       '<p class="tag">Catch it. Stack it. Keep it standing.</p>' +
       '<div class="card"><p><b>Drag</b> to slide the wheelie plate under the falling stuff.</p>' +
       '<p><b>Reach the bank line</b> to cash in your tower.</p>' +
-      '<p>Sheep are heavy. Wheels roll. <b>Gold</b> glues, <b>snowman</b> floats, <b>hearts</b> heal.</p></div>' +
+      '<p>Sheep are heavy. Wheels roll. <b>Gold</b> glues, <b>snowman</b> floats, <b>hearts</b> heal.</p>' +
+      '<p><b>Expect weirdness.</b> The rules change every few seconds.</p></div>' +
       (G.best ? `<div class="stats">Best ${G.best}</div>` : '') +
       '<button class="btn" id="go" type="button">PLAY</button>';
   } else {
@@ -1018,7 +1207,8 @@ function startGame() {
   Object.assign(G, {
     state: 'play', time: 0, score: 0, shownScore: 0, lives: MAXL, streak: 0, towers: 0, stacked: 0,
     bestStack: 0, newBest: false, shake: 0, hurtCd: 0, sticky: 0, floaty: 0, spawnT: 0.5, nextPower: 11,
-    overT: 0, panelShown: false, bankFlash: 0, targetX: W / 2, baseV: 0
+    overT: 0, panelShown: false, bankFlash: 0, targetX: W / 2, baseV: 0,
+    mut: {}, nextMut: 7, lastMut: '', flipT: 0, woo: 0, hueAcc: 0, banner: { t: 0, max: 1, text: '', sub: '' }
   });
   G.zoom = { s: 'idle', t: 0, dir: 1, x: 0, next: 15 };
   G.peek = { t: 0, x: 200 };
