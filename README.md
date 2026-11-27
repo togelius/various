@@ -31,6 +31,10 @@ subdirectory with its own README:
 - **[weft/](weft/)** — WEFT, a small arcade game woven like an indigo and
   cream rug: steer a needle, weave the diamonds, keep the thread from running
   out. One HTML file. Open `weft/index.html`.
+- **[wobble-tower/](wobble-tower/)** — Wobble Tower, a fast stacking game for
+  phones: slide a wheeled Duplo plate under falling bricks, sheep and sippy
+  cups, build to the bank line, and survive the kid who crawls through the
+  cabinet and shakes the tower. One HTML file. Open `wobble-tower/index.html`.
 - **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
   hopping along the rubber ball bollards on Stora Östergatan in Ystad, while
   little sister Arya comments. One HTML file. Open `bollard-hop/index.html`.
